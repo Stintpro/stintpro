@@ -1,8 +1,20 @@
+// Catálogo de circuitos conocidos — se distribuyen con la app (sin localStorage)
+// Para añadir un circuito: copia una línea del array, rellena nombre/slug/puerto y haz deploy.
+// El slug es el identificador que aparece en la URL de Apex Timing (ej: apextiming.eu/live/rkc)
+// Puerto por defecto: 7913 (consulta con el circuito si no funciona)
+const _CIRCUIT_CATALOG = [
+  // { id: 'cat_rkc',      name: 'Henakart (RKC)',        slug: 'rkc',      port: 7913 },
+  // { id: 'cat_example',  name: 'Nombre del circuito',   slug: 'slug',     port: 7913 },
+];
+
 window.CircuitDB = {
   list: [],
 
-  // Cargar circuitos guardados por el usuario desde localStorage
   _loadSaved() {
+    // 1. Cargar catálogo embebido (no editable por el usuario)
+    _CIRCUIT_CATALOG.forEach(c => this.add(c));
+
+    // 2. Cargar circuitos personalizados guardados por el usuario
     try {
       const saved = JSON.parse(localStorage.getItem('karting_circuits') || '[]');
       saved.forEach(c => {
@@ -11,10 +23,10 @@ window.CircuitDB = {
     } catch(e) {}
   },
 
-  // Guardar un circuito nuevo
+  // Guardar un circuito nuevo (siempre custom, nunca sobreescribe el catálogo)
   save(name, slug, port) {
     const id = 'custom_' + slug;
-    const existing = this.list.find(x => x.slug === slug);
+    const existing = this.list.find(x => x.slug === slug && x._custom);
     if (existing) {
       existing.name = name;
       existing.port = port;
@@ -25,7 +37,7 @@ window.CircuitDB = {
     return id;
   },
 
-  // Borrar un circuito personalizado
+  // Borrar un circuito personalizado (los del catálogo no son borrables)
   remove(slug) {
     const idx = this.list.findIndex(c => c.slug === slug && c._custom);
     if (idx !== -1) {
@@ -48,5 +60,5 @@ window.CircuitDB = {
   }
 };
 
-// Cargar circuitos guardados al iniciar
+// Cargar circuitos al iniciar
 window.CircuitDB._loadSaved();
