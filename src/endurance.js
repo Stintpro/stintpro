@@ -532,12 +532,135 @@ function _enUpdateKpis(el, leader, trackAvg, bestSess, inPit, myKart, myDorsal, 
   if(kpis)kpis.innerHTML=_enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq);
 }
 
+// ── Deriva todos los valores calculados para una fila del grid ───────────
+// Función pura de cómputo: sin DOM, sin side effects.
+// Si algo aquí lanza, el error se aísla a esta fila — no congela el grid.
+function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
+  const now=Date.now();
+  const kc=_enKartColor(e.dorsal);
+  const avg5=_enAvg5(e.lapHistory);
+  const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
+  const trend=_enTrend(e.lapHistory);
+  const cons=_enCons(e.lapHistory);
+
+  // Color última vuelta vs media pista
+  let lastCol='#9ca3af';
+  if(e.lastLap&&trackAvg){
+    const d=e.lastLap-trackAvg;
+    if(d<-0.5)lastCol='#c084fc';
+    else if(d<0)lastCol='#22c55e';
+    else if(d>1.0)lastCol='#ef4444';
+    else if(d>0.3)lastCol='#fbbf24';
+  }
+  const bestCol=e.bestLap&&bestSess&&Math.abs(e.bestLap-bestSess)<0.001?'#c084fc':'#9ca3af';
+
+  // Delta vs pista
+  const delta=avg5&&trackAvg?(avg5-trackAvg):null;
+  const deltaStr=_enFmtDelta(delta);
+  const deltaCol=_enDeltaColor(delta);
+
+  // Color media 5 vueltas
+  let m5Col='#6b7280';
+  if(avg5&&trackAvg){
+    const d=avg5-trackAvg;
+    if(d<-0.3)m5Col='#22c55e';
+    else if(d>0.5)m5Col='#ef4444';
+  }
+
+  // Flecha de cambio de posición
+  let arrow='';
+  if(e.posChange){
+    arrow=e.posChange.delta>0
+      ?`<span class="sp-au">▲${e.posChange.delta}</span>`
+      :`<span class="sp-ad">▼${Math.abs(e.posChange.delta)}</span>`;
+  }
+
+  // Color del punto de estado
+  let dotColor='#22c55e';
+  if(e.pit&&e.pitState==='out')dotColor='#f97316';
+  else if(e.pit)dotColor='#ef4444';
+  else if(e.state==='su'||e.state==='sd')dotColor='#f97316';
+  if(e.checkered)dotColor='#c084fc';
+
+  // Badges de texto
+  const pitBadge=e.pit?(e.pitState==='out'
+    ?`<span class="sp-out-b">OUT${e.pitS?` ${e.pitS}s`:''}</span>`
+    :`<span class="sp-pit-b">PIT${e.pitS?` ${e.pitS}s`:''}</span>`):'';
+  const fixBadge=EnUi.pinned===e.dorsal?`<span class="sp-fix-b">fijado</span>`:'';
+  const chkBadge=e.checkered?`<span style="font-size:11px" title="Sesión finalizada">🏁</span>`:'';
+
+  // Borde del dorsal según calidad
+  let kartBorder=kc.border;
+  if(quality==='good')kartBorder='#22c55e';
+  else if(quality==='neutral')kartBorder='#fbbf24';
+  else if(quality==='bad')kartBorder='#ef4444';
+
+  // Barra de progreso de vuelta
+  let barPct=0, barClass='';
+  if(e.lastLap&&e._lapStart&&!e.pit){
+    const elapsed=(now-e._lapStart)/1000;
+    barPct=Math.min(100,(elapsed/e.lastLap)*100);
+    if(trackAvg){
+      const d=e.lastLap-trackAvg;
+      if(d<0)barClass='fast';
+      else if(d>0.5)barClass='slow';
+    }
+  }
+
+  // HTML del gap (extrae la IIFE inline a variable nombrada)
+  let gapHtml='—';
+  if(e.pos===1)gapHtml='—';
+  else if(e.gap&&e.gap.includes('v'))gapHtml=`<span style="color:#f97316">${e.gap}</span>`;
+  else if(e.gapMs>0)gapHtml=_enFmtGap(e.gapMs);
+  else if(e.gap)gapHtml=e.gap;
+  else if(leader&&leader.tours&&e.tours<leader.tours){
+    const d=leader.tours-e.tours;
+    gapHtml=`<span style="color:#f97316">+${d}v</span>`;
+  }
+
+  return{
+    kc, avg5, quality, trend, cons,
+    lastCol, bestCol, delta, deltaStr, deltaCol, m5Col,
+    arrow, dotColor, pitBadge, fixBadge, chkBadge,
+    kartBorder, barPct, barClass, gapHtml,
+    flash:e.lapFlash?'sp-flash':'',
+    pinned:EnUi.pinned===e.dorsal,
+    isMe:e.dorsal===myDorsal,
+    tooltip:_enQualityTooltip(e.dorsal, e, trackAvg),
+    qualityBadge:_enQualityBadge(e.dorsal, e, trackAvg),
+  };
+}
+
+// ── Renderiza el HTML de una fila a partir de los valores derivados ────────
+// Solo construye strings — sin cálculos, sin lógica condicional de negocio.
+function _enRenderRow(e, d){
+  return`
+  <div class="sp-rowwrap">
+    <div class="en-row ${d.flash}${d.pinned?' sp-pinned':''}${d.isMe?' en-myrow':''}" onclick="_enPin('${e.dorsal}')">
+      <div class="sp-dot" style="background:${d.dotColor}"></div>
+      <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
+      <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
+      <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}</div>
+      <div class="sp-vtas">${e.tours}</div>
+      <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
+      <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
+      <div class="en-m5" style="color:${d.m5Col}">${d.avg5?_enFmt(d.avg5):'—'}<span style="color:${d.trend.color};font-size:10px;margin-left:2px">${d.trend.arrow}</span></div>
+      <div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>
+      <div class="sp-gap">${d.gapHtml}</div>
+      <div class="sp-gap">${e.interval||'—'}</div>
+      <div class="sp-cons" style="font-size:9px;cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)">${d.cons?`<span style="color:${d.cons.color}">${d.cons.label}</span>`:'—'}</div>
+      <div class="sp-pitc">${e.standsCount||0}</div>
+      <div class="sp-lapbar ${d.barClass}" id="en-bar-${e.dorsal}" style="width:${d.barPct}%"></div>
+    </div>
+  </div>`;
+}
+
+// ── Orquestador: ordena, deriva y renderiza todas las filas ───────────────
 function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
   if(!eq.length)return`<div class="sp-empty" style="color:#333;font-size:12px;padding:20px">Sin datos — esperando conexión</div>`;
 
   let html='';
 
-  // Ordenar según modo
   if(EnUi.sortMode==='m5v'){
     eq=[...eq].sort((a,b)=>{
       const a5=_enAvg5(a.lapHistory);
@@ -547,107 +670,18 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
       if(!b5)return-1;
       return a5-b5;
     });
-    // Banner inconfundible de modo ritmo
     html+=`<div onclick="_enToggleSort()" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:6px;background:#5b8dee18;border-bottom:1px solid #5b8dee;cursor:pointer" title="Click para volver a la clasificación real">
       <span style="font-size:11px;color:#5b8dee;font-weight:600;letter-spacing:1px;font-family:sans-serif">⚡ ORDENADO POR RITMO (M5v) — NO ES LA CLASIFICACIÓN REAL</span>
     </div>`;
   }
 
   eq.forEach(e=>{
-    const pinned=EnUi.pinned===e.dorsal;
-    const isMe=e.dorsal===myDorsal;
-    const flash=e.lapFlash?'sp-flash':'';
-    const kc=_enKartColor(e.dorsal);
-    const avg5=_enAvg5(e.lapHistory);
-    const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
-    const trend=_enTrend(e.lapHistory);
-    const cons=_enCons(e.lapHistory);
-
-    // Color última vuelta vs media pista
-    let lastCol='#9ca3af';
-    if(e.lastLap&&trackAvg){
-      const d=e.lastLap-trackAvg;
-      if(d<-0.5)lastCol='#c084fc';
-      else if(d<0)lastCol='#22c55e';
-      else if(d>1.0)lastCol='#ef4444';
-      else if(d>0.3)lastCol='#fbbf24';
+    try{
+      html+=_enRenderRow(e, _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal));
+    }catch(err){
+      console.error('[StintPro] Error en fila kart',e.dorsal,err);
+      html+=`<div class="sp-rowwrap"><div class="en-row"><div class="sp-dot"></div><div class="sp-pos">${e.pos||'?'}</div><div></div><div class="sp-name">${e.dorsal}</div></div></div>`;
     }
-    const bestCol=e.bestLap&&bestSess&&Math.abs(e.bestLap-bestSess)<0.001?'#c084fc':'#9ca3af';
-
-    // Delta vs pista
-    const delta=avg5&&trackAvg?(avg5-trackAvg):null;
-    const deltaStr=_enFmtDelta(delta);
-    const deltaCol=_enDeltaColor(delta);
-
-    // Media 5v color
-    let m5Col='#6b7280';
-    if(avg5&&trackAvg){
-      const d=avg5-trackAvg;
-      if(d<-0.3)m5Col='#22c55e';
-      else if(d>0.5)m5Col='#ef4444';
-    }
-
-    let arrow='';
-    if(e.posChange){
-      arrow=e.posChange.delta>0
-        ?`<span class="sp-au">▲${e.posChange.delta}</span>`
-        :`<span class="sp-ad">▼${Math.abs(e.posChange.delta)}</span>`;
-    }
-
-    let dotColor='#22c55e';
-    if(e.pit&&e.pitState==='out')dotColor='#f97316';
-    else if(e.pit)dotColor='#ef4444';
-    else if(e.state==='su'||e.state==='sd')dotColor='#f97316';
-    if(e.checkered)dotColor='#c084fc';
-
-    const pitBadge=e.pit?(e.pitState==='out'?`<span class="sp-out-b">OUT${e.pitS?` ${e.pitS}s`:''}</span>`:`<span class="sp-pit-b">PIT${e.pitS?` ${e.pitS}s`:''}</span>`):'';
-    const fixBadge=pinned?`<span class="sp-fix-b">fijado</span>`:'';
-    const chkBadge=e.checkered?`<span style="font-size:11px" title="Sesión finalizada">🏁</span>`:'';
-
-    // Kart quality border
-    let kartBorder=kc.border;
-    if(quality==='good')kartBorder='#22c55e';
-    else if(quality==='neutral')kartBorder='#fbbf24';
-    else if(quality==='bad')kartBorder='#ef4444';
-
-    const now=Date.now();
-    let barPct=0, barClass='';
-    if(e.lastLap&&e._lapStart&&!e.pit){
-      const elapsed=(now-e._lapStart)/1000;
-      barPct=Math.min(100,(elapsed/e.lastLap)*100);
-      if(trackAvg){
-        const d=e.lastLap-trackAvg;
-        if(d<0)barClass='fast';
-        else if(d>0.5)barClass='slow';
-      }
-    }
-
-    html+=`
-    <div class="sp-rowwrap">
-      <div class="en-row ${flash}${pinned?' sp-pinned':''}${isMe?' en-myrow':''}" onclick="_enPin('${e.dorsal}')">
-        <div class="sp-dot" style="background:${dotColor}"></div>
-        <div class="sp-pos">${e.pos===99?'—':e.pos}${arrow}</div>
-        <div><div class="en-kart" style="background:${kc.bg};color:${kc.text};border:1.5px solid ${kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${_enQualityTooltip(e.dorsal, e, trackAvg)}">${e.dorsal}${_enQualityBadge(e.dorsal, e, trackAvg)}</div></div>
-        <div class="sp-name">${chkBadge}${e.name}${pitBadge}${fixBadge}</div>
-        <div class="sp-vtas">${e.tours}</div>
-        <div class="sp-t" style="color:${e.lastLap?lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
-        <div class="sp-t" style="color:${e.bestLap?bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
-        <div class="en-m5" style="color:${m5Col}">${avg5?_enFmt(avg5):'—'}<span style="color:${trend.color};font-size:10px;margin-left:2px">${trend.arrow}</span></div>
-        <div class="en-delta" style="color:${deltaCol}">${deltaStr}</div>
-        <div class="sp-gap">${(()=>{
-          if(e.pos===1)return'—';
-          if(e.gap&&e.gap.includes('v'))return'<span style="color:#f97316">'+e.gap+'</span>';
-          if(e.gapMs>0)return _enFmtGap(e.gapMs);
-          if(e.gap)return e.gap;
-          if(leader&&leader.tours&&e.tours<leader.tours){const d=leader.tours-e.tours;return'<span style="color:#f97316">+'+d+'v</span>';}
-          return'—';
-        })()}</div>
-        <div class="sp-gap">${e.interval||'—'}</div>
-        <div class="sp-cons" style="font-size:9px;cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)">${cons?`<span style="color:${cons.color}">${cons.label}</span>`:'—'}</div>
-        <div class="sp-pitc">${e.standsCount||0}</div>
-        <div class="sp-lapbar ${barClass}" id="en-bar-${e.dorsal}" style="width:${barPct}%"></div>
-      </div>
-    </div>`;
   });
   return html;
 }
