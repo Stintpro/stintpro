@@ -1,0 +1,1 @@
+window.AppState = { config: null };

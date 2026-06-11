@@ -1,0 +1,105 @@
+// ── StintPro Logger Connector ─────────────────────────────────────────────
+// Connects to the NAS logger instead of Apex directly.
+// Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port)
+const Logger = {
+  ws: null,
+  slug: null,
+  connected: false,
+  onData: null,
+  onStatus: null,
+  _reconnectTimer: null,
+  _serverUrl: null,
+
+  connect(slug, onData, onStatus, onComment, port) {
+    this.slug = slug;
+    this.onData = onData;
+    this.onStatus = onStatus;
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+
+    // URL del logger — guardada en AppState o localStorage
+    const loggerUrl = window.AppState?.loggerUrl || localStorage.getItem('stintpro_logger_url') || '';
+    if (!loggerUrl) {
+      if (this.onStatus) this.onStatus('error', '● Logger no configurado');
+      return;
+    }
+    this._serverUrl = loggerUrl.replace(/\/$/, '');
+    this._doConnect();
+  },
+
+  _doConnect() {
+    try {
+      const wsUrl = this._serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+      if (this.onStatus) this.onStatus('connecting', '● Conectando al logger...');
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        this.connected = true;
+        if (this.onStatus) this.onStatus('connected', '● Logger conectado');
+        // Suscribirse al circuito
+        this.ws.send(JSON.stringify({ type: 'subscribe', slug: this.slug }));
+      };
+
+      this.ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+
+          if (msg.type === 'live' && msg.data && this.onData) {
+            this.onData(msg.data);
+          }
+
+          if (msg.type === 'history' && msg.snapshot && this.onData) {
+            this.onData(msg.snapshot);
+          }
+        } catch(e) {}
+      };
+
+      this.ws.onerror = () => {
+        if (this.onStatus) this.onStatus('error', '● Error de conexión al logger');
+      };
+
+      this.ws.onclose = () => {
+        this.connected = false;
+        if (this.onStatus) this.onStatus('disconnected', '● Logger desconectado, reconectando...');
+        if (this.slug) this._reconnectTimer = setTimeout(() => this._doConnect(), 5000);
+      };
+    } catch(e) {
+      if (this.onStatus) this.onStatus('error', '● No se pudo conectar al logger');
+      this._reconnectTimer = setTimeout(() => this._doConnect(), 5000);
+    }
+  },
+
+  disconnect() {
+    this.slug = null;
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+    this.connected = false;
+  },
+
+  // Verificar conexión al logger
+  async test(url) {
+    return new Promise((resolve) => {
+      try {
+        const ws = new WebSocket(url.replace('http://', 'ws://').replace('https://', 'wss://'));
+        const timer = setTimeout(() => { ws.close(); resolve(false); }, 5000);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'list' }));
+        };
+        ws.onmessage = (evt) => {
+          clearTimeout(timer);
+          try {
+            const msg = JSON.parse(evt.data);
+            if (msg.type === 'circuits') {
+              ws.close();
+              resolve(msg.circuits);
+            } else {
+              ws.close();
+              resolve(true);
+            }
+          } catch(e) { ws.close(); resolve(true); }
+        };
+        ws.onerror = () => { clearTimeout(timer); resolve(false); };
+      } catch(e) { resolve(false); }
+    });
+  }
+};
