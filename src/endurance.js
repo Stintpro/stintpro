@@ -373,17 +373,21 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     const cleanLaps=(e.lapHistory||[]).length;
     return `SIN DATOS\nVueltas: ${cleanLaps} (necesita 5)`;
   }
-  const isRegular=cons!==null&&cons<0.5;
+  // Calcular rango numérico para el tooltip (independiente del objeto cons)
+  const cleanH=_enCleanLaps(e.lapHistory);
+  const last5H=cleanH.slice(-5);
+  const consRange=last5H.length>=2?(Math.max(...last5H)-Math.min(...last5H)):null;
+  const isRegular=consRange!==null&&consRange<0.5;
   const effective=_enEffectiveQuality(dorsal, e, trackAvg);
   const labels={good:'BUENO',neutral:'NEUTRO',bad:'MALO'};
   const label=labels[effective]||'SIN DATOS';
   if(isRegular){
     const delta=(avg5-trackAvg).toFixed(3);
-    return `${label} (auto)\nM5v: ${_enFmt(avg5)} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto regular (rango ${cons.toFixed(2)}s)`;
+    return `${label} (auto)\nM5v: ${_enFmt(avg5)} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto regular (rango ${consRange.toFixed(2)}s)`;
   } else {
     const best=e.bestLap;
     const delta=best?(best-trackAvg).toFixed(3):'—';
-    return `${label} (auto)\nMejor: ${best?_enFmt(best):'—'} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto ${cons>1?'errático':'irregular'} (rango ${cons?cons.toFixed(2):'—'}s) → evalúa mejor vuelta\nM5v: ${_enFmt(avg5)} (no fiable)`;
+    return `${label} (auto)\nMejor: ${best?_enFmt(best):'—'} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto ${consRange>1?'errático':'irregular'} (rango ${consRange!==null?consRange.toFixed(2):'—'}s) → evalúa mejor vuelta\nM5v: ${_enFmt(avg5)} (no fiable)`;
   }
 }
 
