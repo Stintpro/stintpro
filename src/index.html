@@ -3,27 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StintPro — Karting Strategy</title>
+  <title>Karting Strategy v1.0</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
-  <!-- Topbar fijo (visible tras auth) -->
-  <div id="sp-topbar" style="display:none;position:fixed;top:0;right:0;z-index:1000;display:none;align-items:center;gap:8px;padding:8px 14px">
-    <span id="sp-topbar-name" style="font-size:12px;color:#555"></span>
-    <button id="sp-admin-btn" onclick="renderAdminPanel()" style="display:none;background:rgba(91,156,246,0.12);border:0.5px solid rgba(91,156,246,0.4);border-radius:7px;padding:5px 10px;font-size:12px;color:#5b9cf6;cursor:pointer">⚙ Admin</button>
-    <button onclick="spSignOut()" style="background:none;border:0.5px solid #222;border-radius:7px;padding:5px 10px;font-size:12px;color:#555;cursor:pointer">Salir</button>
-  </div>
-
-  <!-- Overlay panel de administración -->
-  <div id="sp-admin-overlay" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px"></div>
-
   <div id="screen-setup" class="screen active"></div>
   <div id="screen-dash" class="screen"></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="supabase-config.js"></script>
   <script src="circuits.js"></script>
   <script src="state.js"></script>
   <script src="clock.js"></script>
@@ -34,7 +20,6 @@
   <script src="analysis.js"></script>
   <script src="sprint.js"></script>
   <script src="endurance.js"></script>
-  <script src="supabase.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
