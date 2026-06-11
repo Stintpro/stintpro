@@ -1,36 +1,50 @@
 // ── Endurance Dashboard v1.0 ─────────────────────────────────────────────────
 // Basado en Sprint + funciones específicas de endurance
 
-let _enData    = { equipos:[], leaderLap:0 };
-let _enPinned  = null;
-let _enTimer   = null;
+// ── Estado de sesión (se resetea entre carreras) ──────────────────────────
+const EnSession = {
+  data:             { equipos:[], leaderLap:0 }, // datos en vivo del conector
+  stintStart:       null,   // timestamp inicio stint de mi equipo
+  stintFrozen:      null,   // ms congelados cuando acaba sesión
+  currentPilot:     0,      // índice del piloto actual
+  stintHistory:     [],     // historial de stints completados
+  posIn:            null,   // posición al entrar a pista
+  stintBestLap:     null,   // mejor vuelta del stint actual
+  stintLapTimes:    [],     // vueltas del stint actual
+  linePasses:       {},     // dorsal → timestamp del último pase por meta
+  pitOutCalibration:[],     // segundos entre pit out y siguiente pase por meta
+  pitOutPending:    {},     // dorsal → timestamp del pit out (esperando primer pase)
+  rivalPitOut:      {},     // dorsal → timestamp del último pit out
+  pitCosts:         {},     // dorsal → [costes de parada en segundos]
+  pitCounts:        {},     // dorsal → número de paradas
+  kartAutoState:    {},     // dorsal → {quality, badCount, stintStartIdx}
+};
+
+// ── Configuración del box (persistente en la sesión) ──────────────────────
+const EnBox = {
+  config:         { type:'line', positions:4, columns:2 },
+  queue:          [],    // [{quality, dorsal, time}]
+  queueInited:    false,
+  pitDuration:    120,   // duración de parada en segundos (marca la organización)
+  pilotMinTime:   0,     // minutos mínimos por piloto
+  totalStops:     0,     // paradas obligatorias totales de la carrera
+  stratConfigured:false, // si el usuario ya configuró stint min/max
+};
+
+// ── Estado de la UI (display e interacción del usuario) ───────────────────
+const EnUi = {
+  tab:           'grid', // 'grid' | 'team' | 'strat' | 'adv'
+  pinned:        null,   // dorsal fijado para seguimiento visual
+  sortMode:      'pos',  // 'pos' | 'm5v'
+  kartQuality:   {},     // dorsal → 'good'|'neutral'|'bad'|'auto'|null (overrides manuales)
+  excludedFromAvg:{},    // dorsal → true si excluido de la media de pista
+};
+
+// ── Timers (handles — no son estado de dominio) ───────────────────────────
+let _enTimer      = null;
 let _enClockTimer = null;
 let _enSimTimer   = null;
 let _enBarTimer   = null;
-let _enKartQuality = {}; // dorsal → 'good'|'bad'|null
-let _enStintStart  = null; // timestamp inicio stint de mi equipo
-let _enStintFrozen = null; // ms congelados cuando acaba sesión
-let _enTab = 'grid'; // 'grid' | 'team'
-let _enCurrentPilot = 0; // índice del piloto actual
-let _enStintHistory = []; // historial de stints completados
-let _enPosIn = null; // posición al entrar a pista
-let _enStintBestLap = null; // mejor vuelta del stint actual
-let _enStintLapTimes = []; // vueltas del stint actual
-let _enLinePasses = {}; // dorsal → timestamp del último pase por meta (|*| flash)
-let _enPitOutCalibration = []; // [segundos entre pit out y siguiente pase por meta]
-let _enPitOutPending = {}; // dorsal → timestamp del pit out (esperando primer pase)
-let _enPitDuration = 120; // duración de parada marcada por organización (segundos)
-let _enExcludedFromAvg = {}; // dorsal → true si excluido de media pista
-let _enSortMode = 'pos'; // 'pos' o 'm5v'
-let _enBoxConfig = { type:'line', positions:4, columns:2 }; // configuración del box
-let _enRivalPitOut = {}; // dorsal → timestamp del último pit out
-let _enPilotMinTime = 0; // minutos mínimos por piloto exigidos por organización
-let _enTotalStops = 0; // paradas obligatorias totales de la carrera
-let _enBoxQueue = []; // cola del box: [{quality, dorsal, time}]
-let _enBoxQueueInited = false;
-let _enPitCosts = {}; // dorsal → [array de costes de parada en segundos]
-let _enPitCounts = {}; // dorsal → número de paradas
-let _enStratConfigured = false; // si el usuario ya configuró stint min/max
 
 // ── Estilos ───────────────────────────────────────────────────────────────
 function _enInjectStyles(){
@@ -139,10 +153,10 @@ function _enEstLaps(trackAvg){
 
 // ── Vueltas en stint actual (mi equipo) ──────────────────────────────────
 function _enStintLaps(myKart){
-  if(!myKart||!_enStintStart)return 0;
-  if(!_enData._stintStartTours&&myKart.tours>0)_enData._stintStartTours=myKart.tours;
-  if(!_enData._stintStartTours)return 0;
-  return Math.max(0, myKart.tours-_enData._stintStartTours);
+  if(!myKart||!EnSession.stintStart)return 0;
+  if(!EnSession.data._stintStartTours&&myKart.tours>0)EnSession.data._stintStartTours=myKart.tours;
+  if(!EnSession.data._stintStartTours)return 0;
+  return Math.max(0, myKart.tours-EnSession.data._stintStartTours);
 }
 
 // ── Media de pista en vivo (usando últimas vueltas de todos) ──────────────
@@ -150,7 +164,7 @@ function _enTrackAvgLive(eq){
   const laps=[];
   eq.forEach(e=>{
     // Excluir: en pit, saliendo de pit, vueltas >180s, equipos excluidos manualmente
-    if(e.lastLap&&e.lastLap<180&&!e.pit&&e.pitState!=='out'&&!_enExcludedFromAvg[e.dorsal])laps.push(e.lastLap);
+    if(e.lastLap&&e.lastLap<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal])laps.push(e.lastLap);
   });
   if(laps.length<3)return null;
   laps.sort((a,b)=>a-b);
@@ -182,24 +196,23 @@ function _enKartColor(dorsal){
 
 function _enToggleQuality(dorsal, ev){
   ev.stopPropagation();
-  const cur=_enKartQuality[dorsal]||null;
-  if(!cur)_enKartQuality[dorsal]='good';
-  else if(cur==='good')_enKartQuality[dorsal]='neutral';
-  else if(cur==='neutral')_enKartQuality[dorsal]='bad';
-  else if(cur==='bad')_enKartQuality[dorsal]='auto';
-  else _enKartQuality[dorsal]=null;
+  const cur=EnUi.kartQuality[dorsal]||null;
+  if(!cur)EnUi.kartQuality[dorsal]='good';
+  else if(cur==='good')EnUi.kartQuality[dorsal]='neutral';
+  else if(cur==='neutral')EnUi.kartQuality[dorsal]='bad';
+  else if(cur==='bad')EnUi.kartQuality[dorsal]='auto';
+  else EnUi.kartQuality[dorsal]=null;
   _enRender();
 }
 
 // ── Calidad automática del kart ──────────────────────────────────────────
-let _enKartAutoState = {}; // dorsal → {quality, badCount}
 
 function _enAutoKartQuality(e, trackAvg){
   if(!trackAvg||!e.lapHistory||e.lapHistory.length<3)return null;
 
   // Estado previo
-  if(!_enKartAutoState[e.dorsal])_enKartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
-  const state=_enKartAutoState[e.dorsal];
+  if(!EnSession.kartAutoState[e.dorsal])EnSession.kartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
+  const state=EnSession.kartAutoState[e.dorsal];
 
   // Pit IN: guardar calidad previa (para tracking de box)
   if(e.pitState==='in'){
@@ -271,14 +284,14 @@ function _enAutoKartQuality(e, trackAvg){
 
 // ── Calidad efectiva (manual > auto) ─────────────────────────────────────
 function _enEffectiveQuality(dorsal, e, trackAvg){
-  const manual=_enKartQuality[dorsal];
+  const manual=EnUi.kartQuality[dorsal];
   if(manual==='good'||manual==='neutral'||manual==='bad')return manual;
   if(manual==='auto'||!manual)return _enAutoKartQuality(e, trackAvg);
   return 'neutral';
 }
 
 function _enQualityBadge(dorsal, e, trackAvg){
-  const manual=_enKartQuality[dorsal];
+  const manual=EnUi.kartQuality[dorsal];
   const effective=_enEffectiveQuality(dorsal, e, trackAvg);
   const isManual=manual==='good'||manual==='neutral'||manual==='bad';
   if(effective==='good')return`<span class="en-kart-q">${isManual?'🟢':'🟩'}</span>`;
@@ -288,7 +301,7 @@ function _enQualityBadge(dorsal, e, trackAvg){
 }
 
 function _enQualityTooltip(dorsal, e, trackAvg){
-  const manual=_enKartQuality[dorsal];
+  const manual=EnUi.kartQuality[dorsal];
   if(manual==='good'||manual==='neutral'||manual==='bad'){
     const labels={good:'BUENO',neutral:'NEUTRO',bad:'MALO'};
     return `${labels[manual]} (manual)`;
@@ -321,7 +334,7 @@ function _enQualityTooltip(dorsal, e, trackAvg){
 // ── Barra de progreso ─────────────────────────────────────────────────────
 function _enUpdateBars(){
   const now=Date.now();
-  _enData.equipos.forEach(e=>{
+  EnSession.data.equipos.forEach(e=>{
     if(!e.lastLap||e.pit||!e._lapStart)return;
     const elapsed=(now-e._lapStart)/1000;
     const pct=Math.min(100,(elapsed/e.lastLap)*100);
@@ -335,7 +348,7 @@ function _enRender(){
   const el=document.getElementById('screen-dash');
   if(!el||!el.classList.contains('active'))return;
 
-  const eq=_enData.equipos;
+  const eq=EnSession.data.equipos;
   const bests=eq.filter(e=>e.bestLap).map(e=>e.bestLap).sort((a,b)=>a-b);
   const trackAvg=_enTrackAvgLive(eq)||( bests.length?bests[Math.floor(bests.length/2)]:null );
   const bestSess=bests[0]||null;
@@ -362,7 +375,7 @@ function _enRender(){
 
   try{
     const teamBody=el.querySelector('#en-team-body');
-    if(teamBody&&_enTab==='team'){
+    if(teamBody&&EnUi.tab==='team'){
       const tcfg=teamBody.querySelector('#en-team-config');
       const tdyn=teamBody.querySelector('#en-team-dynamic');
       if(tcfg&&!tcfg.innerHTML)tcfg.innerHTML=_enRenderTeamConfig();
@@ -372,7 +385,7 @@ function _enRender(){
 
   try{
     const stratBody=el.querySelector('#en-strat-body');
-    if(stratBody&&_enTab==='strat'){
+    if(stratBody&&EnUi.tab==='strat'){
       const configDiv=stratBody.querySelector('#en-strat-config');
       const dynDiv=stratBody.querySelector('#en-strat-dynamic');
       if(configDiv&&!configDiv.innerHTML)configDiv.innerHTML=_enRenderStratConfig();
@@ -382,7 +395,7 @@ function _enRender(){
 
   try{
     const advBody=el.querySelector('#en-adv-body');
-    if(advBody&&_enTab==='adv'){
+    if(advBody&&EnUi.tab==='adv'){
       const advCfg=advBody.querySelector('#en-adv-config');
       const advDyn=advBody.querySelector('#en-adv-dynamic');
       if(advCfg&&!advCfg.innerHTML)advCfg.innerHTML=_enRenderAdvConfig();
@@ -409,26 +422,26 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
       </div>
     </div>
     <div class="en-kpis" id="en-kpis">
-      ${_enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, _enData.equipos)}
+      ${_enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, EnSession.data.equipos)}
     </div>
   </div>
   <div class="en-tabs">
-    <div class="en-tab ${_enTab==='grid'?'active':''}" onclick="_enSetTab('grid')">📊 Clasificación</div>
-    <div class="en-tab ${_enTab==='team'?'active':''}" onclick="_enSetTab('team')">👥 Mi equipo</div>
-    <div class="en-tab ${_enTab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
-    <div class="en-tab ${_enTab==='adv'?'active':''}" onclick="_enSetTab('adv')">🔬 Avanzado</div>
+    <div class="en-tab ${EnUi.tab==='grid'?'active':''}" onclick="_enSetTab('grid')">📊 Clasificación</div>
+    <div class="en-tab ${EnUi.tab==='team'?'active':''}" onclick="_enSetTab('team')">👥 Mi equipo</div>
+    <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
+    <div class="en-tab ${EnUi.tab==='adv'?'active':''}" onclick="_enSetTab('adv')">🔬 Avanzado</div>
   </div>
-  <div class="en-thead" id="en-thead" style="${_enTab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
-  <div class="sp-body" id="en-grid-body" style="${_enTab==='grid'?'':'display:none'}"></div>
-  <div class="en-team" id="en-team-body" style="${_enTab==='team'?'':'display:none'}">
+  <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
+  <div class="sp-body" id="en-grid-body" style="${EnUi.tab==='grid'?'':'display:none'}"></div>
+  <div class="en-team" id="en-team-body" style="${EnUi.tab==='team'?'':'display:none'}">
     <div id="en-team-config"></div>
     <div id="en-team-dynamic"></div>
   </div>
-  <div class="en-strat" id="en-strat-body" style="${_enTab==='strat'?'':'display:none'}">
+  <div class="en-strat" id="en-strat-body" style="${EnUi.tab==='strat'?'':'display:none'}">
     <div id="en-strat-config"></div>
     <div id="en-strat-dynamic"></div>
   </div>
-  <div class="en-strat" id="en-adv-body" style="${_enTab==='adv'?'':'display:none'}">
+  <div class="en-strat" id="en-adv-body" style="${EnUi.tab==='adv'?'':'display:none'}">
     <div id="en-adv-config"></div>
     <div id="en-adv-dynamic"></div>
   </div>
@@ -442,7 +455,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
 
 function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   // Stint timer
-  const stintMs=_enStintFrozen?_enStintFrozen:(_enStintStart?(Date.now()-_enStintStart):0);
+  const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
   const stintStr=_enFmtStint(stintMs);
   const stintCfg=window.AppState?.config;
   const stintMaxMs=(stintCfg?.stintMax||999)*60*1000;
@@ -490,7 +503,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Mi equipo · #${myDorsal||'—'}</div>
     <div class="sp-kpi-val" style="color:#5b8dee">P${myPos} <span style="font-size:12px;color:${myTrend.color}">${myTrend.arrow}</span></div>
-    <div class="sp-kpi-sub">Últ: ${myLast} · M5v: ${myAvg5Str}${_enStintBestLap?' · Best: '+_enFmt(_enStintBestLap):''}</div>
+    <div class="sp-kpi-sub">Últ: ${myLast} · M5v: ${myAvg5Str}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">${stintLight} Stint · ${stintLaps}v</div>
@@ -498,7 +511,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     <div class="sp-kpi-sub" style="background:linear-gradient(90deg,${stintColor}22 ${stintPct}%,transparent ${stintPct}%);border-radius:2px;padding:1px 4px">${pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')}</div>
   </div>
   <div class="sp-kpi" style="cursor:pointer" onclick="_enShowAvgFilter()">
-    <div class="sp-kpi-lbl">Media pista ${Object.values(_enExcludedFromAvg).filter(Boolean).length?'<span style="color:#f97316">('+Object.values(_enExcludedFromAvg).filter(Boolean).length+' excl.)</span>':''}</div>
+    <div class="sp-kpi-lbl">Media pista ${Object.values(EnUi.excludedFromAvg).filter(Boolean).length?'<span style="color:#f97316">('+Object.values(EnUi.excludedFromAvg).filter(Boolean).length+' excl.)</span>':''}</div>
     <div class="sp-kpi-val" style="color:#60a5fa">${trackStr}</div>
     <div class="sp-kpi-sub">click para filtrar equipos</div>
   </div>
@@ -525,7 +538,7 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
   let html='';
 
   // Ordenar según modo
-  if(_enSortMode==='m5v'){
+  if(EnUi.sortMode==='m5v'){
     eq=[...eq].sort((a,b)=>{
       const a5=_enAvg5(a.lapHistory);
       const b5=_enAvg5(b.lapHistory);
@@ -541,7 +554,7 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
   }
 
   eq.forEach(e=>{
-    const pinned=_enPinned===e.dorsal;
+    const pinned=EnUi.pinned===e.dorsal;
     const isMe=e.dorsal===myDorsal;
     const flash=e.lapFlash?'sp-flash':'';
     const kc=_enKartColor(e.dorsal);
@@ -640,13 +653,13 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
 }
 
 function _enPin(dorsal){
-  _enPinned=(_enPinned===dorsal)?null:dorsal;
+  EnUi.pinned=(EnUi.pinned===dorsal)?null:dorsal;
   _enRender();
 }
 
 // ── Pestañas ──────────────────────────────────────────────────────────────
 function _enSetTab(tab){
-  _enTab=tab;
+  EnUi.tab=tab;
   const thead=document.getElementById('en-thead');
   const grid=document.getElementById('en-grid-body');
   const team=document.getElementById('en-team-body');
@@ -663,7 +676,7 @@ function _enSetTab(tab){
     if(cfgDiv)cfgDiv.innerHTML=_enRenderStratConfig();
     // Recordar configurar stint si no se ha hecho
     const cfg=window.AppState?.config;
-    if(!_enStratConfigured&&(!cfg?.stintMax||cfg.stintMax>=999)){
+    if(!EnBox.stratConfigured&&(!cfg?.stintMax||cfg.stintMax>=999)){
       setTimeout(()=>{
         let overlay=document.getElementById('en-pilot-overlay');
         if(overlay)overlay.remove();
@@ -675,7 +688,7 @@ function _enSetTab(tab){
             <div style="font-size:24px;margin-bottom:8px">⚙️</div>
             <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:8px;font-family:sans-serif">Configura la estrategia</div>
             <div style="font-size:12px;color:#9ca3af;margin-bottom:18px;font-family:sans-serif;line-height:1.5">Recuerda configurar el <b style="color:#fbbf24">stint mínimo y máximo</b> en la parte superior para que las previsiones y recomendaciones funcionen correctamente.</div>
-            <button onclick="_enStratConfigured=true;_enDismissOverlay()" style="width:100%;padding:10px;border-radius:6px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:13px;cursor:pointer;font-family:sans-serif">Entendido</button>
+            <button onclick="EnBox.stratConfigured=true;_enDismissOverlay()" style="width:100%;padding:10px;border-radius:6px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:13px;cursor:pointer;font-family:sans-serif">Entendido</button>
           </div>`;
         document.body.appendChild(overlay);
       },300);
@@ -710,11 +723,11 @@ function _enShowPilotSelect(auto){
       <div style="font-size:11px;color:#555;margin-bottom:18px;font-family:sans-serif">¿Quién está rodando ahora?</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${pilotos.map((p,i)=>`
-          <button onclick="_enSelectPilot(${i})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:0.5px solid ${i===_enCurrentPilot?colors[i%colors.length]:'#2a2b2e'};background:${i===_enCurrentPilot?colors[i%colors.length]+'15':'#13141a'};cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='${colors[i%colors.length]}'" onmouseout="this.style.borderColor='${i===_enCurrentPilot?colors[i%colors.length]:'#2a2b2e'}'">
+          <button onclick="_enSelectPilot(${i})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:0.5px solid ${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'};background:${i===EnSession.currentPilot?colors[i%colors.length]+'15':'#13141a'};cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='${colors[i%colors.length]}'" onmouseout="this.style.borderColor='${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'}'">
             <div style="width:28px;height:28px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${p.name.charAt(0)}</div>
             <div style="flex:1;text-align:left">
               <div style="font-size:13px;color:#d0d2db;font-family:sans-serif">${p.name}</div>
-              <div style="font-size:10px;color:#555;font-family:sans-serif">${i===_enCurrentPilot?'En pista actualmente':'Disponible'}</div>
+              <div style="font-size:10px;color:#555;font-family:sans-serif">${i===EnSession.currentPilot?'En pista actualmente':'Disponible'}</div>
             </div>
           </button>
         `).join('')}
@@ -725,7 +738,7 @@ function _enShowPilotSelect(auto){
 }
 
 function _enSelectPilot(idx){
-  _enCurrentPilot=idx;
+  EnSession.currentPilot=idx;
   _enDismissOverlay();
   _enRender();
 }
@@ -737,7 +750,7 @@ function _enDismissOverlay(){
 
 // ── Filtro media pista ──────────────────────────────────────────────────
 function _enToggleSort(){
-  _enSortMode=_enSortMode==='pos'?'m5v':'pos';
+  EnUi.sortMode=EnUi.sortMode==='pos'?'m5v':'pos';
   // Actualizar el header (está en el skeleton estático, no se re-renderiza solo)
   const thead=document.getElementById('en-thead');
   if(thead)thead.innerHTML=_enTheadHtml();
@@ -745,10 +758,10 @@ function _enToggleSort(){
 }
 
 function _enTheadHtml(){
-  return `<span></span><span style="cursor:pointer;color:${_enSortMode==='pos'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${_enSortMode==='pos'?' ▼':''}</span><span>Kart</span>
+  return `<span></span><span style="cursor:pointer;color:${EnUi.sortMode==='pos'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${EnUi.sortMode==='pos'?' ▼':''}</span><span>Kart</span>
     <span style="text-align:left">Equipo</span>
     <span>Vtas</span><span>Última</span><span>Mejor</span>
-    <span style="cursor:pointer;color:${_enSortMode==='m5v'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${_enSortMode==='m5v'?' ▼':''}</span>
+    <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
     <span>Δ Pista</span>
     <span>Gap</span>
     <span>Int</span>
@@ -760,14 +773,14 @@ function _enTheadHtml(){
 function _enRenderAdvConfig(){
   return `<div style="margin:14px 14px 0;background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
     <span style="font-size:12px;color:#9ca3af;font-family:sans-serif">⏱ Duración de parada (marcada por organización):</span>
-    <input type="number" value="${_enPitDuration}" min="30" max="600" onchange="_enPitDuration=parseInt(this.value)||120" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:#d0d2db;font-size:13px;text-align:center">
+    <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:#d0d2db;font-size:13px;text-align:center">
     <span style="font-size:12px;color:#555">segundos</span>
   </div>`;
 }
 
 // ── Pestaña Avanzado: túnel de salida de box ──────────────────────────
 function _enRenderAdvanced(){
-  const eq=_enData.equipos||[];
+  const eq=EnSession.data.equipos||[];
   const cfg=window.AppState?.config;
   const myDorsal=cfg?.myDorsal;
   const now=Date.now();
@@ -776,27 +789,27 @@ function _enRenderAdvanced(){
   let html=`<div style="padding:14px">`;
 
   // Estado calibración
-  const calibrated=_enPitOutCalibration.length>=2;
-  const offset=calibrated?_enPitOutCalibration.reduce((a,b)=>a+b,0)/_enPitOutCalibration.length:0;
+  const calibrated=EnSession.pitOutCalibration.length>=2;
+  const offset=calibrated?EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length:0;
 
   html+=`<div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">`;
   html+=`<div style="font-size:13px;font-weight:500;color:#d0d2db;font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:10px;color:#555;font-weight:400">(si paras ahora)</span></div>`;
 
   if(!calibrated){
-    html+=`<div style="font-size:12px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (${_enPitOutCalibration.length}/2)</div>
+    html+=`<div style="font-size:12px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (${EnSession.pitOutCalibration.length}/2)</div>
     <div style="font-size:10px;color:#555;font-family:sans-serif">El sistema mide automáticamente el tiempo entre pit out y el primer pase por meta para calibrar la posición de salida en este circuito.</div>`;
   } else if(!myDorsal||!eq.find(e=>e.dorsal===myDorsal)){
     html+=`<div style="font-size:12px;color:#555;font-family:sans-serif">Configura tu dorsal en Estrategia para ver tu proyección de salida</div>`;
   } else {
     // Proyección: momento en que yo salgo del pit = ahora + pitDuration + offset (hasta pasar por meta)
-    const myExitTime=now+(_enPitDuration+offset)*1000;
+    const myExitTime=now+(EnBox.pitDuration+offset)*1000;
 
     // Para cada kart en pista, proyectar su próximo pase por la zona de salida
     const projections=[];
     eq.forEach(e=>{
       if(e.dorsal===myDorsal)return;
       if(e.pit)return; // en boxes no cuenta
-      const lastPass=_enLinePasses[e.dorsal];
+      const lastPass=EnSession.linePasses[e.dorsal];
       const avg5=_enAvg5(e.lapHistory);
       if(!lastPass||!avg5)return;
 
@@ -857,22 +870,22 @@ function _enRenderAdvanced(){
       <span style="font-size:11px;color:#9ca3af;font-family:sans-serif">Hueco: ${gapAhead}s delante · ${gapBehind}s detrás</span>
       <span style="font-size:11px;color:#555;font-family:sans-serif">${inZone.length} kart${inZone.length!==1?'s':''} en zona ±15s</span>
     </div>`;
-    html+=`<div style="font-size:9px;color:#3a3b42;font-family:sans-serif;margin-top:6px">Calibración: ✓ ${_enPitOutCalibration.length} paradas observadas · offset ${offset.toFixed(0)}s · Estimación con margen ±5s</div>`;
+    html+=`<div style="font-size:9px;color:#3a3b42;font-family:sans-serif;margin-top:6px">Calibración: ✓ ${EnSession.pitOutCalibration.length} paradas observadas · offset ${offset.toFixed(0)}s · Estimación con margen ±5s</div>`;
   }
   html+=`</div>`;
 
   // ── Plan de paradas restantes ──
-  const totalStops=_enTotalStops||0;
+  const totalStops=EnBox.totalStops||0;
   const stintMinM=cfg?.stintMin||0;
   const stintMaxM=cfg?.stintMax||0;
   const remainMs=window.ApexClock?window.ApexClock.remainingMs():0;
   const myK=eq.find(e=>e.dorsal===myDorsal);
 
   if(totalStops>0&&remainMs>0&&!window.ApexClock?.isCountUp()){
-    const myStops=myK&&myK.standsCount>0?myK.standsCount:(_enStintHistory.length||0);
+    const myStops=myK&&myK.standsCount>0?myK.standsCount:(EnSession.stintHistory.length||0);
     const stopsLeft=Math.max(0,totalStops-myStops);
     const remainMin=remainMs/60000;
-    const pitDurMin=_enPitDuration/60;
+    const pitDurMin=EnBox.pitDuration/60;
     const trackTimeMin=remainMin-(stopsLeft*pitDurMin);
     const avgStintAvail=stopsLeft>=0?trackTimeMin/(stopsLeft+1):remainMin;
 
@@ -949,8 +962,8 @@ function _enRenderAdvanced(){
 }
 
 function _enShowAvgFilter(){
-  const eq=[..._enData.equipos].sort((a,b)=>(a.lastLap||999)-(b.lastLap||999));
-  const trackAvg=_enTrackAvgLive(_enData.equipos);
+  const eq=[...EnSession.data.equipos].sort((a,b)=>(a.lastLap||999)-(b.lastLap||999));
+  const trackAvg=_enTrackAvgLive(EnSession.data.equipos);
 
   let overlay=document.getElementById('en-pilot-overlay');
   if(overlay)overlay.remove();
@@ -961,7 +974,7 @@ function _enShowAvgFilter(){
   let rows='';
   eq.forEach(e=>{
     if(!e.lastLap||e.pit)return;
-    const excluded=!!_enExcludedFromAvg[e.dorsal];
+    const excluded=!!EnUi.excludedFromAvg[e.dorsal];
     const kc=_enKartColor(e.dorsal);
     let lapCol='#9ca3af';
     if(trackAvg){
@@ -995,19 +1008,19 @@ function _enShowAvgFilter(){
 }
 
 function _enToggleAvgExclude(dorsal){
-  _enExcludedFromAvg[dorsal]=!_enExcludedFromAvg[dorsal];
+  EnUi.excludedFromAvg[dorsal]=!EnUi.excludedFromAvg[dorsal];
   _enShowAvgFilter(); // refrescar popup
 }
 
 function _enResetAvgFilter(){
-  _enExcludedFromAvg={};
+  EnUi.excludedFromAvg={};
   _enShowAvgFilter();
 }
 
 // ── Edición de stints ────────────────────────────────────────────────────
 function _enDeleteStint(idx){
-  if(idx<0||idx>=_enStintHistory.length)return;
-  const s=_enStintHistory[idx];
+  if(idx<0||idx>=EnSession.stintHistory.length)return;
+  const s=EnSession.stintHistory[idx];
   let overlay=document.getElementById('en-pilot-overlay');
   if(overlay)overlay.remove();
   overlay=document.createElement('div');
@@ -1027,16 +1040,16 @@ function _enDeleteStint(idx){
 }
 
 function _enConfirmDeleteStint(idx){
-  if(idx>=0&&idx<_enStintHistory.length){
-    _enStintHistory.splice(idx,1);
+  if(idx>=0&&idx<EnSession.stintHistory.length){
+    EnSession.stintHistory.splice(idx,1);
   }
   _enDismissOverlay();
   _enRender();
 }
 
 function _enStintDetail(idx){
-  if(idx<0||idx>=_enStintHistory.length)return;
-  const s=_enStintHistory[idx];
+  if(idx<0||idx>=EnSession.stintHistory.length)return;
+  const s=EnSession.stintHistory[idx];
   const laps=s.lapTimes||[];
   const best=laps.length?Math.min(...laps):s.best;
   const avg=laps.length?laps.reduce((a,b)=>a+b,0)/laps.length:null;
@@ -1121,7 +1134,7 @@ function _enEditStintPilot(stintIdx){
   const pilotos=cfg?.pilotos||[];
   if(!pilotos.length)return;
   const colors=['#5b8dee','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
-  const stint=_enStintHistory[stintIdx];
+  const stint=EnSession.stintHistory[stintIdx];
   if(!stint)return;
 
   const durMin=Math.floor((stint.durationMs||0)/60000);
@@ -1178,7 +1191,7 @@ function _enEditStintPilot(stintIdx){
 function _enApplyStintEdit(stintIdx){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
-  const s=_enStintHistory[stintIdx];
+  const s=EnSession.stintHistory[stintIdx];
   if(!s)return;
   const pidx=parseInt(document.getElementById('en-edit-pidx')?.value)||0;
   if(pilotos[pidx]){s.pilot=pilotos[pidx].name; s.pilotIdx=pidx;}
@@ -1253,7 +1266,7 @@ function _enApplyAddStint(){
   const durSec=parseInt(document.getElementById('en-add-dursec')?.value)||0;
   const pitMin=parseInt(document.getElementById('en-add-pitmin')?.value)||0;
   const pitSec=parseInt(document.getElementById('en-add-pitsec')?.value)||0;
-  _enStintHistory.push({
+  EnSession.stintHistory.push({
     pilot:pilotos[pidx].name,
     pilotIdx:pidx,
     durationMs:(durMin*60+durSec)*1000,
@@ -1272,10 +1285,10 @@ function _enApplyAddStint(){
 // ── Historial de vueltas (click en consistencia) ─────────────────────────
 function _enShowLapHistory(dorsal, ev){
   ev.stopPropagation();
-  const kart=_enData.equipos.find(e=>e.dorsal===dorsal);
+  const kart=EnSession.data.equipos.find(e=>e.dorsal===dorsal);
   if(!kart||!kart.lapHistory||!kart.lapHistory.length)return;
 
-  const trackAvg=_enTrackAvgLive(_enData.equipos);
+  const trackAvg=_enTrackAvgLive(EnSession.data.equipos);
   const hist=kart.lapHistory.filter(t=>t<180);
   const best=Math.min(...hist);
   const worst=Math.max(...hist);
@@ -1348,35 +1361,35 @@ function _enChangePilot(){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
   const myDorsal=cfg?.myDorsal;
-  const myK=_enData.equipos.find(e=>e.dorsal===myDorsal);
+  const myK=EnSession.data.equipos.find(e=>e.dorsal===myDorsal);
 
   // Guardar stint actual
-  const stintMs=_enStintFrozen?_enStintFrozen:(_enStintStart?(Date.now()-_enStintStart):0);
+  const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
   const stintLaps=_enStintLaps(myK);
-  const pilotName=pilotos[_enCurrentPilot]?.name||`Piloto ${_enCurrentPilot+1}`;
+  const pilotName=pilotos[EnSession.currentPilot]?.name||`Piloto ${EnSession.currentPilot+1}`;
   if(stintMs>5000){
-    _enStintHistory.push({
+    EnSession.stintHistory.push({
       pilot:pilotName,
-      pilotIdx:_enCurrentPilot,
+      pilotIdx:EnSession.currentPilot,
       durationMs:stintMs,
       laps:stintLaps,
-      lapTimes:[..._enStintLapTimes],
+      lapTimes:[...EnSession.stintLapTimes],
       avg:_enAvg5(myK?.lapHistory),
-      best:_enStintBestLap,
-      posIn:_enPosIn,
+      best:EnSession.stintBestLap,
+      posIn:EnSession.posIn,
       posOut:myK?.pos||null,
       endTime:new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
     });
   }
 
   // Resetear stint
-  _enStintStart=Date.now();
-  _enStintFrozen=null;
-  _enData._stintStartTours=myK?.tours||0;
-  _enPosIn=myK?.pos||null;
-  _enStintBestLap=null;
-  _enStintLapTimes=[];
-  _enData._lastMyLap=null;
+  EnSession.stintStart=Date.now();
+  EnSession.stintFrozen=null;
+  EnSession.data._stintStartTours=myK?.tours||0;
+  EnSession.posIn=myK?.pos||null;
+  EnSession.stintBestLap=null;
+  EnSession.stintLapTimes=[];
+  EnSession.data._lastMyLap=null;
 
   _enShowPilotSelect(false);
 }
@@ -1387,26 +1400,26 @@ function _enRenderTeamConfig(){
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:12.5px;color:#666;font-family:sans-serif">Mínimo por piloto:</span>
-        <input type="number" value="${_enPilotMinTime}" min="0" placeholder="min" onchange="_enSetPilotMinTime(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:4px 8px;border-radius:4px;font-size:12.5px;width:60px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.pilotMinTime}" min="0" placeholder="min" onchange="_enSetPilotMinTime(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:4px 8px;border-radius:4px;font-size:12.5px;width:60px;font-family:monospace;text-align:right">
         <span style="font-size:10px;color:#555;font-family:sans-serif">min</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:12.5px;color:#666;font-family:sans-serif">Paradas obligatorias:</span>
-        <input type="number" value="${_enTotalStops}" min="0" placeholder="total" onchange="_enSetTotalStops(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:4px 8px;border-radius:4px;font-size:12.5px;width:60px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.totalStops}" min="0" placeholder="total" onchange="_enSetTotalStops(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:4px 8px;border-radius:4px;font-size:12.5px;width:60px;font-family:monospace;text-align:right">
         <span style="font-size:10px;color:#555;font-family:sans-serif">total carrera</span>
       </div>
     </div>
   </div>`;
 }
 
-function _enSetPilotMinTime(v){_enPilotMinTime=parseInt(v)||0;}
-function _enSetTotalStops(v){_enTotalStops=parseInt(v)||0;}
+function _enSetPilotMinTime(v){EnBox.pilotMinTime=parseInt(v)||0;}
+function _enSetTotalStops(v){EnBox.totalStops=parseInt(v)||0;}
 
 function _enRenderTeam(myKart, trackAvg){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
-  const currentPilot=pilotos[_enCurrentPilot]||{name:'Sin definir'};
-  const stintMs=_enStintFrozen?_enStintFrozen:(_enStintStart?(Date.now()-_enStintStart):0);
+  const currentPilot=pilotos[EnSession.currentPilot]||{name:'Sin definir'};
+  const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
   const stintLaps=_enStintLaps(myKart);
   const colors=['#5b8dee','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
 
@@ -1416,10 +1429,10 @@ function _enRenderTeam(myKart, trackAvg){
   html+=`<div class="en-team-card">
     <div class="en-team-title">Piloto en pista</div>
     <div class="en-pilot-current">
-      <div class="en-pilot-avatar" style="background:${colors[_enCurrentPilot%colors.length]}">${currentPilot.name.charAt(0)}</div>
+      <div class="en-pilot-avatar" style="background:${colors[EnSession.currentPilot%colors.length]}">${currentPilot.name.charAt(0)}</div>
       <div class="en-pilot-info">
         <div class="en-pilot-name">${currentPilot.name}</div>
-        <div class="en-pilot-sub">Stint: ${_enFmtStint(stintMs)}${myKart?' · P'+myKart.pos:''}${_enPosIn?' (entró P'+_enPosIn+')':''}${_enStintBestLap?' · Best: '+_enFmt(_enStintBestLap):''}</div>
+        <div class="en-pilot-sub">Stint: ${_enFmtStint(stintMs)}${myKart?' · P'+myKart.pos:''}${EnSession.posIn?' (entró P'+EnSession.posIn+')':''}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
       </div>
       <button class="en-change-btn" style="background:#5b8dee;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button>
     </div>
@@ -1431,12 +1444,12 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-team-title">Cola de pilotos</div>`;
     const queueOrder=[];
     for(let i=1;i<pilotos.length;i++){
-      const idx=(_enCurrentPilot+i)%pilotos.length;
+      const idx=(EnSession.currentPilot+i)%pilotos.length;
       queueOrder.push(idx);
     }
     queueOrder.forEach((idx,i)=>{
       const p=pilotos[idx];
-      const stints=_enStintHistory.filter(s=>s.pilotIdx===idx);
+      const stints=EnSession.stintHistory.filter(s=>s.pilotIdx===idx);
       const totalMs=stints.reduce((a,s)=>a+s.durationMs,0);
       const totalLaps=stints.reduce((a,s)=>a+s.laps,0);
       html+=`<div class="en-queue-item">
@@ -1454,13 +1467,13 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-team-title">Historial de stints</div>
       <button onclick="_enAddStint()" style="font-size:10px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:#666;cursor:pointer;font-family:sans-serif">➕ Añadir</button>
     </div>`;
-  if(_enStintHistory.length===0){
+  if(EnSession.stintHistory.length===0){
     html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Sin stints completados todavía</div>`;
   } else {
     html+=`<div class="en-stint-row en-stint-head">
       <span>#</span><span>Piloto</span><span>Stint</span><span>Pit</span><span>Media</span><span>Mejor</span><span>Pos</span><span></span>
     </div>`;
-    _enStintHistory.forEach((s,i)=>{
+    EnSession.stintHistory.forEach((s,i)=>{
       const col=colors[s.pilotIdx%colors.length];
       const posStr=s.posIn&&s.posOut?`P${s.posIn}→P${s.posOut}`:(s.posIn?`P${s.posIn}`:'—');
       const posCol=s.posIn&&s.posOut?(s.posOut<s.posIn?'#22c55e':s.posOut>s.posIn?'#ef4444':'#6b7280'):'#6b7280';
@@ -1484,9 +1497,9 @@ function _enRenderTeam(myKart, trackAvg){
   html+=`</div>`;
 
   // ── Estrategia de paradas ────────────────────────────────────
-  if(_enTotalStops>0){
-    const stopsDone=_enStintHistory.length;
-    const stopsRemaining=Math.max(0,_enTotalStops-stopsDone);
+  if(EnBox.totalStops>0){
+    const stopsDone=EnSession.stintHistory.length;
+    const stopsRemaining=Math.max(0,EnBox.totalStops-stopsDone);
     const cfg=window.AppState?.config;
     const stintMaxMin=(cfg?.stintMax||999);
     const stintMaxMs2=stintMaxMin*60*1000;
@@ -1514,7 +1527,7 @@ function _enRenderTeam(myKart, trackAvg){
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;text-align:center">
         <div>
           <div style="font-size:10px;color:#555;font-family:sans-serif">Hechas</div>
-          <div style="font-size:22px;font-weight:600;color:#9ca3af;font-family:monospace">${stopsDone}/${_enTotalStops}</div>
+          <div style="font-size:22px;font-weight:600;color:#9ca3af;font-family:monospace">${stopsDone}/${EnBox.totalStops}</div>
         </div>
         <div>
           <div style="font-size:10px;color:#555;font-family:sans-serif">Restantes</div>
@@ -1540,16 +1553,16 @@ function _enRenderTeam(myKart, trackAvg){
 
   // ── Resumen por piloto ─────────────────────────────────────
   html+=`<div class="en-team-card">
-    <div class="en-team-title">Resumen por piloto${_enPilotMinTime?' · Mínimo: '+_enPilotMinTime+' min':''}</div>`;
-  const minMs=_enPilotMinTime*60*1000;
+    <div class="en-team-title">Resumen por piloto${EnBox.pilotMinTime?' · Mínimo: '+EnBox.pilotMinTime+' min':''}</div>`;
+  const minMs=EnBox.pilotMinTime*60*1000;
   pilotos.forEach((p,idx)=>{
-    const stints=_enStintHistory.filter(s=>s.pilotIdx===idx);
+    const stints=EnSession.stintHistory.filter(s=>s.pilotIdx===idx);
     let totalMs=stints.reduce((a,s)=>a+s.durationMs,0);
     const totalPitMs=stints.reduce((a,s)=>a+(s.pitStopMs||0),0);
     // Añadir stint actual si es el piloto en pista
-    const isCurrent=idx===_enCurrentPilot;
+    const isCurrent=idx===EnSession.currentPilot;
     if(isCurrent){
-      const currentStintMs=_enStintFrozen?_enStintFrozen:(_enStintStart?(Date.now()-_enStintStart):0);
+      const currentStintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
       totalMs+=currentStintMs;
     }
     const avgs=stints.filter(s=>s.avg).map(s=>s.avg);
@@ -1595,7 +1608,7 @@ function _enRenderTeam(myKart, trackAvg){
 
 // ── Estrategia ─────────────────────────────────────────────────────────────
 function _enRenderStratConfig(){
-  const showCols=_enBoxConfig.type==='columns';
+  const showCols=EnBox.config.type==='columns';
   const cfg=window.AppState?.config||{};
   return `<div class="en-strat-card" style="padding:10px 14px">
     <div class="en-strat-title">Configuración de estrategia</div>
@@ -1603,18 +1616,18 @@ function _enRenderStratConfig(){
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:12.5px;color:#666;font-family:sans-serif">Box:</span>
         <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;font-family:sans-serif">
-          <option value="line" ${_enBoxConfig.type==='line'?'selected':''}>Línea</option>
-          <option value="battery" ${_enBoxConfig.type==='battery'?'selected':''}>Batería</option>
-          <option value="columns" ${_enBoxConfig.type==='columns'?'selected':''}>Columnas</option>
+          <option value="line" ${EnBox.config.type==='line'?'selected':''}>Línea</option>
+          <option value="battery" ${EnBox.config.type==='battery'?'selected':''}>Batería</option>
+          <option value="columns" ${EnBox.config.type==='columns'?'selected':''}>Columnas</option>
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:12.5px;color:#666;font-family:sans-serif">Karts:</span>
-        <input type="number" value="${_enBoxConfig.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
       </div>
       ${showCols?`<div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:12.5px;color:#666;font-family:sans-serif">Cols:</span>
-        <input type="number" value="${_enBoxConfig.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
       </div>`:''}
       <div style="border-left:0.5px solid #2a2b2e;height:20px"></div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -1629,7 +1642,7 @@ function _enRenderStratConfig(){
       </div>
       <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
         <span style="font-size:12.5px;color:#666;font-family:sans-serif">Parada:</span>
-        <input type="number" value="${_enPitDuration}" min="30" max="600" onchange="_enPitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:55px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:55px;font-family:monospace;text-align:right">
         <span style="font-size:10px;color:#555">s</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
@@ -1662,8 +1675,8 @@ function _enRenderStrategy(eq, trackAvg){
   const totalInPit=pitKarts.length;
 
   // Probabilidad según configuración del box
-  const boxPos=_enBoxConfig.positions||4;
-  const boxType=_enBoxConfig.type||'parallel';
+  const boxPos=EnBox.config.positions||4;
+  const boxType=EnBox.config.type||'parallel';
 
   // Probabilidad de presencia (karts buenos entre todos)
   let probPresencia=0;
@@ -1673,29 +1686,29 @@ function _enRenderStrategy(eq, trackAvg){
   let probAcceso=0;
   let probExplain='';
 
-  if(_enBoxQueue.length===0){
+  if(EnBox.queue.length===0){
     probAcceso=0;
     probExplain='Cola vacía';
   } else if(boxType==='line'){
     // Línea: solo el primero importa
-    const first=_enBoxQueue[0];
+    const first=EnBox.queue[0];
     if(first.quality==='good'){probAcceso=100; probExplain='Primero en cola: BUENO';}
     else if(first.quality==='bad'){probAcceso=0; probExplain='Primero en cola: MALO';}
     else if(first.quality==='neutral'){probAcceso=25; probExplain='Primero en cola: NEUTRO';}
     else{probAcceso=50; probExplain='Primero en cola: DESCONOCIDO';}
   } else if(boxType==='battery'){
     // Batería: sorteo entre los karts EN LOS PUESTOS (primeros N de la cola); el resto espera
-    const inSlots=_enBoxQueue.slice(0,boxPos);
+    const inSlots=EnBox.queue.slice(0,boxPos);
     const goodQ=inSlots.filter(k=>k.quality==='good').length;
     probAcceso=inSlots.length>0?Math.round((goodQ/inSlots.length)*100):0;
-    const waiting=_enBoxQueue.length-inSlots.length;
+    const waiting=EnBox.queue.length-inSlots.length;
     probExplain=`Sorteo entre ${inSlots.length} en puestos · ${goodQ} buenos${waiting>0?' · '+waiting+' en espera':''}`;
   } else if(boxType==='columns'){
     // Columnas: los primeros de cada columna son los disponibles
-    const nCols=_enBoxConfig.columns||2;
+    const nCols=EnBox.config.columns||2;
     const frontKarts=[];
-    for(let c=0;c<nCols&&c<_enBoxQueue.length;c++){
-      frontKarts.push(_enBoxQueue[c]);
+    for(let c=0;c<nCols&&c<EnBox.queue.length;c++){
+      frontKarts.push(EnBox.queue[c]);
     }
     const goodFront=frontKarts.filter(k=>k.quality==='good').length;
     probAcceso=frontKarts.length>0?Math.round((goodFront/frontKarts.length)*100):0;
@@ -1704,7 +1717,7 @@ function _enRenderStrategy(eq, trackAvg){
   if(probAcceso>100)probAcceso=100;
 
   // Si toda la cola es desconocida, no hay datos reales
-  const allUnknown=_enBoxQueue.length>0&&_enBoxQueue.every(k=>k.quality==='unknown');
+  const allUnknown=EnBox.queue.length>0&&EnBox.queue.every(k=>k.quality==='unknown');
   let noBoxData=false;
   if(allUnknown){
     probAcceso=-1;
@@ -1731,15 +1744,15 @@ function _enRenderStrategy(eq, trackAvg){
   const stintMinMsRiv=(cfg?.stintMin||0)*60*1000;
   const rivalStintCapMs=(e, elapsed)=>{
     if(stintMaxMs>=999*60*1000)return stintMaxMs;
-    if(!_enTotalStops||remainMsAll<=0||!(e.standsCount>0))return stintMaxMs;
-    const stopsLeft=Math.max(0,_enTotalStops-e.standsCount);
+    if(!EnBox.totalStops||remainMsAll<=0||!(e.standsCount>0))return stintMaxMs;
+    const stopsLeft=Math.max(0,EnBox.totalStops-e.standsCount);
     if(stopsLeft<=0)return stintMaxMs;
-    const cap=(elapsed||0)+remainMsAll-stopsLeft*(_enPitDuration*1000+stintMinMsRiv);
+    const cap=(elapsed||0)+remainMsAll-stopsLeft*(EnBox.pitDuration*1000+stintMinMsRiv);
     return Math.max(0,Math.min(stintMaxMs,cap));
   };
   const mapOnTrack=(filterQ)=>eq.filter(e=>!e.pit&&_enEffectiveQuality(e.dorsal, e, trackAvg)===filterQ)
     .map(e=>{
-      const pitOutTime=_enRivalPitOut[e.dorsal];
+      const pitOutTime=EnSession.rivalPitOut[e.dorsal];
       const elapsed=pitOutTime?(Date.now()-pitOutTime):null;
       const capMs=rivalStintCapMs(e, elapsed||0);
       const debtLimited=capMs<stintMaxMs*0.97; // su techo real es menor que el máximo
@@ -1841,30 +1854,30 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Cola del box
   html+=`<div class="en-strat-card" style="margin:0">
-    <div class="en-strat-title">Cola del box (${_enBoxQueue.length} karts)</div>`;
-  if(_enBoxQueue.length===0){
+    <div class="en-strat-title">Cola del box (${EnBox.queue.length} karts)</div>`;
+  if(EnBox.queue.length===0){
     html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
   } else {
     html+=`<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:9px;color:#555;margin-right:2px">ENTRA</span>`;
-    [..._enBoxQueue].reverse().forEach((k,i)=>{
+    [...EnBox.queue].reverse().forEach((k,i)=>{
       let bg='#fbbf24';
       if(k.quality==='good')bg='#22c55e';
       else if(k.quality==='bad')bg='#ef4444';
       else if(k.quality==='unknown')bg='#333';
-      const isLast=i===_enBoxQueue.length-1;
+      const isLast=i===EnBox.queue.length-1;
       html+=`<div style="width:28px;height:20px;border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;${isLast?'border:2px solid #fff;':''}font-size:9px;color:#fff;font-weight:600" title="${k.quality==='unknown'?'Sin info':k.name||'#'+k.dorsal}">${k.quality==='unknown'?'?':''}</div>`;
     });
     html+=`<span style="font-size:9px;color:#555;margin-left:2px">SALE</span></div>`;
-    const qGood=_enBoxQueue.filter(k=>k.quality==='good').length;
-    const qBad=_enBoxQueue.filter(k=>k.quality==='bad').length;
-    const qNeutral=_enBoxQueue.filter(k=>k.quality==='neutral').length;
-    const qUnknown=_enBoxQueue.filter(k=>k.quality==='unknown').length;
+    const qGood=EnBox.queue.filter(k=>k.quality==='good').length;
+    const qBad=EnBox.queue.filter(k=>k.quality==='bad').length;
+    const qNeutral=EnBox.queue.filter(k=>k.quality==='neutral').length;
+    const qUnknown=EnBox.queue.filter(k=>k.quality==='unknown').length;
     html+=`<div style="font-size:9px;color:#555;font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
-    html+=`<div style="font-size:9px;color:#555;margin-top:2px">Primero: <b style="color:${_enBoxQueue[0]?.quality==='good'?'#22c55e':_enBoxQueue[0]?.quality==='bad'?'#ef4444':_enBoxQueue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[_enBoxQueue[0]?.quality]||'?'}</b></div>`;
+    html+=`<div style="font-size:9px;color:#555;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
 
     // ── Diagrama visual del box ──
-    const qLen=_enBoxQueue.length;
+    const qLen=EnBox.queue.length;
     const qColor=(k)=>k.quality==='good'?'#22c55e':k.quality==='bad'?'#ef4444':k.quality==='neutral'?'#fbbf24':'#333';
     const qLabel=(k)=>k.quality==='unknown'?'?':'';
     const qBorder=(k,accessible)=>accessible?'1.5px solid #fff':'1.5px dashed #2a2b2e';
@@ -1876,8 +1889,8 @@ function _enRenderStrategy(eq, trackAvg){
 
       if(boxType==='battery'){
         // Batería: los primeros N en puestos (accesibles por sorteo), el resto en espera
-        const inSlots=_enBoxQueue.slice(0,boxPos);
-        const waiting=_enBoxQueue.slice(boxPos);
+        const inSlots=EnBox.queue.slice(0,boxPos);
+        const waiting=EnBox.queue.slice(boxPos);
         html+=`<div style="display:flex;gap:6px;justify-content:center;padding:8px 0;flex-wrap:wrap">`;
         inSlots.forEach(k=>{
           html+=`<div style="width:36px;height:28px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,true)};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;box-shadow:0 0 6px ${qColor(k)}44" title="${qTitle(k)}">${qLabel(k)}</div>`;
@@ -1896,7 +1909,7 @@ function _enRenderStrategy(eq, trackAvg){
       } else if(boxType==='line'){
         // Línea: cola horizontal completa con wrap, solo el primero accesible
         html+=`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-start;padding:8px 0;flex-wrap:wrap">`;
-        _enBoxQueue.forEach((k,i)=>{
+        EnBox.queue.forEach((k,i)=>{
           const isFirst=i===0;
           html+=`<div style="width:32px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,isFirst)};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;${isFirst?'box-shadow:0 0 6px '+qColor(k)+'66;':'opacity:0.8;'}" title="#${i+1} · ${qTitle(k)}">${qLabel(k)}</div>`;
           if(i<qLen-1)html+=`<span style="color:#2a2b2e;font-size:9px">→</span>`;
@@ -1906,7 +1919,7 @@ function _enRenderStrategy(eq, trackAvg){
 
       } else if(boxType==='columns'){
         // Columnas: TODAS las filas según la cola real
-        const nCols=_enBoxConfig.columns||2;
+        const nCols=EnBox.config.columns||2;
         const nRows=Math.ceil(qLen/nCols);
         html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;max-height:160px;overflow-y:auto">`;
         for(let r=0;r<nRows;r++){
@@ -1915,7 +1928,7 @@ function _enRenderStrategy(eq, trackAvg){
           for(let c=0;c<nCols;c++){
             const idx=r*nCols+c;
             if(idx<qLen){
-              const k=_enBoxQueue[idx];
+              const k=EnBox.queue[idx];
               const accessible=r===0;
               html+=`<div style="width:34px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,accessible)};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;${accessible?'box-shadow:0 0 6px '+qColor(k)+'44;':'opacity:0.55;'}" title="${qTitle(k)}${accessible?'':' (fila '+(r+1)+', bloqueado)'}">${qLabel(k)}</div>`;
             } else {
@@ -1925,7 +1938,7 @@ function _enRenderStrategy(eq, trackAvg){
           html+=`</div>`;
         }
         html+=`</div>`;
-        const goodBlocked=_enBoxQueue.slice(nCols).filter(k=>k.quality==='good').length;
+        const goodBlocked=EnBox.queue.slice(nCols).filter(k=>k.quality==='good').length;
         if(goodBlocked>0){
           html+=`<div style="text-align:center;font-size:9px;color:#fbbf24">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
         } else {
@@ -1965,15 +1978,15 @@ function _enRenderStrategy(eq, trackAvg){
     <div class="en-strat-title">Previsión de box</div>`;
 
   // Calcular previsión: karts buenos que van a parar pronto
-  const N=_enBoxQueue.length||boxPos;
-  const G=_enBoxQueue.filter(k=>k.quality==='good').length;
+  const N=EnBox.queue.length||boxPos;
+  const G=EnBox.queue.filter(k=>k.quality==='good').length;
   const probNow=N>0?Math.round((G/N)*100):0;
 
   // Equipos que van a parar en los próximos minutos (por stint timer)
   const predictions=[];
   const allOnTrack=eq.filter(e=>!e.pit);
   allOnTrack.forEach(e=>{
-    const pitOutTime=_enRivalPitOut[e.dorsal];
+    const pitOutTime=EnSession.rivalPitOut[e.dorsal];
     if(!pitOutTime||stintMaxMs>=999*60*1000)return;
     const elapsed=Date.now()-pitOutTime;
     const remaining=Math.max(0,stintMaxMs-elapsed);
@@ -2011,7 +2024,7 @@ function _enRenderStrategy(eq, trackAvg){
         // Línea/columnas: simplificado — el kart va al final
         if(p.quality==='good')simG++;
         // Sale el primero (puede ser bueno o no)
-        const firstGood=_enBoxQueue.length>0&&_enBoxQueue[0]?.quality==='good';
+        const firstGood=EnBox.queue.length>0&&EnBox.queue[0]?.quality==='good';
         if(firstGood)simG--;
       }
 
@@ -2079,8 +2092,8 @@ function _enRenderStrategy(eq, trackAvg){
 
   // ── Recomendación táctica ─────────────────────────────────
   {
-    const stopsDone=_enStintHistory.length;
-    const stopsRemaining=_enTotalStops>0?Math.max(0,_enTotalStops-stopsDone):0;
+    const stopsDone=EnSession.stintHistory.length;
+    const stopsRemaining=EnBox.totalStops>0?Math.max(0,EnBox.totalStops-stopsDone):0;
     const cfg2=window.AppState?.config;
     const stintMaxMin2=(cfg2?.stintMax||999);
     const stintMaxMs2=stintMaxMin2*60*1000;
@@ -2088,7 +2101,7 @@ function _enRenderStrategy(eq, trackAvg){
     if(window.ApexClock&&window.ApexClock._synced&&!window.ApexClock.isCountUp())raceRemMs=Math.max(0,window.ApexClock.remainingMs());
     const raceRemMin=Math.round(raceRemMs/60000);
     const minNec=stintMaxMin2<999?Math.ceil(raceRemMin/stintMaxMin2):stopsRemaining;
-    const strategic=_enTotalStops>0?Math.max(0,stopsRemaining-minNec):0;
+    const strategic=EnBox.totalStops>0?Math.max(0,stopsRemaining-minNec):0;
 
     // Calidad kart actual de mi equipo
     const myDorsal=cfg2?.myDorsal;
@@ -2096,7 +2109,7 @@ function _enRenderStrategy(eq, trackAvg){
     const myQuality=myKart?_enEffectiveQuality(myDorsal, myKart, trackAvg):null;
 
     // Progreso del stint actual
-    const stintElapsedMs=_enStintFrozen?_enStintFrozen:(_enStintStart?(Date.now()-_enStintStart):0);
+    const stintElapsedMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
     const stintPct=stintMaxMs2>0&&stintMaxMs2<999*60*1000?Math.round(stintElapsedMs/stintMaxMs2*100):0;
 
     // Semáforo de stint
@@ -2126,16 +2139,16 @@ function _enRenderStrategy(eq, trackAvg){
     } else if(myQuality==='good'&&stintPct>=50&&strategic>0&&probAcceso>=40){
       tacticIcon='🤔'; tacticColor='#60a5fa';
       tacticHtml=`Kart bueno (${stintPct}% stint) + pool favorable (${probAcceso}%) → <b>Valorar parada anticipada</b>`;
-    } else if(myQuality==='bad'&&(strategic>0||_enTotalStops===0)&&probAcceso>=25){
+    } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso>=25){
       tacticIcon='🎯'; tacticColor='#22c55e';
       tacticHtml=`Kart malo + pool ${probAcceso}% → <b>Oportunidad de caza</b>`;
-    } else if(myQuality==='bad'&&(strategic>0||_enTotalStops===0)&&probAcceso<25&&bestFutureProb>=25){
+    } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso<25&&bestFutureProb>=25){
       tacticIcon='⏳'; tacticColor='#fbbf24';
       tacticHtml=`Kart malo + pool bajo (${probAcceso}%) pero sube a ${bestFutureProb}% en ${bestFutureMin} → <b>Espera ${bestFutureMin}</b>`;
-    } else if(myQuality==='bad'&&(strategic>0||_enTotalStops===0)&&probAcceso<25){
+    } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso<25){
       tacticIcon='⏳'; tacticColor='#fbbf24';
       tacticHtml=`Kart malo + pool bajo (${probAcceso}%) → <b>Espera mejor momento</b>`;
-    } else if(myQuality==='bad'&&strategic===0&&_enTotalStops>0){
+    } else if(myQuality==='bad'&&strategic===0&&EnBox.totalStops>0){
       tacticIcon='😤'; tacticColor='#ef4444';
       tacticHtml=`Kart malo + sin paradas extra → <b>Apura stint, no puedes cazar</b>`;
     } else if(myQuality==='good'&&worstFutureProb<probAcceso-10){
@@ -2166,7 +2179,7 @@ function _enRenderStrategy(eq, trackAvg){
       <div style="padding:8px 12px;border-radius:6px;background:${tacticColor}11;border:0.5px solid ${tacticColor}33">
         <span style="font-size:13px;color:${tacticColor};font-family:sans-serif">${tacticIcon} ${tacticHtml}</span>
       </div>
-      <div style="font-size:10px;color:#555;margin-top:6px;font-family:sans-serif">${_enTotalStops>0?'Paradas: '+stopsDone+'/'+_enTotalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>
+      <div style="font-size:10px;color:#555;margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>
     </div>`;
   }
 
@@ -2180,49 +2193,49 @@ function _enRenderStrategy(eq, trackAvg){
 }
 
 function _enSetBoxType(v){
-  _enBoxConfig.type=v;
+  EnBox.config.type=v;
   // Re-render config para mostrar/ocultar campo columnas
   const cfgDiv=document.getElementById('en-strat-config');
   if(cfgDiv)cfgDiv.innerHTML=_enRenderStratConfig();
 }
 function _enSetBoxPositions(v){
   const newN=parseInt(v)||4;
-  _enBoxConfig.positions=newN;
+  EnBox.config.positions=newN;
   // La cola es dinámica (crece con entradas, decrece con salidas).
   // Las posiciones solo definen los karts de reserva iniciales y la zona accesible.
-  if(newN>_enBoxQueue.length){
+  if(newN>EnBox.queue.length){
     // Más reserva de la que tenemos → añadir desconocidos
-    while(_enBoxQueue.length<newN)_enBoxQueue.push({quality:'unknown',dorsal:'?',time:Date.now()});
-  } else if(newN<_enBoxQueue.length){
+    while(EnBox.queue.length<newN)EnBox.queue.push({quality:'unknown',dorsal:'?',time:Date.now()});
+  } else if(newN<EnBox.queue.length){
     // Reducir: solo quitar DESCONOCIDOS del final — nunca karts reales observados
-    while(_enBoxQueue.length>newN){
-      const last=_enBoxQueue[_enBoxQueue.length-1];
-      if(last.quality==='unknown'&&last.dorsal==='?')_enBoxQueue.pop();
+    while(EnBox.queue.length>newN){
+      const last=EnBox.queue[EnBox.queue.length-1];
+      if(last.quality==='unknown'&&last.dorsal==='?')EnBox.queue.pop();
       else break;
     }
   }
 }
-function _enSetBoxColumns(v){_enBoxConfig.columns=parseInt(v)||2;}
+function _enSetBoxColumns(v){EnBox.config.columns=parseInt(v)||2;}
 
 function _enShowEstimatedClassification(){
-  const eq=_enData.equipos||[];
+  const eq=EnSession.data.equipos||[];
   const trackAvg=_enTrackAvgLive(eq);
   if(!eq.length)return;
 
   // Calcular coste medio de parada del circuito
   // Validación: un coste medido < duración oficial es dato corrupto (imposible parar menos del mínimo)
   let allCosts=[];
-  Object.values(_enPitCosts).forEach(arr=>allCosts=allCosts.concat(arr));
-  const validCosts=allCosts.filter(c=>c>=_enPitDuration*0.8); // margen 20% por variaciones de medición
+  Object.values(EnSession.pitCosts).forEach(arr=>allCosts=allCosts.concat(arr));
+  const validCosts=allCosts.filter(c=>c>=EnBox.pitDuration*0.8); // margen 20% por variaciones de medición
   // Fallback: sin datos medidos → duración oficial + ~10% (vuelta lenta de salida)
   const avgPitCost=validCosts.length>0
     ?validCosts.reduce((a,b)=>a+b,0)/validCosts.length
-    :_enPitDuration*1.1;
+    :EnBox.pitDuration*1.1;
   const costSource=validCosts.length>0?`medido (${validCosts.length} paradas)`:'estimado por duración oficial';
 
   // Paradas por equipo — prioridad: standsCount oficial de Apex (fiable aunque conectes tarde),
-  // fallback: nuestro conteo observado (_enPitCounts)
-  const getStops=(e)=>e.standsCount>0?e.standsCount:(_enPitCounts[e.dorsal]||0);
+  // fallback: nuestro conteo observado (EnSession.pitCounts)
+  const getStops=(e)=>e.standsCount>0?e.standsCount:(EnSession.pitCounts[e.dorsal]||0);
   const maxStops=Math.max(...eq.map(getStops),1);
   // Fiabilidad del conteo: si Apex da standsCount lo usamos (oficial); si no, advertimos
   const usingOfficial=eq.some(e=>e.standsCount>0);
@@ -2232,7 +2245,7 @@ function _enShowEstimatedClassification(){
     const stops=getStops(e);
     const diff=maxStops-stops;
     // Coste individual si lo tenemos (validado), sino media del circuito
-    const teamCosts=(_enPitCosts[e.dorsal]||[]).filter(c=>c>=_enPitDuration*0.8);
+    const teamCosts=(EnSession.pitCosts[e.dorsal]||[]).filter(c=>c>=EnBox.pitDuration*0.8);
     const teamAvgCost=teamCosts.length?teamCosts.reduce((a,b)=>a+b,0)/teamCosts.length:avgPitCost;
     const penalty=diff*teamAvgCost;
 
@@ -2318,7 +2331,7 @@ function _enUpdateCfg(key, val){
   if(!window.AppState.config)window.AppState.config={};
   if(key==='stintMin'||key==='stintMax'){
     window.AppState.config[key]=parseInt(val)||0;
-    _enStratConfigured=true;
+    EnBox.stratConfigured=true;
   } else {
     window.AppState.config[key]=val;
   }
@@ -2331,8 +2344,8 @@ function _enInitSim(){
   const dorsales=['7','9','15','11','12','14','10','13','6','8'];
   const bases=[67.2,67.8,68.1,68.5,69.0,69.3,69.8,70.2,71.0,72.5];
   const now=Date.now();
-  _enStintStart=now;
-  _enData.equipos=nombres.map((name,i)=>({
+  EnSession.stintStart=now;
+  EnSession.data.equipos=nombres.map((name,i)=>({
     dorsal:dorsales[i], name, pos:i+1,
     lastLap:null, bestLap:bases[i],
     lapHistory:[bases[i],bases[i]+0.2,bases[i]-0.1,bases[i]+0.3,bases[i]-0.2],
@@ -2344,12 +2357,12 @@ function _enInitSim(){
     lapFlash:false, posChange:null,
     _lapStart:now-Math.random()*bases[i]*1000,
   }));
-  _enData.leaderLap=20;
+  EnSession.data.leaderLap=20;
   if(window.ApexClock)window.ApexClock.sync(90*60*1000);
   if(_enSimTimer)clearInterval(_enSimTimer);
   _enSimTimer=setInterval(()=>{
     const now=Date.now();
-    _enData.equipos.forEach(e=>{
+    EnSession.data.equipos.forEach(e=>{
       if(e.pit){
         e.pitS=(e.pitS||0)+1;
         if(e.pitS>15){e.pit=false;e.pitS=0;e.pitState=null;e.state='sr';e._lapStart=now;}
@@ -2373,20 +2386,20 @@ function _enInitSim(){
         }
       }
     });
-    _enData.equipos.sort((a,b)=>b.tours-a.tours||(a.bestLap-b.bestLap));
-    _enData.equipos.forEach((e,i)=>{
+    EnSession.data.equipos.sort((a,b)=>b.tours-a.tours||(a.bestLap-b.bestLap));
+    EnSession.data.equipos.forEach((e,i)=>{
       if(e.pos!==i+1){
         e.posChange={from:e.pos,to:i+1,delta:e.pos-(i+1),time:Date.now()};
         setTimeout(()=>{e.posChange=null;},5000);
       }
       e.pos=i+1;
     });
-    const leaderLaps=_enData.equipos[0]?.tours||0;
-    const leaderBest=_enData.equipos[0]?.bestLap||70;
-    _enData.equipos.forEach((e,i)=>{
+    const leaderLaps=EnSession.data.equipos[0]?.tours||0;
+    const leaderBest=EnSession.data.equipos[0]?.bestLap||70;
+    EnSession.data.equipos.forEach((e,i)=>{
       e.gapMs=i===0?0:Math.round((e.bestLap-leaderBest)*1000*(e.pos));
     });
-    _enData.leaderLap=leaderLaps;
+    EnSession.data.leaderLap=leaderLaps;
     if(_enTimer)clearTimeout(_enTimer);
     _enTimer=setTimeout(_enRender,80);
   },1000);
@@ -2395,9 +2408,9 @@ function _enInitSim(){
 // ── API pública ───────────────────────────────────────────────────────────
 window.showEnduranceDashboard=function(cfg){
   _enInjectStyles();
-  _enPinned=null;
-  _enStintStart=null; // Stint empieza cuando arranca el countdown
-  _enStintFrozen=null;
+  EnUi.pinned=null;
+  EnSession.stintStart=null; // Stint empieza cuando arranca el countdown
+  EnSession.stintFrozen=null;
 
   if(window.ApexClock&&!window.ApexClock.fmt){
     window.ApexClock.fmt=function(){return this.fmtMs(this.remainingMs());};
@@ -2419,33 +2432,33 @@ window.showEnduranceDashboard=function(cfg){
       cv.textContent=window.ApexClock.fmtMs(window.ApexClock.remainingMs());
       if(lbl)lbl.textContent=window.ApexClock.isCountUp()?'tiempo transcurrido':'tiempo restante';
       // Iniciar stint cuando el reloj arranca por primera vez
-      if(!_enStintStart&&window.ApexClock._synced)_enStintStart=Date.now();
+      if(!EnSession.stintStart&&window.ApexClock._synced)EnSession.stintStart=Date.now();
       // Congelar stint cuando countdown llega a 0
-      if(_enStintStart&&!_enStintFrozen&&!window.ApexClock.isCountUp()){
+      if(EnSession.stintStart&&!EnSession.stintFrozen&&!window.ApexClock.isCountUp()){
         const rem=window.ApexClock.remainingMs();
-        if(rem!==null&&rem<=0)_enStintFrozen=Date.now()-_enStintStart;
+        if(rem!==null&&rem<=0)EnSession.stintFrozen=Date.now()-EnSession.stintStart;
       }
     }
     // Actualizar stint en KPIs cada segundo
     _enUpdateKpis(document.getElementById('screen-dash'),
-      _enData.equipos.find(e=>e.pos===1),
-      _enTrackAvgLive(_enData.equipos),
-      _enData.equipos.filter(e=>e.bestLap).map(e=>e.bestLap).sort((a,b)=>a-b)[0]||null,
-      _enData.equipos.filter(e=>e.pit).length,
-      _enData.equipos.find(e=>e.dorsal===cfg.myDorsal),
+      EnSession.data.equipos.find(e=>e.pos===1),
+      _enTrackAvgLive(EnSession.data.equipos),
+      EnSession.data.equipos.filter(e=>e.bestLap).map(e=>e.bestLap).sort((a,b)=>a-b)[0]||null,
+      EnSession.data.equipos.filter(e=>e.pit).length,
+      EnSession.data.equipos.find(e=>e.dorsal===cfg.myDorsal),
       cfg.myDorsal,
-      _enData.equipos
+      EnSession.data.equipos
     );
     // Actualizar vista equipo cada segundo si está activa
-    if(_enTab==='team'){
+    if(EnUi.tab==='team'){
       const tdyn=document.getElementById('en-team-dynamic');
-      const myKart=_enData.equipos.find(e=>e.dorsal===cfg.myDorsal);
-      const trackAvg=_enTrackAvgLive(_enData.equipos);
+      const myKart=EnSession.data.equipos.find(e=>e.dorsal===cfg.myDorsal);
+      const trackAvg=_enTrackAvgLive(EnSession.data.equipos);
       if(tdyn)tdyn.innerHTML=_enRenderTeam(myKart, trackAvg);
     }
-    if(_enTab==='strat'){
+    if(EnUi.tab==='strat'){
       const dynDiv=document.getElementById('en-strat-dynamic');
-      if(dynDiv)dynDiv.innerHTML=_enRenderStrategy(_enData.equipos, _enTrackAvgLive(_enData.equipos));
+      if(dynDiv)dynDiv.innerHTML=_enRenderStrategy(EnSession.data.equipos, _enTrackAvgLive(EnSession.data.equipos));
     }
   },1000);
 
@@ -2461,121 +2474,121 @@ window.showEnduranceDashboard=function(cfg){
       (data)=>{
         const now=Date.now();
         (data.equipos||[]).forEach(e=>{
-          const prev=_enData.equipos.find(p=>p.dorsal===e.dorsal);
+          const prev=EnSession.data.equipos.find(p=>p.dorsal===e.dorsal);
           if(prev&&prev.lastLap!==e.lastLap)e._lapStart=now;
           else if(prev)e._lapStart=prev._lapStart;
           else e._lapStart=now;
         });
-        _enData.equipos=data.equipos||[];
-        _enData.leaderLap=data.leaderLap||0;
+        EnSession.data.equipos=data.equipos||[];
+        EnSession.data.leaderLap=data.leaderLap||0;
 
         // ── Tracking blindado: un error aquí NUNCA debe congelar el dashboard ──
         try{
         // Trackear pit out de todos los karts para estimar stint restante
         // + gestionar cola del box
-        const trackAvgNow=_enTrackAvgLive(_enData.equipos);
-        if(!_enBoxQueueInited){
-          const boxPos=_enBoxConfig.positions||4;
-          _enBoxQueue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
-          _enBoxQueueInited=true;
+        const trackAvgNow=_enTrackAvgLive(EnSession.data.equipos);
+        if(!EnBox.queueInited){
+          const boxPos=EnBox.config.positions||4;
+          EnBox.queue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
+          EnBox.queueInited=true;
         }
-        if(!_enData._prevPitState)_enData._prevPitState={};
-        _enData.equipos.forEach(e=>{
-          const prev=_enData._prevPitState[e.dorsal];
+        if(!EnSession.data._prevPitState)EnSession.data._prevPitState={};
+        EnSession.data.equipos.forEach(e=>{
+          const prev=EnSession.data._prevPitState[e.dorsal];
           // Pit IN: el equipo entrega su kart → la cola CRECE (sin límite, refleja la realidad)
           if(e.pitState==='in'&&prev!=='in'){
-            if(!_enPitCounts[e.dorsal])_enPitCounts[e.dorsal]=0;
-            _enPitCounts[e.dorsal]++;
+            if(!EnSession.pitCounts[e.dorsal])EnSession.pitCounts[e.dorsal]=0;
+            EnSession.pitCounts[e.dorsal]++;
             const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
-            _enBoxQueue.push({quality:q, dorsal:e.dorsal, name:e.name, time:now});
+            EnBox.queue.push({quality:q, dorsal:e.dorsal, name:e.name, time:now});
           }
           // Pit OUT: el equipo se lleva el PRIMERO de la cola → la cola DECRECE
           if(e.pitState==='out'&&prev!=='out'){
-            if(_enBoxQueue.length>0)_enBoxQueue.shift();
+            if(EnBox.queue.length>0)EnBox.queue.shift();
           }
           // Pit OUT: capturar vuelta de pit out para calcular coste
           if(e.pitState==='out'&&prev!=='out'&&e.lastLap){
             const avg5=_enAvg5(e.lapHistory);
             if(avg5&&e.lastLap>avg5){
               const cost=e.lastLap-avg5;
-              if(!_enPitCosts[e.dorsal])_enPitCosts[e.dorsal]=[];
-              _enPitCosts[e.dorsal].push(cost);
+              if(!EnSession.pitCosts[e.dorsal])EnSession.pitCosts[e.dorsal]=[];
+              EnSession.pitCosts[e.dorsal].push(cost);
             }
           }
           // Pit OUT: iniciar calibración de offset pit exit → meta
           if(e.pitState==='out'&&prev!=='out'){
-            _enPitOutPending[e.dorsal]=now;
+            EnSession.pitOutPending[e.dorsal]=now;
           }
           // Pase por meta (lapFlash) → registrar timestamp + completar calibración
           if(e.lapFlash&&!e.pit){
-            _enLinePasses[e.dorsal]=now;
-            if(_enPitOutPending[e.dorsal]){
-              const offset=(now-_enPitOutPending[e.dorsal])/1000;
-              if(offset>3&&offset<300)_enPitOutCalibration.push(offset);
-              if(_enPitOutCalibration.length>20)_enPitOutCalibration.shift();
-              delete _enPitOutPending[e.dorsal];
+            EnSession.linePasses[e.dorsal]=now;
+            if(EnSession.pitOutPending[e.dorsal]){
+              const offset=(now-EnSession.pitOutPending[e.dorsal])/1000;
+              if(offset>3&&offset<300)EnSession.pitOutCalibration.push(offset);
+              if(EnSession.pitOutCalibration.length>20)EnSession.pitOutCalibration.shift();
+              delete EnSession.pitOutPending[e.dorsal];
             }
           }
-          _enData._prevPitState[e.dorsal]=e.pitState||null;
+          EnSession.data._prevPitState[e.dorsal]=e.pitState||null;
 
           // Stint timer tracking
-          if(!e.pit&&!_enRivalPitOut[e.dorsal])_enRivalPitOut[e.dorsal]=now;
-          if(e.pitState==='out'&&!_enRivalPitOut[e.dorsal])_enRivalPitOut[e.dorsal]=now;
-          if(e.pitState==='in')_enRivalPitOut[e.dorsal]=null;
+          if(!e.pit&&!EnSession.rivalPitOut[e.dorsal])EnSession.rivalPitOut[e.dorsal]=now;
+          if(e.pitState==='out'&&!EnSession.rivalPitOut[e.dorsal])EnSession.rivalPitOut[e.dorsal]=now;
+          if(e.pitState==='in')EnSession.rivalPitOut[e.dorsal]=null;
         });
 
         // Detectar pit IN → guardar stint actual
         const myD=cfg.myDorsal;
-        const myK=_enData.equipos.find(e=>e.dorsal===myD);
-        if(myK&&myK.pitState==='in'&&!_enData._myWasIn){
-          _enData._myWasIn=true;
+        const myK=EnSession.data.equipos.find(e=>e.dorsal===myD);
+        if(myK&&myK.pitState==='in'&&!EnSession.data._myWasIn){
+          EnSession.data._myWasIn=true;
 
           // Guardar stint actual en historial
           const pilotos=cfg?.pilotos||[];
-          const stintMs=_enStintFrozen?_enStintFrozen:(_enStintStart?(Date.now()-_enStintStart):0);
+          const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
           const stintLaps=_enStintLaps(myK);
-          const pilotName=pilotos[_enCurrentPilot]?.name||`Piloto ${_enCurrentPilot+1}`;
+          const pilotName=pilotos[EnSession.currentPilot]?.name||`Piloto ${EnSession.currentPilot+1}`;
           if(stintMs>5000){
-            _enStintHistory.push({
+            EnSession.stintHistory.push({
               pilot:pilotName,
-              pilotIdx:_enCurrentPilot,
+              pilotIdx:EnSession.currentPilot,
               durationMs:stintMs,
               laps:stintLaps,
-              lapTimes:[..._enStintLapTimes],
+              lapTimes:[...EnSession.stintLapTimes],
               avg:_enAvg5(myK.lapHistory),
-              best:_enStintBestLap,
-              posIn:_enPosIn,
+              best:EnSession.stintBestLap,
+              posIn:EnSession.posIn,
               posOut:myK.pos,
               endTime:new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
             });
           }
           // Congelar stint
-          _enStintFrozen=_enStintStart?(Date.now()-_enStintStart):0;
+          EnSession.stintFrozen=EnSession.stintStart?(Date.now()-EnSession.stintStart):0;
         }
-        if(myK&&!myK.pit)_enData._myWasIn=false;
+        if(myK&&!myK.pit)EnSession.data._myWasIn=false;
 
         // Detectar pit OUT → resetear timer + popup piloto
-        if(myK&&myK.pitState==='out'&&!_enData._myWasOut){
-          _enData._myWasOut=true;
-          _enStintStart=Date.now();
-          _enStintFrozen=null;
-          _enData._stintStartTours=myK.tours;
-          _enPosIn=myK.pos;
-          _enStintBestLap=null;
-          _enStintLapTimes=[];
-          _enData._lastMyLap=null;
+        if(myK&&myK.pitState==='out'&&!EnSession.data._myWasOut){
+          EnSession.data._myWasOut=true;
+          EnSession.stintStart=Date.now();
+          EnSession.stintFrozen=null;
+          EnSession.data._stintStartTours=myK.tours;
+          EnSession.posIn=myK.pos;
+          EnSession.stintBestLap=null;
+          EnSession.stintLapTimes=[];
+          EnSession.data._lastMyLap=null;
           setTimeout(()=>_enShowPilotSelect(true),500);
         }
-        if(myK&&myK.pitState!=='out')_enData._myWasOut=false;
+        if(myK&&myK.pitState!=='out')EnSession.data._myWasOut=false;
 
         // Trackear mejor vuelta del stint y posición
         if(myK&&myK.lastLap&&!myK.pit){
-          if(myK.lastLap!==_enData._lastMyLap){
-            _enStintLapTimes.push(myK.lastLap);
-            _enData._lastMyLap=myK.lastLap;
+          if(myK.lastLap!==EnSession.data._lastMyLap){
+            EnSession.stintLapTimes.push(myK.lastLap);
+            EnSession.data._lastMyLap=myK.lastLap;
           }
-          if(!_enStintBestLap||myK.lastLap<_enStintBestLap)_enStintBestLap=myK.lastLap;
-          if(!_enPosIn)_enPosIn=myK.pos;
+          if(!EnSession.stintBestLap||myK.lastLap<EnSession.stintBestLap)EnSession.stintBestLap=myK.lastLap;
+          if(!EnSession.posIn)EnSession.posIn=myK.pos;
         }
         }catch(err){console.error('[StintPro] Error en tracking (render continúa):',err);}
 
@@ -2596,32 +2609,32 @@ window._enGoBack=function(){
   if(_enClockTimer){clearInterval(_enClockTimer);_enClockTimer=null;}
   if(_enSimTimer){clearInterval(_enSimTimer);_enSimTimer=null;}
   if(_enBarTimer){clearInterval(_enBarTimer);_enBarTimer=null;}
-  _enData={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
-  _enStintStart=null;
-  _enStintFrozen=null;
-  _enTab='grid';
-  _enCurrentPilot=0;
-  _enStintHistory=[];
-  _enKartAutoState={};
-  _enKartQuality={};
-  _enPinned=null;
-  _enPosIn=null;
-  _enStintBestLap=null;
-  _enExcludedFromAvg={};
-  _enBoxConfig={type:'line',positions:4,columns:2};
-  _enRivalPitOut={};
-  _enPilotMinTime=0;
-  _enTotalStops=0;
-  _enBoxQueue=[];
-  _enBoxQueueInited=false;
-  _enPitCosts={};
-  _enPitCounts={};
-  _enStratConfigured=false;
-  _enStintLapTimes=[];
-  _enSortMode='pos';
-  _enLinePasses={};
-  _enPitOutCalibration=[];
-  _enPitOutPending={};
+  EnSession.data={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
+  EnSession.stintStart=null;
+  EnSession.stintFrozen=null;
+  EnUi.tab='grid';
+  EnSession.currentPilot=0;
+  EnSession.stintHistory=[];
+  EnSession.kartAutoState={};
+  EnUi.kartQuality={};
+  EnUi.pinned=null;
+  EnSession.posIn=null;
+  EnSession.stintBestLap=null;
+  EnUi.excludedFromAvg={};
+  EnBox.config={type:'line',positions:4,columns:2};
+  EnSession.rivalPitOut={};
+  EnBox.pilotMinTime=0;
+  EnBox.totalStops=0;
+  EnBox.queue=[];
+  EnBox.queueInited=false;
+  EnSession.pitCosts={};
+  EnSession.pitCounts={};
+  EnBox.stratConfigured=false;
+  EnSession.stintLapTimes=[];
+  EnUi.sortMode='pos';
+  EnSession.linePasses={};
+  EnSession.pitOutCalibration=[];
+  EnSession.pitOutPending={};
   document.getElementById('screen-dash').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();
