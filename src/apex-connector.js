@@ -452,11 +452,12 @@ window.ApexConnector = {
           if(blpCell){const t=this._pt(blpCell.textContent);if(t&&t>=20&&t<300)k.bestLap=t;}
         }
 
-        // Último tiempo desde columna llp
+        // Último tiempo desde columna llp — solo si aún no hay valor en vivo
+        // (evita que grid refreshes sobreescriban lastLap recibido por |*| o llp cell)
         const llpCol=this._colMap.llp;
         if(llpCol){
           const llpCell=row.querySelector(`[data-id$="${llpCol}"]`);
-          if(llpCell){const t=this._pt(llpCell.textContent);if(t&&t>=20&&t<300)k.lastLap=t;}
+          if(llpCell){const t=this._pt(llpCell.textContent);if(t&&t>=20&&t<300&&!k.lastLap)k.lastLap=t;}
         }
 
         // Vueltas desde columna tlp
