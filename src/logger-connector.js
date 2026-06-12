@@ -51,7 +51,8 @@ const Logger = {
           }
 
           if (msg.type === 'history' && msg.snapshot && this.onData) {
-            this.onData(msg.snapshot);
+            // Marcar como snapshot histórico para que el cliente reconstruya estado derivado
+            this.onData({ ...msg.snapshot, _isHistory: true });
           }
 
           if (msg.type === 'error') {

@@ -2517,6 +2517,30 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
 
+        // ── Reconstrucción de estado desde snapshot histórico del logger ──────
+        // Cuando conectamos tarde, el logger envía _isHistory:true + pitEvents[]
+        // que permiten reconstruir cola FIFO, pitCounts y rivalPitOut.
+        if(data._isHistory && Array.isArray(data.pitEvents) && !EnBox.queueInited){
+          try{
+            const boxPos=EnBox.config.positions||4;
+            // Inicializar cola con karts desconocidos (reserva inicial)
+            EnBox.queue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
+            // Reproducir eventos de pit en orden cronológico
+            data.pitEvents.forEach(ev=>{
+              if(ev.event==='in'){
+                if(!EnSession.pitCounts[ev.dorsal])EnSession.pitCounts[ev.dorsal]=0;
+                EnSession.pitCounts[ev.dorsal]++;
+                EnBox.queue.push({quality:'unknown',dorsal:ev.dorsal,time:ev.time});
+                EnSession.rivalPitOut[ev.dorsal]=null;
+              } else if(ev.event==='out'){
+                if(EnBox.queue.length>0)EnBox.queue.shift();
+                EnSession.rivalPitOut[ev.dorsal]=ev.time;
+              }
+            });
+            EnBox.queueInited=true;
+          }catch(e){}
+        }
+
         // ── Tracking blindado: un error aquí NUNCA debe congelar el dashboard ──
         try{
         // Trackear pit out de todos los karts para estimar stint restante

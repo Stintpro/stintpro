@@ -1,0 +1,193 @@
+// ── StintPro Logger — DB layer (sql.js para compatibilidad ARM) ────────────
+const path = require('path');
+const fs   = require('fs');
+
+let SQL = null;
+let db  = null;
+const DB_PATH = path.join(__dirname, 'data', 'stintpro.db');
+
+async function init() {
+  const initSqlJs = require('sql.js');
+  SQL = await initSqlJs();
+
+  const dataDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
+  if (fs.existsSync(DB_PATH)) {
+    db = new SQL.Database(fs.readFileSync(DB_PATH));
+  } else {
+    db = new SQL.Database();
+  }
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug         TEXT    NOT NULL,
+      circuit_name TEXT,
+      started_at   INTEGER,
+      ended_at     INTEGER,
+      is_active    INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS laps (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id   INTEGER NOT NULL,
+      dorsal       TEXT,
+      name         TEXT,
+      lap_time_ms  INTEGER,
+      lap_number   INTEGER,
+      timestamp    INTEGER,
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+    CREATE TABLE IF NOT EXISTS pit_events (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id   INTEGER NOT NULL,
+      dorsal       TEXT,
+      event_type   TEXT,
+      stands_count INTEGER DEFAULT 0,
+      timestamp    INTEGER,
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+    CREATE TABLE IF NOT EXISTS snapshots (
+      session_id   INTEGER PRIMARY KEY,
+      snapshot_json TEXT,
+      updated_at   INTEGER,
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_laps_session ON laps(session_id);
+    CREATE INDEX IF NOT EXISTS idx_pit_session  ON pit_events(session_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_slug ON sessions(slug);
+  `);
+
+  _save();
+  setInterval(_save, 30000);
+  console.log('[DB] Inicializada:', DB_PATH);
+}
+
+function _save() {
+  if (!db) return;
+  try { fs.writeFileSync(DB_PATH, Buffer.from(db.export())); } catch(e) {}
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────
+
+function createSession(slug, circuitName) {
+  const stmt = db.prepare(
+    'INSERT INTO sessions (slug, circuit_name, started_at, is_active) VALUES (?, ?, ?, 1)'
+  );
+  stmt.run([slug, circuitName || slug, Date.now()]);
+  stmt.free();
+  const r = db.exec('SELECT last_insert_rowid() as id');
+  const id = r[0].values[0][0];
+  _save();
+  console.log(`[DB] Sesión creada #${id} para ${slug}`);
+  return id;
+}
+
+function endSession(sessionId) {
+  const stmt = db.prepare('UPDATE sessions SET ended_at=?, is_active=0 WHERE id=?');
+  stmt.run([Date.now(), sessionId]);
+  stmt.free();
+  _save();
+}
+
+function cleanupEmptySessions() {
+  db.run(`DELETE FROM sessions WHERE is_active=0
+          AND id NOT IN (SELECT DISTINCT session_id FROM laps)`);
+  _save();
+}
+
+// ── Laps ──────────────────────────────────────────────────────────────────
+
+function insertLap(sessionId, dorsal, name, lapTimeMs, lapNumber, timestamp) {
+  const stmt = db.prepare(
+    'INSERT INTO laps (session_id,dorsal,name,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?)'
+  );
+  stmt.run([sessionId, dorsal, name || '', lapTimeMs, lapNumber, timestamp || Date.now()]);
+  stmt.free();
+}
+
+function getLapsBySession(sessionId) {
+  const r = db.exec(
+    `SELECT dorsal,name,lap_time_ms,lap_number,timestamp FROM laps WHERE session_id=${sessionId} ORDER BY timestamp ASC`
+  );
+  return _rows(r);
+}
+
+// ── Pit events ────────────────────────────────────────────────────────────
+
+function insertPitEvent(sessionId, dorsal, eventType, standsCount, timestamp) {
+  const stmt = db.prepare(
+    'INSERT INTO pit_events (session_id,dorsal,event_type,stands_count,timestamp) VALUES (?,?,?,?,?)'
+  );
+  stmt.run([sessionId, dorsal, eventType, standsCount || 0, timestamp || Date.now()]);
+  stmt.free();
+}
+
+function getPitEventsBySession(sessionId) {
+  const r = db.exec(
+    `SELECT dorsal,event_type,stands_count,timestamp FROM pit_events WHERE session_id=${sessionId} ORDER BY timestamp ASC`
+  );
+  return _rows(r);
+}
+
+// ── Snapshots ─────────────────────────────────────────────────────────────
+
+function saveSnapshot(sessionId, obj) {
+  const stmt = db.prepare(
+    'INSERT OR REPLACE INTO snapshots (session_id,snapshot_json,updated_at) VALUES (?,?,?)'
+  );
+  stmt.run([sessionId, JSON.stringify(obj), Date.now()]);
+  stmt.free();
+}
+
+// ── Queries / stats ───────────────────────────────────────────────────────
+
+function getAllSessions() {
+  const r = db.exec(`
+    SELECT s.id, s.slug, s.circuit_name, s.started_at, s.ended_at, s.is_active,
+           COUNT(l.id) as lap_count
+    FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
+    GROUP BY s.id ORDER BY s.id DESC LIMIT 200
+  `);
+  return _rows(r);
+}
+
+function getCircuitSessions(slug, limit = 50) {
+  const s = slug.replace(/'/g, "''");
+  const r = db.exec(
+    `SELECT id,slug,circuit_name,started_at,ended_at,is_active FROM sessions
+     WHERE slug='${s}' ORDER BY id DESC LIMIT ${limit}`
+  );
+  return _rows(r);
+}
+
+function getBestLapsByCircuit(slug) {
+  const s = slug.replace(/'/g, "''");
+  const r = db.exec(`
+    SELECT l.dorsal, l.name, MIN(l.lap_time_ms) as best_ms, COUNT(*) as total_laps,
+           s.circuit_name, s.started_at
+    FROM laps l JOIN sessions s ON s.id=l.session_id
+    WHERE s.slug='${s}' AND l.lap_time_ms BETWEEN 20000 AND 300000
+    GROUP BY l.dorsal, l.name ORDER BY best_ms ASC LIMIT 100
+  `);
+  return _rows(r);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function _rows(result) {
+  if (!result.length) return [];
+  const cols = result[0].columns;
+  return result[0].values.map(row =>
+    Object.fromEntries(cols.map((c, i) => [c, row[i]]))
+  );
+}
+
+module.exports = {
+  init,
+  createSession, endSession, cleanupEmptySessions,
+  insertLap, getLapsBySession,
+  insertPitEvent, getPitEventsBySession,
+  saveSnapshot,
+  getAllSessions, getCircuitSessions, getBestLapsByCircuit,
+};
