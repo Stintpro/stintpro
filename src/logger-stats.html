@@ -293,7 +293,12 @@ function renderCircuitView(slug, sessions, best) {
           <td>${s.ended_at ? fmtDuration(s.ended_at - s.started_at) : s.is_active ? '<span style="color:#22c55e">En curso</span>' : '—'}</td>
           <td>${s.lap_count||0}</td>
           <td><span class="badge ${s.is_active?'active':'ended'}">${s.is_active?'EN VIVO':'Finalizada'}</span></td>
-          <td style="color:#5b8dee;font-size:12px">Ver →</td>
+          <td style="display:flex;gap:6px;align-items:center">
+            <span style="color:#5b8dee;font-size:12px">Ver →</span>
+            <span onclick="deleteSession(event,${s.id},'${esc(fmtDate(s.started_at))}')"
+              style="color:#ef4444;font-size:13px;cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid #2a2d3a"
+              title="Borrar sesión">🗑</span>
+          </td>
         </tr>`).join('')}
       </tbody>
     </table></div>`;
@@ -436,6 +441,19 @@ function filterModalTable() {
 
 function closeModal(e) {
   if (e.target.id === 'modal') document.getElementById('modal').style.display = 'none';
+}
+
+async function deleteSession(e, id, dateStr) {
+  e.stopPropagation();
+  if (!confirm(`¿Borrar sesión del ${dateStr}?\nSe eliminarán todas las vueltas y eventos de pit.\n\nEsta acción no se puede deshacer.`)) return;
+  try {
+    const sep = _key ? '?' : '';
+    const res = await fetch(`${_url}/api/sessions/${id}${sep}apikey=${_key}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (_selected) selectCircuit(_selected);
+  } catch(e) {
+    alert('Error al borrar: ' + e.message);
+  }
 }
 
 async function cleanup() {

@@ -96,6 +96,14 @@ function cleanupEmptySessions() {
   _save();
 }
 
+function deleteSession(sessionId) {
+  db.run(`DELETE FROM laps        WHERE session_id=${sessionId}`);
+  db.run(`DELETE FROM pit_events  WHERE session_id=${sessionId}`);
+  db.run(`DELETE FROM snapshots   WHERE session_id=${sessionId}`);
+  db.run(`DELETE FROM sessions    WHERE id=${sessionId}`);
+  _save();
+}
+
 // ── Laps ──────────────────────────────────────────────────────────────────
 
 function insertLap(sessionId, dorsal, name, lapTimeMs, lapNumber, timestamp) {
@@ -185,7 +193,7 @@ function _rows(result) {
 
 module.exports = {
   init,
-  createSession, endSession, cleanupEmptySessions,
+  createSession, endSession, cleanupEmptySessions, deleteSession,
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
