@@ -293,8 +293,8 @@ window.ApexConnector = {
       return;
     }
 
-    // ── Vueltas ──────────────────────────────────────────────────
-    if(dtype==='tlp'){
+    // ── Vueltas (tlp o lc según circuito) ────────────────────────
+    if(dtype==='tlp'||dtype==='lc'){
       const n=parseInt(v);
       if(!isNaN(n)&&n>0)k.tours=n;
       return;
