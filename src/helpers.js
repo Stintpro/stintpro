@@ -3,14 +3,12 @@ window.H = {
   best(a) { return a&&a.length?Math.min(...a):null; },
 
   cons(a) {
-    if(!a||a.length<3)return null;
-    a=a.slice(-5); // Últimas 5 vueltas
-    const m=a.reduce((x,y)=>x+y,0)/a.length;
-    const v=a.map(x=>Math.abs(x-m)).reduce((x,y)=>x+y,0)/a.length;
-    if(v<=0.3)return 100;
-    if(v<=0.5)return Math.round(100-(v-0.3)/0.2*20);
-    if(v<=1.0)return Math.round(80-(v-0.5)/0.5*40);
-    return Math.max(0,Math.round(40-(v-1.0)*20));
+    const r=_enCons(a);
+    if(!r)return null;
+    if(r.label==='Muy regular')return 100;
+    if(r.label==='Regular')    return 80;
+    if(r.label==='Irregular')  return 50;
+    return 20;
   },
 
   diag(laps,trackAvg) {
