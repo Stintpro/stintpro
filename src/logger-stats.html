@@ -214,7 +214,7 @@ async function selectCircuit(slug) {
   try {
     const [sessions, best] = await Promise.all([
       api(`/api/sessions/${slug}`),
-      api(`/api/best/${slug}`),
+      api(`/api/circuit/${slug}/history`).catch(() => []),
     ]);
     renderCircuitView(slug, sessions, best);
   } catch(e) {
@@ -317,7 +317,7 @@ async function openSession(id, dateStr) {
   document.getElementById('modal').style.display = 'flex';
 
   try {
-    const laps = await api(`/api/laps/${id}`);
+    const laps = await api(`/api/session/${id}/laps`);
     renderSessionModal(laps);
   } catch(e) {
     document.getElementById('modal-body').innerHTML = `<div class="empty" style="grid-column:1/-1">Error: ${e.message}</div>`;
