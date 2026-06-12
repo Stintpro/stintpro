@@ -1893,6 +1893,8 @@ function _enRenderStrategy(eq, trackAvg){
   if(EnBox.queue.length===0){
     html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
   } else {
+    const myD=(cfg?.myDorsal||'').toString().trim();
+    const myQueueIdx=myD?EnBox.queue.findIndex(k=>k.dorsal?.toString()===myD):-1;
     html+=`<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:9px;color:#555;margin-right:2px">ENTRA</span>`;
     [...EnBox.queue].reverse().forEach((k,i)=>{
@@ -1900,8 +1902,12 @@ function _enRenderStrategy(eq, trackAvg){
       if(k.quality==='good')bg='#22c55e';
       else if(k.quality==='bad')bg='#ef4444';
       else if(k.quality==='unknown')bg='#333';
-      const isLast=i===EnBox.queue.length-1;
-      html+=`<div style="width:28px;height:20px;border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;${isLast?'border:2px solid #fff;':''}font-size:9px;color:#fff;font-weight:600" title="${k.quality==='unknown'?'Sin info':k.name||'#'+k.dorsal}">${k.quality==='unknown'?'?':''}</div>`;
+      const isFirst=i===EnBox.queue.length-1; // primero en salir
+      const isMe=myD&&k.dorsal?.toString()===myD;
+      const border=isMe?'3px solid #fff':isFirst?'2px solid #aaa':'1px solid transparent';
+      const label=isMe?(k.dorsal||'YO'):(k.quality==='unknown'?'?':'');
+      const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':(k.name||'#'+k.dorsal));
+      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:9px;color:#fff;font-weight:700" title="${title}">${label}</div>`;
     });
     html+=`<span style="font-size:9px;color:#555;margin-left:2px">SALE</span></div>`;
     const qGood=EnBox.queue.filter(k=>k.quality==='good').length;
@@ -1910,6 +1916,10 @@ function _enRenderStrategy(eq, trackAvg){
     const qUnknown=EnBox.queue.filter(k=>k.quality==='unknown').length;
     html+=`<div style="font-size:9px;color:#555;font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
     html+=`<div style="font-size:9px;color:#555;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
+    if(myQueueIdx>=0){
+      const ahead=myQueueIdx;
+      html+=`<div style="font-size:9px;color:#5b8dee;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
+    }
 
     // ── Diagrama visual del box ──
     const qLen=EnBox.queue.length;
