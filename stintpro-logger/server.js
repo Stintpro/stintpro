@@ -81,6 +81,14 @@ app.get('/api/best/:slug', (req, res) => {
   res.json(db.getBestLapsByCircuit(req.params.slug));
 });
 
+// Borrar una sesión y todos sus datos
+app.delete('/api/sessions/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
+  db.deleteSession(id);
+  res.json({ ok: true });
+});
+
 // Limpiar sesiones vacías
 app.get('/api/cleanup', (req, res) => {
   db.cleanupEmptySessions();
