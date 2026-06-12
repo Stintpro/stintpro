@@ -143,7 +143,8 @@ test('ignora llp con valor < 20s', () => {
 });
 
 // ── Anti-duplicado llp / |*| ──────────────────────────────────────────────────
-// Circuito SIN llp: |*| registra, luego llp llega con valor similar → refinar
+// Bug original: diferencia > 0.05s causaba duplicado en lapHistory.
+// Con diferencias reales de ~1s esto ocurría en cada vuelta.
 console.log('\nanti-duplicado |*| + llp');
 
 test('llp refina vuelta previa de |*| aunque la diferencia sea > 0.05s', () => {
@@ -152,6 +153,16 @@ test('llp refina vuelta previa de |*| aunque la diferencia sea > 0.05s', () => {
   AC._parse('r1c9|sr|1:02.200|\n'); // llp llega con 62.200 → refina, no duplica
   strictEqual(kart().lastLap, 62.2, 'llp debe refinar el valor de |*|');
   strictEqual(kart().lapHistory.length, 1, 'no debe duplicar en lapHistory');
+});
+
+test('BUG ORIGINAL: diferencia ~1s no generaba duplicado (regresión)', () => {
+  // Reproduce el bug real donde |*|=62.0 y llp=62.8 (diff 0.8s > 0.05s)
+  // causaba que lapHistory tuviese DOS entradas para la misma vuelta física
+  setup({ llp: 'c9' });
+  AC._parse('r1|*|62000|\n');       // transponder: 62.000s
+  AC._parse('r1c9|sr|1:02.800|\n'); // apex llp oficial: 62.800s (diff 0.8s)
+  strictEqual(kart().lapHistory.length, 1, 'una sola vuelta — el duplicado es el bug');
+  strictEqual(kart().lastLap, 62.8, 'debe quedar el valor oficial de apex (llp)');
 });
 
 test('llp refina vuelta previa de |*| con diferencia pequeña', () => {
