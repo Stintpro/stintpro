@@ -70,7 +70,8 @@ window.ApexConnector = {
               if(k.lapHistory.length>1500)k.lapHistory.shift();
               if(!k.bestLap||t<k.bestLap)k.bestLap=t;
             }
-            k._lapFromFlash=t; // llp usará esto para refinar en vez de duplicar
+            k._lapFromFlash=t;
+            k._lapFromFlashTs=Date.now(); // ventana temporal para que llp refine
           }
           k._lapInvalid=false;
         }
@@ -245,9 +246,10 @@ window.ApexConnector = {
       const t=this._pt(v);
       if(t&&t>=20&&t<300){
         if(!k.lapHistory)k.lapHistory=[];
-        // Si |*| ya registró esta vuelta → refinar el último valor, nunca duplicar.
-        // No importa la diferencia de ms: son la misma vuelta, llp es más preciso.
-        if(k._lapFromFlash!==undefined&&k.lapHistory.length){
+        // Si |*| registró esta vuelta hace menos de 5s → refinar, no duplicar.
+        // Ventana de 5s: llp tardío (>5s) es de otra vuelta y crea entrada nueva.
+        const flashAge=k._lapFromFlashTs?Date.now()-k._lapFromFlashTs:Infinity;
+        if(k._lapFromFlash!==undefined&&flashAge<5000&&k.lapHistory.length){
           k.lapHistory[k.lapHistory.length-1]=t;
           k.lastLap=t;
         } else {
@@ -256,6 +258,7 @@ window.ApexConnector = {
           if(k.lapHistory.length>1500)k.lapHistory.shift();
         }
         k._lapFromFlash=undefined;
+        k._lapFromFlashTs=undefined;
         // Actualizar bestLap si esta vuelta es mejor
         if(!k.bestLap||t<k.bestLap)k.bestLap=t;
       }
