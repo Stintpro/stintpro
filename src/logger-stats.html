@@ -212,10 +212,11 @@ async function selectCircuit(slug) {
   setMain('<div class="loading">Cargando sesiones...</div>');
 
   try {
-    const [sessions, best] = await Promise.all([
+    const [sessions, bestRaw] = await Promise.all([
       api(`/api/sessions/${slug}`),
       api(`/api/circuit/${slug}/history`).catch(() => []),
     ]);
+    const best = Array.isArray(bestRaw) ? bestRaw : [];
     renderCircuitView(slug, sessions, best);
   } catch(e) {
     setMain(`<div class="empty">Error: ${e.message}</div>`);
