@@ -5,6 +5,7 @@ let _circuitMode = 'library';
 let _simMode     = false; // desactivado permanentemente
 let _connMode    = 'apex'; // 'apex' o 'logger'
 let _loggerUrl   = localStorage.getItem('stintpro_logger_url') || (()=>{const a=[49,57,50,46,49,54,56,46,49,46,55,57];return'http://'+a.map(c=>String.fromCharCode(c)).join('')+':3000'})();
+let _loggerApiKey = localStorage.getItem('stintpro_logger_apikey') || '';
 const _origApex  = window.ApexConnector; // guardar conector original
 
 function renderSetup() {
@@ -40,9 +41,17 @@ function renderSetup() {
         </div>
       </div>
       ${_connMode==='logger'?`
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn" onclick="testLogger()" style="flex:none">Verificar conexión</button>
-        <span id="loggerStatus" style="font-size:12.5px;color:var(--text-3)"></span>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="loggerUrlInput" type="text" placeholder="URL del logger (ej: http://188.245.90.48:3000)"
+          value="${_loggerUrl}" oninput="_loggerUrl=this.value.trim();localStorage.setItem('stintpro_logger_url',_loggerUrl)"
+          style="width:100%;padding:8px 10px;border-radius:var(--r-md);border:0.5px solid var(--border);background:var(--bg-2);color:var(--text-1);font-size:13px">
+        <input id="loggerKeyInput" type="text" placeholder="API key"
+          value="${_loggerApiKey}" oninput="_loggerApiKey=this.value.trim();localStorage.setItem('stintpro_logger_apikey',_loggerApiKey)"
+          style="width:100%;padding:8px 10px;border-radius:var(--r-md);border:0.5px solid var(--border);background:var(--bg-2);color:var(--text-1);font-size:13px;font-family:monospace">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn" onclick="testLogger()" style="flex:none">Verificar conexión</button>
+          <span id="loggerStatus" style="font-size:12.5px;color:var(--text-3)"></span>
+        </div>
       </div>
       `:''}
     </div>
@@ -54,6 +63,7 @@ function selectRaceType(type) {
   // Activar conector según modo
   if (_connMode === 'logger') {
     window.AppState.loggerUrl = _loggerUrl;
+    window.AppState.loggerApiKey = _loggerApiKey;
     window.ApexConnector = Logger;
   } else {
     window.ApexConnector = _origApex;
@@ -307,7 +317,7 @@ async function testLogger() {
   if (!_loggerUrl) { el.textContent = '❌ Introduce la URL del logger'; return; }
   el.textContent = '⏳ Verificando...';
   el.style.color = 'var(--text-3)';
-  const result = await Logger.test(_loggerUrl);
+  const result = await Logger.test(_loggerUrl, _loggerApiKey);
   if (result && Array.isArray(result)) {
     const active = result.filter(c => c.sessionActive).length;
     const connected = result.filter(c => c.connected).length;
