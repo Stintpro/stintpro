@@ -3,8 +3,14 @@
 // El slug es el identificador que aparece en la URL de Apex Timing (ej: apextiming.eu/live/rkc)
 // Puerto por defecto: 7913 (consulta con el circuito si no funciona)
 const _CIRCUIT_CATALOG = [
-  // { id: 'cat_rkc',      name: 'Henakart (RKC)',        slug: 'rkc',      port: 7913 },
-  // { id: 'cat_example',  name: 'Nombre del circuito',   slug: 'slug',     port: 7913 },
+  { id: 'cat_cabanillas',   name: 'Karting Cabanillas',        slug: 'cabanillas',       port: 10433 },
+  { id: 'cat_campillos',    name: 'Karting Campillos',         slug: 'campillos',        port: 9373  },
+  { id: 'cat_lossantos',    name: 'Karting Club Los Santos',   slug: 'karting-lossantos',port: 8093  },
+  { id: 'cat_rivas',        name: 'Karting Rivas',             slug: 'rivas',            port: 10073 },
+  { id: 'cat_sevilla',      name: 'Karting Sevilla',           slug: 'sevilla',          port: 6953  },
+  { id: 'cat_henakart',     name: 'Henakart',                  slug: 'henakart',         port: 9983  },
+  { id: 'cat_rkc',          name: 'RKC Paris',                 slug: 'rkc',              port: 7913  },
+  { id: 'cat_rkc2',         name: 'RKC Paris 2',               slug: 'rkc2',             port: 9263  },
 ];
 
 window.CircuitDB = {
