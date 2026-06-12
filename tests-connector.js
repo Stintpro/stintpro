@@ -88,23 +88,22 @@ test('no registra vuelta si _lapInvalid está activo', () => {
   ok(!kart().lastLap, 'vuelta inválida no debe registrar lastLap');
 });
 
-// ── |*| cuando SÍ hay columna llp — BUG ORIGINAL ────────────────────────────
-console.log('\n|*| con columna llp (debe ser ignorado)');
+// ── |*| siempre registra (respuesta inmediata) ───────────────────────────────
+console.log('\n|*| registra siempre (con o sin columna llp)');
 
-test('NO registra lastLap desde |*| cuando hay columna llp', () => {
+test('registra lastLap aunque haya columna llp', () => {
   setup({ llp: 'c9' });
   AC._parse('r1|*|62000|\n');
-  ok(!kart() || !kart().lastLap, 'lastLap debe ser null — llp es la fuente de verdad');
+  strictEqual(kart().lastLap, 62.0, '|*| da respuesta inmediata aunque venga llp después');
 });
 
-test('NO añade a lapHistory desde |*| cuando hay columna llp', () => {
+test('añade a lapHistory aunque haya columna llp', () => {
   setup({ llp: 'c9' });
   AC._parse('r1|*|62000|\n');
-  const h = kart() ? kart().lapHistory : [];
-  ok(h.length === 0, 'lapHistory debe estar vacío — |*| no debe registrar con llp presente');
+  strictEqual(kart().lapHistory.length, 1);
 });
 
-test('sí activa el flash visual aunque no registre tiempo', () => {
+test('activa el flash visual en |*|', () => {
   setup({ llp: 'c9' });
   AC._parse('r1|*|62000|\n');
   ok(kart()._lapFlash, 'el flash visual debe activarse siempre en |*|');
@@ -147,24 +146,28 @@ test('ignora llp con valor < 20s', () => {
 // Circuito SIN llp: |*| registra, luego llp llega con valor similar → refinar
 console.log('\nanti-duplicado |*| + llp');
 
-test('llp refina vuelta previa de |*| si diferencia <= 0.05s', () => {
-  setup(); // sin colMap.llp → |*| registra
-  AC._parse('r1|*|62000|\n');  // registra 62.000, _lapFromFlash=62.000
-  // Ahora mapeamos llp y llega celda con 62.020 (diff 0.02s ≤ 0.05)
-  AC._colMap.llp = 'c9';
-  AC._colByNum['c9'] = 'llp';
-  AC._parse('r1c9|sr|1:02.020|\n');
-  strictEqual(kart().lastLap, 62.02, 'debe refinar a 62.020');
+test('llp refina vuelta previa de |*| aunque la diferencia sea > 0.05s', () => {
+  setup({ llp: 'c9' });
+  AC._parse('r1|*|62000|\n');  // registra 62.000 inmediatamente
+  AC._parse('r1c9|sr|1:02.200|\n'); // llp llega con 62.200 → refina, no duplica
+  strictEqual(kart().lastLap, 62.2, 'llp debe refinar el valor de |*|');
   strictEqual(kart().lapHistory.length, 1, 'no debe duplicar en lapHistory');
 });
 
-test('llp añade entrada nueva si diferencia > 0.05s', () => {
-  setup();
+test('llp refina vuelta previa de |*| con diferencia pequeña', () => {
+  setup({ llp: 'c9' });
   AC._parse('r1|*|62000|\n');  // 62.000
-  AC._colMap.llp = 'c9';
-  AC._colByNum['c9'] = 'llp';
-  AC._parse('r1c9|sr|1:02.200|\n'); // 62.200 → diff 0.2 > 0.05
-  strictEqual(kart().lapHistory.length, 2, 'diferencia grande → entrada nueva');
+  AC._parse('r1c9|sr|1:02.020|\n'); // 62.020
+  strictEqual(kart().lastLap, 62.02);
+  strictEqual(kart().lapHistory.length, 1);
+});
+
+test('llp añade entrada nueva si NO hubo |*| previo', () => {
+  setup({ llp: 'c9' });
+  // llp llega sin |*| anterior (ej: conexión tardía con grid snapshot)
+  AC._parse('r1c9|sr|1:02.000|\n');
+  strictEqual(kart().lapHistory.length, 1);
+  strictEqual(kart().lastLap, 62.0);
 });
 
 // ── Múltiples vueltas ─────────────────────────────────────────────────────────
