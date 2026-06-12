@@ -164,7 +164,8 @@ function _enTrackAvgLive(eq){
   const laps=[];
   eq.forEach(e=>{
     // Excluir: en pit, saliendo de pit, vueltas >180s, equipos excluidos manualmente
-    if(e.lastLap&&e.lastLap<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal])laps.push(e.lastLap);
+    const m5=_enAvg5(e.lapHistory);
+    if(m5&&m5<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal])laps.push(m5);
   });
   if(laps.length<3)return null;
   laps.sort((a,b)=>a-b);
