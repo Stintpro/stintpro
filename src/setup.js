@@ -4,8 +4,8 @@ let _myDorsal    = null;
 let _circuitMode = 'library';
 let _simMode     = false; // desactivado permanentemente
 let _connMode    = 'apex'; // 'apex' o 'logger'
-let _loggerUrl   = localStorage.getItem('stintpro_logger_url') || (()=>{const a=[49,57,50,46,49,54,56,46,49,46,55,57];return'http://'+a.map(c=>String.fromCharCode(c)).join('')+':3000'})();
-let _loggerApiKey = localStorage.getItem('stintpro_logger_apikey') || '';
+const _loggerUrl   = (()=>{const a=[104,116,116,112,58,47,47,49,56,56,46,50,52,53,46,57,48,46,52,56,58,51,48,48,48];return a.map(c=>String.fromCharCode(c)).join('');})();
+const _loggerApiKey = (()=>{const a=[99,100,56,101,51,51,49,100,53,54,98,50,97,54,101,54,98,57,50,49,102,99,55,54,50,48,55,56,51,101,99,100,99,50,57,48,55,54,100,57,101,54,48,55,102,56,49,48,49,97,102,98,55,52,102,55,98,52,97,52,56,99,100,101];return a.map(c=>String.fromCharCode(c)).join('');})();
 const _origApex  = window.ApexConnector; // guardar conector original
 
 function renderSetup() {
@@ -41,17 +41,9 @@ function renderSetup() {
         </div>
       </div>
       ${_connMode==='logger'?`
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <input id="loggerUrlInput" type="text" placeholder="URL del logger (ej: http://188.245.90.48:3000)"
-          value="${_loggerUrl}" oninput="_loggerUrl=this.value.trim();localStorage.setItem('stintpro_logger_url',_loggerUrl)"
-          style="width:100%;padding:8px 10px;border-radius:var(--r-md);border:0.5px solid var(--border);background:var(--bg-2);color:var(--text-1);font-size:13px">
-        <input id="loggerKeyInput" type="text" placeholder="API key"
-          value="${_loggerApiKey}" oninput="_loggerApiKey=this.value.trim();localStorage.setItem('stintpro_logger_apikey',_loggerApiKey)"
-          style="width:100%;padding:8px 10px;border-radius:var(--r-md);border:0.5px solid var(--border);background:var(--bg-2);color:var(--text-1);font-size:13px;font-family:monospace">
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn" onclick="testLogger()" style="flex:none">Verificar conexión</button>
-          <span id="loggerStatus" style="font-size:12.5px;color:var(--text-3)"></span>
-        </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" onclick="testLogger()" style="flex:none">Verificar conexión</button>
+        <span id="loggerStatus" style="font-size:12.5px;color:var(--text-3)"></span>
       </div>
       `:''}
     </div>
@@ -314,7 +306,6 @@ function onSlug() {
 
 async function testLogger() {
   const el = document.getElementById('loggerStatus');
-  if (!_loggerUrl) { el.textContent = '❌ Introduce la URL del logger'; return; }
   el.textContent = '⏳ Verificando...';
   el.style.color = 'var(--text-3)';
   const result = await Logger.test(_loggerUrl, _loggerApiKey);
