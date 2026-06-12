@@ -60,20 +60,17 @@ window.ApexConnector = {
           if(!k.lapHistory)k.lapHistory=[];
           if(!k._lapInvalid){
             k._lapFlash=Date.now();
-            // FALLBACK: solo usar |*| para tiempos si el circuito no tiene columna llp.
-            // Si hay llp, es la fuente de verdad y |*| puede llegar con valor diferente
-            // (y sobreescribir el tiempo correcto si llega después de llp).
-            if(!this._colMap.llp){
-              const t=parseFloat((ms/1000).toFixed(3));
-              const lastH=k.lapHistory[k.lapHistory.length-1];
-              if(lastH===undefined||Math.abs(lastH-t)>0.05){
-                k.lastLap=t;
-                k.lapHistory.push(t);
-                if(k.lapHistory.length>1500)k.lapHistory.shift();
-                if(!k.bestLap||t<k.bestLap)k.bestLap=t;
-                k._lapFromFlash=t;
-              }
+            // |*| registra siempre — respuesta inmediata al cruzar meta.
+            // Si llega llp después, lo refina (sin duplicar) sea cual sea la diferencia.
+            const t=parseFloat((ms/1000).toFixed(3));
+            const lastH=k.lapHistory[k.lapHistory.length-1];
+            if(lastH===undefined||Math.abs(lastH-t)>0.05){
+              k.lastLap=t;
+              k.lapHistory.push(t);
+              if(k.lapHistory.length>1500)k.lapHistory.shift();
+              if(!k.bestLap||t<k.bestLap)k.bestLap=t;
             }
+            k._lapFromFlash=t; // llp usará esto para refinar en vez de duplicar
           }
           k._lapInvalid=false;
         }
@@ -248,17 +245,17 @@ window.ApexConnector = {
       const t=this._pt(v);
       if(t&&t>=20&&t<300){
         if(!k.lapHistory)k.lapHistory=[];
-        // Si el flash |*| ya registró esta misma vuelta → refinar el valor, no duplicar
-        if(k._lapFromFlash!==undefined&&Math.abs(k._lapFromFlash-t)<=0.05&&k.lapHistory.length){
+        // Si |*| ya registró esta vuelta → refinar el último valor, nunca duplicar.
+        // No importa la diferencia de ms: son la misma vuelta, llp es más preciso.
+        if(k._lapFromFlash!==undefined&&k.lapHistory.length){
           k.lapHistory[k.lapHistory.length-1]=t;
           k.lastLap=t;
-          k._lapFromFlash=undefined;
         } else {
           k.lastLap=t;
           k.lapHistory.push(t);
           if(k.lapHistory.length>1500)k.lapHistory.shift();
-          k._lapFromFlash=undefined;
         }
+        k._lapFromFlash=undefined;
         // Actualizar bestLap si esta vuelta es mejor
         if(!k.bestLap||t<k.bestLap)k.bestLap=t;
       }
