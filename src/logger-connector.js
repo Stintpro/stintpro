@@ -24,6 +24,7 @@ const Logger = {
       return;
     }
     this._serverUrl = loggerUrl.replace(/\/$/, '');
+    this._apiKey = window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || '';
     this._doConnect();
   },
 
@@ -31,7 +32,8 @@ const Logger = {
     try {
       const wsUrl = this._serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
       if (this.onStatus) this.onStatus('connecting', '● Conectando al logger...');
-      this.ws = new WebSocket(wsUrl);
+      const wsUrlWithKey = this._apiKey ? `${wsUrl}?apikey=${this._apiKey}` : wsUrl;
+      this.ws = new WebSocket(wsUrlWithKey);
 
       this.ws.onopen = () => {
         this.connected = true;
@@ -77,10 +79,12 @@ const Logger = {
   },
 
   // Verificar conexión al logger
-  async test(url) {
+  async test(url, apiKey) {
     return new Promise((resolve) => {
       try {
-        const ws = new WebSocket(url.replace('http://', 'ws://').replace('https://', 'wss://'));
+        const wsBase = url.replace('http://', 'ws://').replace('https://', 'wss://');
+        const wsUrl = apiKey ? `${wsBase}?apikey=${apiKey}` : wsBase;
+        const ws = new WebSocket(wsUrl);
         const timer = setTimeout(() => { ws.close(); resolve(false); }, 5000);
         ws.onopen = () => {
           ws.send(JSON.stringify({ type: 'list' }));
