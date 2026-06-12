@@ -53,10 +53,17 @@ const Logger = {
           if (msg.type === 'history' && msg.snapshot && this.onData) {
             this.onData(msg.snapshot);
           }
+
+          if (msg.type === 'error') {
+            const reason = msg.msg || msg.message || 'Error del servidor';
+            if (this.onStatus) this.onStatus('error', `● Logger: ${reason}`);
+            if (msg.fatal) { this.slug = null; this.ws && this.ws.close(); }
+          }
         } catch(e) {}
       };
 
       this.ws.onerror = () => {
+        this.connected = false;
         if (this.onStatus) this.onStatus('error', '● Error de conexión al logger');
       };
 
@@ -102,7 +109,7 @@ const Logger = {
             }
           } catch(e) { ws.close(); resolve(true); }
         };
-        ws.onerror = () => { clearTimeout(timer); resolve(false); };
+        ws.onerror = () => { clearTimeout(timer); try { ws.close(); } catch(e) {} resolve(false); };
       } catch(e) { resolve(false); }
     });
   }
