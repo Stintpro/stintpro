@@ -60,16 +60,19 @@ window.ApexConnector = {
           if(!k.lapHistory)k.lapHistory=[];
           if(!k._lapInvalid){
             k._lapFlash=Date.now();
-            // FALLBACK: registrar el tiempo desde |*| — llp lo refinará si llega.
-            // Sin esto, si las celdas llp no llegan (colMap/circuito), nadie muestra tiempos.
-            const t=parseFloat((ms/1000).toFixed(3));
-            const lastH=k.lapHistory[k.lapHistory.length-1];
-            if(lastH===undefined||Math.abs(lastH-t)>0.05){
-              k.lastLap=t;
-              k.lapHistory.push(t);
-              if(k.lapHistory.length>1500)k.lapHistory.shift();
-              if(!k.bestLap||t<k.bestLap)k.bestLap=t;
-              k._lapFromFlash=t; // marca para que llp no duplique
+            // FALLBACK: solo usar |*| para tiempos si el circuito no tiene columna llp.
+            // Si hay llp, es la fuente de verdad y |*| puede llegar con valor diferente
+            // (y sobreescribir el tiempo correcto si llega después de llp).
+            if(!this._colMap.llp){
+              const t=parseFloat((ms/1000).toFixed(3));
+              const lastH=k.lapHistory[k.lapHistory.length-1];
+              if(lastH===undefined||Math.abs(lastH-t)>0.05){
+                k.lastLap=t;
+                k.lapHistory.push(t);
+                if(k.lapHistory.length>1500)k.lapHistory.shift();
+                if(!k.bestLap||t<k.bestLap)k.bestLap=t;
+                k._lapFromFlash=t;
+              }
             }
           }
           k._lapInvalid=false;
