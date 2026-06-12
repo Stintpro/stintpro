@@ -181,6 +181,17 @@ test('llp añade entrada nueva si NO hubo |*| previo', () => {
   strictEqual(kart().lastLap, 62.0);
 });
 
+test('llp tardío (>5s) no refina — es de otra vuelta', () => {
+  // Bug potencial: llp de vuelta anterior llega retrasado después del |*| de la vuelta siguiente
+  setup({ llp: 'c9' });
+  AC._parse('r1|*|62000|\n');  // vuelta N: 62.0
+  // Simulamos que han pasado >5s manipulando el timestamp
+  AC._karts['r1']._lapFromFlashTs = Date.now() - 6000;
+  AC._parse('r1c9|sr|1:01.500|\n'); // llp tardío de vuelta N-1 (61.5s)
+  strictEqual(kart().lapHistory.length, 2, 'llp tardío debe crear entrada nueva, no refinar');
+  strictEqual(kart().lastLap, 61.5, 'lastLap queda con el llp tardío');
+});
+
 // ── Múltiples vueltas ─────────────────────────────────────────────────────────
 console.log('\nmúltiples vueltas');
 
