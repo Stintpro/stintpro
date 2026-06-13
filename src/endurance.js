@@ -2529,12 +2529,12 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.leaderLap=data.leaderLap||0;
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
-        if(data.countdown!=null&&data.countdownTs&&window.ApexClock){
-          if(data.countdownTs!==EnSession._lastCountdownTs){
-            EnSession._lastCountdownTs=data.countdownTs;
-            // Compensar delay de transmisión: restar tiempo transcurrido desde que el server recibió el valor
-            const age=Date.now()-data.countdownTs;
-            const mode=data.countdownMode||'countdown';
+        if(data.countdown!=null&&window.ApexClock){
+          const ts=data.countdownTs||0;
+          if(ts!==EnSession._lastCountdownTs){
+            EnSession._lastCountdownTs=ts;
+            const age=ts?Date.now()-ts:0;
+            const mode=data.countdownMode||(data.countdown>0?'countdown':'count');
             const adjusted=mode==='countdown'?Math.max(0,data.countdown-age):data.countdown+age;
             window.ApexClock.sync(adjusted,mode);
           }
