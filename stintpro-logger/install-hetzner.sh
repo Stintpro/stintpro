@@ -3,9 +3,10 @@
 set -e
 DIR=/opt/stintpro-logger
 systemctl stop stintpro-logger 2>/dev/null || true
+echo "Servicio detenido"
 
-# Backup + reset DB if empty (bug means 0 sessions, nothing to lose)
-[ -f "$DIR/data/stintpro.db" ] && cp "$DIR/data/stintpro.db" "/tmp/stintpro-$(date +%s).db.bak"
+# Backup + reset DB si está vacío
+[ -f "$DIR/data/stintpro.db" ] && cp "$DIR/data/stintpro.db" "/tmp/stintpro-$(date +%s).db.bak" && echo "DB backup OK"
 COUNT=$(sqlite3 "$DIR/data/stintpro.db" "SELECT COUNT(*) FROM sessions;" 2>/dev/null || echo 0)
 [ "$COUNT" = "0" ] && rm -f "$DIR/data/stintpro.db" && echo "DB vacío eliminado"
 
@@ -192,6 +193,7 @@ const fs   = require('fs');
 
 let SQL = null;
 let db  = null;
+let _saving = false;
 const DB_PATH = path.join(__dirname, 'data', 'stintpro.db');
 
 function _migrate() {
@@ -268,13 +270,22 @@ async function init() {
   `);
 
   _save();
-  setInterval(_save, 30000);
+  setInterval(_save, 120000); // cada 2 min — menos bloqueos del event loop
   console.log('[DB] Inicializada:', DB_PATH);
 }
 
 function _save() {
-  if (!db) return;
-  try { fs.writeFileSync(DB_PATH, Buffer.from(db.export())); } catch(e) {}
+  if (!db || _saving) return;
+  _saving = true;
+  setImmediate(() => {
+    try {
+      const data = db.export();
+      fs.writeFile(DB_PATH, Buffer.from(data), err => {
+        _saving = false;
+        if (err) console.error('[DB] Error guardando:', err.message);
+      });
+    } catch(e) { _saving = false; console.error('[DB] Error exportando:', e.message); }
+  });
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────
@@ -410,7 +421,7 @@ module.exports = {
 };
 ENDDEPLOY_DB_JS
 
-cat > "$DIR/apex-parser.js" << 'ENDDEPLOY_APEX-PARSER_JS'
+cat > "$DIR/apex-parser.js" << 'ENDDEPLOY_APEX_PARSER_JS'
 // ── ApexParser — port de apex-connector.js sin DOM ────────────────────────
 // Mismo protocolo, mismas reglas. Callbacks en lugar de window.ApexClock.
 // Grid parsing con regex (sin DOMParser).
@@ -848,9 +859,9 @@ class ApexParser {
 }
 
 module.exports = ApexParser;
-ENDDEPLOY_APEX-PARSER_JS
+ENDDEPLOY_APEX_PARSER_JS
 
-cat > "$DIR/circuit-monitor.js" << 'ENDDEPLOY_CIRCUIT-MONITOR_JS'
+cat > "$DIR/circuit-monitor.js" << 'ENDDEPLOY_CIRCUIT_MONITOR_JS'
 // ── CircuitMonitor — gestiona una conexión Apex + sesión + subscriptores ──
 const WebSocket  = require('ws');
 const ApexParser = require('./apex-parser');
@@ -1043,9 +1054,11 @@ class CircuitMonitor {
 }
 
 module.exports = CircuitMonitor;
-ENDDEPLOY_CIRCUIT-MONITOR_JS
+ENDDEPLOY_CIRCUIT_MONITOR_JS
 
-npm install --prefix $DIR 2>/dev/null || true
+echo "Archivos copiados"
+cd $DIR && npm install --quiet 2>/dev/null || true
 systemctl start stintpro-logger
-sleep 2
-journalctl -u stintpro-logger --no-pager -n 20
+sleep 3
+echo "=== Logs ==="
+journalctl -u stintpro-logger --no-pager -n 30
