@@ -11,8 +11,8 @@ const db             = require('./db');
 const CircuitMonitor = require('./circuit-monitor');
 
 const config  = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-const API_KEY = (config.apiKey || '').trim();
-const PORT    = config.port || 3000;
+const API_KEY = (process.env.STINTPRO_API_KEY || config.apiKey || '').trim();
+const PORT    = parseInt(process.env.PORT || config.port || config.server?.httpPort || 3000);
 
 // ── App Express ───────────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin',  '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   next();
@@ -79,6 +79,16 @@ app.get('/api/pits/:sessionId', (req, res) => {
 // Mejores vueltas históricas por circuito
 app.get('/api/best/:slug', (req, res) => {
   res.json(db.getBestLapsByCircuit(req.params.slug));
+});
+
+// Alias rutas usadas por el dashboard
+app.get('/api/circuit/:slug/history', (req, res) => {
+  res.json(db.getBestLapsByCircuit(req.params.slug));
+});
+app.get('/api/session/:sessionId/laps', (req, res) => {
+  const id = parseInt(req.params.sessionId);
+  if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
+  res.json(db.getLapsBySession(id));
 });
 
 // Borrar una sesión y todos sus datos
