@@ -96,6 +96,37 @@ a{color:#5b8dee;text-decoration:none}
 .bar-fill{height:100%;border-radius:2px;background:#5b8dee;transition:width .3s}
 .bar-val{width:60px;text-align:right;font-size:11px;font-family:monospace;color:#7c8db5;flex-shrink:0}
 
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid #1e2130}
+.tab-btn{padding:8px 18px;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.tab-btn:hover{color:#cbd5e1}
+.tab-btn.active{color:#5b8dee;border-bottom-color:#5b8dee}
+
+/* Pilot cards */
+.pilot-card{background:#0e0f11;border:1px solid #1e2130;border-radius:8px;margin-bottom:6px;overflow:hidden}
+.pilot-hdr{display:grid;grid-template-columns:16px 1fr repeat(4,90px);align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s;user-select:none}
+.pilot-hdr:hover{background:#13141a}
+.chevron{font-size:10px;color:#475569;transition:transform .2s}
+.pilot-hdr.open .chevron{transform:rotate(90deg)}
+.ph-name{font-size:14px;font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-col{text-align:right}
+.ph-label{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.ph-val{font-size:13px;font-weight:600;color:#e2e8f0}
+.ph-val.green{color:#22c55e}
+.ph-val.blue{color:#5b8dee}
+.ph-val.muted{color:#64748b;font-weight:400}
+.pilot-detail{display:none;border-top:1px solid #1e2130;padding:0}
+.pilot-detail.open{display:block}
+.pilot-sessions-tbl{width:100%;border-collapse:collapse}
+.pilot-sessions-tbl td{padding:8px 16px;font-size:12px;color:#94a3b8;border-bottom:1px solid #13141a}
+.pilot-sessions-tbl tr:last-child td{border-bottom:none}
+.pilot-sessions-tbl td:first-child{color:#475569}
+.pos-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700}
+.pos-1{background:#1a2e1a;color:#22c55e;border:1px solid #166534}
+.pos-2{background:#1a1f2e;color:#5b8dee;border:1px solid #1d4ed8}
+.pos-3{background:#2e1f0a;color:#fbbf24;border:1px solid #92400e}
+.pos-n{background:#1a1b1e;color:#64748b;border:1px solid #2a2d3a}
+
 /* Empty / loading */
 .empty{color:#475569;font-size:13px;padding:24px;text-align:center}
 .loading{color:#5b8dee;font-size:13px;padding:24px;text-align:center;animation:pulse 1.2s infinite}
@@ -141,6 +172,11 @@ let _url = '';
 let _key = '';
 let _circuits = [];
 let _selected = null;
+let _tab = 'sesiones';
+let _currentSessions = [];
+let _currentBest = [];
+let _currentPilots = [];
+let _openPilots = new Set();
 
 // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -208,16 +244,21 @@ function renderSidebar(circuits) {
 
 async function selectCircuit(slug) {
   _selected = slug;
+  _tab = 'sesiones';
+  _openPilots = new Set();
   renderSidebar(_circuits);
-  setMain('<div class="loading">Cargando sesiones...</div>');
+  setMain('<div class="loading">Cargando...</div>');
 
   try {
-    const [sessions, bestRaw] = await Promise.all([
+    const [sessions, bestRaw, pilotsRaw] = await Promise.all([
       api(`/api/sessions/${slug}`),
       api(`/api/circuit/${slug}/history`).catch(() => []),
+      api(`/api/circuit/${slug}/pilots`).catch(() => []),
     ]);
-    const best = Array.isArray(bestRaw) ? bestRaw : [];
-    renderCircuitView(slug, sessions, best);
+    _currentSessions = sessions;
+    _currentBest = Array.isArray(bestRaw) ? bestRaw : [];
+    _currentPilots = Array.isArray(pilotsRaw) ? pilotsRaw : [];
+    renderCircuitView(slug);
   } catch(e) {
     setMain(`<div class="empty">Error: ${e.message}</div>`);
   }
@@ -225,13 +266,15 @@ async function selectCircuit(slug) {
 
 // ── Circuit view ──────────────────────────────────────────────────────────
 
-function renderCircuitView(slug, sessions, best) {
+function renderCircuitView(slug) {
+  const sessions = _currentSessions;
+  const best = _currentBest;
   const circ = _circuits.find(c => c.slug === slug) || { name: slug };
   const totalLaps = sessions.reduce((s, r) => s + (r.lap_count || 0), 0);
   const activeSessions = sessions.filter(s => s.is_active).length;
   const completedSessions = sessions.filter(s => !s.is_active && s.lap_count > 0).length;
   const bestFiltered = best.filter(b => isValidName(b.name));
-  const bestTime = bestFiltered.length ? bestFiltered[0].best_ms : (best.length ? best[0].best_ms : null);
+  const bestTime = bestFiltered.length ? bestFiltered[0].best_ms : null;
   const bestTimeName = bestFiltered.length ? bestFiltered[0].name : null;
 
   let html = `<div class="section-title">${esc(circ.name)}</div>`;
@@ -254,15 +297,42 @@ function renderCircuitView(slug, sessions, best) {
       ${bestTimeName ? `<div class="card-sub">${esc(bestTimeName)}</div>` : '<div class="card-sub">—</div>'}
     </div>
     <div class="card">
-      <div class="card-label">Equipos/pilotos distintos</div>
-      <div class="card-value yellow">${countUnique(bestFiltered.map(b => b.name))}</div>
+      <div class="card-label">Equipos / pilotos</div>
+      <div class="card-value yellow">${_currentPilots.length || countUnique(bestFiltered.map(b => b.name))}</div>
       <div class="card-sub">con vueltas grabadas</div>
     </div>
   </div>`;
 
-  // Mejores vueltas históricas — solo nombres válidos
+  // Tabs
+  html += `<div class="tabs">
+    <button class="tab-btn${_tab==='sesiones'?' active':''}" onclick="switchTab('sesiones')">Sesiones</button>
+    <button class="tab-btn${_tab==='pilotos'?' active':''}" onclick="switchTab('pilotos')">Fichas de pilotos (${_currentPilots.length})</button>
+  </div>
+  <div id="tab-content"></div>`;
+
+  setMain(html);
+
+  if (_tab === 'sesiones') renderSessionsTab();
+  else renderPilotsTab();
+}
+
+function switchTab(tab) {
+  _tab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.startsWith(tab === 'sesiones' ? 'Ses' : 'Fic'));
+  });
+  if (tab === 'sesiones') renderSessionsTab();
+  else renderPilotsTab();
+}
+
+function renderSessionsTab() {
+  const sessions = _currentSessions;
+  const best = _currentBest;
+  const bestFiltered = best.filter(b => isValidName(b.name));
+  let html = '';
+
   if (bestFiltered.length) {
-    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;margin-top:4px">
+    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
       <div class="section-title" style="margin:0">Top tiempos históricos</div>
       <input id="best-search" placeholder="Buscar equipo / piloto…"
         style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:220px"
@@ -282,7 +352,6 @@ function renderCircuitView(slug, sessions, best) {
     </table></div>`;
   }
 
-  // Sesiones
   const validSessions = sessions.filter(s => s.lap_count > 0);
   if (validSessions.length) {
     html += `<div class="section-title" style="margin-top:4px">Sesiones (${validSessions.length})</div>
@@ -307,7 +376,83 @@ function renderCircuitView(slug, sessions, best) {
     html += '<div class="empty">Sin sesiones grabadas aún para este circuito.</div>';
   }
 
-  setMain(html);
+  document.getElementById('tab-content').innerHTML = html;
+}
+
+function renderPilotsTab() {
+  const pilots = _currentPilots;
+  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <div class="section-title" style="margin:0">Fichas de pilotos / equipos</div>
+    <input id="pilot-search" placeholder="Buscar…"
+      style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:200px"
+      oninput="filterPilots()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+  </div>`;
+
+  if (!pilots.length) {
+    html += '<div class="empty">Sin datos de pilotos para este circuito.</div>';
+    document.getElementById('tab-content').innerHTML = html;
+    return;
+  }
+
+  html += `<div style="display:grid;grid-template-columns:1fr 90px 90px 70px 60px;gap:0;padding:6px 16px 6px 40px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
+    <div>Equipo / Piloto</div><div style="text-align:right">Mejor vuelta</div><div style="text-align:right">Ritmo medio</div><div style="text-align:right">Sesiones</div><div style="text-align:right">Vueltas</div>
+  </div>`;
+
+  html += pilots.map((p, i) => {
+    const isOpen = _openPilots.has(i);
+    const sessionRows = p.sessions.map(s => {
+      const posClass = s.position === 1 ? 'pos-1' : s.position === 2 ? 'pos-2' : s.position === 3 ? 'pos-3' : 'pos-n';
+      return `<tr>
+        <td>${fmtDate(s.started_at)}</td>
+        <td style="text-align:center"><span class="pos-badge ${posClass}">P${s.position}/${s.total}</span></td>
+        <td style="font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
+        <td style="font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+        <td style="text-align:right;color:#64748b">${s.laps}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}">
+      <div class="pilot-hdr${isOpen?' open':''}" onclick="togglePilot(${i})">
+        <span class="chevron">▶</span>
+        <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div><div class="ph-label">Mejor</div></div>
+        <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div><div class="ph-label">Media</div></div>
+        <div class="ph-col"><div class="ph-val">${p.session_count}</div><div class="ph-label">Sesiones</div></div>
+        <div class="ph-col"><div class="ph-val muted">${p.total_laps}</div><div class="ph-label">Vueltas</div></div>
+      </div>
+      <div class="pilot-detail${isOpen?' open':''}" id="pilot-detail-${i}">
+        <table class="pilot-sessions-tbl">
+          <thead><tr style="background:#13141a">
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left;font-weight:600">Fecha</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:center;font-weight:600">Posición</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right;font-weight:600">Mejor</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right;font-weight:600">Media</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right;font-weight:600">Vlts</th>
+          </tr></thead>
+          <tbody>${sessionRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('tab-content').innerHTML = html;
+}
+
+function togglePilot(i) {
+  if (_openPilots.has(i)) _openPilots.delete(i);
+  else _openPilots.add(i);
+  const isOpen = _openPilots.has(i);
+  const hdr = document.querySelector(`.pilot-card[data-idx="${i}"] .pilot-hdr`);
+  const detail = document.getElementById(`pilot-detail-${i}`);
+  if (hdr) hdr.classList.toggle('open', isOpen);
+  if (detail) detail.classList.toggle('open', isOpen);
+}
+
+function filterPilots() {
+  const q = (document.getElementById('pilot-search')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('.pilot-card[data-pilot-name]').forEach(el => {
+    el.style.display = !q || el.dataset.pilotName.includes(q) ? '' : 'none';
+  });
 }
 
 // ── Session detail modal ──────────────────────────────────────────────────
@@ -357,7 +502,7 @@ function renderSessionModal(laps) {
     }))
     .sort((a,b) => a.best - b.best);
 
-  const overallBest = teams.length ? teams[0].best : 1;
+  const fastestAvg = teams.length ? Math.min(...teams.map(t => t.avg)) : 1;
 
   // Distribución de tiempos (histograma simple)
   const allMs = valid.map(l => l.lap_time_ms);
@@ -416,7 +561,7 @@ function renderSessionModal(laps) {
       ${teams.slice(0,15).map(t=>`
         <div class="bar-row">
           <div class="bar-label" title="${esc(t.name)}">${esc(t.name)}</div>
-          <div class="bar-bg"><div class="bar-fill" style="width:${Math.min(100,(overallBest/t.avg)*100)}%"></div></div>
+          <div class="bar-bg"><div class="bar-fill" style="width:${Math.min(100,(fastestAvg/t.avg)*100)}%"></div></div>
           <div class="bar-val">${fmtMs(t.avg)}</div>
         </div>
       `).join('')}
@@ -435,8 +580,8 @@ function filterBestTable() {
 
 function filterModalTable() {
   const q = (document.getElementById('modal-search')?.value || '').toLowerCase().trim();
-  document.querySelectorAll('#modal-ranking tr[data-name]').forEach(tr => {
-    tr.style.display = !q || (tr.dataset.name||'').includes(q) ? '' : 'none';
+  document.querySelectorAll('#modal-ranking .best-row[data-name]').forEach(el => {
+    el.style.display = !q || (el.dataset.name||'').includes(q) ? '' : 'none';
   });
 }
 
