@@ -2655,13 +2655,16 @@ window.showEnduranceDashboard=function(cfg){
           }
           // Congelar stint
           EnSession.stintFrozen=EnSession.stintStart?(Date.now()-EnSession.stintStart):0;
+          EnSession._myPitInDetected=true; // marcar que el freeze viene de un pit-in real
         }
         if(myK&&!myK.pit)EnSession.data._myWasIn=false;
 
         // Fallback: kart ya fuera de pit pero stintFrozen activo (pitState saltó 'in'→null sin pasar por 'out')
-        if(myK&&!myK.pit&&EnSession.stintFrozen!==null&&!EnSession.data._myWasOut){
+        // Solo aplica si el freeze viene de un pit-in real (no de countdown=0 al fin de carrera)
+        if(myK&&!myK.pit&&EnSession._myPitInDetected&&EnSession.stintFrozen!==null&&!EnSession.data._myWasOut){
           EnSession.stintStart=Date.now();
           EnSession.stintFrozen=null;
+          EnSession._myPitInDetected=false;
           EnSession.stintBestLap=null;
           EnSession.stintLapTimes=[];
           EnSession.data._lastMyLap=null;
@@ -2670,6 +2673,7 @@ window.showEnduranceDashboard=function(cfg){
         // Detectar pit OUT → resetear timer + popup piloto
         if(myK&&myK.pitState==='out'&&!EnSession.data._myWasOut){
           EnSession.data._myWasOut=true;
+          EnSession._myPitInDetected=false;
           EnSession.stintStart=Date.now();
           EnSession.stintFrozen=null;
           EnSession.data._stintStartTours=myK.tours;
@@ -2712,6 +2716,7 @@ window._enGoBack=function(){
   EnSession.data={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
   EnSession.stintStart=null;
   EnSession.stintFrozen=null;
+  EnSession._myPitInDetected=false;
   EnUi.tab='grid';
   EnSession.currentPilot=0;
   EnSession.stintHistory=[];
