@@ -2658,6 +2658,15 @@ window.showEnduranceDashboard=function(cfg){
         }
         if(myK&&!myK.pit)EnSession.data._myWasIn=false;
 
+        // Fallback: kart ya fuera de pit pero stintFrozen activo (pitState saltó 'in'→null sin pasar por 'out')
+        if(myK&&!myK.pit&&EnSession.stintFrozen!==null&&!EnSession.data._myWasOut){
+          EnSession.stintStart=Date.now();
+          EnSession.stintFrozen=null;
+          EnSession.stintBestLap=null;
+          EnSession.stintLapTimes=[];
+          EnSession.data._lastMyLap=null;
+        }
+
         // Detectar pit OUT → resetear timer + popup piloto
         if(myK&&myK.pitState==='out'&&!EnSession.data._myWasOut){
           EnSession.data._myWasOut=true;
