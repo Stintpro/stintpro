@@ -200,6 +200,21 @@ function getCircuitSessions(slug, limit = 50) {
   return _rows(r);
 }
 
+function getPilotSessionsByCircuit(slug) {
+  const s = slug.replace(/'/g, "''");
+  const r = db.exec(`
+    SELECT l.name, l.session_id, s.started_at,
+           MIN(l.lap_time_ms) as best_ms,
+           CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
+           COUNT(*) as laps
+    FROM laps l JOIN sessions s ON s.id=l.session_id
+    WHERE s.slug='${s}' AND l.lap_time_ms BETWEEN 20000 AND 300000
+    GROUP BY l.name, l.session_id
+    ORDER BY s.started_at DESC
+  `);
+  return _rows(r);
+}
+
 function getBestLapsByCircuit(slug) {
   const s = slug.replace(/'/g, "''");
   const r = db.exec(`
@@ -228,5 +243,5 @@ module.exports = {
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
-  getAllSessions, getCircuitSessions, getBestLapsByCircuit,
+  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit,
 };

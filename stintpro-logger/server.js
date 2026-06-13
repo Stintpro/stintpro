@@ -99,6 +99,65 @@ app.delete('/api/sessions/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Fichas de pilotos por circuito
+app.get('/api/circuit/:slug/pilots', (req, res) => {
+  const rows = db.getPilotSessionsByCircuit(req.params.slug);
+
+  // Agrupar por sesión para calcular posiciones
+  const bySession = {};
+  for (const r of rows) {
+    if (!bySession[r.session_id]) bySession[r.session_id] = [];
+    bySession[r.session_id].push(r);
+  }
+  for (const sid of Object.keys(bySession)) {
+    bySession[sid].sort((a, b) => a.best_ms - b.best_ms);
+  }
+
+  // Filtro de nombres válidos (mismo criterio que el cliente)
+  function validName(n) {
+    if (!n || typeof n !== 'string') return false;
+    const s = n.trim();
+    if (s.length < 3) return false;
+    if (/^\d+$/.test(s)) return false;
+    if (/^kart\s*\d+$/i.test(s)) return false;
+    if (/^(equipo|team|piloto|driver)\s*\d*$/i.test(s)) return false;
+    if (/^\(sin nombre\)$/i.test(s)) return false;
+    return true;
+  }
+
+  // Agregar por piloto
+  const pilotMap = {};
+  for (const r of rows) {
+    if (!validName(r.name)) continue;
+    const key = r.name.trim();
+    if (!pilotMap[key]) pilotMap[key] = { name: key, sessions: [] };
+    const rank = bySession[r.session_id];
+    const pos = rank.findIndex(x => x.name === r.name) + 1;
+    pilotMap[key].sessions.push({
+      session_id: r.session_id,
+      started_at: r.started_at,
+      best_ms:    r.best_ms,
+      avg_ms:     r.avg_ms,
+      laps:       r.laps,
+      position:   pos,
+      total:      rank.length,
+    });
+  }
+
+  const pilots = Object.values(pilotMap)
+    .map(p => ({
+      name:          p.name,
+      session_count: p.sessions.length,
+      best_ms:       Math.min(...p.sessions.map(s => s.best_ms)),
+      avg_ms:        Math.round(p.sessions.reduce((a, s) => a + s.avg_ms, 0) / p.sessions.length),
+      total_laps:    p.sessions.reduce((a, s) => a + s.laps, 0),
+      sessions:      p.sessions.sort((a, b) => b.started_at - a.started_at),
+    }))
+    .sort((a, b) => a.best_ms - b.best_ms);
+
+  res.json(pilots);
+});
+
 // Limpiar sesiones vacías
 app.get('/api/cleanup', (req, res) => {
   db.cleanupEmptySessions();
