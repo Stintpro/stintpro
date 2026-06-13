@@ -2528,6 +2528,11 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
 
+        // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
+        if(data.countdown!=null&&window.ApexClock){
+          window.ApexClock.sync(data.countdown, data.countdown>0?'countdown':'count');
+        }
+
         // ── Reconstrucción de estado desde snapshot histórico del logger ──────
         // Cuando conectamos tarde, el logger envía _isHistory:true + pitEvents[]
         // que permiten reconstruir cola FIFO, pitCounts y rivalPitOut.
