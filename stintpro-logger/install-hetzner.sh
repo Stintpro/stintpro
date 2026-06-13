@@ -967,7 +967,12 @@ class CircuitMonitor {
     const now = Date.now();
     if (now - this._lastBroadcast < BROADCAST_INTERVAL_MS) return;
     this._lastBroadcast = now;
-    this._broadcast({ type: 'live', data: state });
+    // Solo últimas 10 vueltas en live — el historial completo va en el snapshot inicial
+    const liveData = {
+      ...state,
+      equipos: state.equipos.map(e => ({ ...e, lapHistory: (e.lapHistory || []).slice(-10) })),
+    };
+    this._broadcast({ type: 'live', data: liveData });
   }
 
   _onSessionEnd() {
@@ -1003,7 +1008,34 @@ class CircuitMonitor {
   _sendHistoryTo(ws) {
     if (ws.readyState !== WebSocket.OPEN) return;
     const state = this.parser.getState();
-    // pitEvents permite al cliente reconstruir la cola FIFO del box
+
+    // Enriquecer lapHistory desde BD — más completo que el estado en memoria
+    // (cubre reinicios del servidor o reconexiones a Apex mid-sesión)
+    if (this.sessionId) {
+      try {
+        const dbLaps = db.getLapsBySession(this.sessionId);
+        const byDorsal = {};
+        dbLaps.forEach(l => {
+          if (!byDorsal[l.dorsal]) byDorsal[l.dorsal] = [];
+          byDorsal[l.dorsal].push(parseFloat((l.lap_time_ms / 1000).toFixed(3)));
+        });
+        state.equipos.forEach(e => {
+          const hist = byDorsal[e.dorsal];
+          if (hist && hist.length > (e.lapHistory || []).length) {
+            e.lapHistory = hist;
+            e.lastLap    = hist[hist.length - 1];
+            const valid  = hist.filter(t => t >= 20 && t < 300);
+            if (valid.length) e.bestLap = Math.min(...valid);
+          }
+          // Recuperar nombre desde BD si el parser no lo tiene
+          if (!e.name || e.name.startsWith('#')) {
+            const lap = dbLaps.find(l => l.dorsal === e.dorsal && l.name);
+            if (lap) e.name = lap.name;
+          }
+        });
+      } catch(err) { console.error(`[${this.slug}] enrichHistory:`, err.message); }
+    }
+
     const snapshot = { ...state, pitEvents: [...this.pitEvents] };
     try { ws.send(JSON.stringify({ type: 'history', snapshot })); } catch(e) {}
   }
