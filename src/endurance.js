@@ -2524,6 +2524,13 @@ window.showEnduranceDashboard=function(cfg){
           if(prev&&prev.lastLap!==e.lastLap)e._lapStart=now;
           else if(prev)e._lapStart=prev._lapStart;
           else e._lapStart=now;
+          // En live updates el servidor envía solo las últimas 10 vueltas —
+          // preservar el historial completo que ya teníamos y añadir nuevas.
+          if(!data._isHistory&&prev&&(prev.lapHistory||[]).length>(e.lapHistory||[]).length){
+            const prevH=prev.lapHistory;
+            const newLaps=(e.lapHistory||[]).filter(t=>!prevH.some(h=>Math.abs(h-t)<0.05));
+            e.lapHistory=newLaps.length>0?[...prevH,...newLaps]:prevH;
+          }
         });
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
