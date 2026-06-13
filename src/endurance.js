@@ -15,8 +15,9 @@ const EnSession = {
   pitOutCalibration:[],     // segundos entre pit out y siguiente pase por meta
   pitOutPending:    {},     // dorsal → timestamp del pit out (esperando primer pase)
   rivalPitOut:      {},     // dorsal → timestamp del último pit out
-  pitCosts:         {},     // dorsal → [costes de parada en segundos]
+  pitCosts:         {},     // dorsal → [costes reales de parada en segundos (último |*| antes pit in → primer |*| tras pit out)]
   pitCounts:        {},     // dorsal → número de paradas
+  pitInLastPass:    {},     // dorsal → timestamp del último |*| antes del pit in
   kartAutoState:    {},     // dorsal → {quality, badCount, stintStartIdx}
 };
 
@@ -2570,25 +2571,19 @@ window.showEnduranceDashboard=function(cfg){
             EnSession.pitCounts[e.dorsal]++;
             const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
             EnBox.queue.push({quality:q, dorsal:e.dorsal, name:e.name, time:now});
+            // Guardar timestamp del último pase por meta antes del pit in
+            if(EnSession.linePasses[e.dorsal])
+              EnSession.pitInLastPass[e.dorsal]=EnSession.linePasses[e.dorsal];
           }
           // Pit OUT: el equipo se lleva el PRIMERO de la cola → la cola DECRECE
           if(e.pitState==='out'&&prev!=='out'){
             if(EnBox.queue.length>0)EnBox.queue.shift();
           }
-          // Pit OUT: capturar vuelta de pit out para calcular coste
-          if(e.pitState==='out'&&prev!=='out'&&e.lastLap){
-            const avg5=_enAvg5(e.lapHistory);
-            if(avg5&&e.lastLap>avg5){
-              const cost=e.lastLap-avg5;
-              if(!EnSession.pitCosts[e.dorsal])EnSession.pitCosts[e.dorsal]=[];
-              EnSession.pitCosts[e.dorsal].push(cost);
-            }
-          }
           // Pit OUT: iniciar calibración de offset pit exit → meta
           if(e.pitState==='out'&&prev!=='out'){
             EnSession.pitOutPending[e.dorsal]=now;
           }
-          // Pase por meta (lapFlash) → registrar timestamp + completar calibración
+          // Pase por meta (lapFlash) → registrar timestamp + completar calibración + coste real de parada
           if(e.lapFlash&&!e.pit){
             EnSession.linePasses[e.dorsal]=now;
             if(EnSession.pitOutPending[e.dorsal]){
@@ -2596,6 +2591,15 @@ window.showEnduranceDashboard=function(cfg){
               if(offset>3&&offset<300)EnSession.pitOutCalibration.push(offset);
               if(EnSession.pitOutCalibration.length>20)EnSession.pitOutCalibration.shift();
               delete EnSession.pitOutPending[e.dorsal];
+              // Coste real = tiempo desde último |*| antes del pit in hasta este |*| post pit out
+              if(EnSession.pitInLastPass[e.dorsal]){
+                const realCost=(now-EnSession.pitInLastPass[e.dorsal])/1000;
+                if(realCost>=EnBox.pitDuration*0.8&&realCost<600){
+                  if(!EnSession.pitCosts[e.dorsal])EnSession.pitCosts[e.dorsal]=[];
+                  EnSession.pitCosts[e.dorsal].push(realCost);
+                }
+                delete EnSession.pitInLastPass[e.dorsal];
+              }
             }
           }
           EnSession.data._prevPitState[e.dorsal]=e.pitState||null;
@@ -2704,6 +2708,7 @@ window._enGoBack=function(){
   EnSession.linePasses={};
   EnSession.pitOutCalibration=[];
   EnSession.pitOutPending={};
+  EnSession.pitInLastPass={};
   document.getElementById('screen-dash').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();
