@@ -433,6 +433,8 @@ class ApexParser {
     this._sessionFinished = false;
     this._leaderLap      = 0;
     this._countdown      = null;
+    this._countdownMode  = 'countdown';
+    this._countdownTs    = null;
 
     // callbacks
     this.onLap        = onLap;        // (dorsal, name, lapMs, lapNumber, ts)
@@ -445,7 +447,7 @@ class ApexParser {
   reset() {
     this._karts = {}; this._colMap = {}; this._colByNum = {};
     this._sessionActive = false; this._sessionFinished = false;
-    this._leaderLap = 0; this._countdown = null;
+    this._leaderLap = 0; this._countdown = null; this._countdownMode = 'countdown'; this._countdownTs = null;
   }
 
   parse(raw) {
@@ -511,11 +513,13 @@ class ApexParser {
 
       // ── COUNTDOWN / COUNT ────────────────────────────────────────
       if (line.startsWith('dyn1|countdown|')) {
-        this._countdown = parseInt(line.split('|')[2]) || null;
+        const v = parseInt(line.split('|')[2]);
+        if (!isNaN(v)) { this._countdown = v; this._countdownMode = 'countdown'; this._countdownTs = Date.now(); }
         changed = true; continue;
       }
       if (line.startsWith('dyn1|count|')) {
-        this._countdown = parseInt(line.split('|')[2]) || null;
+        const v = parseInt(line.split('|')[2]);
+        if (!isNaN(v)) { this._countdown = v; this._countdownMode = 'count'; this._countdownTs = Date.now(); }
         changed = true; continue;
       }
 
@@ -833,6 +837,8 @@ class ApexParser {
       sessionFinished: this._sessionFinished,
       colMap: this._colMap,
       countdown: this._countdown,
+      countdownMode: this._countdownMode,
+      countdownTs: this._countdownTs,
     };
   }
 
