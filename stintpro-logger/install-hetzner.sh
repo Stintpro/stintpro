@@ -1,12 +1,8 @@
 #!/bin/bash
-# Deploy StintPro Logger to /opt/stintpro-logger
 set -e
 DIR=/opt/stintpro-logger
 systemctl stop stintpro-logger 2>/dev/null || true
-echo "Servicio detenido"
-
-# Backup + reset DB si está vacío
-[ -f "$DIR/data/stintpro.db" ] && cp "$DIR/data/stintpro.db" "/tmp/stintpro-$(date +%s).db.bak" && echo "DB backup OK"
+[ -f "$DIR/data/stintpro.db" ] && cp "$DIR/data/stintpro.db" "/tmp/stintpro-$(date +%s).db.bak"
 COUNT=$(sqlite3 "$DIR/data/stintpro.db" "SELECT COUNT(*) FROM sessions;" 2>/dev/null || echo 0)
 [ "$COUNT" = "0" ] && rm -f "$DIR/data/stintpro.db" && echo "DB vacío eliminado"
 
@@ -424,7 +420,9 @@ ENDDEPLOY_DB_JS
 cat > "$DIR/apex-parser.js" << 'ENDDEPLOY_APEX_PARSER_JS'
 // ── ApexParser — port de apex-connector.js sin DOM ────────────────────────
 // Mismo protocolo, mismas reglas. Callbacks en lugar de window.ApexClock.
-// Grid parsing con regex (sin DOMParser).
+// Grid parsing con node-html-parser (más robusto que regex para detectar columnas).
+
+const { parse: parseHTML } = require('node-html-parser');
 
 class ApexParser {
   constructor({ onLap, onPit, onState, onSessionEnd, onNewSession } = {}) {
@@ -719,101 +717,86 @@ class ApexParser {
     return n > 1000 ? parseFloat((n / 1000).toFixed(3)) : n;
   }
 
-  // ── Grid parsing (regex, sin DOMParser) ───────────────────────────────
+  // ── Grid parsing (node-html-parser) ──────────────────────────────────────
 
   _parseGrid(html) {
     if (!html || html.length < 10) return;
     try {
-      // colMap desde r0
-      const r0m = html.match(/<tr[^>]*data-id=["']r0["'][^>]*>([\s\S]*?)<\/tr>/i);
-      if (r0m) {
+      const root = parseHTML(`<table><tbody>${html}</tbody></table>`);
+
+      // ColMap desde r0
+      const r0 = root.querySelector('tr[data-id="r0"]');
+      if (r0) {
         this._colMap = {}; this._colByNum = {};
-        const r0h = r0m[1];
-        // Probar ambos órdenes de atributos
-        const re1 = /data-id=["'](c\d+)["'][^>]*data-type=["']([^"']+)["']/gi;
-        const re2 = /data-type=["']([^"']+)["'][^>]*data-id=["'](c\d+)["']/gi;
-        let m;
-        while ((m = re1.exec(r0h)) !== null) {
-          if (!this._colByNum[m[1]]) { this._colMap[m[2].trim()] = m[1]; this._colByNum[m[1]] = m[2].trim(); }
-        }
-        while ((m = re2.exec(r0h)) !== null) {
-          const dtype = m[1].trim(), cid = m[2];
-          if (!this._colByNum[cid]) { this._colMap[dtype] = cid; this._colByNum[cid] = dtype; }
-        }
+        r0.querySelectorAll('td[data-id]').forEach(td => {
+          const cid   = td.getAttribute('data-id');
+          const dtype = (td.getAttribute('data-type') || '').trim();
+          if (cid && dtype) { this._colMap[dtype] = cid; this._colByNum[cid] = dtype; }
+        });
       }
 
-      // Filas de karts
-      const rowRe = /<tr[^>]*data-id=["'](r\d+)["'][^>]*>([\s\S]*?)<\/tr>/gi;
-      let rowM; let gridPos = 0;
-      while ((rowM = rowRe.exec(html)) !== null) {
-        const rowId = rowM[1];
-        if (rowId === 'r0') continue;
+      const skip = ['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so'];
+      let gridPos = 0;
+
+      root.querySelectorAll('tr[data-id]').forEach(row => {
+        const rowId = row.getAttribute('data-id');
+        if (!rowId || rowId === 'r0') return;
         gridPos++;
-        const rowH = rowM[2];
         const k = this._kart(rowId);
+        const cell = col => row.querySelector(`[data-id="${rowId}${col}"]`);
 
         // Estado
         const stCol = this._colMap.grp || this._colMap.sta || 'c1';
-        const stm = rowH.match(new RegExp(`data-id=["']${stCol}["'][^>]*class=["']([^"']+)["']`));
-        if (stm) {
-          const cls = stm[1].trim().split(/\s+/)[0];
+        const stCell = cell(stCol);
+        if (stCell) {
+          const cls = (stCell.getAttribute('class') || '').trim().split(/\s+/)[0];
           if (cls && cls !== 'in') { k.state = cls; if (cls === 'sf') k.checkered = true; }
         }
 
         // Posición
         k.pos = k.pos || gridPos;
-        const rkm = rowH.match(/class=["'][^"']*\brk\b[^"']*["'][^>]*>.*?<p[^>]*>(\d+)<\/p>/i);
-        if (rkm) k.pos = parseInt(rkm[1]);
+        const rkEl = row.querySelector('td.rk p') || row.querySelector('td.rk div');
+        if (rkEl) { const p = parseInt(rkEl.text.trim()); if (!isNaN(p) && p > 0) k.pos = p; }
 
         // Dorsal
-        const noCol = this._colMap.no;
-        if (noCol) {
-          const nom = rowH.match(new RegExp(`data-id=["']${noCol}["'][^>]*>[^<]*<(?:div|p)[^>]*>\\s*(\\d+)\\s*<`));
-          if (nom) k.dorsal = nom[1];
+        if (this._colMap.no) {
+          const c = cell(this._colMap.no);
+          if (c) { const d = (c.querySelector('div') || c.querySelector('p') || c).text.trim(); if (d && !isNaN(parseInt(d))) k.dorsal = d; }
         }
 
         // Nombre
-        const drCol = this._colMap.dr;
-        if (drCol) {
-          const drm = rowH.match(new RegExp(`data-id=["']${drCol}["'][^>]*>\\s*<[^>]+>([^<]{2,})<`));
-          if (!drm) {
-            const drm2 = rowH.match(new RegExp(`data-id=["']${drCol}["'][^>]*>([^<]{2,})<`));
-            if (drm2) { const n = drm2[1].trim(); if (n && isNaN(parseInt(n))) k.name = n; }
-          } else {
-            const n = drm[1].trim(); if (n && isNaN(parseInt(n))) k.name = n;
-          }
+        if (this._colMap.dr) {
+          const c = cell(this._colMap.dr);
+          if (c) { const n = c.text.trim(); if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) k.name = n; }
         }
 
-        // Best lap
-        const blpCol = this._colMap.blp;
-        if (blpCol) {
-          const bm = rowH.match(new RegExp(`data-id=["']${blpCol}["'][^>]*>([^<]+)<`));
-          if (bm) { const t = this._pt(bm[1]); if (t && t >= 20 && t < 300) k.bestLap = t; }
+        // Mejor tiempo
+        if (this._colMap.blp) {
+          const c = cell(this._colMap.blp);
+          if (c) { const t = this._pt(c.text.trim()); if (t && t >= 20 && t < 300) k.bestLap = t; }
         }
 
-        // Last lap (solo si no hay valor en vivo)
-        const llpCol = this._colMap.llp;
-        if (llpCol && !k.lastLap) {
-          const lm = rowH.match(new RegExp(`data-id=["']${llpCol}["'][^>]*>([^<]+)<`));
-          if (lm) { const t = this._pt(lm[1]); if (t && t >= 20 && t < 300) k.lastLap = t; }
+        // Último tiempo
+        if (this._colMap.llp && !k.lastLap) {
+          const c = cell(this._colMap.llp);
+          if (c) { const t = this._pt(c.text.trim()); if (t && t >= 20 && t < 300) k.lastLap = t; }
         }
 
         // Vueltas
         const tlpCol = this._colMap.tlp || this._colMap.lc;
         if (tlpCol) {
-          const tm = rowH.match(new RegExp(`data-id=["']${tlpCol}["'][^>]*>(\\d+)<`));
-          if (tm) k.tours = parseInt(tm[1]);
+          const c = cell(tlpCol);
+          if (c) { const n = parseInt(c.text.trim()); if (!isNaN(n) && n > 0) k.tours = n; }
         }
 
         // Stands count
-        const pitCol = this._colMap.pit;
-        if (pitCol) {
-          const pm = rowH.match(new RegExp(`data-id=["']${pitCol}["'][^>]*>(\\d+)<`));
-          if (pm) k.standsCount = parseInt(pm[1]);
+        if (this._colMap.pit) {
+          const c = cell(this._colMap.pit);
+          if (c) { const n = parseInt(c.text.trim()); if (!isNaN(n)) k.standsCount = n; }
         }
 
         k.tours = k.tours || 0;
-      }
+      });
     } catch (e) {
       console.error('[ApexParser] parseGrid:', e.message);
     }
@@ -1056,9 +1039,23 @@ class CircuitMonitor {
 module.exports = CircuitMonitor;
 ENDDEPLOY_CIRCUIT_MONITOR_JS
 
-echo "Archivos copiados"
+cat > "$DIR/package.json" << 'ENDDEPLOY_PACKAGE_JSON'
+{
+  "name": "stintpro-logger",
+  "version": "1.0.0",
+  "description": "StintPro Logger — graba sesiones Apex Timing 24/7",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.18.0",
+    "ws": "^8.14.0",
+    "sql.js": "^1.10.2",
+    "node-html-parser": "^6.1.0"
+  }
+}
+ENDDEPLOY_PACKAGE_JSON
+
 cd $DIR && npm install --quiet 2>/dev/null || true
 systemctl start stintpro-logger
 sleep 3
-echo "=== Logs ==="
-journalctl -u stintpro-logger --no-pager -n 30
+journalctl -u stintpro-logger --no-pager -n 20
