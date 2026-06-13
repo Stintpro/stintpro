@@ -2530,11 +2530,10 @@ window.showEnduranceDashboard=function(cfg){
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
         if(data.countdown!=null&&window.ApexClock){
-          const ts=data.countdownTs||0;
-          if(ts!==EnSession._lastCountdownTs){
-            EnSession._lastCountdownTs=ts;
-            const age=ts?Date.now()-ts:0;
-            const mode=data.countdownMode||(data.countdown>0?'countdown':'count');
+          const mode=data.countdownMode||(data.countdown>0?'countdown':'count');
+          if(data.countdown!==EnSession._lastCountdown){
+            EnSession._lastCountdown=data.countdown;
+            const age=data.countdownTs?Math.max(0,Date.now()-data.countdownTs):0;
             const adjusted=mode==='countdown'?Math.max(0,data.countdown-age):data.countdown+age;
             window.ApexClock.sync(adjusted,mode);
           }
