@@ -6,6 +6,26 @@ let SQL = null;
 let db  = null;
 const DB_PATH = path.join(__dirname, 'data', 'stintpro.db');
 
+function _migrate() {
+  // Detectar esquema antiguo del NAS (columna 'active' en vez de 'is_active')
+  try {
+    const cols = db.exec("PRAGMA table_info(sessions)");
+    if (!cols.length || !cols[0].values.length) return;
+    const names = cols[0].values.map(r => r[1]);
+    if (names.includes('active') && !names.includes('is_active')) {
+      console.log('[DB] Migrando esquema antiguo (active → is_active)...');
+      db.run('ALTER TABLE sessions RENAME COLUMN active TO is_active');
+      // Mapear columnas antiguas al nuevo nombre si existen
+      if (names.includes('circuit') && !names.includes('circuit_name'))
+        db.run('ALTER TABLE sessions ADD COLUMN circuit_name TEXT');
+      db.run("UPDATE sessions SET circuit_name=circuit WHERE circuit_name IS NULL");
+      console.log('[DB] Migración completada');
+    }
+  } catch(e) {
+    console.warn('[DB] Aviso migración:', e.message);
+  }
+}
+
 async function init() {
   const initSqlJs = require('sql.js');
   SQL = await initSqlJs();
@@ -19,6 +39,7 @@ async function init() {
     db = new SQL.Database();
   }
 
+  _migrate();
   db.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
