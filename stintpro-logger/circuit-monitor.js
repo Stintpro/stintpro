@@ -100,7 +100,8 @@ class CircuitMonitor {
       this._saveTimer = setInterval(() => this._saveSnapshot(), 10000);
     }
     this._lapCount++;
-    db.insertLap(this.sessionId, dorsal, name, lapMs, lapNumber, timestamp);
+    const cleanName = (name || '').replace(/\s*\[\d+:\d+\]\s*$/, '').trim();
+    db.insertLap(this.sessionId, dorsal, cleanName, lapMs, lapNumber, timestamp);
   }
 
   _onPit(dorsal, eventType, standsCount, timestamp) {

@@ -194,10 +194,20 @@ function getAllSessions() {
 function getCircuitSessions(slug, limit = 50) {
   const s = slug.replace(/'/g, "''");
   const r = db.exec(
-    `SELECT id,slug,circuit_name,started_at,ended_at,is_active FROM sessions
-     WHERE slug='${s}' ORDER BY id DESC LIMIT ${limit}`
+    `SELECT s.id, s.slug, s.circuit_name, s.started_at, s.ended_at, s.is_active,
+            COUNT(l.id) as lap_count
+     FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
+     WHERE s.slug='${s}'
+     GROUP BY s.id ORDER BY s.id DESC LIMIT ${limit}`
   );
   return _rows(r);
+}
+
+function deletePilotFromCircuit(slug, name) {
+  const s = slug.replace(/'/g, "''");
+  const n = (name || '').replace(/'/g, "''");
+  db.run(`DELETE FROM laps WHERE name='${n}' AND session_id IN (SELECT id FROM sessions WHERE slug='${s}')`);
+  _save();
 }
 
 function getPilotSessionsByCircuit(slug) {
@@ -243,5 +253,5 @@ module.exports = {
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
-  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit,
+  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit, deletePilotFromCircuit,
 };

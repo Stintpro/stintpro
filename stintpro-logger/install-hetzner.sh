@@ -514,12 +514,12 @@ class ApexParser {
       // ── COUNTDOWN / COUNT ────────────────────────────────────────
       if (line.startsWith('dyn1|countdown|')) {
         const v = parseInt(line.split('|')[2]);
-        if (v > 0) { this._countdown = v; this._countdownMode = 'countdown'; this._countdownTs = Date.now(); }
+        if (!isNaN(v)) { this._countdown = v; this._countdownMode = 'countdown'; this._countdownTs = Date.now(); }
         changed = true; continue;
       }
       if (line.startsWith('dyn1|count|')) {
         const v = parseInt(line.split('|')[2]);
-        if (v > 0) { this._countdown = v; this._countdownMode = 'count'; this._countdownTs = Date.now(); }
+        if (!isNaN(v)) { this._countdown = v; this._countdownMode = 'count'; this._countdownTs = Date.now(); }
         changed = true; continue;
       }
 

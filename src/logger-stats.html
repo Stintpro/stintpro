@@ -102,9 +102,16 @@ a{color:#5b8dee;text-decoration:none}
 .tab-btn:hover{color:#cbd5e1}
 .tab-btn.active{color:#5b8dee;border-bottom-color:#5b8dee}
 
+/* Pilot selection mode */
+.pilot-cb{width:16px;height:16px;cursor:pointer;accent-color:#5b8dee;flex-shrink:0}
+.pilot-card.selected{border-color:#5b8dee;background:#0d1520}
+.sel-bar{display:none;align-items:center;gap:10px;padding:10px 14px;background:#0d1520;border:1px solid #5b8dee;border-radius:8px;margin-bottom:14px}
+.sel-bar.visible{display:flex}
+.sel-count{font-size:13px;color:#5b8dee;flex:1}
+
 /* Pilot cards */
 .pilot-card{background:#0e0f11;border:1px solid #1e2130;border-radius:8px;margin-bottom:6px;overflow:hidden}
-.pilot-hdr{display:grid;grid-template-columns:16px 1fr repeat(4,90px);align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s;user-select:none}
+.pilot-hdr{display:grid;grid-template-columns:28px 1fr repeat(4,90px);align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s;user-select:none}
 .pilot-hdr:hover{background:#13141a}
 .chevron{font-size:10px;color:#475569;transition:transform .2s}
 .pilot-hdr.open .chevron{transform:rotate(90deg)}
@@ -381,11 +388,18 @@ function renderSessionsTab() {
 
 function renderPilotsTab() {
   const pilots = _currentPilots;
-  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+  let html = `
+  <div class="sel-bar" id="sel-bar">
+    <span class="sel-count" id="sel-count">0 seleccionados</span>
+    <button class="btn ghost sm" onclick="clearSelection()">Cancelar</button>
+    <button class="btn sm" style="background:#ef4444" onclick="deleteSelected()">Borrar seleccionados</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
     <div class="section-title" style="margin:0">Fichas de pilotos / equipos</div>
     <input id="pilot-search" placeholder="Buscar…"
       style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:200px"
       oninput="filterPilots()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+    <span style="font-size:12px;color:#475569">Marca pilotos para seleccionarlos y borrarlos</span>
   </div>`;
 
   if (!pilots.length) {
@@ -394,8 +408,8 @@ function renderPilotsTab() {
     return;
   }
 
-  html += `<div style="display:grid;grid-template-columns:1fr 90px 90px 70px 60px;gap:0;padding:6px 16px 6px 40px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
-    <div>Equipo / Piloto</div><div style="text-align:right">Mejor vuelta</div><div style="text-align:right">Ritmo medio</div><div style="text-align:right">Sesiones</div><div style="text-align:right">Vueltas</div>
+  html += `<div style="display:grid;grid-template-columns:28px 1fr 90px 90px 70px 60px;gap:0;padding:6px 16px 6px 12px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
+    <div></div><div>Equipo / Piloto</div><div style="text-align:right">Mejor vuelta</div><div style="text-align:right">Ritmo medio</div><div style="text-align:right">Sesiones</div><div style="text-align:right">Vueltas</div>
   </div>`;
 
   html += pilots.map((p, i) => {
@@ -411,9 +425,9 @@ function renderPilotsTab() {
       </tr>`;
     }).join('');
 
-    return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}">
-      <div class="pilot-hdr${isOpen?' open':''}" onclick="togglePilot(${i})">
-        <span class="chevron">▶</span>
+    return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}" data-name="${esc(p.name)}">
+      <div class="pilot-hdr${isOpen?' open':''}" onclick="handlePilotClick(event,${i})">
+        <input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})" style="margin-right:2px">
         <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
         <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div><div class="ph-label">Mejor</div></div>
         <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div><div class="ph-label">Media</div></div>
@@ -436,6 +450,64 @@ function renderPilotsTab() {
   }).join('');
 
   document.getElementById('tab-content').innerHTML = html;
+}
+
+let _selectedPilots = new Set();
+
+function handlePilotClick(e, i) {
+  if (e.target.type === 'checkbox') return;
+  togglePilot(i);
+}
+
+function toggleSelect(i) {
+  const cb = document.getElementById(`cb-${i}`);
+  const card = document.querySelector(`.pilot-card[data-idx="${i}"]`);
+  if (cb.checked) _selectedPilots.add(i);
+  else _selectedPilots.delete(i);
+  card.classList.toggle('selected', cb.checked);
+  updateSelBar();
+}
+
+function updateSelBar() {
+  const bar = document.getElementById('sel-bar');
+  const count = document.getElementById('sel-count');
+  if (!bar) return;
+  bar.classList.toggle('visible', _selectedPilots.size > 0);
+  if (count) count.textContent = `${_selectedPilots.size} seleccionado${_selectedPilots.size !== 1 ? 's' : ''}`;
+}
+
+function clearSelection() {
+  _selectedPilots.forEach(i => {
+    const cb = document.getElementById(`cb-${i}`);
+    const card = document.querySelector(`.pilot-card[data-idx="${i}"]`);
+    if (cb) cb.checked = false;
+    if (card) card.classList.remove('selected');
+  });
+  _selectedPilots.clear();
+  updateSelBar();
+}
+
+async function deleteSelected() {
+  if (!_selectedPilots.size) return;
+  const names = [..._selectedPilots].map(i => {
+    const card = document.querySelector(`.pilot-card[data-idx="${i}"]`);
+    return card ? card.dataset.name : null;
+  }).filter(Boolean);
+
+  if (!confirm(`¿Borrar todos los datos de ${names.length} piloto${names.length !== 1 ? 's' : ''}?\n\n${names.join('\n')}\n\nEsta acción no se puede deshacer.`)) return;
+
+  try {
+    const res = await fetch(`${_url}/api/circuit/${_selected}/pilots?apikey=${_key}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _selectedPilots.clear();
+    await selectCircuit(_selected);
+  } catch(e) {
+    alert('Error al borrar: ' + e.message);
+  }
 }
 
 function togglePilot(i) {
