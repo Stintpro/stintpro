@@ -1676,7 +1676,6 @@ function _enRenderStratConfig(){
         <input id="en-stint-max-input" type="number" value="${cfg.stintMax||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
         <span style="font-size:15px;color:#bdc2cc">m</span>
       </div>
-      <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
       <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
         <span style="font-size:13.5px;color:#666;font-family:sans-serif">Parada:</span>
         <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
@@ -1686,6 +1685,7 @@ function _enRenderStratConfig(){
         <span style="font-size:13.5px;color:#666;font-family:sans-serif">Dorsal:</span>
         <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
       </div>
+      <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
     </div>
   </div>`;
 }
