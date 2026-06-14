@@ -170,7 +170,11 @@ function _enTrackAvgLive(eq){
   });
   if(laps.length<3)return null;
   laps.sort((a,b)=>a-b);
-  return laps[Math.floor(laps.length/2)];
+  // Media recortada al 10%: descarta el 10% más rápido y el 10% más lento
+  const cut=Math.max(1,Math.round(laps.length*0.1));
+  const trimmed=laps.slice(cut, laps.length-cut);
+  if(!trimmed.length)return laps[Math.floor(laps.length/2)];
+  return trimmed.reduce((a,b)=>a+b,0)/trimmed.length;
 }
 
 // ── Kart quality ──────────────────────────────────────────────────────────
