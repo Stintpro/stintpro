@@ -107,6 +107,60 @@ app.delete('/api/circuit/:slug/pilots', (req, res) => {
   res.json({ ok: true, deleted: names.length });
 });
 
+// Consulta batch de pilotos para la app (normaliza nombres antes de comparar)
+app.get('/api/circuit/:slug/pilots/batch', (req, res) => {
+  const rawNames = (req.query.names || '').split(',').map(n => n.trim()).filter(Boolean);
+  if (!rawNames.length) return res.json({});
+
+  function norm(n) {
+    return (n || '').toUpperCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\./g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  const rows = db.getPilotSessionsByCircuit(req.params.slug);
+
+  // Agrupar por nombre normalizado
+  const byNorm = {};
+  for (const r of rows) {
+    const key = norm(r.name);
+    if (!byNorm[key]) byNorm[key] = [];
+    byNorm[key].push(r);
+  }
+
+  // Para cada nombre solicitado, buscar coincidencia normalizada
+  const result = {};
+  for (const raw of rawNames) {
+    const key = norm(raw);
+    const sessions = byNorm[key];
+    if (!sessions || !sessions.length) continue;
+
+    // Ordenar sesiones por fecha desc y calcular posición
+    const bySession = {};
+    for (const r of sessions) {
+      if (!bySession[r.session_id]) bySession[r.session_id] = [];
+      bySession[r.session_id].push(r);
+    }
+
+    const sessionList = Object.values(bySession).map(ss => {
+      const best = Math.min(...ss.map(r => r.best_ms));
+      const avg  = Math.round(ss.reduce((a, r) => a + r.avg_ms, 0) / ss.length);
+      const laps = ss.reduce((a, r) => a + r.laps, 0);
+      return { started_at: ss[0].started_at, best_ms: best, avg_ms: avg, laps };
+    }).sort((a, b) => b.started_at - a.started_at);
+
+    result[raw] = {
+      best_ms:       Math.min(...sessionList.map(s => s.best_ms)),
+      avg_ms:        Math.round(sessionList.reduce((a, s) => a + s.avg_ms, 0) / sessionList.length),
+      session_count: sessionList.length,
+      total_laps:    sessionList.reduce((a, s) => a + s.laps, 0),
+      sessions:      sessionList.slice(0, 5),
+    };
+  }
+
+  res.json(result);
+});
+
 // Fichas de pilotos por circuito
 app.get('/api/circuit/:slug/pilots', (req, res) => {
   const rows = db.getPilotSessionsByCircuit(req.params.slug);

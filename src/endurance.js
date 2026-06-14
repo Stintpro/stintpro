@@ -21,6 +21,19 @@ const EnSession = {
   kartAutoState:    {},     // dorsal → {quality, badCount, stintStartIdx}
 };
 
+// ── Historial de pilotos desde el logger (modo logger) ───────────────────
+let _enPilotHistory = null;      // null = no cargado, {} = cargado (puede estar vacío)
+let _enPilotHistoryFetching = false;
+
+async function _enFetchPilotHistory(karts, slug) {
+  if (_enPilotHistoryFetching || !window.Logger?.connected) return;
+  const names = karts.map(k => k.name).filter(n => n && n.length > 2);
+  if (!names.length) return;
+  _enPilotHistoryFetching = true;
+  _enPilotHistory = await Logger.fetchPilotHistory(slug, names);
+  _enPilotHistoryFetching = false;
+}
+
 // ── Configuración del box (persistente en la sesión) ──────────────────────
 const EnBox = {
   config:         { type:'line', positions:4, columns:2 },
@@ -84,6 +97,8 @@ function _enInjectStyles(){
     .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;cursor:pointer;position:relative;}
     .en-kart-q{position:absolute;top:-3px;right:-3px;font-size:8.5px;line-height:1;}
     .sp-name{font-size:14.5px;color:#d0d2db;font-family:sans-serif;display:flex;align-items:center;gap:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .en-info-btn{flex-shrink:0;font-size:11px;font-weight:700;color:#5b8dee;background:#0d1520;border:1px solid #1d3a6e;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;font-style:normal;}
+    .en-info-btn:hover{background:#1a2d4a;}
     .sp-pit-b{background:#ef4444;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-out-b{background:#f97316;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-fix-b{font-size:10.5px;color:#5b8dee;border:0.5px solid #5b8dee;padding:1px 5px;border-radius:3px;flex-shrink:0;}
@@ -374,6 +389,12 @@ function _enRender(){
     catch(err){console.error('[StintPro] Error KPIs:',err);}
   }
 
+  // Cargar historial de pilotos desde el logger (solo primera vez por sesión)
+  if(_enPilotHistory===null && window.Logger?.connected && eq.length){
+    const cfg=window.AppState?.config;
+    if(cfg?.slug) _enFetchPilotHistory(eq, cfg.slug);
+  }
+
   try{
     const body=el.querySelector('#en-grid-body');
     if(body)body.innerHTML=_enRenderRows(eq, trackAvg, bestSess, leader, myDorsal);
@@ -646,7 +667,7 @@ function _enRenderRow(e, d){
       <div class="sp-dot" style="background:${d.dotColor}"></div>
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
-      <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}</div>
+      <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory('${(e.name||'').replace(/'/g,"\\'")}',event)" title="Ver historial">ℹ</span>`:''}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
@@ -786,6 +807,73 @@ function _enSelectPilot(idx){
 function _enDismissOverlay(){
   const overlay=document.getElementById('en-pilot-overlay');
   if(overlay)overlay.remove();
+}
+
+// ── Ficha de rival (historial desde logger) ────────────────────────────
+function _enShowPilotHistory(name, evt) {
+  evt.stopPropagation();
+  const data = _enPilotHistory?.[name];
+  if (!data) return;
+
+  let existing = document.getElementById('en-pilot-history-overlay');
+  if (existing) existing.remove();
+
+  function fmtMs(ms) {
+    if (!ms) return '—';
+    const m = Math.floor(ms/60000);
+    const s = ((ms%60000)/1000).toFixed(3).padStart(6,'0');
+    return `${m}:${s}`;
+  }
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
+
+  const sessRows = (data.sessions||[]).map(s=>`
+    <tr>
+      <td style="padding:7px 12px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
+      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
+      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+      <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.laps}</td>
+    </tr>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'en-pilot-history-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:998;';
+  overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(500px,92vw);overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
+        <span style="font-size:15px;font-weight:700;color:#e2e8f0;flex:1">${name}</span>
+        <button onclick="document.getElementById('en-pilot-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:#64748b;padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#1e2130;border-bottom:1px solid #1e2130">
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
+          <div style="font-size:20px;font-weight:700;color:#22c55e;font-family:monospace">${fmtMs(data.best_ms)}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
+          <div style="font-size:20px;font-weight:700;color:#5b8dee;font-family:monospace">${fmtMs(data.avg_ms)}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones · Vueltas</div>
+          <div style="font-size:20px;font-weight:700;color:#e2e8f0">${data.session_count} · <span style="color:#64748b;font-size:16px">${data.total_laps}</span></div>
+        </div>
+      </div>
+      <div style="padding:12px 0;max-height:220px;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#13141a">
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left">Sesión</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Mejor</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Media</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Vlts</th>
+          </tr></thead>
+          <tbody>${sessRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#475569;font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 
 // ── Filtro media pista ──────────────────────────────────────────────────
