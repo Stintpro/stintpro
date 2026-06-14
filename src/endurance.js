@@ -1650,40 +1650,41 @@ function _enRenderStratConfig(){
     <div class="en-strat-title">Configuración de estrategia</div>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Box:</span>
-        <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;font-family:sans-serif">
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Box:</span>
+        <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;font-family:sans-serif">
           <option value="line" ${EnBox.config.type==='line'?'selected':''}>Línea</option>
           <option value="battery" ${EnBox.config.type==='battery'?'selected':''}>Batería</option>
           <option value="columns" ${EnBox.config.type==='columns'?'selected':''}>Columnas</option>
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Karts:</span>
-        <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Karts:</span>
+        <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
       </div>
       ${showCols?`<div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Cols:</span>
-        <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Cols:</span>
+        <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
       </div>`:''}
       <div style="border-left:0.5px solid #2a2b2e;height:20px"></div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Stint min:</span>
-        <input type="number" value="${cfg.stintMin||0}" min="0" onchange="_enUpdateCfg('stintMin',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
-        <span style="font-size:10px;color:#555">m</span>
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Stint min:</span>
+        <input id="en-stint-min-input" type="number" value="${cfg.stintMin||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
+        <span style="font-size:15px;color:#bdc2cc">m</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Stint max:</span>
-        <input type="number" value="${cfg.stintMax||0}" min="0" onchange="_enUpdateCfg('stintMax',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:right">
-        <span style="font-size:10px;color:#555">m</span>
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Stint max:</span>
+        <input id="en-stint-max-input" type="number" value="${cfg.stintMax||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
+        <span style="font-size:15px;color:#bdc2cc">m</span>
       </div>
+      <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
       <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Parada:</span>
-        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:55px;font-family:monospace;text-align:right">
-        <span style="font-size:10px;color:#555">s</span>
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Parada:</span>
+        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
+        <span style="font-size:15px;color:#bdc2cc">s</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Dorsal:</span>
-        <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:5px 10px;border-radius:4px;font-size:12.5px;width:50px;font-family:monospace;text-align:center">
+        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Dorsal:</span>
+        <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
       </div>
     </div>
   </div>`;
@@ -1809,23 +1810,23 @@ function _enRenderStrategy(eq, trackAvg){
     <div class="en-strat-title">Probabilidad de kart bueno</div>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
       <div>
-        <div style="font-size:10px;color:#555;font-family:sans-serif">Acceso</div>
-        ${noBoxData?`<span style="font-size:16px;font-weight:500;color:#555;font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>`}
+        <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">Acceso</div>
+        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>`}
       </div>
       <div>
-        <div style="font-size:10px;color:#555;font-family:sans-serif">Presencia</div>
-        <span style="font-size:16px;font-weight:500;color:#6b7280;font-family:monospace">${probPresencia}%</span>
+        <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">Presencia</div>
+        <span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:monospace">${probPresencia}%</span>
       </div>
-      <span style="font-size:10px;color:${probColor};font-family:sans-serif;margin-left:auto">${probLabel}</span>
+      <span style="font-size:15px;color:${probColor};font-family:sans-serif;margin-left:auto">${probLabel}</span>
     </div>
     <div class="en-prob-bar"><div class="en-prob-fill" style="width:${probAcceso}%;background:${probColor}"></div></div>
-    <div style="font-size:9px;color:#555;font-family:sans-serif;margin-top:4px">${probExplain}</div>
+    <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:4px">${probExplain}</div>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:9px;color:#888">${goodInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:9px;color:#888">${neutralInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:9px;color:#888">${badInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:9px;color:#888">${unknownInPit}</span></div>
-      <span style="font-size:9px;color:#555;margin-left:auto">${totalInPit} en boxes</span>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:15px;color:#888">${goodInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:15px;color:#888">${neutralInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:15px;color:#888">${badInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:15px;color:#888">${unknownInPit}</span></div>
+      <span style="font-size:15px;color:#bdc2cc;margin-left:auto">${totalInPit} en boxes</span>
     </div>
   </div>`;
 
@@ -1841,9 +1842,9 @@ function _enRenderStrategy(eq, trackAvg){
     else if(quality==='neutral')kartBorder='#fbbf24';
     else if(quality==='bad')kartBorder='#ef4444';
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
-      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kartBorder};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
-      <div style="flex:1;font-size:13px;color:#d0d2db;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</div>
-      <span style="font-size:12px;color:${minCol};font-family:monospace;flex-shrink:0">${minStr}</span>
+      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kartBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
+      <div style="flex:1;font-size:15px;color:#e4e6ed;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</div>
+      <span style="font-size:15px;color:${minCol};font-family:monospace;flex-shrink:0">${minStr}</span>
     </div>`;
   };
 
@@ -1854,8 +1855,8 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Buenos
   html+=`<div>
-    <div style="font-size:12px;color:#22c55e;margin-bottom:6px;font-weight:500">Buenos (${goodOnTrack.length})</div>`;
-  if(goodOnTrack.length===0)html+=`<div style="font-size:11px;color:#333">—</div>`;
+    <div style="font-size:15px;color:#22c55e;margin-bottom:6px;font-weight:500">Buenos (${goodOnTrack.length})</div>`;
+  if(goodOnTrack.length===0)html+=`<div style="font-size:15px;color:#333">—</div>`;
   goodOnTrack.slice(0,8).forEach(e=>{
     const minCol=e._minLeft!==null?(e._minLeft<=2?'#22c55e':e._minLeft<=5?'#fbbf24':'#555'):'#555';
     const minStr=e._minLeft!==null?e._minLeft+'m'+(e._debtLimited?'⚠':''):'';
@@ -1865,8 +1866,8 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Neutros
   html+=`<div>
-    <div style="font-size:12px;color:#fbbf24;margin-bottom:6px;font-weight:500">Neutros (${neutralOnTrack.length})</div>`;
-  if(neutralOnTrack.length===0)html+=`<div style="font-size:11px;color:#333">—</div>`;
+    <div style="font-size:15px;color:#fbbf24;margin-bottom:6px;font-weight:500">Neutros (${neutralOnTrack.length})</div>`;
+  if(neutralOnTrack.length===0)html+=`<div style="font-size:15px;color:#333">—</div>`;
   neutralOnTrack.slice(0,8).forEach(e=>{
     const minStr=e._minLeft!==null?e._minLeft+'m'+(e._debtLimited?'⚠':''):'';
     html+=kartRow(e, minStr, '#555');
@@ -1875,8 +1876,8 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Malos
   html+=`<div>
-    <div style="font-size:12px;color:#ef4444;margin-bottom:6px;font-weight:500">Malos (${badOnTrack.length})</div>`;
-  if(badOnTrack.length===0)html+=`<div style="font-size:11px;color:#333">—</div>`;
+    <div style="font-size:15px;color:#ef4444;margin-bottom:6px;font-weight:500">Malos (${badOnTrack.length})</div>`;
+  if(badOnTrack.length===0)html+=`<div style="font-size:15px;color:#333">—</div>`;
   badOnTrack.slice(0,8).forEach(e=>{
     const minStr=e._minLeft!==null?e._minLeft+'m'+(e._debtLimited?'⚠':''):'';
     html+=kartRow(e, minStr, '#555');
@@ -1892,12 +1893,12 @@ function _enRenderStrategy(eq, trackAvg){
   html+=`<div class="en-strat-card" style="margin:0">
     <div class="en-strat-title">Cola del box (${EnBox.queue.length} karts)</div>`;
   if(EnBox.queue.length===0){
-    html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
+    html+=`<div style="color:#333;font-size:15px;font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
   } else {
     const myD=(cfg?.myDorsal||'').toString().trim();
     const myQueueIdx=myD?EnBox.queue.findIndex(k=>k.dorsal?.toString()===myD):-1;
     html+=`<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:6px">
-      <span style="font-size:9px;color:#555;margin-right:2px">ENTRA</span>`;
+      <span style="font-size:15px;color:#bdc2cc;margin-right:2px">ENTRA</span>`;
     [...EnBox.queue].reverse().forEach((k,i)=>{
       let bg='#fbbf24';
       if(k.quality==='good')bg='#22c55e';
@@ -1908,18 +1909,18 @@ function _enRenderStrategy(eq, trackAvg){
       const border=isMe?'3px solid #fff':isFirst?'2px solid #aaa':'1px solid transparent';
       const label=isMe?(k.dorsal||'YO'):(k.quality==='unknown'?'?':'');
       const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':(k.name||'#'+k.dorsal));
-      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:9px;color:#fff;font-weight:700" title="${title}">${label}</div>`;
+      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:15px;color:#fff;font-weight:700" title="${title}">${label}</div>`;
     });
-    html+=`<span style="font-size:9px;color:#555;margin-left:2px">SALE</span></div>`;
+    html+=`<span style="font-size:15px;color:#bdc2cc;margin-left:2px">SALE</span></div>`;
     const qGood=EnBox.queue.filter(k=>k.quality==='good').length;
     const qBad=EnBox.queue.filter(k=>k.quality==='bad').length;
     const qNeutral=EnBox.queue.filter(k=>k.quality==='neutral').length;
     const qUnknown=EnBox.queue.filter(k=>k.quality==='unknown').length;
-    html+=`<div style="font-size:9px;color:#555;font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
-    html+=`<div style="font-size:9px;color:#555;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
+    html+=`<div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
+    html+=`<div style="font-size:15px;color:#bdc2cc;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
     if(myQueueIdx>=0){
       const ahead=myQueueIdx;
-      html+=`<div style="font-size:9px;color:#5b8dee;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
+      html+=`<div style="font-size:15px;color:#5b8dee;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
     }
 
     // ── Diagrama visual del box ──
@@ -1931,7 +1932,7 @@ function _enRenderStrategy(eq, trackAvg){
 
     if(qLen>0){
       html+=`<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid #1a1b22">`;
-      html+=`<div style="font-size:9px;color:#3a3b42;margin-bottom:6px;letter-spacing:0.5px">DIAGRAMA DEL BOX (${qLen} karts)</div>`;
+      html+=`<div style="font-size:15px;color:#bdc2cc;margin-bottom:6px;letter-spacing:0.5px">DIAGRAMA DEL BOX (${qLen} karts)</div>`;
 
       if(boxType==='battery'){
         // Batería: los primeros N en puestos (accesibles por sorteo), el resto en espera
@@ -1939,29 +1940,29 @@ function _enRenderStrategy(eq, trackAvg){
         const waiting=EnBox.queue.slice(boxPos);
         html+=`<div style="display:flex;gap:6px;justify-content:center;padding:8px 0;flex-wrap:wrap">`;
         inSlots.forEach(k=>{
-          html+=`<div style="width:36px;height:28px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,true)};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;box-shadow:0 0 6px ${qColor(k)}44" title="${qTitle(k)}">${qLabel(k)}</div>`;
+          html+=`<div style="width:36px;height:28px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,true)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;box-shadow:0 0 6px ${qColor(k)}44" title="${qTitle(k)}">${qLabel(k)}</div>`;
         });
         html+=`</div>`;
         if(waiting.length){
-          html+=`<div style="text-align:center;font-size:8px;color:#555;margin-bottom:4px">— en espera (${waiting.length}) —</div>`;
+          html+=`<div style="text-align:center;font-size:8px;color:#bdc2cc;margin-bottom:4px">— en espera (${waiting.length}) —</div>`;
           html+=`<div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;padding-bottom:6px">`;
           waiting.forEach(k=>{
-            html+=`<div style="width:28px;height:22px;border-radius:4px;background:${qColor(k)};border:${qBorder(k,false)};display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:600;opacity:0.55" title="${qTitle(k)} (en espera)">${qLabel(k)}</div>`;
+            html+=`<div style="width:28px;height:22px;border-radius:4px;background:${qColor(k)};border:${qBorder(k,false)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;opacity:0.55" title="${qTitle(k)} (en espera)">${qLabel(k)}</div>`;
           });
           html+=`</div>`;
         }
-        html+=`<div style="text-align:center;font-size:9px;color:#555">Puestos: sorteo aleatorio · Espera: entran a puestos al vaciarse</div>`;
+        html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Puestos: sorteo aleatorio · Espera: entran a puestos al vaciarse</div>`;
 
       } else if(boxType==='line'){
         // Línea: cola horizontal completa con wrap, solo el primero accesible
         html+=`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-start;padding:8px 0;flex-wrap:wrap">`;
         EnBox.queue.forEach((k,i)=>{
           const isFirst=i===0;
-          html+=`<div style="width:32px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,isFirst)};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;${isFirst?'box-shadow:0 0 6px '+qColor(k)+'66;':'opacity:0.8;'}" title="#${i+1} · ${qTitle(k)}">${qLabel(k)}</div>`;
-          if(i<qLen-1)html+=`<span style="color:#2a2b2e;font-size:9px">→</span>`;
+          html+=`<div style="width:32px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,isFirst)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;${isFirst?'box-shadow:0 0 6px '+qColor(k)+'66;':'opacity:0.8;'}" title="#${i+1} · ${qTitle(k)}">${qLabel(k)}</div>`;
+          if(i<qLen-1)html+=`<span style="color:#2a2b2e;font-size:15px">→</span>`;
         });
         html+=`</div>`;
-        html+=`<div style="text-align:center;font-size:9px;color:#555">Solo el primero accesible · ${qLen} karts en cola</div>`;
+        html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Solo el primero accesible · ${qLen} karts en cola</div>`;
 
       } else if(boxType==='columns'){
         // Columnas: TODAS las filas según la cola real
@@ -1976,7 +1977,7 @@ function _enRenderStrategy(eq, trackAvg){
             if(idx<qLen){
               const k=EnBox.queue[idx];
               const accessible=r===0;
-              html+=`<div style="width:34px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,accessible)};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600;${accessible?'box-shadow:0 0 6px '+qColor(k)+'44;':'opacity:0.55;'}" title="${qTitle(k)}${accessible?'':' (fila '+(r+1)+', bloqueado)'}">${qLabel(k)}</div>`;
+              html+=`<div style="width:34px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,accessible)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;${accessible?'box-shadow:0 0 6px '+qColor(k)+'44;':'opacity:0.55;'}" title="${qTitle(k)}${accessible?'':' (fila '+(r+1)+', bloqueado)'}">${qLabel(k)}</div>`;
             } else {
               html+=`<div style="width:34px;height:26px;border-radius:5px;background:transparent;border:1px dashed #1a1b22"></div>`;
             }
@@ -1986,9 +1987,9 @@ function _enRenderStrategy(eq, trackAvg){
         html+=`</div>`;
         const goodBlocked=EnBox.queue.slice(nCols).filter(k=>k.quality==='good').length;
         if(goodBlocked>0){
-          html+=`<div style="text-align:center;font-size:9px;color:#fbbf24">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
+          html+=`<div style="text-align:center;font-size:15px;color:#fbbf24">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
         } else {
-          html+=`<div style="text-align:center;font-size:9px;color:#555">Fila 1: accesible por sorteo · Fila 2+: bloqueado · ${nRows} fila${nRows>1?'s':''}</div>`;
+          html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Fila 1: accesible por sorteo · Fila 2+: bloqueado · ${nRows} fila${nRows>1?'s':''}</div>`;
         }
       }
       html+=`</div>`;
@@ -2001,7 +2002,7 @@ function _enRenderStrategy(eq, trackAvg){
     <div class="en-strat-title">Movimientos recientes</div>`;
   const pitEvents=eq.filter(e=>e.pit||e.pitState==='out').slice(0,6);
   if(pitEvents.length===0){
-    html+=`<div style="color:#333;font-size:13px;font-family:sans-serif;padding:8px 0">Sin movimientos</div>`;
+    html+=`<div style="color:#333;font-size:15px;font-family:sans-serif;padding:8px 0">Sin movimientos</div>`;
   } else {
     pitEvents.forEach(e=>{
       const kc=_enKartColor(e.dorsal);
@@ -2010,10 +2011,10 @@ function _enRenderStrategy(eq, trackAvg){
       const stateLabel=e.pitState==='in'?'IN':e.pitState==='out'?'OUT':'PIT';
       const stateCol=e.pitState==='in'?'#ef4444':e.pitState==='out'?'#f97316':'#555';
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
-        <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
-        <span style="font-size:12px;color:#9ca3af;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
-        <span style="font-size:12px;color:${stateCol};font-weight:600">${stateLabel}</span>
-        <span style="font-size:11px;color:#555;width:32px;text-align:right">${e.pitS?e.pitS+'s':''}</span>
+        <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
+        <span style="font-size:15px;color:#bdc2cc;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
+        <span style="font-size:15px;color:${stateCol};font-weight:600">${stateLabel}</span>
+        <span style="font-size:15px;color:#bdc2cc;width:32px;text-align:right">${e.pitS?e.pitS+'s':''}</span>
       </div>`;
     });
   }
@@ -2045,7 +2046,7 @@ function _enRenderStrategy(eq, trackAvg){
   predictions.sort((a,b)=>a.remaining-b.remaining);
 
   if(predictions.length===0){
-    html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Sin previsión de paradas próximas</div>`;
+    html+=`<div style="color:#333;font-size:15px;font-family:sans-serif;padding:8px 0">Sin previsión de paradas próximas</div>`;
   } else {
     // Simular evolución del pool
     let simG=G;
@@ -2092,12 +2093,12 @@ function _enRenderStrategy(eq, trackAvg){
       const isNow=i===0;
       const probCol=t.prob>=50?'#22c55e':t.prob>=25?'#fbbf24':'#ef4444';
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 0;${!isNow?'border-top:0.5px solid #111':''}">
-        <span style="font-size:11px;color:#555;font-family:sans-serif;width:55px;flex-shrink:0">${t.min}</span>
+        <span style="font-size:15px;color:#bdc2cc;font-family:sans-serif;width:55px;flex-shrink:0">${t.min}</span>
         <span style="font-size:18px;font-weight:600;color:${probCol};font-family:monospace;width:50px">${t.prob}%</span>
         <div style="flex:1">
-          <span style="font-size:11px;color:${t.evColor||'#555'};font-family:sans-serif">${t.event}</span>
+          <span style="font-size:15px;color:${t.evColor||'#555'};font-family:sans-serif">${t.event}</span>
         </div>
-        ${t.delta!==undefined&&!isNow?`<span style="font-size:12px;color:${t.delta>0?'#22c55e':'#ef4444'};font-family:monospace;font-weight:600">${t.arrow}${Math.abs(t.delta)}%</span>`:''}
+        ${t.delta!==undefined&&!isNow?`<span style="font-size:15px;color:${t.delta>0?'#22c55e':'#ef4444'};font-family:monospace;font-weight:600">${t.arrow}${Math.abs(t.delta)}%</span>`:''}
       </div>`;
     });
 
@@ -2105,13 +2106,13 @@ function _enRenderStrategy(eq, trackAvg){
     const bestMoment=timeline.reduce((best,t)=>t.prob>best.prob?t:best,timeline[0]);
     if(bestMoment!==timeline[0]&&bestMoment.prob>probNow+5){
       html+=`<div style="margin-top:8px;padding:8px 12px;border-radius:6px;background:#22c55e11;border:0.5px solid #22c55e33">
-        <span style="font-size:11px;color:#22c55e;font-family:sans-serif">💡 Espera ${bestMoment.min} → probabilidad sube a <b>${bestMoment.prob}%</b></span>
+        <span style="font-size:15px;color:#22c55e;font-family:sans-serif">💡 Espera ${bestMoment.min} → probabilidad sube a <b>${bestMoment.prob}%</b></span>
       </div>`;
     } else if(probNow>0){
       const worstFuture=timeline.reduce((w,t)=>t.prob<w.prob?t:w,timeline[0]);
       if(worstFuture.prob<probNow-5){
         html+=`<div style="margin-top:8px;padding:8px 12px;border-radius:6px;background:#ef444411;border:0.5px solid #ef444433">
-          <span style="font-size:11px;color:#ef4444;font-family:sans-serif">⚠ Pool empeora en ${worstFuture.min} — considerar parar antes</span>
+          <span style="font-size:15px;color:#ef4444;font-family:sans-serif">⚠ Pool empeora en ${worstFuture.min} — considerar parar antes</span>
         </div>`;
       }
     }
@@ -2223,15 +2224,15 @@ function _enRenderStrategy(eq, trackAvg){
     html+=`<div class="en-strat-card">
       <div class="en-strat-title">Recomendación táctica</div>
       <div style="padding:8px 12px;border-radius:6px;background:${tacticColor}11;border:0.5px solid ${tacticColor}33">
-        <span style="font-size:13px;color:${tacticColor};font-family:sans-serif">${tacticIcon} ${tacticHtml}</span>
+        <span style="font-size:15px;color:${tacticColor};font-family:sans-serif">${tacticIcon} ${tacticHtml}</span>
       </div>
-      <div style="font-size:10px;color:#555;margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>
+      <div style="font-size:15px;color:#bdc2cc;margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>
     </div>`;
   }
 
   // ── Botón clasificación estimada ──
   html+=`<div style="text-align:center;margin:10px 0">
-    <button onclick="_enShowEstimatedClassification()" style="padding:10px 24px;border-radius:8px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:13px;font-weight:500;cursor:pointer;font-family:sans-serif;transition:all .15s">📊 Clasificación estimada</button>
+    <button onclick="_enShowEstimatedClassification()" style="padding:10px 24px;border-radius:8px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:15px;font-weight:500;cursor:pointer;font-family:sans-serif;transition:all .15s">📊 Clasificación estimada</button>
   </div>`;
 
 
@@ -2287,7 +2288,11 @@ function _enShowEstimatedClassification(){
   const usingOfficial=eq.some(e=>e.standsCount>0);
 
   // Calcular clasificación estimada
-  const estimated=eq.filter(e=>!e.pit).map(e=>{
+  // Usamos vueltas (tours) como base del gap — fiable siempre, no depende del string de gap de Apex
+  const onTrack=eq.filter(e=>!e.pit);
+  const leaderTours=Math.max(...onTrack.map(e=>e.tours||0), 0);
+
+  const estimated=onTrack.map(e=>{
     const stops=getStops(e);
     const diff=maxStops-stops;
     // Coste individual si lo tenemos (validado), sino media del circuito
@@ -2295,26 +2300,18 @@ function _enShowEstimatedClassification(){
     const teamAvgCost=teamCosts.length?teamCosts.reduce((a,b)=>a+b,0)/teamCosts.length:avgPitCost;
     const penalty=diff*teamAvgCost;
 
-    // Gap actual en segundos (parseamos del string)
-    let gapS=0;
-    if(e.gap){
-      if(e.gap.includes('v')){
-        // Doblado — usamos vueltas * M5v como aproximación
-        const laps=parseInt(e.gap.replace(/[^0-9]/g,''))||0;
-        const avg5=_enAvg5(e.lapHistory);
-        gapS=laps*(avg5||trackAvg||67);
-      } else {
-        gapS=parseFloat(e.gap)||0;
-      }
-    }
+    // Gap calculado desde vueltas completadas — robusto con doblados y gaps vacíos
+    const avg5=_enAvg5(e.lapHistory);
+    const lapTime=avg5||trackAvg||67;
+    const lapsBehind=Math.max(0, leaderTours-(e.tours||0));
+    const gapS=lapsBehind*lapTime;
 
     const estimatedGap=gapS+penalty;
-    const avg5=_enAvg5(e.lapHistory);
     const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
 
     return {
-      dorsal:e.dorsal, name:e.name, pos:e.pos, stops,
-      gapS, penalty, estimatedGap, avg5, quality, diff
+      dorsal:e.dorsal, name:e.name, pos:e.pos, stops, tours:e.tours||0,
+      gapS, penalty, estimatedGap, avg5, quality, diff, lapsBehind
     };
   }).sort((a,b)=>a.estimatedGap-b.estimatedGap);
 
@@ -2331,19 +2328,19 @@ function _enShowEstimatedClassification(){
     let qBorder=e.quality==='good'?'#22c55e':e.quality==='bad'?'#ef4444':e.quality==='neutral'?'#fbbf24':kc.border;
     const penaltyStr=e.diff>0?`<span style="color:#ef4444">+${e.diff} pit (${e.penalty.toFixed(1)}s)</span>`:'';
     const estGapStr=i===0?'—':'+'+e.estimatedGap.toFixed(1)+'s';
-    const realGapStr=e.gapS>0?'+'+e.gapS.toFixed(1)+'s':'—';
+    const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapS>0?'+'+e.gapS.toFixed(1)+'s':'—';
     const posChange=e.pos-(i+1);
-    const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:#555">=</span>';
+    const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:#bdc2cc">=</span>';
 
     rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px">
-      <span style="font-size:14px;font-weight:600;color:#d0d2db;text-align:center">${i+1}</span>
-      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${e.dorsal}</div>
-      <span style="font-size:12px;color:#d0d2db;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
-      <span style="font-size:11px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}${e.stops===maxStops?' ★':''}</span>
-      <span style="font-size:11px;color:#6b7280;font-family:monospace;text-align:right">${realGapStr}</span>
-      <span style="font-size:11px;color:#5b8dee;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
-      <span style="font-size:10px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
-      <span style="font-size:11px;text-align:center">${posStr}</span>
+      <span style="font-size:15px;font-weight:600;color:#e4e6ed;text-align:center">${i+1}</span>
+      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${e.dorsal}</div>
+      <span style="font-size:15px;color:#e4e6ed;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
+      <span style="font-size:15px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}${e.stops===maxStops?' ★':''}</span>
+      <span style="font-size:15px;color:${e.lapsBehind>0?'#ef4444':'#6b7280'};font-family:monospace;text-align:right">${realGapStr}</span>
+      <span style="font-size:15px;color:#5b8dee;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
+      <span style="font-size:15px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
+      <span style="font-size:15px;text-align:center">${posStr}</span>
     </div>`;
   });
 
@@ -2351,25 +2348,46 @@ function _enShowEstimatedClassification(){
     <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:700px;width:95%;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
-          <div style="font-size:16px;font-weight:600;color:#d0d2db;font-family:sans-serif">📊 Clasificación estimada</div>
-          <div style="font-size:11px;color:#555;font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas (ref: equipo con más paradas) · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource})</div>
-          ${!usingOfficial?'<div style="font-size:10px;color:#fbbf24;font-family:sans-serif;margin-top:2px">⚠ Conteo de paradas observado localmente — puede estar incompleto si conectaste a mitad de carrera</div>':''}
+          <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Clasificación estimada</div>
+          <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas (ref: equipo con más paradas) · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource})</div>
+          ${!usingOfficial?'<div style="font-size:15px;color:#fbbf24;font-family:sans-serif;margin-top:2px">⚠ Conteo de paradas observado localmente — puede estar incompleto si conectaste a mitad de carrera</div>':''}
         </div>
-        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:4px">✕</button>
+        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:#bdc2cc;font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;padding:4px 0;border-bottom:0.5px solid #2a2b2e;gap:8px;margin-bottom:4px">
-        <span style="font-size:9px;color:#555;text-align:center">EST</span>
-        <span style="font-size:9px;color:#555">KART</span>
-        <span style="font-size:9px;color:#555">EQUIPO</span>
-        <span style="font-size:9px;color:#555;text-align:center">PITS</span>
-        <span style="font-size:9px;color:#555;text-align:right">GAP</span>
-        <span style="font-size:9px;color:#5b8dee;text-align:right">EST</span>
-        <span style="font-size:9px;color:#555;text-align:right">PENALIZ.</span>
-        <span style="font-size:9px;color:#555;text-align:center">Δ</span>
+        <span style="font-size:15px;color:#bdc2cc;text-align:center">EST</span>
+        <span style="font-size:15px;color:#bdc2cc">KART</span>
+        <span style="font-size:15px;color:#bdc2cc">EQUIPO</span>
+        <span style="font-size:15px;color:#bdc2cc;text-align:center">PITS</span>
+        <span style="font-size:15px;color:#bdc2cc;text-align:right">GAP</span>
+        <span style="font-size:15px;color:#5b8dee;text-align:right">EST</span>
+        <span style="font-size:15px;color:#bdc2cc;text-align:right">PENALIZ.</span>
+        <span style="font-size:15px;color:#bdc2cc;text-align:center">Δ</span>
       </div>
       ${rows}
     </div>`;
   document.body.appendChild(overlay);
+}
+
+function _enConfirmStint(){
+  const minInput=document.getElementById('en-stint-min-input');
+  const maxInput=document.getElementById('en-stint-max-input');
+  if(minInput)_enUpdateCfg('stintMin', minInput.value);
+  if(maxInput)_enUpdateCfg('stintMax', maxInput.value);
+  minInput&&minInput.blur();
+  maxInput&&maxInput.blur();
+  _enRender();
+  const btn=document.getElementById('en-stint-confirm-btn');
+  if(btn){
+    btn.textContent='✓ Aplicado';
+    btn.style.color='#22c55e';
+    btn.style.borderColor='#22c55e';
+    btn.style.background='#22c55e18';
+    setTimeout(()=>{
+      const b=document.getElementById('en-stint-confirm-btn');
+      if(b){b.textContent='Confirmar';b.style.color='#5b8dee';b.style.borderColor='#5b8dee';b.style.background='#5b8dee18';}
+    },2000);
+  }
 }
 
 function _enUpdateCfg(key, val){
