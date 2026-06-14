@@ -210,6 +210,12 @@ function deletePilotFromCircuit(slug, name) {
   _save();
 }
 
+function getTotalLapsByCircuit(slug) {
+  const s = slug.replace(/'/g, "''");
+  const r = db.exec(`SELECT COUNT(*) as n FROM laps l JOIN sessions s ON s.id=l.session_id WHERE s.slug='${s}'`);
+  return r.length ? (r[0].values[0][0] || 0) : 0;
+}
+
 function getPilotSessionsByCircuit(slug) {
   const s = slug.replace(/'/g, "''");
   const r = db.exec(`
@@ -253,5 +259,5 @@ module.exports = {
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
-  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit, deletePilotFromCircuit,
+  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit, deletePilotFromCircuit, getTotalLapsByCircuit,
 };

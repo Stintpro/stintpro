@@ -243,7 +243,7 @@ function renderSidebar(circuits) {
       <div class="circ-dot${c.connected?' on':''}"></div>
       <div>
         <div class="circ-name">${esc(c.name)}</div>
-        <div class="circ-meta">${c.lapCount||0} vueltas${c.sessionActive?' · EN VIVO':''}</div>
+        <div class="circ-meta">${(c.totalLaps||c.lapCount||0).toLocaleString()} vueltas${c.sessionActive?' · EN VIVO':''}</div>
       </div>
     </div>
   `).join('');
