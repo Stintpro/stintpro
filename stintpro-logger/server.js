@@ -99,6 +99,14 @@ app.delete('/api/sessions/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Borrar pilotos de un circuito (body: { names: ["Piloto A", "Piloto B"] })
+app.delete('/api/circuit/:slug/pilots', (req, res) => {
+  const names = req.body?.names;
+  if (!Array.isArray(names) || !names.length) return res.status(400).json({ error: 'names requerido' });
+  for (const name of names) db.deletePilotFromCircuit(req.params.slug, name);
+  res.json({ ok: true, deleted: names.length });
+});
+
 // Fichas de pilotos por circuito
 app.get('/api/circuit/:slug/pilots', (req, res) => {
   const rows = db.getPilotSessionsByCircuit(req.params.slug);
