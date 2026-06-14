@@ -48,7 +48,10 @@ app.get('/api/status', (req, res) => {
     ok: true,
     version: '1.0.0',
     uptime: Math.round(process.uptime()),
-    circuits: Array.from(monitors.values()).map(m => m.getInfo()),
+    circuits: Array.from(monitors.values()).map(m => ({
+      ...m.getInfo(),
+      totalLaps: db.getTotalLapsByCircuit(m.slug),
+    })),
   });
 });
 
