@@ -203,8 +203,8 @@ window.ApexConnector = {
       else if(type==='sr'||type==='su'||type==='sd'||
               type==='gs'||type==='gf'||type==='gl'||type==='gm')k._lapInvalid=false;
       // PIT
-      if(type==='si'){k.pit=true; k.pitState='in'; k._pitInTime=Date.now();}
-      else if(type==='so'){k.pit=true; k.pitState='out'; k.pitS=0; k._pitTimerActive=false; k._pitInTime=null;}
+      if(type==='si'){k.pit=true; k.pitState='in'; k._pitInTime=Date.now(); k._lapInvalid=true;}
+      else if(type==='so'){k.pit=true; k.pitState='out'; k.pitS=0; k._pitTimerActive=false; k._pitInTime=null; k._lapInvalid=true;}
       else if(type==='sr'||type==='su'){if(!k._pitTimerActive)k.pit=false; k.pitState=null; k._pitInTime=null;}
       // Session finish
       if(type==='sf'){k.checkered=true;}
