@@ -86,6 +86,19 @@ const Logger = {
     this.connected = false;
   },
 
+  // Consulta histórico de pilotos al logger (para ℹ en el grid)
+  async fetchPilotHistory(slug, names) {
+    if (!this._serverUrl || !names.length) return {};
+    try {
+      const sep = this._apiKey ? '&' : '?';
+      const encoded = names.map(n => encodeURIComponent(n)).join(',');
+      const url = `${this._serverUrl}/api/circuit/${slug}/pilots/batch?names=${encoded}${sep}apikey=${this._apiKey}`;
+      const res = await fetch(url);
+      if (!res.ok) return {};
+      return await res.json();
+    } catch(e) { return {}; }
+  },
+
   // Verificar conexión al logger
   async test(url, apiKey) {
     return new Promise((resolve) => {
