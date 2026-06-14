@@ -1,0 +1,8 @@
+{
+  "port": 3000,
+  "apiKey": "cd8e331d56b2a6e6b921fc7620783ecdc29076d9e607f8101afb74f7b4a48cde",
+  "circuits": [
+    { "slug": "rkc",      "port": 7913, "name": "Karting Campillos" },
+    { "slug": "kav",      "port": 7916, "name": "Karting Avilés" }
+  ]
+}

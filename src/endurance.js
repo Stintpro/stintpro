@@ -15,8 +15,9 @@ const EnSession = {
   pitOutCalibration:[],     // segundos entre pit out y siguiente pase por meta
   pitOutPending:    {},     // dorsal → timestamp del pit out (esperando primer pase)
   rivalPitOut:      {},     // dorsal → timestamp del último pit out
-  pitCosts:         {},     // dorsal → [costes de parada en segundos]
+  pitCosts:         {},     // dorsal → [costes reales de parada en segundos (último |*| antes pit in → primer |*| tras pit out)]
   pitCounts:        {},     // dorsal → número de paradas
+  pitInLastPass:    {},     // dorsal → timestamp del último |*| antes del pit in
   kartAutoState:    {},     // dorsal → {quality, badCount, stintStartIdx}
 };
 
@@ -1893,6 +1894,8 @@ function _enRenderStrategy(eq, trackAvg){
   if(EnBox.queue.length===0){
     html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
   } else {
+    const myD=(cfg?.myDorsal||'').toString().trim();
+    const myQueueIdx=myD?EnBox.queue.findIndex(k=>k.dorsal?.toString()===myD):-1;
     html+=`<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:6px">
       <span style="font-size:9px;color:#555;margin-right:2px">ENTRA</span>`;
     [...EnBox.queue].reverse().forEach((k,i)=>{
@@ -1900,8 +1903,12 @@ function _enRenderStrategy(eq, trackAvg){
       if(k.quality==='good')bg='#22c55e';
       else if(k.quality==='bad')bg='#ef4444';
       else if(k.quality==='unknown')bg='#333';
-      const isLast=i===EnBox.queue.length-1;
-      html+=`<div style="width:28px;height:20px;border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;${isLast?'border:2px solid #fff;':''}font-size:9px;color:#fff;font-weight:600" title="${k.quality==='unknown'?'Sin info':k.name||'#'+k.dorsal}">${k.quality==='unknown'?'?':''}</div>`;
+      const isFirst=i===EnBox.queue.length-1; // primero en salir
+      const isMe=myD&&k.dorsal?.toString()===myD;
+      const border=isMe?'3px solid #fff':isFirst?'2px solid #aaa':'1px solid transparent';
+      const label=isMe?(k.dorsal||'YO'):(k.quality==='unknown'?'?':'');
+      const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':(k.name||'#'+k.dorsal));
+      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:9px;color:#fff;font-weight:700" title="${title}">${label}</div>`;
     });
     html+=`<span style="font-size:9px;color:#555;margin-left:2px">SALE</span></div>`;
     const qGood=EnBox.queue.filter(k=>k.quality==='good').length;
@@ -1910,6 +1917,10 @@ function _enRenderStrategy(eq, trackAvg){
     const qUnknown=EnBox.queue.filter(k=>k.quality==='unknown').length;
     html+=`<div style="font-size:9px;color:#555;font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
     html+=`<div style="font-size:9px;color:#555;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
+    if(myQueueIdx>=0){
+      const ahead=myQueueIdx;
+      html+=`<div style="font-size:9px;color:#5b8dee;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
+    }
 
     // ── Diagrama visual del box ──
     const qLen=EnBox.queue.length;
@@ -2513,9 +2524,51 @@ window.showEnduranceDashboard=function(cfg){
           if(prev&&prev.lastLap!==e.lastLap)e._lapStart=now;
           else if(prev)e._lapStart=prev._lapStart;
           else e._lapStart=now;
+          // En live updates el servidor envía solo las últimas 10 vueltas —
+          // preservar el historial completo que ya teníamos y añadir nuevas.
+          if(!data._isHistory&&prev&&(prev.lapHistory||[]).length>(e.lapHistory||[]).length){
+            const prevH=prev.lapHistory;
+            const newLaps=(e.lapHistory||[]).filter(t=>!prevH.some(h=>Math.abs(h-t)<0.05));
+            e.lapHistory=newLaps.length>0?[...prevH,...newLaps]:prevH;
+          }
         });
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
+
+        // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
+        if(data.countdown!=null&&window.ApexClock){
+          const mode=data.countdownMode||(data.countdown>0?'countdown':'count');
+          if(data.countdown!==EnSession._lastCountdown){
+            EnSession._lastCountdown=data.countdown;
+            const age=data.countdownTs?Math.max(0,Date.now()-data.countdownTs):0;
+            const adjusted=mode==='countdown'?Math.max(0,data.countdown-age):data.countdown+age;
+            window.ApexClock.sync(adjusted,mode);
+          }
+        }
+
+        // ── Reconstrucción de estado desde snapshot histórico del logger ──────
+        // Cuando conectamos tarde, el logger envía _isHistory:true + pitEvents[]
+        // que permiten reconstruir cola FIFO, pitCounts y rivalPitOut.
+        if(data._isHistory && Array.isArray(data.pitEvents) && !EnBox.queueInited){
+          try{
+            const boxPos=EnBox.config.positions||4;
+            // Inicializar cola con karts desconocidos (reserva inicial)
+            EnBox.queue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
+            // Reproducir eventos de pit en orden cronológico
+            data.pitEvents.forEach(ev=>{
+              if(ev.event==='in'){
+                if(!EnSession.pitCounts[ev.dorsal])EnSession.pitCounts[ev.dorsal]=0;
+                EnSession.pitCounts[ev.dorsal]++;
+                EnBox.queue.push({quality:'unknown',dorsal:ev.dorsal,time:ev.time});
+                EnSession.rivalPitOut[ev.dorsal]=null;
+              } else if(ev.event==='out'){
+                if(EnBox.queue.length>0)EnBox.queue.shift();
+                EnSession.rivalPitOut[ev.dorsal]=ev.time;
+              }
+            });
+            EnBox.queueInited=true;
+          }catch(e){}
+        }
 
         // ── Tracking blindado: un error aquí NUNCA debe congelar el dashboard ──
         try{
@@ -2536,25 +2589,19 @@ window.showEnduranceDashboard=function(cfg){
             EnSession.pitCounts[e.dorsal]++;
             const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
             EnBox.queue.push({quality:q, dorsal:e.dorsal, name:e.name, time:now});
+            // Guardar timestamp del último pase por meta antes del pit in
+            if(EnSession.linePasses[e.dorsal])
+              EnSession.pitInLastPass[e.dorsal]=EnSession.linePasses[e.dorsal];
           }
           // Pit OUT: el equipo se lleva el PRIMERO de la cola → la cola DECRECE
           if(e.pitState==='out'&&prev!=='out'){
             if(EnBox.queue.length>0)EnBox.queue.shift();
           }
-          // Pit OUT: capturar vuelta de pit out para calcular coste
-          if(e.pitState==='out'&&prev!=='out'&&e.lastLap){
-            const avg5=_enAvg5(e.lapHistory);
-            if(avg5&&e.lastLap>avg5){
-              const cost=e.lastLap-avg5;
-              if(!EnSession.pitCosts[e.dorsal])EnSession.pitCosts[e.dorsal]=[];
-              EnSession.pitCosts[e.dorsal].push(cost);
-            }
-          }
           // Pit OUT: iniciar calibración de offset pit exit → meta
           if(e.pitState==='out'&&prev!=='out'){
             EnSession.pitOutPending[e.dorsal]=now;
           }
-          // Pase por meta (lapFlash) → registrar timestamp + completar calibración
+          // Pase por meta (lapFlash) → registrar timestamp + completar calibración + coste real de parada
           if(e.lapFlash&&!e.pit){
             EnSession.linePasses[e.dorsal]=now;
             if(EnSession.pitOutPending[e.dorsal]){
@@ -2562,6 +2609,15 @@ window.showEnduranceDashboard=function(cfg){
               if(offset>3&&offset<300)EnSession.pitOutCalibration.push(offset);
               if(EnSession.pitOutCalibration.length>20)EnSession.pitOutCalibration.shift();
               delete EnSession.pitOutPending[e.dorsal];
+              // Coste real = tiempo desde último |*| antes del pit in hasta este |*| post pit out
+              if(EnSession.pitInLastPass[e.dorsal]){
+                const realCost=(now-EnSession.pitInLastPass[e.dorsal])/1000;
+                if(realCost>=EnBox.pitDuration*0.8&&realCost<600){
+                  if(!EnSession.pitCosts[e.dorsal])EnSession.pitCosts[e.dorsal]=[];
+                  EnSession.pitCosts[e.dorsal].push(realCost);
+                }
+                delete EnSession.pitInLastPass[e.dorsal];
+              }
             }
           }
           EnSession.data._prevPitState[e.dorsal]=e.pitState||null;
@@ -2670,6 +2726,7 @@ window._enGoBack=function(){
   EnSession.linePasses={};
   EnSession.pitOutCalibration=[];
   EnSession.pitOutPending={};
+  EnSession.pitInLastPass={};
   document.getElementById('screen-dash').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();
