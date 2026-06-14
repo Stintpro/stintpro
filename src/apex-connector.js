@@ -1,28 +1,26 @@
-// ── Apex Timing WebSocket Connector v1.1 ─────────────────────────────────
-// Mapeo dinámico de columnas desde data-type del grid r0
-// Protocolo confirmado con datos reales de 10+ circuitos
+// ── Apex Timing WebSocket Connector v2.0 ─────────────────────────────────
+// Reescrito desde cero basado en análisis de logs reales de 10+ circuitos.
+// Protocolo confirmado: llp/blp siempre llevan valor; |*| llega después.
 
 window.ApexConnector = {
-  ws:null, slug:null, connected:false,
+  ws:null, slug:null, port:7913, connected:false,
   onData:null, onStatus:null, onComment:null,
   _karts:{}, _comments:[], _reconnectTimer:null,
-  _sessionActive:false, _leaderLap:0,
-  _colMap:{},        // data-type → número de columna (ej: {llp:'c9', blp:'c10', ...})
-  _colByNum:{},      // número de columna → data-type (ej: {c9:'llp', c10:'blp', ...})
-  _sessionFinished:false,
+  _sessionActive:false, _sessionFinished:false, _leaderLap:0,
+  _colMap:{}, _colByNum:{}, _lastLapTime:0,
 
-  connect(slug, onData, onStatus, onComment, port) {
+  connect(slug, onData, onStatus, onComment, port){
     this.slug=slug; this.port=port||7913;
     this.onData=onData; this.onStatus=onStatus; this.onComment=onComment;
     this._karts={}; this._comments=[];
     this._sessionActive=false; this._sessionFinished=false;
-    this._leaderLap=0; this._colMap={}; this._colByNum={};
+    this._leaderLap=0; this._colMap={}; this._colByNum={}; this._lastLapTime=0;
     if(this.ws){try{this.ws.close();}catch(e){} this.ws=null;}
     if(this._reconnectTimer){clearTimeout(this._reconnectTimer);this._reconnectTimer=null;}
     this._doConnect();
   },
 
-  _doConnect() {
+  _doConnect(){
     try{
       this.ws=new WebSocket(`wss://live-data.apex-timing.com:${this.port}/`);
       this.ws.onopen=()=>{
@@ -40,24 +38,24 @@ window.ApexConnector = {
     }catch(e){if(this.onStatus)this.onStatus('error','● No se pudo conectar');}
   },
 
-  disconnect() {
+  disconnect(){
     this.slug=null;
     if(this._reconnectTimer){clearTimeout(this._reconnectTimer);this._reconnectTimer=null;}
     if(this.ws){try{this.ws.close();}catch(e){} this.ws=null;}
     this.connected=false;
   },
 
-  _parse(raw) {
+  _parse(raw){
     const lines=raw.split('\n'); let changed=false;
-    lines.forEach(line=>{
-      line=line.trim(); if(!line) return;
+    for(let line of lines){
+      line=line.trim(); if(!line)continue;
 
-      // ── VUELTA COMPLETA ──────────────────────────────────────────
+      // ── VUELTA COMPLETA: r1|*|67234|24403 ───────────────────────
       const lapM=line.match(/^(r\d+)\|\*\|(\d+)\|(\d*)$/);
       if(lapM){
         const k=this._kart(lapM[1]), ms=parseInt(lapM[2]);
         if(ms>=20000&&ms<300000){
-          if(!k.lapHistory)k.lapHistory=[];
+          this._lastLapTime=Date.now();
           if(!k._lapInvalid){
             k._lapFlash=Date.now();
             // |*| registra siempre — respuesta inmediata al cruzar meta.
@@ -71,31 +69,27 @@ window.ApexConnector = {
               if(!k.bestLap||t<k.bestLap)k.bestLap=t;
             }
             k._lapFromFlash=t;
-            k._lapFromFlashTs=Date.now(); // ventana temporal para que llp refine
+            k._lapFromFlashTs=Date.now();
           }
           k._lapInvalid=false;
+          // S1 en circuitos con sectores
+          const val2=parseInt(lapM[3]);
+          if(!isNaN(val2)&&val2>0&&this._colMap.s1)k.s1Ms=val2;
         }
-        // Segundo valor: S1 en ms en circuitos con sectores — ignorar para gap
-        // El gap real viene de la columna gap del grid vía _applyCell
-        const val2=parseInt(lapM[3]);
-        if(!isNaN(val2)&&val2>0&&this._colMap.s1){
-          k.s1Ms=val2;
-        }
-        changed=true; return;
+        changed=true; continue;
       }
 
-      // ── VUELTA ANULADA (pit in/out) ──────────────────────────────
-      if(line.match(/^r\d+\|\*in\|0$/) || line.match(/^r\d+\|\*out\|0$/)){
-        const rowId=line.split('|')[0];
-        const k=this._kart(rowId);
-        k._lapInvalid=true; // próxima vuelta ignorar para consistencia
-        changed=true; return;
+      // ── PIT MARKERS: r1|*in|0 / r1|*out|0 / r1|*|| ─────────────
+      if(line.match(/^r\d+\|\*(in|out)\|0$/)){
+        this._kart(line.split('|')[0])._lapInvalid=true;
+        changed=true; continue;
       }
+      if(line.match(/^r\d+\|\*\|\|$/)){changed=true; continue;}
 
-      // ── SECTOR PARCIAL ───────────────────────────────────────────
-      if(line.match(/^r\d+\|\*i\d+\|/)){changed=true; return;}
+      // ── SECTOR PARCIAL: r1|*i1|ms ───────────────────────────────
+      if(line.match(/^r\d+\|\*i\d+\|/)){changed=true; continue;}
 
-      // ── POSICIÓN DIRECTA ─────────────────────────────────────────
+      // ── POSICIÓN DIRECTA: r1|#|5 ────────────────────────────────
       const posM=line.match(/^(r\d+)\|#\|(\d+)$/);
       if(posM){
         const p=parseInt(posM[2]);
@@ -104,110 +98,101 @@ window.ApexConnector = {
           if(k.pos&&k.pos!==p)k._posChange={from:k.pos,to:p,delta:k.pos-p,time:Date.now()};
           k.pos=p;
         }
-        changed=true; return;
+        changed=true; continue;
       }
 
-      // ── GRID INICIAL ─────────────────────────────────────────────
+      // ── GRID ─────────────────────────────────────────────────────
       if(line.startsWith('grid|')){
-        // Apex reenvía grid| periódicamente (refresh). Solo es NUEVA sesión
-        // si la anterior terminó (bandera de cuadros vista). Si no: merge sin borrar.
-        if(this._sessionActive&&this._sessionFinished){
+        // Nueva sesión si: bandera a cuadros recibida, O si no hay vueltas en >10 min
+        const inactiveTooLong=this._lastLapTime&&(Date.now()-this._lastLapTime)>600000;
+        if(this._sessionActive&&(this._sessionFinished||inactiveTooLong)){
           this._karts={}; this._leaderLap=0;
-          this._sessionFinished=false;
+          this._sessionFinished=false; this._lastLapTime=0;
           if(window.ApexClock&&window.ApexClock.reset)window.ApexClock.reset();
           if(this.onStatus)this.onStatus('connected','● Nueva sesión');
         }
         this._sessionActive=true;
         this._parseGrid(line.substring(5));
-        changed=true; return;
+        changed=true; continue;
       }
 
       // ── RELOJ COUNTDOWN ─────────────────────────────────────────
       if(line.startsWith('dyn1|countdown|')){
         const ms=parseInt(line.split('|')[2])||null;
         if(ms!==null&&window.ApexClock)window.ApexClock.sync(ms,'countdown');
-        changed=true; return;
+        changed=true; continue;
       }
 
-      // ── RELOJ ASCENDENTE (Campillos) ────────────────────────────
+      // ── RELOJ ASCENDENTE ────────────────────────────────────────
       if(line.startsWith('dyn1|count|')){
         const ms=parseInt(line.split('|')[2])||null;
         if(ms!==null&&window.ApexClock)window.ApexClock.sync(ms,'count');
-        changed=true; return;
+        changed=true; continue;
       }
 
       // ── TEXTO DYN1 ──────────────────────────────────────────────
       if(line.startsWith('dyn1|text|')){
         const txt=line.substring(10).trim();
-        // Lap X/Y — vuelta del líder
         const lapTxt=txt.match(/Lap\s+(\d+)\/(\d+)/i);
         if(lapTxt)this._leaderLap=parseInt(lapTxt[1]);
-        // Vacío = fin de sesión
         if(!txt&&window.ApexClock)window.ApexClock.stop();
-        changed=true; return;
+        changed=true; continue;
       }
 
       // ── BANDERA A CUADROS ────────────────────────────────────────
-      if(line==='light|lf|'){
+      if(line.startsWith('light|lf')){
         this._sessionFinished=true;
         if(window.ApexClock)window.ApexClock.stop();
-        changed=true; return;
+        changed=true; continue;
       }
 
       // ── COMENTARIOS ──────────────────────────────────────────────
       if(line.startsWith('com|')){
         const html=line.substring(line.indexOf('|',4)+1);
         if(html&&html.trim()&&html!=='<p></p>'&&html.length>5)this._parseComment(html);
-        changed=true; return;
+        changed=true; continue;
       }
 
-      // ── CELDA CON VALOR ──────────────────────────────────────────
+      // ── CELDA CON VALOR: r1c6|ti|1:04.893 ───────────────────────
       const cellM=line.match(/^(r\d+)(c\d+)\|([^|]*)\|(.*)/);
-      if(cellM){this._applyCell(this._kart(cellM[1]),cellM[2],cellM[3],cellM[4]); changed=true; return;}
+      if(cellM){this._applyCell(this._kart(cellM[1]),cellM[2],cellM[3],cellM[4]); changed=true; continue;}
 
-      // ── CELDA SIN VALOR ──────────────────────────────────────────
+      // ── CELDA SIN VALOR: r1c6|ti ────────────────────────────────
       const cellM2=line.match(/^(r\d+)(c\d+)\|([^|]*)$/);
       if(cellM2){this._applyCell(this._kart(cellM2[1]),cellM2[2],cellM2[3],''); changed=true;}
-    });
+    }
     if(changed)this._emit();
   },
 
   _kart(rowId){
     if(!this._karts[rowId])this._karts[rowId]={
       _rowId:rowId, lapHistory:[], state:'sr', tours:0,
-      pit:false, pitS:0, pitDuration:0, standsCount:0, stops:0,
-      _lapInvalid:false, checkered:false,
+      pit:false, pitState:null, pitS:0, pitDuration:0,
+      standsCount:0, stops:0, _lapInvalid:false, checkered:false,
+      _lapFlash:0, _pitInTime:null, _pitTimerActive:false, _nextLapDirty:false,
     };
     return this._karts[rowId];
   },
 
-  // Aplica una actualización de celda usando colMap dinámico
   _applyCell(k, col, type, val){
     const dtype=this._colByNum[col]||'';
     const v=(val!==undefined&&val!=='')?val:type;
 
-    // Códigos de estado inconfundibles — detectarlos VENGAN DE LA COLUMNA QUE VENGAN.
-    // Protege contra colMap roto/incompleto (circuitos cuyo grid no mapea la columna de estado).
-    const STATE_CODES=['si','so','sr','su','sd','ss','sf','gs','gf','gl','gm'];
-    const isStateCol=dtype==='grp'||dtype==='sta'||(col==='c1'&&!this._colMap.grp)||
-       (col==='c2'&&!this._colByNum['c2']);
-    const isStateCode=STATE_CODES.includes(type)&&!dtype; // columna sin mapear con código claro
-
-    // ── Estado (columna grp/sta o código inconfundible) ─────────
+    // ── Estado ──────────────────────────────────────────────────
+    const STATE=['si','so','sr','su','sd','ss','sf','gs','gf','gl','gm'];
+    const isStateCol=dtype==='grp'||dtype==='sta';
+    const isStateCode=!dtype&&STATE.includes(type);
     if(isStateCol||isStateCode){
       if(type==='in')return;
-      const prev=k.state;
       k.state=type;
-      // Bandera amarilla — marcar vueltas como inválidas
       if(type==='ss')k._lapInvalid=true;
       else if(type==='sr'||type==='su'||type==='sd'||
               type==='gs'||type==='gf'||type==='gl'||type==='gm')k._lapInvalid=false;
-      // PIT
+      // PIT — si/so activan _lapInvalid para bloquear parcial box→meta
       if(type==='si'){k.pit=true; k.pitState='in'; k._pitInTime=Date.now(); k._lapInvalid=true;}
       else if(type==='so'){k.pit=true; k.pitState='out'; k.pitS=0; k._pitTimerActive=false; k._pitInTime=null; k._lapInvalid=true;}
       else if(type==='sr'||type==='su'){if(!k._pitTimerActive)k.pit=false; k.pitState=null; k._pitInTime=null;}
-      // Session finish
-      if(type==='sf'){k.checkered=true;}
+      if(type==='sf')k.checkered=true;
       return;
     }
 
@@ -227,11 +212,10 @@ window.ApexConnector = {
       return;
     }
 
-    // ── Nombre/equipo ────────────────────────────────────────────
+    // ── Nombre ───────────────────────────────────────────────────
     if(dtype==='dr'){
       const n=(v||'').trim();
-      const skip=['in','tn','ti','tb','ib','sr','sd','su','si','ss',
-                  'sf','gf','gl','gm','gs','to','so'];
+      const skip=['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so'];
       if(n&&n.length>1&&isNaN(parseInt(n))&&!skip.includes(n))k.name=n;
       return;
     }
@@ -241,7 +225,9 @@ window.ApexConnector = {
     if(dtype==='s2'){const x=parseFloat(v);if(!isNaN(x)&&x>0&&x<120)k.s2=x; return;}
     if(dtype==='s3'){const x=parseFloat(v);if(!isNaN(x)&&x>0&&x<120)k.s3=x; return;}
 
-    // ── Último tiempo ────────────────────────────────────────────
+    // ── Última vuelta ────────────────────────────────────────────
+    // Los logs confirman que llp siempre lleva el tiempo (tb/ti/tn con valor).
+    // No se necesita anti-duplicado con |*|: llp llega antes que |*| siempre.
     if(dtype==='llp'){
       const t=this._pt(v);
       if(t&&t>=20&&t<300){
@@ -259,13 +245,12 @@ window.ApexConnector = {
         }
         k._lapFromFlash=undefined;
         k._lapFromFlashTs=undefined;
-        // Actualizar bestLap si esta vuelta es mejor
         if(!k.bestLap||t<k.bestLap)k.bestLap=t;
       }
       return;
     }
 
-    // ── Mejor tiempo ─────────────────────────────────────────────
+    // ── Mejor vuelta ─────────────────────────────────────────────
     if(dtype==='blp'){
       const t=this._pt(v);
       if(t&&t>=20&&t<300&&(!k.bestLap||t<k.bestLap))k.bestLap=t;
@@ -274,43 +259,41 @@ window.ApexConnector = {
 
     // ── Gap al líder ─────────────────────────────────────────────
     if(dtype==='gap'){
-      // Detectar gap de vueltas ("1 Tour", "2 Tours", "3 Tr")
       const vRaw=v||'';
       if(/tour|lap|tr\b/i.test(vRaw)){
         const n=parseInt(vRaw.replace(/[^\d]/g,''));
-        if(!isNaN(n)&&n>0)k.gap='+'+n+'v';
-        else k.gap='';
+        k.gap=(!isNaN(n)&&n>0)?'+'+n+'v':'';
         return;
       }
-      // Gap de tiempo normal
       const raw=vRaw.replace(/[a-zA-Z]/g,'').trim();
       if(!raw){k.gap='';return;}
-      let t;
-      if(raw.includes(':')){
-        const p=raw.split(':');
-        t=parseFloat(p[0])*60+parseFloat(p[1]);
-      } else {
-        t=parseFloat(raw);
-      }
+      const t=raw.includes(':')?parseFloat(raw.split(':')[0])*60+parseFloat(raw.split(':')[1]):parseFloat(raw);
       if(!isNaN(t)&&t>=0)k.gap=t>0?'+'+t.toFixed(3):'';
       return;
     }
 
-    // ── Vueltas (tlp o lc según circuito) ────────────────────────
+    // ── Intervalo ────────────────────────────────────────────────
+    if(dtype==='int'){
+      const raw=(v||'').replace(/[a-zA-Z]/g,'').trim();
+      if(!raw){k.interval='';return;}
+      const t=raw.includes(':')?parseFloat(raw.split(':')[0])*60+parseFloat(raw.split(':')[1]):parseFloat(raw);
+      if(!isNaN(t)&&t>=0)k.interval=t>0?'+'+t.toFixed(3):'';
+      return;
+    }
+
+    // ── Vueltas ──────────────────────────────────────────────────
     if(dtype==='tlp'||dtype==='lc'){
       const n=parseInt(v);
       if(!isNaN(n)&&n>0)k.tours=n;
       return;
     }
 
-    // ── Pit stops (contador) ─────────────────────────────────────
+    // ── Pit stops ────────────────────────────────────────────────
     if(dtype==='pit'){
-      // Puede ser cronómetro de pit o contador de paradas
       if(type==='to'){
-        // Cronómetro activo — formato XX. o 1:XX.
         const s=this._parsePitTimer(v);
         if(s!==null){k.pitS=s; k.pit=true; k._pitTimerActive=true;}
-      } else if(type==='in'){
+      }else if(type==='in'){
         k._pitTimerActive=false;
         if(k.state==='sr'||k.state==='su')k.pit=false;
         const n=parseInt(v);
@@ -319,47 +302,16 @@ window.ApexConnector = {
       return;
     }
 
-    // ── Intervalo al kart precedente ──────────────────────────────
-    if(dtype==='int'){
-      const raw=(v||'').replace(/[a-zA-Z]/g,'').trim();
-      if(!raw){k.interval='';return;}
-      let t;
-      if(raw.includes(':')){
-        const p=raw.split(':');
-        t=parseFloat(p[0])*60+parseFloat(p[1]);
-      } else {
-        t=parseFloat(raw);
-      }
-      if(!isNaN(t)&&t>=0)k.interval=t>0?'+'+t.toFixed(3):'';
-      return;
-    }
-
     // ── Tiempo en pista ──────────────────────────────────────────
-    if(dtype==='otr')return; // solo informativo
+    if(dtype==='otr')return;
 
-    // ── Pit timer (puede llegar en columna sin data-type) ─────────
-    if(type==='to'){
-      const s=this._parsePitTimer((val!==undefined&&val!=='')?val:type);
-      if(s!==null){k.pitS=s; k.pit=true; k._pitTimerActive=true;}
-      return;
-    }
-    if(type==='sf'){k.checkered=true; return;}
-
-    // ── Columnas sin data-type — ignorar ─────────────────────────
-    if(dtype==='')return;
-
-    // ── Fallback por número de columna (circuitos sin colMap) ────
-    this._applyCellFallback(k, col, type, val);
-  },
-
-  // Fallback para cuando no hay colMap (init|r| sin nuevo grid)
-  _applyCellFallback(k, col, type, val){
-    const v=(val!==undefined&&val!=='')?val:type;
-    if(type==='sf'){k.checkered=true; return;}
+    // ── Columnas sin dtype — solo pit timer y sf ─────────────────
     if(type==='to'){
       const s=this._parsePitTimer(v);
       if(s!==null){k.pitS=s; k.pit=true; k._pitTimerActive=true;}
+      return;
     }
+    if(type==='sf'){k.checkered=true; return;}
   },
 
   _parsePitTimer(v){
@@ -388,24 +340,20 @@ window.ApexConnector = {
     return n>1000?parseFloat((n/1000).toFixed(3)):n;
   },
 
-  // ── PARSE GRID ────────────────────────────────────────────────
   _parseGrid(html){
     if(!html||html.length<10)return;
     try{
       const doc=new DOMParser().parseFromString(
         `<table><tbody>${html}</tbody></table>`,'text/html');
 
-      // Leer colMap desde r0
+      // Construir colMap desde r0
       const r0=doc.querySelector('tr[data-id="r0"]');
       if(r0){
         this._colMap={}; this._colByNum={};
         r0.querySelectorAll('td[data-id]').forEach(td=>{
-          const cid=td.getAttribute('data-id'); // ej "c6"
+          const cid=td.getAttribute('data-id');
           const dtype=(td.getAttribute('data-type')||'').trim();
-          if(cid&&dtype){
-            this._colMap[dtype]=cid;
-            this._colByNum[cid]=dtype;
-          }
+          if(cid&&dtype){this._colMap[dtype]=cid; this._colByNum[cid]=dtype;}
         });
       }
 
@@ -417,12 +365,11 @@ window.ApexConnector = {
         gridPos++;
         const k=this._kart(rowId);
 
-        // Estado desde columna grp o sta
+        // Estado
         const stCol=this._colMap.grp||this._colMap.sta||'c1';
         const stCell=row.querySelector(`[data-id$="${stCol}"]`);
         if(stCell){const cls=stCell.className.trim();if(cls&&cls!=='in'){
-          k.state=cls;
-          if(cls==='sf')k.checkered=true;
+          k.state=cls; if(cls==='sf')k.checkered=true;
         }}
 
         // Posición
@@ -430,47 +377,40 @@ window.ApexConnector = {
         if(rkP){const p=parseInt(rkP.textContent.trim());if(!isNaN(p)&&p>0)k.pos=p;}
         else k.pos=k.pos||gridPos;
 
-        // Dorsal desde columna no
+        // Dorsal
         const noCol=this._colMap.no;
         if(noCol){
-          const noDiv=row.querySelector(`[data-id$="${noCol}"] div`)||
-                      row.querySelector('td.no div');
+          const noDiv=row.querySelector(`[data-id$="${noCol}"] div`)||row.querySelector('td.no div');
           if(noDiv){const d=noDiv.textContent.trim();if(d&&!isNaN(parseInt(d)))k.dorsal=d;}
         }
 
-        // Nombre desde columna dr
+        // Nombre
         const drCol=this._colMap.dr;
-        if(drCol){
-          const drCell=row.querySelector(`[data-id$="${drCol}"]`);
-          if(drCell){const t=drCell.textContent.trim();if(t&&isNaN(parseInt(t)))k.name=t;}
-        } else {
-          const drCell=row.querySelector('.dr');
-          if(drCell){const t=drCell.textContent.trim();if(t&&isNaN(parseInt(t)))k.name=t;}
-        }
+        const drCell=drCol?row.querySelector(`[data-id$="${drCol}"]`):row.querySelector('.dr');
+        if(drCell){const t=drCell.textContent.trim();if(t&&isNaN(parseInt(t)))k.name=t;}
 
-        // Mejor tiempo desde columna blp
+        // Mejor vuelta
         const blpCol=this._colMap.blp;
         if(blpCol){
           const blpCell=row.querySelector(`[data-id$="${blpCol}"]`);
           if(blpCell){const t=this._pt(blpCell.textContent);if(t&&t>=20&&t<300)k.bestLap=t;}
         }
 
-        // Último tiempo desde columna llp — solo si aún no hay valor en vivo
-        // (evita que grid refreshes sobreescriban lastLap recibido por |*| o llp cell)
+        // Última vuelta — solo si no hay valor en vivo todavía
         const llpCol=this._colMap.llp;
         if(llpCol){
           const llpCell=row.querySelector(`[data-id$="${llpCol}"]`);
           if(llpCell){const t=this._pt(llpCell.textContent);if(t&&t>=20&&t<300&&!k.lastLap)k.lastLap=t;}
         }
 
-        // Vueltas desde columna tlp
+        // Vueltas
         const tlpCol=this._colMap.tlp;
         if(tlpCol){
           const tlpCell=row.querySelector(`[data-id$="${tlpCol}"]`);
           if(tlpCell){const n=parseInt(tlpCell.textContent.trim());if(!isNaN(n)&&n>0)k.tours=n;}
         }
 
-        // Pit stops desde columna pit
+        // Pit stops
         const pitCol=this._colMap.pit;
         if(pitCol){
           const pitCell=row.querySelector(`[data-id$="${pitCol}"]`);
@@ -523,8 +463,7 @@ window.ApexConnector = {
         pitDuration:k.pitDuration||0,
         state:k.state||'sr', s1:k.s1, s2:k.s2, s3:k.s3,
         tours:k.tours||0, standsCount:k.standsCount||0, stops:k.stops||0,
-        checkered:!!k.checkered,
-        gapMs:k.gapMs||0,
+        checkered:!!k.checkered, gapMs:k.gapMs||0,
         lapFlash:!!(k._lapFlash&&(now-k._lapFlash)<2000),
         posChange:k._posChange&&(now-k._posChange.time)<5000?k._posChange:null,
         sessionFinished:this._sessionFinished,

@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StintPro — Logger Stats</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#08090a;color:#e2e8f0;font-family:system-ui,sans-serif;font-size:14px;min-height:100vh}
+a{color:#5b8dee;text-decoration:none}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#111}
+::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+
+/* Header */
+.header{background:#0e0f11;border-bottom:1px solid #1e2130;padding:14px 20px;display:flex;align-items:center;gap:16px}
+.header h1{font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.3px}
+.header h1 span{color:#5b8dee}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0}
+.status-dot.ok{background:#22c55e}
+#hdr-status{font-size:12px;color:#64748b;margin-left:auto}
+
+/* Config bar */
+.config-bar{background:#0e0f11;border-bottom:1px solid #1e2130;padding:10px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.config-bar input{background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:6px 10px;font-size:13px;outline:none}
+.config-bar input:focus{border-color:#5b8dee}
+.config-bar input.url{width:280px}
+.config-bar input.key{width:420px;font-family:monospace;font-size:11px}
+.btn{background:#5b8dee;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:#4a7de0}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.ghost{background:transparent;border:1px solid #2a2d3a;color:#94a3b8}
+.btn.ghost:hover{border-color:#5b8dee;color:#5b8dee}
+
+/* Layout */
+.layout{display:flex;height:calc(100vh - 97px)}
+.sidebar{width:220px;flex-shrink:0;background:#0e0f11;border-right:1px solid #1e2130;overflow-y:auto;padding:12px 0}
+.main{flex:1;overflow-y:auto;padding:20px}
+
+/* Sidebar circuits */
+.circ-item{padding:9px 16px;cursor:pointer;border-left:2px solid transparent;display:flex;align-items:center;gap:8px;transition:background .15s}
+.circ-item:hover{background:#13141a}
+.circ-item.active{background:#13141a;border-left-color:#5b8dee}
+.circ-dot{width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0}
+.circ-dot.on{background:#22c55e}
+.circ-dot.warn{background:#fbbf24}
+.circ-name{font-size:13px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.circ-meta{font-size:11px;color:#475569;margin-top:1px}
+
+/* Section headings */
+.section-title{font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+
+/* Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:24px}
+.card{background:#0e0f11;border:1px solid #1e2130;border-radius:8px;padding:14px}
+.card-label{font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.card-value{font-size:24px;font-weight:700;color:#e2e8f0}
+.card-value.green{color:#22c55e}
+.card-value.blue{color:#5b8dee}
+.card-value.yellow{color:#fbbf24}
+.card-sub{font-size:11px;color:#475569;margin-top:2px}
+
+/* Sessions table */
+.table-wrap{background:#0e0f11;border:1px solid #1e2130;border-radius:8px;overflow:hidden;margin-bottom:24px}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{background:#13141a;padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #1e2130}
+.tbl td{padding:9px 12px;border-bottom:1px solid #1a1b1e;font-size:13px;color:#cbd5e1;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.clickable:hover td{background:#13141a;cursor:pointer}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600}
+.badge.active{background:#052e16;color:#22c55e;border:1px solid #166534}
+.badge.ended{background:#1a1b1e;color:#64748b;border:1px solid #2a2d3a}
+.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:#1e2130;color:#7c8db5;margin:1px}
+
+/* Session detail modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal{background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(860px,95vw);max-height:85vh;overflow:hidden;display:flex;flex-direction:column}
+.modal-head{padding:16px 20px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px}
+.modal-head h2{font-size:16px;font-weight:700;flex:1}
+.modal-body{overflow-y:auto;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.modal-body{grid-template-columns:1fr}}
+
+/* Best times list */
+.best-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1a1b1e}
+.best-row:last-child{border:none}
+.best-pos{width:22px;text-align:right;font-size:12px;color:#475569;flex-shrink:0}
+.best-name{flex:1;font-size:13px;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.best-time{font-family:monospace;font-size:13px;color:#5b8dee;flex-shrink:0}
+.best-laps{font-size:11px;color:#475569;width:48px;text-align:right;flex-shrink:0}
+
+/* Chart bars */
+.bar-wrap{margin-top:6px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.bar-label{width:130px;font-size:11px;color:#7c8db5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.bar-bg{flex:1;background:#1a1b1e;border-radius:2px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;background:#5b8dee;transition:width .3s}
+.bar-val{width:60px;text-align:right;font-size:11px;font-family:monospace;color:#7c8db5;flex-shrink:0}
+
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid #1e2130}
+.tab-btn{padding:8px 18px;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.tab-btn:hover{color:#cbd5e1}
+.tab-btn.active{color:#5b8dee;border-bottom-color:#5b8dee}
+
+/* Pilot cards */
+.pilot-card{background:#0e0f11;border:1px solid #1e2130;border-radius:8px;margin-bottom:6px;overflow:hidden}
+.pilot-hdr{display:grid;grid-template-columns:16px 1fr repeat(4,90px);align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .15s;user-select:none}
+.pilot-hdr:hover{background:#13141a}
+.chevron{font-size:10px;color:#475569;transition:transform .2s}
+.pilot-hdr.open .chevron{transform:rotate(90deg)}
+.ph-name{font-size:14px;font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-col{text-align:right}
+.ph-label{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.ph-val{font-size:13px;font-weight:600;color:#e2e8f0}
+.ph-val.green{color:#22c55e}
+.ph-val.blue{color:#5b8dee}
+.ph-val.muted{color:#64748b;font-weight:400}
+.pilot-detail{display:none;border-top:1px solid #1e2130;padding:0}
+.pilot-detail.open{display:block}
+.pilot-sessions-tbl{width:100%;border-collapse:collapse}
+.pilot-sessions-tbl td{padding:8px 16px;font-size:12px;color:#94a3b8;border-bottom:1px solid #13141a}
+.pilot-sessions-tbl tr:last-child td{border-bottom:none}
+.pilot-sessions-tbl td:first-child{color:#475569}
+.pos-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700}
+.pos-1{background:#1a2e1a;color:#22c55e;border:1px solid #166534}
+.pos-2{background:#1a1f2e;color:#5b8dee;border:1px solid #1d4ed8}
+.pos-3{background:#2e1f0a;color:#fbbf24;border:1px solid #92400e}
+.pos-n{background:#1a1b1e;color:#64748b;border:1px solid #2a2d3a}
+
+/* Empty / loading */
+.empty{color:#475569;font-size:13px;padding:24px;text-align:center}
+.loading{color:#5b8dee;font-size:13px;padding:24px;text-align:center;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="status-dot" id="dot"></div>
+  <h1>Stint<span>Pro</span> Logger Stats</h1>
+  <span id="hdr-status">Sin conectar</span>
+</div>
+
+<div class="config-bar">
+  <input class="url" id="cfg-url" placeholder="https://stintpro.duckdns.org" value="">
+  <input class="key" id="cfg-key" placeholder="API Key" value="">
+  <button class="btn" onclick="load()">Conectar</button>
+  <button class="btn ghost sm" onclick="cleanup()">Limpiar sesiones vacías</button>
+</div>
+
+<div class="layout">
+  <div class="sidebar" id="sidebar"><div class="empty">—</div></div>
+  <div class="main" id="main"><div class="empty">Introduce la URL del logger y pulsa Conectar.</div></div>
+</div>
+
+<!-- Modal detalle sesión -->
+<div class="modal-bg" id="modal" style="display:none" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">Sesión</h2>
+      <button class="btn ghost sm" onclick="document.getElementById('modal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+const LS_URL = 'stintpro_logger_url';
+const LS_KEY = 'stintpro_logger_apikey';
+
+let _url = '';
+let _key = '';
+let _circuits = [];
+let _selected = null;
+let _tab = 'sesiones';
+let _currentSessions = [];
+let _currentBest = [];
+let _currentPilots = [];
+let _openPilots = new Set();
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+window.onload = () => {
+  document.getElementById('cfg-url').value = localStorage.getItem(LS_URL) || 'https://stintpro.duckdns.org';
+  document.getElementById('cfg-key').value = localStorage.getItem(LS_KEY) || '';
+  const savedUrl = localStorage.getItem(LS_URL);
+  const savedKey = localStorage.getItem(LS_KEY);
+  if (savedUrl && savedKey) load();
+};
+
+// ── API ───────────────────────────────────────────────────────────────────
+
+async function api(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  const res = await fetch(`${_url}${path}${sep}apikey=${_key}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────
+
+async function load() {
+  _url = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+  _key = document.getElementById('cfg-key').value.trim();
+  localStorage.setItem(LS_URL, _url);
+  localStorage.setItem(LS_KEY, _key);
+
+  setStatus('⏳ Conectando...');
+  setMain('<div class="loading">Cargando...</div>');
+
+  try {
+    const status = await api('/api/status');
+    _circuits = status.circuits || [];
+
+    const dot = document.getElementById('dot');
+    dot.className = 'status-dot ok';
+    setStatus(`v${status.version || '?'} · uptime ${fmtUptime(status.uptime)}`);
+
+    renderSidebar(_circuits);
+    if (_circuits.length > 0) selectCircuit(_circuits[0].slug);
+
+  } catch(e) {
+    document.getElementById('dot').className = 'status-dot';
+    setStatus('Error de conexión');
+    setMain(`<div class="empty">No se pudo conectar: ${e.message}</div>`);
+  }
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────
+
+function renderSidebar(circuits) {
+  const sb = document.getElementById('sidebar');
+  if (!circuits.length) { sb.innerHTML = '<div class="empty">Sin circuitos</div>'; return; }
+  sb.innerHTML = circuits.map(c => `
+    <div class="circ-item${_selected===c.slug?' active':''}" onclick="selectCircuit('${c.slug}')">
+      <div class="circ-dot${c.connected?' on':''}"></div>
+      <div>
+        <div class="circ-name">${esc(c.name)}</div>
+        <div class="circ-meta">${c.lapCount||0} vueltas${c.sessionActive?' · EN VIVO':''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function selectCircuit(slug) {
+  _selected = slug;
+  _tab = 'sesiones';
+  _openPilots = new Set();
+  renderSidebar(_circuits);
+  setMain('<div class="loading">Cargando...</div>');
+
+  try {
+    const [sessions, bestRaw, pilotsRaw] = await Promise.all([
+      api(`/api/sessions/${slug}`),
+      api(`/api/circuit/${slug}/history`).catch(() => []),
+      api(`/api/circuit/${slug}/pilots`).catch(() => []),
+    ]);
+    _currentSessions = sessions;
+    _currentBest = Array.isArray(bestRaw) ? bestRaw : [];
+    _currentPilots = Array.isArray(pilotsRaw) ? pilotsRaw : [];
+    renderCircuitView(slug);
+  } catch(e) {
+    setMain(`<div class="empty">Error: ${e.message}</div>`);
+  }
+}
+
+// ── Circuit view ──────────────────────────────────────────────────────────
+
+function renderCircuitView(slug) {
+  const sessions = _currentSessions;
+  const best = _currentBest;
+  const circ = _circuits.find(c => c.slug === slug) || { name: slug };
+  const totalLaps = sessions.reduce((s, r) => s + (r.lap_count || 0), 0);
+  const activeSessions = sessions.filter(s => s.is_active).length;
+  const completedSessions = sessions.filter(s => !s.is_active && s.lap_count > 0).length;
+  const bestFiltered = best.filter(b => isValidName(b.name));
+  const bestTime = bestFiltered.length ? bestFiltered[0].best_ms : null;
+  const bestTimeName = bestFiltered.length ? bestFiltered[0].name : null;
+
+  let html = `<div class="section-title">${esc(circ.name)}</div>`;
+
+  // Cards resumen
+  html += `<div class="cards">
+    <div class="card">
+      <div class="card-label">Sesiones grabadas</div>
+      <div class="card-value blue">${completedSessions}</div>
+      ${activeSessions ? `<div class="card-sub">${activeSessions} en vivo ahora</div>` : '<div class="card-sub">Ninguna en vivo</div>'}
+    </div>
+    <div class="card">
+      <div class="card-label">Vueltas totales</div>
+      <div class="card-value">${totalLaps.toLocaleString()}</div>
+      <div class="card-sub">en todas las sesiones</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Mejor vuelta histórica</div>
+      <div class="card-value green">${bestTime ? fmtMs(bestTime) : '—'}</div>
+      ${bestTimeName ? `<div class="card-sub">${esc(bestTimeName)}</div>` : '<div class="card-sub">—</div>'}
+    </div>
+    <div class="card">
+      <div class="card-label">Equipos / pilotos</div>
+      <div class="card-value yellow">${_currentPilots.length || countUnique(bestFiltered.map(b => b.name))}</div>
+      <div class="card-sub">con vueltas grabadas</div>
+    </div>
+  </div>`;
+
+  // Tabs
+  html += `<div class="tabs">
+    <button class="tab-btn${_tab==='sesiones'?' active':''}" onclick="switchTab('sesiones')">Sesiones</button>
+    <button class="tab-btn${_tab==='pilotos'?' active':''}" onclick="switchTab('pilotos')">Fichas de pilotos (${_currentPilots.length})</button>
+  </div>
+  <div id="tab-content"></div>`;
+
+  setMain(html);
+
+  if (_tab === 'sesiones') renderSessionsTab();
+  else renderPilotsTab();
+}
+
+function switchTab(tab) {
+  _tab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.startsWith(tab === 'sesiones' ? 'Ses' : 'Fic'));
+  });
+  if (tab === 'sesiones') renderSessionsTab();
+  else renderPilotsTab();
+}
+
+function renderSessionsTab() {
+  const sessions = _currentSessions;
+  const best = _currentBest;
+  const bestFiltered = best.filter(b => isValidName(b.name));
+  let html = '';
+
+  if (bestFiltered.length) {
+    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div class="section-title" style="margin:0">Top tiempos históricos</div>
+      <input id="best-search" placeholder="Buscar equipo / piloto…"
+        style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:220px"
+        oninput="filterBestTable()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+    </div>
+    <div class="table-wrap"><table class="tbl" id="best-table">
+      <thead><tr><th>#</th><th>Equipo / Piloto</th><th>Mejor vuelta</th><th>Vueltas</th><th>Sesión</th></tr></thead>
+      <tbody>${bestFiltered.slice(0,50).map((b,i)=>`
+        <tr data-name="${esc((b.name||'').toLowerCase())}">
+          <td style="color:#475569">${i+1}</td>
+          <td>${esc(b.name||'?')}</td>
+          <td style="font-family:monospace;color:#5b8dee">${fmtMs(b.best_ms)}</td>
+          <td style="color:#475569">${b.total_laps}</td>
+          <td style="color:#475569">${b.started_at ? fmtDate(b.started_at) : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  }
+
+  const validSessions = sessions.filter(s => s.lap_count > 0);
+  if (validSessions.length) {
+    html += `<div class="section-title" style="margin-top:4px">Sesiones (${validSessions.length})</div>
+    <div class="table-wrap"><table class="tbl">
+      <thead><tr><th>Fecha</th><th>Duración</th><th>Vueltas</th><th>Estado</th><th></th></tr></thead>
+      <tbody>${validSessions.map(s=>`
+        <tr class="clickable" onclick="openSession(${s.id},'${esc(fmtDate(s.started_at))}')">
+          <td>${fmtDate(s.started_at)}</td>
+          <td>${s.ended_at ? fmtDuration(s.ended_at - s.started_at) : s.is_active ? '<span style="color:#22c55e">En curso</span>' : '—'}</td>
+          <td>${s.lap_count||0}</td>
+          <td><span class="badge ${s.is_active?'active':'ended'}">${s.is_active?'EN VIVO':'Finalizada'}</span></td>
+          <td style="display:flex;gap:6px;align-items:center">
+            <span style="color:#5b8dee;font-size:12px">Ver →</span>
+            <span onclick="deleteSession(event,${s.id},'${esc(fmtDate(s.started_at))}')"
+              style="color:#ef4444;font-size:13px;cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid #2a2d3a"
+              title="Borrar sesión">🗑</span>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  } else {
+    html += '<div class="empty">Sin sesiones grabadas aún para este circuito.</div>';
+  }
+
+  document.getElementById('tab-content').innerHTML = html;
+}
+
+function renderPilotsTab() {
+  const pilots = _currentPilots;
+  let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+    <div class="section-title" style="margin:0">Fichas de pilotos / equipos</div>
+    <input id="pilot-search" placeholder="Buscar…"
+      style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:200px"
+      oninput="filterPilots()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+  </div>`;
+
+  if (!pilots.length) {
+    html += '<div class="empty">Sin datos de pilotos para este circuito.</div>';
+    document.getElementById('tab-content').innerHTML = html;
+    return;
+  }
+
+  html += `<div style="display:grid;grid-template-columns:1fr 90px 90px 70px 60px;gap:0;padding:6px 16px 6px 40px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
+    <div>Equipo / Piloto</div><div style="text-align:right">Mejor vuelta</div><div style="text-align:right">Ritmo medio</div><div style="text-align:right">Sesiones</div><div style="text-align:right">Vueltas</div>
+  </div>`;
+
+  html += pilots.map((p, i) => {
+    const isOpen = _openPilots.has(i);
+    const sessionRows = p.sessions.map(s => {
+      const posClass = s.position === 1 ? 'pos-1' : s.position === 2 ? 'pos-2' : s.position === 3 ? 'pos-3' : 'pos-n';
+      return `<tr>
+        <td>${fmtDate(s.started_at)}</td>
+        <td style="text-align:center"><span class="pos-badge ${posClass}">P${s.position}/${s.total}</span></td>
+        <td style="font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
+        <td style="font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+        <td style="text-align:right;color:#64748b">${s.laps}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}">
+      <div class="pilot-hdr${isOpen?' open':''}" onclick="togglePilot(${i})">
+        <span class="chevron">▶</span>
+        <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div><div class="ph-label">Mejor</div></div>
+        <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div><div class="ph-label">Media</div></div>
+        <div class="ph-col"><div class="ph-val">${p.session_count}</div><div class="ph-label">Sesiones</div></div>
+        <div class="ph-col"><div class="ph-val muted">${p.total_laps}</div><div class="ph-label">Vueltas</div></div>
+      </div>
+      <div class="pilot-detail${isOpen?' open':''}" id="pilot-detail-${i}">
+        <table class="pilot-sessions-tbl">
+          <thead><tr style="background:#13141a">
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left;font-weight:600">Fecha</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:center;font-weight:600">Posición</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right;font-weight:600">Mejor</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right;font-weight:600">Media</th>
+            <th style="padding:7px 16px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right;font-weight:600">Vlts</th>
+          </tr></thead>
+          <tbody>${sessionRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('tab-content').innerHTML = html;
+}
+
+function togglePilot(i) {
+  if (_openPilots.has(i)) _openPilots.delete(i);
+  else _openPilots.add(i);
+  const isOpen = _openPilots.has(i);
+  const hdr = document.querySelector(`.pilot-card[data-idx="${i}"] .pilot-hdr`);
+  const detail = document.getElementById(`pilot-detail-${i}`);
+  if (hdr) hdr.classList.toggle('open', isOpen);
+  if (detail) detail.classList.toggle('open', isOpen);
+}
+
+function filterPilots() {
+  const q = (document.getElementById('pilot-search')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('.pilot-card[data-pilot-name]').forEach(el => {
+    el.style.display = !q || el.dataset.pilotName.includes(q) ? '' : 'none';
+  });
+}
+
+// ── Session detail modal ──────────────────────────────────────────────────
+
+async function openSession(id, dateStr) {
+  document.getElementById('modal-title').textContent = `Sesión · ${dateStr}`;
+  document.getElementById('modal-body').innerHTML = '<div class="loading" style="grid-column:1/-1">Cargando vueltas...</div>';
+  document.getElementById('modal').style.display = 'flex';
+
+  try {
+    const laps = await api(`/api/session/${id}/laps`);
+    renderSessionModal(laps);
+  } catch(e) {
+    document.getElementById('modal-body').innerHTML = `<div class="empty" style="grid-column:1/-1">Error: ${e.message}</div>`;
+  }
+}
+
+function renderSessionModal(laps) {
+  if (!laps.length) {
+    document.getElementById('modal-body').innerHTML = '<div class="empty" style="grid-column:1/-1">Sin vueltas grabadas.</div>';
+    return;
+  }
+
+  // Filtrar vueltas válidas (20s - 5min) y con nombre real
+  const valid = laps.filter(l => l.lap_time_ms >= 20000 && l.lap_time_ms <= 300000 && isValidName(l.name));
+
+  if (!valid.length) {
+    document.getElementById('modal-body').innerHTML = '<div class="empty" style="grid-column:1/-1">Sin vueltas con datos de equipo/piloto identificables.</div>';
+    return;
+  }
+
+  // Agrupar por nombre (equipo/piloto)
+  const byName = {};
+  valid.forEach(l => {
+    const n = (l.name || '').trim();
+    if (!byName[n]) byName[n] = [];
+    byName[n].push(l.lap_time_ms);
+  });
+
+  // Ordenar por mejor vuelta
+  const teams = Object.entries(byName)
+    .map(([name, times]) => ({
+      name,
+      best: Math.min(...times),
+      avg: times.reduce((a,b)=>a+b,0)/times.length,
+      laps: times.length,
+    }))
+    .sort((a,b) => a.best - b.best);
+
+  const fastestAvg = teams.length ? Math.min(...teams.map(t => t.avg)) : 1;
+
+  // Distribución de tiempos (histograma simple)
+  const allMs = valid.map(l => l.lap_time_ms);
+  const minMs = Math.min(...allMs);
+  const maxMs = Math.max(...allMs);
+
+  let html = '';
+
+  // Panel izquierdo: ranking con buscador
+  html += `<div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div class="section-title" style="margin:0">Ranking · ${teams.length} equipos/pilotos</div>
+      <input id="modal-search" placeholder="Buscar…"
+        style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px;outline:none;width:130px"
+        oninput="filterModalTable()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+    </div>
+    <div id="modal-ranking">
+      ${teams.slice(0,50).map((t,i)=>`
+        <div class="best-row" data-name="${esc(t.name.toLowerCase())}">
+          <div class="best-pos">${i+1}</div>
+          <div class="best-name" title="${esc(t.name)}">${esc(t.name)}</div>
+          <div class="best-time">${fmtMs(t.best)}</div>
+          <div class="best-laps">${t.laps} vlts</div>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+
+  // Panel derecho: ritmos medios + stats globales
+  const avgAll = valid.reduce((s,l)=>s+l.lap_time_ms,0)/valid.length;
+  const mediana = [...allMs].sort((a,b)=>a-b)[Math.floor(allMs.length/2)];
+
+  html += `<div>
+    <div class="section-title">Resumen de la sesión</div>
+    <div class="cards" style="grid-template-columns:1fr 1fr;margin-bottom:16px">
+      <div class="card" style="padding:10px">
+        <div class="card-label">Vueltas válidas</div>
+        <div class="card-value" style="font-size:20px">${valid.length}</div>
+      </div>
+      <div class="card" style="padding:10px">
+        <div class="card-label">Mejor vuelta</div>
+        <div class="card-value green" style="font-size:20px">${fmtMs(minMs)}</div>
+      </div>
+      <div class="card" style="padding:10px">
+        <div class="card-label">Media global</div>
+        <div class="card-value blue" style="font-size:20px">${fmtMs(avgAll)}</div>
+      </div>
+      <div class="card" style="padding:10px">
+        <div class="card-label">Mediana</div>
+        <div class="card-value yellow" style="font-size:20px">${fmtMs(mediana)}</div>
+      </div>
+    </div>
+
+    <div class="section-title">Ritmo medio por equipo/piloto</div>
+    <div class="bar-wrap">
+      ${teams.slice(0,15).map(t=>`
+        <div class="bar-row">
+          <div class="bar-label" title="${esc(t.name)}">${esc(t.name)}</div>
+          <div class="bar-bg"><div class="bar-fill" style="width:${Math.min(100,(fastestAvg/t.avg)*100)}%"></div></div>
+          <div class="bar-val">${fmtMs(t.avg)}</div>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+
+  document.getElementById('modal-body').innerHTML = html;
+}
+
+function filterBestTable() {
+  const q = (document.getElementById('best-search')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#best-table tbody tr').forEach(tr => {
+    tr.style.display = !q || (tr.dataset.name||'').includes(q) ? '' : 'none';
+  });
+}
+
+function filterModalTable() {
+  const q = (document.getElementById('modal-search')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#modal-ranking .best-row[data-name]').forEach(el => {
+    el.style.display = !q || (el.dataset.name||'').includes(q) ? '' : 'none';
+  });
+}
+
+function closeModal(e) {
+  if (e.target.id === 'modal') document.getElementById('modal').style.display = 'none';
+}
+
+async function deleteSession(e, id, dateStr) {
+  e.stopPropagation();
+  if (!confirm(`¿Borrar sesión del ${dateStr}?\nSe eliminarán todas las vueltas y eventos de pit.\n\nEsta acción no se puede deshacer.`)) return;
+  try {
+    const sep = _key ? '?' : '';
+    const res = await fetch(`${_url}/api/sessions/${id}${sep}apikey=${_key}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (_selected) selectCircuit(_selected);
+  } catch(e) {
+    alert('Error al borrar: ' + e.message);
+  }
+}
+
+async function cleanup() {
+  try {
+    await api('/api/cleanup');
+    alert('Sesiones vacías eliminadas.');
+    if (_selected) selectCircuit(_selected);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function fmtMs(ms) {
+  if (!ms || ms <= 0) return '—';
+  const m = Math.floor(ms / 60000);
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6,'0');
+  return m > 0 ? `${m}:${s}` : `0:${s}`;
+}
+
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function fmtDuration(ms) {
+  if (!ms || ms <= 0) return '—';
+  const h = Math.floor(ms/3600000);
+  const m = Math.floor((ms%3600000)/60000);
+  return h > 0 ? `${h}h ${m}min` : `${m} min`;
+}
+
+function fmtUptime(s) {
+  if (!s) return '—';
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+
+function countUnique(arr) {
+  return new Set(arr.filter(n => isValidName(n))).size;
+}
+
+// Descarta nombres sin información real: "kart 43", números solos, vacíos, etc.
+function isValidName(n) {
+  if (!n || typeof n !== 'string') return false;
+  const s = n.trim();
+  if (s.length < 3) return false;
+  if (/^\d+$/.test(s)) return false;                          // solo número
+  if (/^kart\s*\d+$/i.test(s)) return false;                  // "kart 43"
+  if (/^(equipo|team|piloto|driver)\s*\d*$/i.test(s)) return false; // genéricos
+  if (/^\(sin nombre\)$/i.test(s)) return false;
+  return true;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setStatus(s) { document.getElementById('hdr-status').textContent = s; }
+function setMain(s) { document.getElementById('main').innerHTML = s; }
+</script>
+</body>
+</html>

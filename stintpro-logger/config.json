@@ -1,0 +1,8 @@
+{
+  "port": 3000,
+  "apiKey": "REDACTED",
+  "circuits": [
+    { "slug": "rkc",      "port": 7913, "name": "Karting Campillos" },
+    { "slug": "kav",      "port": 7916, "name": "Karting Avilés" }
+  ]
+}
