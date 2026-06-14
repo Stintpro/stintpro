@@ -26,7 +26,7 @@ let _enPilotHistory = null;      // null = no cargado, {} = cargado (puede estar
 let _enPilotHistoryFetching = false;
 
 async function _enFetchPilotHistory(karts, slug) {
-  if (_enPilotHistoryFetching || !window.Logger?.connected) return;
+  if (_enPilotHistoryFetching || !Logger?.connected) return;
   const names = karts.map(k => k.name).filter(n => n && n.length > 2);
   if (!names.length) return;
   _enPilotHistoryFetching = true;
@@ -390,7 +390,7 @@ function _enRender(){
   }
 
   // Cargar historial de pilotos desde el logger (solo primera vez por sesión)
-  if(_enPilotHistory===null && window.Logger?.connected && eq.length){
+  if(_enPilotHistory===null && Logger?.connected && eq.length){
     const cfg=window.AppState?.config;
     if(cfg?.slug) _enFetchPilotHistory(eq, cfg.slug);
   }
