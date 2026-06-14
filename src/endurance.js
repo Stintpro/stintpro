@@ -1764,7 +1764,7 @@ function _enRenderStrategy(eq, trackAvg){
   }
 
   // Color según probabilidad de acceso
-  let probColor='#6b7280';
+  let probColor='#9ca3af';
   let probLabel='';
   if(noBoxData){probColor='#555'; probLabel='';}
   else if(probAcceso>=70){probColor='#22c55e'; probLabel='⚠ REVISAR BOX — alta probabilidad';}
@@ -2052,7 +2052,7 @@ function _enRenderStrategy(eq, trackAvg){
     let simG=G;
     let simN=N;
     let timeline=[];
-    timeline.push({min:'Ahora', prob:probNow, event:'Estado actual', color:'#6b7280'});
+    timeline.push({min:'Ahora', prob:probNow, event:'Estado actual', color:'#9ca3af'});
 
     predictions.forEach(p=>{
       // Cuando este rival entra: toma 1 aleatorio, deja el suyo
@@ -2217,7 +2217,7 @@ function _enRenderStrategy(eq, trackAvg){
       tacticIcon='📊'; tacticColor='#fbbf24';
       tacticHtml=`Kart neutro · Pool ${probAcceso}%`;
     } else {
-      tacticIcon='📊'; tacticColor='#6b7280';
+      tacticIcon='📊'; tacticColor='#9ca3af';
       tacticHtml=`Pool ${probAcceso}% · Kart ${myQuality||'sin info'}`;
     }
 
@@ -2337,7 +2337,7 @@ function _enShowEstimatedClassification(){
       <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${e.dorsal}</div>
       <span style="font-size:15px;color:#e4e6ed;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
       <span style="font-size:15px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}${e.stops===maxStops?' ★':''}</span>
-      <span style="font-size:15px;color:${e.lapsBehind>0?'#ef4444':'#6b7280'};font-family:monospace;text-align:right">${realGapStr}</span>
+      <span style="font-size:15px;color:${e.lapsBehind>0?'#ef4444':'#9ca3af'};font-family:monospace;text-align:right">${realGapStr}</span>
       <span style="font-size:15px;color:#5b8dee;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
       <span style="font-size:15px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
       <span style="font-size:15px;text-align:center">${posStr}</span>
