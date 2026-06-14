@@ -133,6 +133,8 @@ a{color:#5b8dee;text-decoration:none}
 .pos-2{background:#1a1f2e;color:#5b8dee;border:1px solid #1d4ed8}
 .pos-3{background:#2e1f0a;color:#fbbf24;border:1px solid #92400e}
 .pos-n{background:#1a1b1e;color:#64748b;border:1px solid #2a2d3a}
+.info-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#0d1520;border:1px solid #1d3a6e;color:#5b8dee;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;font-style:normal;line-height:1;vertical-align:middle;margin-left:6px}
+.info-btn:hover{background:#1a2d4a}
 
 /* Empty / loading */
 .empty{color:#475569;font-size:13px;padding:24px;text-align:center}
@@ -347,14 +349,15 @@ function renderSessionsTab() {
     </div>
     <div class="table-wrap"><table class="tbl" id="best-table">
       <thead><tr><th>#</th><th>Equipo / Piloto</th><th>Mejor vuelta</th><th>Vueltas</th><th>Sesión</th></tr></thead>
-      <tbody>${bestFiltered.slice(0,50).map((b,i)=>`
-        <tr data-name="${esc((b.name||'').toLowerCase())}">
+      <tbody>${bestFiltered.slice(0,50).map((b,i)=>{
+        const hasPilot = _currentPilots.some(p => p.name === b.name);
+        return `<tr data-name="${esc((b.name||'').toLowerCase())}">
           <td style="color:#475569">${i+1}</td>
-          <td>${esc(b.name||'?')}</td>
+          <td>${esc(b.name||'?')}${hasPilot?`<i class="info-btn" onclick="showPilotPopup('${esc((b.name||'').replace(/'/g,"\\'"))}')">ℹ</i>`:''}</td>
           <td style="font-family:monospace;color:#5b8dee">${fmtMs(b.best_ms)}</td>
           <td style="color:#475569">${b.total_laps}</td>
           <td style="color:#475569">${b.started_at ? fmtDate(b.started_at) : '—'}</td>
-        </tr>`).join('')}
+        </tr>`;}).join('')}
       </tbody>
     </table></div>`;
   }
@@ -734,6 +737,64 @@ function esc(s) {
 
 function setStatus(s) { document.getElementById('hdr-status').textContent = s; }
 function setMain(s) { document.getElementById('main').innerHTML = s; }
+
+function showPilotPopup(name) {
+  const p = _currentPilots.find(p => p.name === name);
+  if (!p) return;
+
+  const existing = document.getElementById('pilot-popup');
+  if (existing) existing.remove();
+
+  const sessRows = p.sessions.map(s => {
+    const posClass = s.position === 1 ? 'pos-1' : s.position === 2 ? 'pos-2' : s.position === 3 ? 'pos-3' : 'pos-n';
+    return `<tr>
+      <td style="padding:7px 14px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
+      <td style="padding:7px 14px;text-align:center"><span class="pos-badge ${posClass}">P${s.position}/${s.total}</span></td>
+      <td style="padding:7px 14px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
+      <td style="padding:7px 14px;font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+      <td style="padding:7px 14px;color:#475569;text-align:right">${s.laps}</td>
+    </tr>`;
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'pilot-popup';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px)';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(520px,94vw);overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
+        <span style="font-size:15px;font-weight:700;color:#e2e8f0;flex:1">${esc(p.name)}</span>
+        <button onclick="document.getElementById('pilot-popup').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:#64748b;padding:3px 10px;cursor:pointer;font-size:13px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#1e2130;border-bottom:1px solid #1e2130">
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
+          <div style="font-size:20px;font-weight:700;color:#22c55e;font-family:monospace">${fmtMs(p.best_ms)}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
+          <div style="font-size:20px;font-weight:700;color:#5b8dee;font-family:monospace">${fmtMs(p.avg_ms)}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones · Vueltas</div>
+          <div style="font-size:20px;font-weight:700;color:#e2e8f0">${p.session_count} · <span style="color:#64748b;font-size:16px">${p.total_laps}</span></div>
+        </div>
+      </div>
+      <div style="max-height:260px;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#13141a">
+            <th style="padding:6px 14px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left">Sesión</th>
+            <th style="padding:6px 14px;font-size:10px;color:#475569;text-transform:uppercase;text-align:center">Pos</th>
+            <th style="padding:6px 14px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Mejor</th>
+            <th style="padding:6px 14px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Media</th>
+            <th style="padding:6px 14px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Vlts</th>
+          </tr></thead>
+          <tbody>${sessRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
 </script>
 </body>
 </html>
