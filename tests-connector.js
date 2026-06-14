@@ -235,6 +235,41 @@ test('pit OUT activa pitState=out', () => {
   strictEqual(kart().pitState, 'out');
 });
 
+// ── Vuelta ficticia tras pit (BUG) ────────────────────────────────────────────
+// Circuitos que no envían |*in|0 / |*out|0: el estado si/so debe proteger igual
+console.log('\nvuelta ficticia tras pit (sin |*in|0 / |*out|0)');
+
+test('si sin |*in|0: parcial tras pit IN no se registra', () => {
+  setup({ grp: 'c1' });
+  AC._parse('r1|*|62000|\n');   // vuelta normal previa
+  AC._parse('r1c1|si||\n');     // pit IN — solo state code, sin |*in|0
+  // Kart cruza meta 25s después de salir del pit (vuelta parcial)
+  AC._parse('r1|*|25000|\n');
+  // La vuelta de 25s NO debe registrarse (es el parcial box→meta)
+  strictEqual(kart().lapHistory.length, 1, 'solo debe existir la vuelta previa al pit');
+  strictEqual(kart().lastLap, 62.0, 'lastLap no debe cambiar a 25s');
+});
+
+test('so sin |*out|0: parcial tras pit OUT no se registra', () => {
+  setup({ grp: 'c1' });
+  AC._parse('r1|*|62000|\n');   // vuelta normal previa
+  AC._parse('r1c1|si||\n');     // pit IN
+  AC._parse('r1c1|so||\n');     // pit OUT — solo state code, sin |*out|0
+  AC._parse('r1|*|25000|\n');   // parcial box→meta (25s)
+  strictEqual(kart().lapHistory.length, 1, 'el parcial post-pit no debe registrarse');
+});
+
+test('tras el parcial bloqueado, siguiente vuelta completa sí se registra', () => {
+  setup({ grp: 'c1' });
+  AC._parse('r1|*|62000|\n');   // vuelta previa
+  AC._parse('r1c1|si||\n');     // pit IN
+  AC._parse('r1c1|so||\n');     // pit OUT
+  AC._parse('r1|*|25000|\n');   // parcial bloqueado
+  AC._parse('r1|*|63000|\n');   // primera vuelta completa → debe registrarse
+  strictEqual(kart().lapHistory.length, 2);
+  strictEqual(kart().lastLap, 63.0);
+});
+
 // ── Resultado ─────────────────────────────────────────────────────────────────
 console.log(`\n${passed} pasados, ${failed} fallados`);
 if (failed) process.exit(1);
