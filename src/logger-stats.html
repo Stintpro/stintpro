@@ -46,9 +46,10 @@ a{color:#5b8dee;text-decoration:none}
 .circ-dot.warn{background:#fbbf24}
 .circ-name{font-size:13px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .circ-meta{font-size:11px;color:#475569;margin-top:1px}
-.rec-btn{flex-shrink:0;background:transparent;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-size:13px;line-height:1;opacity:.5;transition:opacity .15s}
-.rec-btn:hover{opacity:1}
-.rec-btn.paused{opacity:1;color:#ef4444}
+.rec-toggle{flex-shrink:0;width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;position:relative;transition:background .25s;background:#22c55e}
+.rec-toggle.paused{background:#ef4444}
+.rec-toggle::after{content:'';position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:right .25s}
+.rec-toggle.paused::after{right:auto;left:3px}
 
 /* Section headings */
 .section-title{font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
@@ -256,9 +257,7 @@ function renderSidebar(circuits) {
         <div class="circ-name">${esc(c.name)}</div>
         <div class="circ-meta">${(c.totalLaps||c.lapCount||0).toLocaleString()} vueltas${c.sessionActive?' · EN VIVO':''}</div>
       </div>
-      <button class="rec-btn${c.recording===false?' paused':''}" onclick="toggleRecording('${c.slug}',event)" title="${c.recording===false?'Grabación pausada — pulsa para activar':'Pausar grabación'}">
-        ${c.recording===false?'⏸':'⏺'}
-      </button>
+      <button class="rec-toggle${c.recording===false?' paused':''}" onclick="toggleRecording('${c.slug}',event)" title="${c.recording===false?'Pausado — pulsa para grabar':'Grabando — pulsa para pausar'}"></button>
     </div>
   `).join('');
 }
