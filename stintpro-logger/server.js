@@ -102,6 +102,33 @@ app.delete('/api/sessions/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// Toggle grabación de un circuito
+app.post('/api/circuit/:slug/recording', (req, res) => {
+  const mon = monitors.get(req.params.slug);
+  if (!mon) return res.status(404).json({ error: 'Circuito no encontrado' });
+  const enabled = req.body?.enabled !== false;
+  mon.setRecording(enabled);
+  const idx = config.circuits.findIndex(c => c.slug === req.params.slug);
+  if (idx >= 0) {
+    config.circuits[idx].recording = enabled;
+    try { fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(config, null, 2)); } catch(e) {}
+  }
+  res.json({ ok: true, slug: req.params.slug, recording: enabled });
+});
+
+// Búsqueda global de pilotos entre todos los circuitos
+app.get('/api/pilots/search', (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+  const rows = db.searchPilotsGlobal(q);
+  const bySlug = {};
+  for (const r of rows) {
+    if (!bySlug[r.slug]) bySlug[r.slug] = { slug: r.slug, circuit_name: r.circuit_name, pilots: [] };
+    bySlug[r.slug].pilots.push({ name: r.name, best_ms: r.best_ms, avg_ms: r.avg_ms, total_laps: r.total_laps, session_count: r.session_count });
+  }
+  res.json(Object.values(bySlug));
+});
+
 // Borrar pilotos de un circuito (body: { names: ["Piloto A", "Piloto B"] })
 app.delete('/api/circuit/:slug/pilots', (req, res) => {
   const names = req.body?.names;
