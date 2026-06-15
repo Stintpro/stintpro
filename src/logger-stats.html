@@ -46,6 +46,9 @@ a{color:#5b8dee;text-decoration:none}
 .circ-dot.warn{background:#fbbf24}
 .circ-name{font-size:13px;color:#cbd5e1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .circ-meta{font-size:11px;color:#475569;margin-top:1px}
+.rec-btn{flex-shrink:0;background:transparent;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-size:13px;line-height:1;opacity:.5;transition:opacity .15s}
+.rec-btn:hover{opacity:1}
+.rec-btn.paused{opacity:1;color:#ef4444}
 
 /* Section headings */
 .section-title{font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
@@ -148,6 +151,12 @@ a{color:#5b8dee;text-decoration:none}
   <div class="status-dot" id="dot"></div>
   <h1>Stint<span>Pro</span> Logger Stats</h1>
   <span id="hdr-status">Sin conectar</span>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+    <input id="global-search" placeholder="🔍 Buscar piloto en todos los circuitos…"
+      style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:6px 12px;font-size:12px;outline:none;width:280px"
+      oninput="onGlobalSearch()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+    <button class="btn ghost sm" id="global-search-clear" style="display:none" onclick="clearGlobalSearch()">✕</button>
+  </div>
 </div>
 
 <div class="config-bar">
@@ -243,10 +252,13 @@ function renderSidebar(circuits) {
   sb.innerHTML = circuits.map(c => `
     <div class="circ-item${_selected===c.slug?' active':''}" onclick="selectCircuit('${c.slug}')">
       <div class="circ-dot${c.connected?' on':''}"></div>
-      <div>
+      <div style="flex:1;min-width:0">
         <div class="circ-name">${esc(c.name)}</div>
         <div class="circ-meta">${(c.totalLaps||c.lapCount||0).toLocaleString()} vueltas${c.sessionActive?' · EN VIVO':''}</div>
       </div>
+      <button class="rec-btn${c.recording===false?' paused':''}" onclick="toggleRecording('${c.slug}',event)" title="${c.recording===false?'Grabación pausada — pulsa para activar':'Pausar grabación'}">
+        ${c.recording===false?'⏸':'⏺'}
+      </button>
     </div>
   `).join('');
 }
@@ -737,6 +749,86 @@ function esc(s) {
 
 function setStatus(s) { document.getElementById('hdr-status').textContent = s; }
 function setMain(s) { document.getElementById('main').innerHTML = s; }
+
+// ── Toggle grabación ──────────────────────────────────────────────────────
+
+async function toggleRecording(slug, evt) {
+  evt.stopPropagation();
+  const circ = _circuits.find(c => c.slug === slug);
+  if (!circ) return;
+  const newVal = circ.recording === false ? true : false;
+  try {
+    const sep = _key ? '?' : '';
+    await fetch(`${_url}/api/circuit/${slug}/recording${sep}apikey=${_key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newVal }),
+    });
+    circ.recording = newVal;
+    renderSidebar(_circuits);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ── Buscador global ───────────────────────────────────────────────────────
+
+let _searchTimer = null;
+
+function onGlobalSearch() {
+  const q = (document.getElementById('global-search')?.value || '').trim();
+  document.getElementById('global-search-clear').style.display = q ? '' : 'none';
+  clearTimeout(_searchTimer);
+  if (q.length < 2) {
+    if (!q) { clearGlobalSearch(); } return;
+  }
+  _searchTimer = setTimeout(() => runGlobalSearch(q), 300);
+}
+
+function clearGlobalSearch() {
+  document.getElementById('global-search').value = '';
+  document.getElementById('global-search-clear').style.display = 'none';
+  if (_selected) selectCircuit(_selected);
+  else setMain('<div class="empty">Introduce la URL del logger y pulsa Conectar.</div>');
+}
+
+async function runGlobalSearch(q) {
+  setMain('<div class="loading">Buscando...</div>');
+  try {
+    const sep = _url && _key ? '&' : '?';
+    const results = await api(`/api/pilots/search?q=${encodeURIComponent(q)}`);
+    renderGlobalSearchResults(results, q);
+  } catch(e) {
+    setMain(`<div class="empty">Error: ${e.message}</div>`);
+  }
+}
+
+function renderGlobalSearchResults(results, q) {
+  if (!results.length) {
+    setMain(`<div class="empty">Sin resultados para "<strong>${esc(q)}</strong>".</div>`);
+    return;
+  }
+
+  let html = `<div class="section-title" style="margin-bottom:16px">Resultados para "${esc(q)}" — ${results.reduce((a,r)=>a+r.pilots.length,0)} pilotos en ${results.length} circuito${results.length!==1?'s':''}</div>`;
+
+  for (const circ of results) {
+    html += `<div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:600;color:#5b8dee;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${esc(circ.circuit_name||circ.slug)}</div>
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>Equipo / Piloto</th><th>Mejor vuelta</th><th>Ritmo medio</th><th>Sesiones</th><th>Vueltas</th></tr></thead>
+        <tbody>${circ.pilots.map(p=>`
+          <tr>
+            <td>${esc(p.name)}</td>
+            <td style="font-family:monospace;color:#22c55e">${fmtMs(p.best_ms)}</td>
+            <td style="font-family:monospace;color:#5b8dee">${fmtMs(p.avg_ms)}</td>
+            <td style="color:#475569">${p.session_count}</td>
+            <td style="color:#475569">${p.total_laps}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+
+  setMain(html);
+}
 
 function showPilotPopup(name) {
   const p = _currentPilots.find(p => p.name === name);

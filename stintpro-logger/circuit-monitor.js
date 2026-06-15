@@ -25,6 +25,8 @@ class CircuitMonitor {
     this.pitEvents  = [];   // eventos de pit de la sesión actual (para snapshot)
     this._lapCount  = 0;
 
+    this.recording = cfg.recording !== false; // true por defecto
+
     this.parser = new ApexParser({
       onLap:        this._onLap.bind(this),
       onPit:        this._onPit.bind(this),
@@ -89,7 +91,13 @@ class CircuitMonitor {
 
   // ── Callbacks del parser ──────────────────────────────────────────────
 
+  setRecording(enabled) {
+    this.recording = enabled;
+    console.log(`[${this.slug}] Grabación ${enabled ? 'activada' : 'pausada'}`);
+  }
+
   _onLap(dorsal, name, lapMs, lapNumber, timestamp) {
+    if (!this.recording) return;
     if (!this.sessionId) {
       // Primera vuelta real → crear sesión
       this.sessionId = db.createSession(this.slug, this.name);
@@ -105,7 +113,7 @@ class CircuitMonitor {
   }
 
   _onPit(dorsal, eventType, standsCount, timestamp) {
-    if (!this.sessionId) return;
+    if (!this.recording || !this.sessionId) return;
     db.insertPitEvent(this.sessionId, dorsal, eventType, standsCount, timestamp);
     this.pitEvents.push({ dorsal, event: eventType, time: timestamp, standsCount });
   }
@@ -218,6 +226,7 @@ class CircuitMonitor {
       lapCount:      this._lapCount,
       kartCount:     Object.values(this.parser._karts).filter(k => k.dorsal).length,
       subscribers:   this.subscribers.size,
+      recording:     this.recording,
     };
   }
 }
