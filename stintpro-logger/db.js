@@ -210,6 +210,17 @@ function deletePilotFromCircuit(slug, name) {
   _save();
 }
 
+function mergePilotsInCircuit(slug, names, target) {
+  const s = slug.replace(/'/g, "''");
+  const t = (target || '').replace(/'/g, "''");
+  const others = (names || []).filter(n => n !== target).map(n => n.replace(/'/g, "''"));
+  if (!others.length) return;
+  const inList = others.map(n => `'${n}'`).join(',');
+  db.run(`UPDATE laps SET name='${t}'
+          WHERE name IN (${inList}) AND session_id IN (SELECT id FROM sessions WHERE slug='${s}')`);
+  _save();
+}
+
 function searchPilotsGlobal(query) {
   const q = query.replace(/'/g, "''");
   const r = db.exec(`
@@ -276,5 +287,5 @@ module.exports = {
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
-  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit, deletePilotFromCircuit, getTotalLapsByCircuit, searchPilotsGlobal,
+  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit, deletePilotFromCircuit, mergePilotsInCircuit, getTotalLapsByCircuit, searchPilotsGlobal,
 };

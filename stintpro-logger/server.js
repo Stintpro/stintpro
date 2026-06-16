@@ -137,6 +137,16 @@ app.delete('/api/circuit/:slug/pilots', (req, res) => {
   res.json({ ok: true, deleted: names.length });
 });
 
+// Unificar pilotos duplicados (body: { names: ["Variante A", "Variante B"], target: "Nombre final" })
+app.post('/api/circuit/:slug/pilots/merge', (req, res) => {
+  const names  = req.body?.names;
+  const target = (req.body?.target || '').trim();
+  if (!Array.isArray(names) || names.length < 2) return res.status(400).json({ error: 'names requiere 2+ nombres' });
+  if (!target) return res.status(400).json({ error: 'target requerido' });
+  db.mergePilotsInCircuit(req.params.slug, names, target);
+  res.json({ ok: true, merged: names.length, target });
+});
+
 // Consulta batch de pilotos para la app (normaliza nombres antes de comparar)
 app.get('/api/circuit/:slug/pilots/batch', (req, res) => {
   const rawNames = (req.query.names || '').split(',').map(n => n.trim()).filter(Boolean);

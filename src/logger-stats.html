@@ -407,6 +407,7 @@ function renderPilotsTab() {
   <div class="sel-bar" id="sel-bar">
     <span class="sel-count" id="sel-count">0 seleccionados</span>
     <button class="btn ghost sm" onclick="clearSelection()">Cancelar</button>
+    <button class="btn sm" style="background:#5b8dee" onclick="openMergeDialog()">Unificar seleccionados</button>
     <button class="btn sm" style="background:#ef4444" onclick="deleteSelected()">Borrar seleccionados</button>
   </div>
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -500,6 +501,62 @@ function clearSelection() {
   });
   _selectedPilots.clear();
   updateSelBar();
+}
+
+function openMergeDialog() {
+  if (_selectedPilots.size < 2) { alert('Selecciona al menos 2 pilotos para unificar.'); return; }
+  const names = [..._selectedPilots].map(i => {
+    const card = document.querySelector(`.pilot-card[data-idx="${i}"]`);
+    return card ? card.dataset.name : null;
+  }).filter(Boolean);
+
+  const existing = document.getElementById('merge-popup');
+  if (existing) existing.remove();
+
+  const options = names.map((n, idx) =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;margin-bottom:6px">
+      <input type="radio" name="merge-target" value="${esc(n)}" ${idx===0?'checked':''}>
+      <span style="color:#e2e8f0;font-size:13px">${esc(n)}</span>
+    </label>`
+  ).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'merge-popup';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px)';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(420px,94vw);overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #1e2130">
+        <span style="font-size:15px;font-weight:700;color:#e2e8f0">Unificar ${names.length} pilotos</span>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">Elige el nombre final. Las vueltas de los demás se reasignarán a este piloto.</div>
+      </div>
+      <div style="padding:14px 18px">${options}</div>
+      <div style="padding:12px 18px;border-top:1px solid #1e2130;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn ghost sm" onclick="document.getElementById('merge-popup').remove()">Cancelar</button>
+        <button class="btn sm" style="background:#5b8dee" onclick='confirmMerge(${JSON.stringify(names)})'>Unificar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function confirmMerge(names) {
+  const sel = document.querySelector('input[name="merge-target"]:checked');
+  const target = sel ? sel.value : null;
+  if (!target) return;
+
+  try {
+    const res = await fetch(`${_url}/api/circuit/${_selected}/pilots/merge?apikey=${_key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names, target }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    document.getElementById('merge-popup')?.remove();
+    _selectedPilots.clear();
+    await selectCircuit(_selected);
+  } catch(e) {
+    alert('Error al unificar: ' + e.message);
+  }
 }
 
 async function deleteSelected() {
