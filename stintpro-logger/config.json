@@ -2,7 +2,14 @@
   "port": 3000,
   "apiKey": "cd8e331d56b2a6e6b921fc7620783ecdc29076d9e607f8101afb74f7b4a48cde",
   "circuits": [
-    { "slug": "rkc",      "port": 7913, "name": "Karting Campillos" },
-    { "slug": "kav",      "port": 7916, "name": "Karting Avilés" }
+    { "slug": "cabanillas",       "port": 10433, "name": "Karting Cabanillas" },
+    { "slug": "campillos",        "port": 9373,  "name": "Karting Campillos" },
+    { "slug": "karting-lossantos","port": 8093,  "name": "Karting Club Los Santos" },
+    { "slug": "rivas",            "port": 10073, "name": "Karting Rivas" },
+    { "slug": "sevilla",          "port": 6953,  "name": "Karting Sevilla" },
+    { "slug": "henakart",         "port": 9983,  "name": "Henakart" },
+    { "slug": "rkc",              "port": 7913,  "name": "RKC Paris" },
+    { "slug": "rkc2",             "port": 9263,  "name": "RKC Paris 2" },
+    { "slug": "kartodromo-lucas-guerrero", "port": 9953, "name": "Circuito Lucas Guerrero" }
   ]
 }
