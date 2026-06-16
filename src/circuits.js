@@ -11,6 +11,8 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_henakart',     name: 'Henakart',                  slug: 'henakart',         port: 9983  },
   { id: 'cat_rkc',          name: 'RKC Paris',                 slug: 'rkc',              port: 7913  },
   { id: 'cat_rkc2',         name: 'RKC Paris 2',               slug: 'rkc2',             port: 9263  },
+  { id: 'cat_lucasguerrero', name: 'Circuito Lucas Guerrero',  slug: 'kartodromo-lucas-guerrero', port: 9953 },
+  { id: 'cat_ariza',        name: 'Ariza Racing Circuit',      slug: 'ariza-racing-circuit',      port: 8973 },
 ];
 
 window.CircuitDB = {
