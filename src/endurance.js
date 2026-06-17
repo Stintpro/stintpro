@@ -19,6 +19,7 @@ const EnSession = {
   pitCounts:        {},     // dorsal → número de paradas
   pitInLastPass:    {},     // dorsal → timestamp del último |*| antes del pit in
   kartAutoState:    {},     // dorsal → {quality, badCount, stintStartIdx}
+  lastTrackAvg:     null,   // último valor válido de media de pista (caché anti-parpadeo)
 };
 
 // ── Historial de pilotos desde el logger (modo logger) ───────────────────
@@ -185,13 +186,14 @@ function _enTrackAvgLive(eq){
     const m5=_enAvg5(e.lapHistory);
     if(m5&&m5<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal])laps.push(m5);
   });
-  if(laps.length<3)return null;
+  if(laps.length<2)return null;
   laps.sort((a,b)=>a-b);
   // Media recortada al 10%: descarta el 10% más rápido y el 10% más lento
   const cut=Math.max(1,Math.round(laps.length*0.1));
-  const trimmed=laps.slice(cut, laps.length-cut);
-  if(!trimmed.length)return laps[Math.floor(laps.length/2)];
-  return trimmed.reduce((a,b)=>a+b,0)/trimmed.length;
+  const trimmed=laps.length>=3?laps.slice(cut, laps.length-cut):laps;
+  const result=trimmed.reduce((a,b)=>a+b,0)/trimmed.length;
+  EnSession.lastTrackAvg=result;
+  return result;
 }
 
 // ── Kart quality ──────────────────────────────────────────────────────────
@@ -373,7 +375,7 @@ function _enRender(){
 
   const eq=EnSession.data.equipos;
   const bests=eq.filter(e=>e.bestLap).map(e=>e.bestLap).sort((a,b)=>a-b);
-  const trackAvg=_enTrackAvgLive(eq)||( bests.length?bests[Math.floor(bests.length/2)]:null );
+  const trackAvg=_enTrackAvgLive(eq)||EnSession.lastTrackAvg||( bests.length?bests[Math.floor(bests.length/2)]:null );
   const bestSess=bests[0]||null;
   const inPit=eq.filter(e=>e.pit).length;
   const leader=eq.find(e=>e.pos===1);
@@ -2975,6 +2977,7 @@ window._enGoBack=function(){
   if(_enBarTimer){clearInterval(_enBarTimer);_enBarTimer=null;}
   _enStopAdvRaf();
   EnSession.data={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
+  EnSession.lastTrackAvg=null;
   EnSession.stintStart=null;
   EnSession.stintFrozen=null;
   EnUi.tab='grid';
