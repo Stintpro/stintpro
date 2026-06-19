@@ -61,16 +61,18 @@ window.ApexConnector = {
           this._lastLapTime=Date.now();
           if(!k._lapInvalid){
             k._lapFlash=Date.now();
-            // |*| registra siempre — respuesta inmediata al cruzar meta.
-            // Si llega llp después, lo refina (sin duplicar) sea cual sea la diferencia.
             const t=parseFloat((ms/1000).toFixed(3));
-            const lastH=k.lapHistory[k.lapHistory.length-1];
-            if(lastH===undefined||Math.abs(lastH-t)>0.05){
-              k.lastLap=t;
-              k.lapHistory.push(t);
-              if(k.lapHistory.length>1500)k.lapHistory.shift();
-              if(!k.bestLap||t<k.bestLap)k.bestLap=t;
+            if(!this._colMap.llp){
+              // Sin columna llp: |*| es la única fuente de tiempos de vuelta
+              const lastH=k.lapHistory[k.lapHistory.length-1];
+              if(lastH===undefined||Math.abs(lastH-t)>0.05){
+                k.lastLap=t;
+                k.lapHistory.push(t);
+                if(k.lapHistory.length>1500)k.lapHistory.shift();
+                if(!k.bestLap||t<k.bestLap)k.bestLap=t;
+              }
             }
+            // Guarda referencia para anti-duplicado en llp (aunque no hayamos registrado aquí)
             k._lapFromFlash=t;
             k._lapFromFlashTs=Date.now();
           }
