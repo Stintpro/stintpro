@@ -517,8 +517,7 @@ window.ApexConnector = {
           // HTTP va al principio (historial antiguo), WS al final (más reciente)
           k.lapHistory=[...toAdd,...currentLaps];
           if(k.lapHistory.length>1500)k.lapHistory=k.lapHistory.slice(-1500);
-          // Nunca sobreescribir lastLap si el WS ya tiene uno — el WS es siempre más reciente
-          if(!k.lastLap)k.lastLap=httpTimes[httpTimes.length-1];
+          // NO setear lastLap desde HTTP — solo el WS (llp/|*|) es fuente de verdad para Última
           // tours: usar el máximo entre lo que ya tenía el WS y el nº de vueltas del HTTP
           k.tours=Math.max(k.tours||0, laps.length);
           const best=Math.min(...k.lapHistory);
