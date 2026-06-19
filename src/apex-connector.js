@@ -508,9 +508,17 @@ window.ApexConnector = {
         // Ordenar por número de vuelta y poblar lapHistory
         laps.sort((a,b)=>a.n-b.n);
         if(laps.length){
-          k.lapHistory=laps.map(l=>l.t);
+          // Preservar lastLap y vueltas live que ya llegaron por WebSocket
+          const liveLaps=k.lapHistory.slice();
+          const liveLastLap=k.lastLap;
+          // Construir historial base desde HTTP y añadir al final las live si son más recientes
+          const httpTimes=laps.map(l=>l.t);
+          // Evitar duplicar vueltas que el WS ya registró
+          const merged=httpTimes.filter(t=>!liveLaps.some(l=>Math.abs(l-t)<0.05));
+          k.lapHistory=[...merged,...liveLaps];
           if(k.lapHistory.length>1500)k.lapHistory=k.lapHistory.slice(-1500);
-          k.lastLap=k.lapHistory[k.lapHistory.length-1];
+          // NUNCA sobreescribir lastLap si el WS ya tiene uno — es más reciente
+          if(!liveLastLap)k.lastLap=httpTimes[httpTimes.length-1];
           const best=Math.min(...k.lapHistory);
           if(!k.bestLap||best<k.bestLap)k.bestLap=best;
         }
