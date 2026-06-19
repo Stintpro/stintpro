@@ -508,17 +508,19 @@ window.ApexConnector = {
         // Ordenar por número de vuelta y poblar lapHistory
         laps.sort((a,b)=>a.n-b.n);
         if(laps.length){
-          // Preservar lastLap y vueltas live que ya llegaron por WebSocket
-          const liveLaps=k.lapHistory.slice();
-          const liveLastLap=k.lastLap;
-          // Construir historial base desde HTTP y añadir al final las live si son más recientes
+          // Usar el estado ACTUAL de lapHistory al momento del merge (no al inicio del fetch)
+          // — durante el fetch el WS puede haber añadido vueltas nuevas
+          const currentLaps=k.lapHistory;
           const httpTimes=laps.map(l=>l.t);
-          // Evitar duplicar vueltas que el WS ya registró
-          const merged=httpTimes.filter(t=>!liveLaps.some(l=>Math.abs(l-t)<0.05));
-          k.lapHistory=[...merged,...liveLaps];
+          // Filtrar HTTP: no añadir vueltas que el WS ya registró (anti-duplicado)
+          const toAdd=httpTimes.filter(t=>!currentLaps.some(l=>Math.abs(l-t)<0.05));
+          // HTTP va al principio (historial antiguo), WS al final (más reciente)
+          k.lapHistory=[...toAdd,...currentLaps];
           if(k.lapHistory.length>1500)k.lapHistory=k.lapHistory.slice(-1500);
-          // NUNCA sobreescribir lastLap si el WS ya tiene uno — es más reciente
-          if(!liveLastLap)k.lastLap=httpTimes[httpTimes.length-1];
+          // Nunca sobreescribir lastLap si el WS ya tiene uno — el WS es siempre más reciente
+          if(!k.lastLap)k.lastLap=httpTimes[httpTimes.length-1];
+          // tours: usar el máximo entre lo que ya tenía el WS y el nº de vueltas del HTTP
+          k.tours=Math.max(k.tours||0, laps.length);
           const best=Math.min(...k.lapHistory);
           if(!k.bestLap||best<k.bestLap)k.bestLap=best;
         }
