@@ -8,6 +8,7 @@ window.ApexConnector = {
   _karts:{}, _comments:[], _reconnectTimer:null,
   _sessionActive:false, _sessionFinished:false, _leaderLap:0,
   _colMap:{}, _colByNum:{}, _lastLapTime:0,
+  _httpPort:null, _historyFetched:false,
 
   connect(slug, onData, onStatus, onComment, port){
     this.slug=slug; this.port=port||7913;
@@ -15,9 +16,11 @@ window.ApexConnector = {
     this._karts={}; this._comments=[];
     this._sessionActive=false; this._sessionFinished=false;
     this._leaderLap=0; this._colMap={}; this._colByNum={}; this._lastLapTime=0;
+    this._httpPort=null; this._historyFetched=false;
     if(this.ws){try{this.ws.close();}catch(e){} this.ws=null;}
     if(this._reconnectTimer){clearTimeout(this._reconnectTimer);this._reconnectTimer=null;}
     this._doConnect();
+    this._fetchHttpPort();
   },
 
   _doConnect(){
@@ -419,6 +422,10 @@ window.ApexConnector = {
 
         k.tours=k.tours||0;
       });
+
+      // Disparar fetch de historial de vueltas en cuanto tengamos el grid
+      // Solo una vez por sesión; se cancela solo si no hay puerto HTTP disponible
+      if(!this._historyFetched)this._fetchLapHistories();
     }catch(e){console.error('parseGrid:',e);}
   },
 
@@ -446,6 +453,72 @@ window.ApexConnector = {
         if(this.onComment)this.onComment(e,this._comments);
       });
     }catch(e){}
+  },
+
+  async _fetchHttpPort(){
+    if(!this.slug)return;
+    try{
+      const res=await fetch(`https://live.apex-timing.com/${this.slug}/javascript/config.js`,
+        {signal:AbortSignal.timeout?AbortSignal.timeout(5000):undefined});
+      const text=await res.text();
+      const m=text.match(/var configPort\s*=\s*(\d+)/);
+      if(m)this._httpPort=parseInt(m[1]);
+    }catch(e){}
+  },
+
+  async _fetchLapHistories(){
+    if(this._historyFetched)return;
+    if(!this._httpPort)return;
+    const kartEntries=Object.entries(this._karts).filter(([,k])=>k.dorsal);
+    if(!kartEntries.length)return;
+    this._historyFetched=true;
+    if(this.onStatus)this.onStatus('connected','● Cargando historial...');
+
+    const BASE='https://live-data.apex-timing.com/live-timing/commonv2/functions/request.php';
+    const port=this._httpPort;
+
+    // Fetch en paralelo, máx 30 karts
+    await Promise.allSettled(kartEntries.slice(0,30).map(async([rowId,k])=>{
+      const id=rowId.replace('r','');
+      try{
+        const controller=new AbortController();
+        const timer=setTimeout(()=>controller.abort(),8000);
+        // Formato combinado requerido por el servidor: .L + .P + .B + .INF
+        const req=`D%23-100%23D${id}.L%23-999%23D${id}.P%232%23D${id}.B%231%23D${id}.INF`;
+        const res=await fetch(BASE,{
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},
+          body:`port=${port}&request=${req}`,
+          signal:controller.signal,
+        });
+        clearTimeout(timer);
+        const text=(await res.text()).trim();
+        if(!text||text==='error')return;
+
+        // Parsear líneas: D{id}.L{n}#{s1}|{s2}|{s3}|{lapMs}{color}
+        const laps=[];
+        text.split('\n').forEach(line=>{
+          const m=line.match(new RegExp(`^D${id}\\.L(\\d+)#[^|]*\\|[^|]*\\|[^|]*\\|([\\da-zA-Z]+)`));
+          if(!m)return;
+          const ms=parseInt(m[2].replace(/[a-zA-Z]/g,''));
+          if(isNaN(ms)||ms<20000||ms>=300000)return;
+          laps.push({n:parseInt(m[1]),t:parseFloat((ms/1000).toFixed(3))});
+        });
+
+        // Ordenar por número de vuelta y poblar lapHistory
+        laps.sort((a,b)=>a.n-b.n);
+        if(laps.length){
+          k.lapHistory=laps.map(l=>l.t);
+          if(k.lapHistory.length>1500)k.lapHistory=k.lapHistory.slice(-1500);
+          k.lastLap=k.lapHistory[k.lapHistory.length-1];
+          const best=Math.min(...k.lapHistory);
+          if(!k.bestLap||best<k.bestLap)k.bestLap=best;
+        }
+      }catch(e){}
+    }));
+
+    if(this.onStatus)this.onStatus('connected','● Apex conectado');
+    this._emit();
   },
 
   _emit(){
