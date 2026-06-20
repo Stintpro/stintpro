@@ -83,6 +83,7 @@ app.get('/', (req, res) => {
 <div class="subtitle" id="host-line">Cargando...</div>
 
 <nav class="nav">
+  <a class="primary" href="/stats"><span class="icon">📊</span> Stats</a>
   <a class="primary" href="/recordings"><span class="icon">⏺</span> Grabaciones</a>
   <a class="secondary" href="/api/status" target="_blank"><span class="icon">⚡</span> API Status</a>
   <a class="secondary" href="/api/sessions" target="_blank"><span class="icon">📋</span> Sesiones</a>
@@ -354,6 +355,39 @@ app.get('/api/cleanup', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Stats (logger-stats.html servido desde src/) ─────────────────────────
+
+app.get('/stats', (req, res) => {
+  try {
+    let html = fs.readFileSync(path.join(__dirname, '../src/logger-stats.html'), 'utf8');
+
+    // Auto-conectar al propio servidor si no hay URL guardada en localStorage
+    html = html.replace(
+      `localStorage.getItem(LS_URL) || 'https://stintpro.duckdns.org'`,
+      `localStorage.getItem(LS_URL) || location.origin`,
+    );
+    // Cargar aunque no haya API key (la key es opcional si no está configurada)
+    html = html.replace(
+      `if (savedUrl && savedKey) load();`,
+      `if (savedUrl) load(); else { document.getElementById('cfg-url').value = location.origin; load(); }`,
+    );
+    // Inyectar nav de vuelta al inicio
+    html = html.replace(
+      `<div class="header">`,
+      `<div style="background:#08090a;padding:10px 20px;border-bottom:1px solid #1a1b1e;display:flex;gap:10px">
+  <a href="/" style="color:#555;text-decoration:none;font-size:12px;padding:4px 10px;border:1px solid #1e2030;border-radius:4px">← Inicio</a>
+  <a href="/recordings" style="color:#5b8dee;text-decoration:none;font-size:12px;padding:4px 10px;border:1px solid #1e3a6e;border-radius:4px">⏺ Grabaciones</a>
+</div>
+<div class="header">`,
+    );
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch(e) {
+    res.status(500).send(`<pre>Error cargando logger-stats.html: ${e.message}</pre>`);
+  }
+});
+
 // ── Panel de grabaciones (UI) ─────────────────────────────────────────────
 
 app.get('/recordings', (req, res) => {
@@ -402,6 +436,10 @@ app.get('/recordings', (req, res) => {
 </style>
 </head>
 <body>
+<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="/" style="color:#555;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e2030;border-radius:4px">← Inicio</a>
+  <a href="/stats" style="color:#5b8dee;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e3a6e;border-radius:4px">📊 Stats</a>
+</div>
 <h1>StintPro Logger</h1>
 <div class="subtitle">Panel de grabaciones raw — <span id="server-url"></span></div>
 
