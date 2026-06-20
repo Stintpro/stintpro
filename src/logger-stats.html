@@ -165,6 +165,7 @@ a{color:#5b8dee;text-decoration:none}
   <input class="url" id="cfg-url" placeholder="https://stintpro.duckdns.org" value="">
   <input class="key" id="cfg-key" placeholder="API Key" value="">
   <button class="btn" onclick="load()">Conectar</button>
+  <button class="btn ghost sm" onclick="showRecordings()">⏺ Grabaciones</button>
   <button class="btn ghost sm" onclick="cleanup()">Limpiar sesiones vacías</button>
 </div>
 
@@ -806,6 +807,88 @@ function esc(s) {
 
 function setStatus(s) { document.getElementById('hdr-status').textContent = s; }
 function setMain(s) { document.getElementById('main').innerHTML = s; }
+
+// ── Panel de grabaciones raw ──────────────────────────────────────────────
+
+async function showRecordings() {
+  setMain('<div class="loading">Cargando grabaciones...</div>');
+  try {
+    const [recordings, status] = await Promise.all([
+      api('/api/recordings'),
+      api('/api/status').catch(() => ({ circuits: [] })),
+    ]);
+    renderRecordingsView(recordings, status.circuits || []);
+  } catch(e) {
+    setMain(`<div class="empty">Error: ${e.message}<br><small>Asegúrate de estar conectado al logger.</small></div>`);
+  }
+}
+
+function renderRecordingsView(recordings, circuits) {
+  let html = '<div class="section-title" style="margin-bottom:16px">Grabaciones raw</div>';
+
+  // Toggles por circuito
+  if (circuits.length) {
+    html += `<div style="margin-bottom:20px">
+      <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Activar grabación por circuito</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">`;
+    circuits.forEach(c => {
+      const on = !!c.rawLog;
+      html += `<div style="background:#0e0f11;border:1px solid ${on?'#166534':'#1e2130'};border-radius:6px;padding:10px 14px;display:flex;align-items:center;gap:12px">
+        <div>
+          <div style="color:#e2e8f0;font-size:13px;font-weight:500">${esc(c.name)}</div>
+          <div style="color:#475569;font-size:11px;margin-top:2px">${on?'<span style="color:#22c55e">● Grabando</span>':'○ Parado'}</div>
+        </div>
+        <button class="btn sm" style="${on?'background:#450a0a;color:#ef4444':'background:#052e16;color:#22c55e'}"
+          onclick="toggleRawLog('${esc(c.slug)}', ${!on})">${on?'Detener':'⏺ Grabar'}</button>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // Lista de ficheros
+  html += `<div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">
+    Ficheros disponibles${recordings.length ? ` (${recordings.length})` : ''}
+  </div>`;
+
+  if (!recordings.length) {
+    html += '<div class="empty" style="text-align:left;padding:16px 0">No hay grabaciones todavía.<br>Activa la grabación en un circuito antes de la carrera.</div>';
+  } else {
+    html += '<div class="table-wrap"><table class="tbl"><thead><tr><th>Circuito</th><th>Fichero</th><th>Tamaño</th><th>Fecha</th><th></th></tr></thead><tbody>';
+    recordings.forEach(f => {
+      const slug = f.name.split('_')[0];
+      const kb   = f.size < 1024 * 1024
+        ? (f.size / 1024).toFixed(1) + ' KB'
+        : (f.size / 1024 / 1024).toFixed(1) + ' MB';
+      const date = new Date(f.mtime).toLocaleString('es-ES', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+      const sep = _key ? '?' : '';
+      const href = `${_url}/api/recordings/${encodeURIComponent(f.name)}${sep}apikey=${_key}`;
+      html += `<tr>
+        <td><b style="color:#e2e8f0">${esc(slug)}</b></td>
+        <td style="font-family:monospace;font-size:12px;color:#64748b">${esc(f.name)}</td>
+        <td style="color:#475569">${kb}</td>
+        <td>${date}</td>
+        <td><a href="${href}" download class="btn sm" style="background:#1e3a6e;color:#5b8dee;text-decoration:none">↓ Descargar</a></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  setMain(html);
+}
+
+async function toggleRawLog(slug, enable) {
+  try {
+    const sep = _key ? '?' : '';
+    await fetch(`${_url}/api/circuit/${slug}/raw-log${sep}apikey=${_key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enable }),
+    });
+    showRecordings();
+  } catch(e) { alert('Error al cambiar grabación: ' + e.message); }
+}
 
 // ── Toggle grabación ──────────────────────────────────────────────────────
 
