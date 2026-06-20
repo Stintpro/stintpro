@@ -266,6 +266,42 @@ app.get('/api/cleanup', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Raw log / recordings ──────────────────────────────────────────────────
+
+// Listar grabaciones
+app.get('/api/recordings', (req, res) => {
+  const dir = path.join(__dirname, 'recordings');
+  if (!fs.existsSync(dir)) return res.json([]);
+  try {
+    const files = fs.readdirSync(dir)
+      .filter(f => f.endsWith('.ndjson'))
+      .map(f => {
+        const stat = fs.statSync(path.join(dir, f));
+        return { name: f, size: stat.size, mtime: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    res.json(files);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Descargar una grabación
+app.get('/api/recordings/:file', (req, res) => {
+  const name = path.basename(req.params.file);
+  if (!name.endsWith('.ndjson')) return res.status(400).json({ error: 'Tipo inválido' });
+  const filePath = path.join(__dirname, 'recordings', name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'No encontrado' });
+  res.download(filePath);
+});
+
+// Activar/desactivar raw log de un circuito
+app.post('/api/circuit/:slug/raw-log', (req, res) => {
+  const mon = monitors.get(req.params.slug);
+  if (!mon) return res.status(404).json({ error: 'Circuito no encontrado' });
+  const enabled = req.body?.enabled !== false;
+  mon.setRawLog(enabled);
+  res.json({ ok: true, slug: req.params.slug, rawLog: enabled });
+});
+
 // ── WebSocket server ──────────────────────────────────────────────────────
 
 const server = http.createServer(app);
