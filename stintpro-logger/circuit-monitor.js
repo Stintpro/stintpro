@@ -221,10 +221,10 @@ class CircuitMonitor {
       name:          this.name,
       port:          this.port,
       connected:     this.connected,
-      sessionActive: !!this.sessionId && !this.parser._sessionFinished,
+      sessionActive: !!this.sessionId && !this.parser.sessionFinished,
       sessionId:     this.sessionId,
       lapCount:      this._lapCount,
-      kartCount:     Object.values(this.parser._karts).filter(k => k.dorsal).length,
+      kartCount:     this.parser.kartCount,
       subscribers:   this.subscribers.size,
       recording:     this.recording,
     };
