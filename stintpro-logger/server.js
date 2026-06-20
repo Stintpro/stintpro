@@ -40,6 +40,94 @@ function startMonitors() {
   console.log(`[Logger] ${monitors.size} circuitos monitorizados`);
 }
 
+// ── Página principal ─────────────────────────────────────────────────────
+
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StintPro Logger</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #08090a; color: #c9d1d9; font-family: 'DM Mono', 'Fira Mono', monospace; font-size: 13px; padding: 28px 24px; max-width: 720px; }
+  h1 { color: #5b8dee; font-size: 20px; font-weight: 500; margin-bottom: 2px; }
+  .subtitle { color: #444; font-size: 11px; margin-bottom: 32px; }
+  .nav { display: flex; gap: 10px; margin-bottom: 36px; flex-wrap: wrap; }
+  .nav a { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; transition: background .15s; }
+  .nav a.primary { background: #1e3a6e; color: #5b8dee; border: 1px solid #253f7a; }
+  .nav a.primary:hover { background: #253f7a; }
+  .nav a.secondary { background: #0e0f11; color: #888; border: 1px solid #1e2030; }
+  .nav a.secondary:hover { background: #13141a; color: #c9d1d9; }
+  .icon { font-size: 15px; }
+  h2 { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+  .circuits { display: flex; flex-direction: column; gap: 8px; }
+  .card { background: #0e0f11; border: 1px solid #1e2030; border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .dot.red   { background: #ef4444; }
+  .card-info { flex: 1; }
+  .card-name { color: #e6edf3; font-weight: 500; margin-bottom: 3px; }
+  .card-meta { color: #555; font-size: 11px; }
+  .card-stats { text-align: right; font-size: 11px; color: #666; line-height: 1.6; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 500; }
+  .tag-on  { background: #14532d; color: #22c55e; }
+  .tag-off { background: #1a1b1f; color: #333; }
+  .uptime { color: #333; font-size: 11px; margin-top: 36px; }
+</style>
+</head>
+<body>
+<h1>StintPro Logger</h1>
+<div class="subtitle" id="host-line">Cargando...</div>
+
+<nav class="nav">
+  <a class="primary" href="/recordings"><span class="icon">⏺</span> Grabaciones</a>
+  <a class="secondary" href="/api/status" target="_blank"><span class="icon">⚡</span> API Status</a>
+  <a class="secondary" href="/api/sessions" target="_blank"><span class="icon">📋</span> Sesiones</a>
+</nav>
+
+<h2>Circuitos</h2>
+<div class="circuits" id="circuits"></div>
+<div class="uptime" id="uptime"></div>
+
+<script>
+async function load() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    document.getElementById('host-line').textContent = location.host + '  ·  v' + (d.version || '1.0');
+    const up = d.uptime || 0;
+    const h  = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
+    document.getElementById('uptime').textContent = 'Uptime: ' + h + 'h ' + m + 'm';
+    const el = document.getElementById('circuits');
+    if (!d.circuits?.length) { el.innerHTML = '<div style="color:#333;padding:12px 0">Sin circuitos configurados</div>'; return; }
+    el.innerHTML = d.circuits.map(c => \`
+      <div class="card">
+        <div class="dot \${c.connected ? 'green' : 'red'}"></div>
+        <div class="card-info">
+          <div class="card-name">\${c.name}</div>
+          <div class="card-meta">\${c.slug} · puerto \${c.port}</div>
+        </div>
+        <div class="card-stats">
+          \${c.lapCount || 0} vueltas · \${c.kartCount || 0} karts<br>
+          \${c.subscribers || 0} clientes
+          <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}" style="margin-left:6px">\${c.rawLog ? '⏺ REC' : 'REC'}</span>
+        </div>
+      </div>
+    \`).join('');
+  } catch(e) {
+    document.getElementById('circuits').innerHTML = '<div style="color:#ef4444">Error conectando con el logger</div>';
+  }
+}
+load();
+setInterval(load, 8000);
+</script>
+</body>
+</html>`);
+});
+
 // ── REST API ──────────────────────────────────────────────────────────────
 
 // Estado general
