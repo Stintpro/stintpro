@@ -245,10 +245,11 @@
                 if (callbacks.onLap && k.dorsal)
                   callbacks.onLap(k.dorsal, k.name, ms, k.lapHistory.length, Date.now());
               }
+              // Anti-dedup solo cuando |*| empujó: si llp llega después refina esa entrada
+              // Con colMap.llp, |*| no empuja → llp siempre crea entrada nueva (no hay nada que refinar)
+              k._lapFromFlash   = t;
+              k._lapFromFlashTs = Date.now();
             }
-            // Siempre guardar referencia para anti-duplicado de llp
-            k._lapFromFlash   = t;
-            k._lapFromFlashTs = Date.now();
           }
           k._lapInvalid = false;
           const s1 = parseInt(lapM[3]);
