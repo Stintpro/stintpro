@@ -349,36 +349,11 @@ function switchTab(tab) {
 
 function renderSessionsTab() {
   const sessions = _currentSessions;
-  const best = _currentBest;
-  const bestFiltered = best.filter(b => isValidName(b.name));
+  const validSessions = sessions.filter(s => s.lap_count > 0);
   let html = '';
 
-  if (bestFiltered.length) {
-    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-      <div class="section-title" style="margin:0">Top tiempos históricos</div>
-      <input id="best-search" placeholder="Buscar equipo / piloto…"
-        style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:220px"
-        oninput="filterBestTable()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
-    </div>
-    <div class="table-wrap"><table class="tbl" id="best-table">
-      <thead><tr><th>#</th><th>Equipo / Piloto</th><th>Mejor vuelta</th><th>Vueltas</th><th>Sesión</th></tr></thead>
-      <tbody>${bestFiltered.slice(0,50).map((b,i)=>{
-        const hasPilot = _currentPilots.some(p => p.name === b.name);
-        return `<tr data-name="${esc((b.name||'').toLowerCase())}">
-          <td style="color:#475569">${i+1}</td>
-          <td>${esc(b.name||'?')}${hasPilot?`<i class="info-btn" onclick="showPilotPopup('${esc((b.name||'').replace(/'/g,"\\'"))}')">ℹ</i>`:''}</td>
-          <td style="font-family:monospace;color:#5b8dee">${fmtMs(b.best_ms)}</td>
-          <td style="color:#475569">${b.total_laps}</td>
-          <td style="color:#475569">${b.started_at ? fmtDate(b.started_at) : '—'}</td>
-        </tr>`;}).join('')}
-      </tbody>
-    </table></div>`;
-  }
-
-  const validSessions = sessions.filter(s => s.lap_count > 0);
   if (validSessions.length) {
-    html += `<div class="section-title" style="margin-top:4px">Sesiones (${validSessions.length})</div>
-    <div class="table-wrap"><table class="tbl">
+    html += `<div class="table-wrap"><table class="tbl">
       <thead><tr><th>Fecha</th><th>Duración</th><th>Vueltas</th><th>Estado</th><th></th></tr></thead>
       <tbody>${validSessions.map(s=>`
         <tr class="clickable" onclick="openSession(${s.id},'${esc(fmtDate(s.started_at))}')">
@@ -402,21 +377,30 @@ function renderSessionsTab() {
   document.getElementById('tab-content').innerHTML = html;
 }
 
+let _editMode = false;
+let _selectedPilots = new Set();
+
 function renderPilotsTab() {
   const pilots = _currentPilots;
+
+  // Barra de acciones edición (solo visible en modo edición con selección)
   let html = `
-  <div class="sel-bar" id="sel-bar">
+  <div id="sel-bar" class="sel-bar">
     <span class="sel-count" id="sel-count">0 seleccionados</span>
-    <button class="btn ghost sm" onclick="clearSelection()">Cancelar</button>
-    <button class="btn sm" style="background:#5b8dee" onclick="openMergeDialog()">Unificar seleccionados</button>
-    <button class="btn sm" style="background:#ef4444" onclick="deleteSelected()">Borrar seleccionados</button>
+    <button class="btn sm" style="background:#5b8dee" onclick="openMergeDialog()">Unificar</button>
+    <button class="btn sm" style="background:#ef4444" onclick="deleteSelected()">Borrar</button>
   </div>
+
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-    <div class="section-title" style="margin:0">Fichas de pilotos / equipos</div>
-    <input id="pilot-search" placeholder="Buscar…"
+    <input id="pilot-search" placeholder="Buscar piloto…"
       style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:200px"
       oninput="filterPilots()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
-    <span style="font-size:12px;color:#475569">Marca pilotos para seleccionarlos y borrarlos</span>
+    <div style="margin-left:auto">
+      ${_editMode
+        ? `<button class="btn ghost sm" onclick="exitEditMode()">Cancelar edición</button>`
+        : `<button class="btn ghost sm" onclick="enterEditMode()">Editar</button>`
+      }
+    </div>
   </div>`;
 
   if (!pilots.length) {
@@ -425,8 +409,18 @@ function renderPilotsTab() {
     return;
   }
 
-  html += `<div style="display:grid;grid-template-columns:28px 1fr 90px 90px 70px 60px;gap:0;padding:6px 16px 6px 12px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
-    <div></div><div>Equipo / Piloto</div><div style="text-align:right">Mejor vuelta</div><div style="text-align:right">Ritmo medio</div><div style="text-align:right">Sesiones</div><div style="text-align:right">Vueltas</div>
+  // Cabecera columnas
+  const colDef = _editMode
+    ? `28px 1fr 90px 90px 70px 60px 32px`
+    : `1fr 90px 90px 70px 60px 32px`;
+  html += `<div style="display:grid;grid-template-columns:${colDef};gap:0;padding:6px 16px 6px 12px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
+    ${_editMode ? '<div></div>' : ''}
+    <div>Piloto / Equipo</div>
+    <div style="text-align:right">Mejor</div>
+    <div style="text-align:right">Media</div>
+    <div style="text-align:right">Ses.</div>
+    <div style="text-align:right">Vlts</div>
+    <div></div>
   </div>`;
 
   html += pilots.map((p, i) => {
@@ -442,14 +436,18 @@ function renderPilotsTab() {
       </tr>`;
     }).join('');
 
+    const nameEsc = esc(p.name.replace(/'/g, "\\'"));
     return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}" data-name="${esc(p.name)}">
-      <div class="pilot-hdr${isOpen?' open':''}" onclick="handlePilotClick(event,${i})">
-        <input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})" style="margin-right:2px">
+      <div class="pilot-hdr${isOpen?' open':''}" style="grid-template-columns:${colDef}" onclick="handlePilotClick(event,${i})">
+        ${_editMode ? `<input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})">` : ''}
         <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
-        <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div><div class="ph-label">Mejor</div></div>
-        <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div><div class="ph-label">Media</div></div>
-        <div class="ph-col"><div class="ph-val">${p.session_count}</div><div class="ph-label">Sesiones</div></div>
-        <div class="ph-col"><div class="ph-val muted">${p.total_laps}</div><div class="ph-label">Vueltas</div></div>
+        <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div></div>
+        <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div></div>
+        <div class="ph-col"><div class="ph-val">${p.session_count}</div></div>
+        <div class="ph-col"><div class="ph-val muted">${p.total_laps}</div></div>
+        <div style="display:flex;align-items:center;justify-content:center">
+          <i class="info-btn" onclick="event.stopPropagation();showPilotPopup('${nameEsc}')">ℹ</i>
+        </div>
       </div>
       <div class="pilot-detail${isOpen?' open':''}" id="pilot-detail-${i}">
         <table class="pilot-sessions-tbl">
@@ -469,16 +467,28 @@ function renderPilotsTab() {
   document.getElementById('tab-content').innerHTML = html;
 }
 
-let _selectedPilots = new Set();
+function enterEditMode() {
+  _editMode = true;
+  _selectedPilots.clear();
+  renderPilotsTab();
+}
+
+function exitEditMode() {
+  _editMode = false;
+  _selectedPilots.clear();
+  renderPilotsTab();
+}
 
 function handlePilotClick(e, i) {
   if (e.target.type === 'checkbox') return;
+  if (_editMode) { toggleSelect(i); return; }
   togglePilot(i);
 }
 
 function toggleSelect(i) {
   const cb = document.getElementById(`cb-${i}`);
   const card = document.querySelector(`.pilot-card[data-idx="${i}"]`);
+  if (!cb) return;
   if (cb.checked) _selectedPilots.add(i);
   else _selectedPilots.delete(i);
   card.classList.toggle('selected', cb.checked);
@@ -489,7 +499,7 @@ function updateSelBar() {
   const bar = document.getElementById('sel-bar');
   const count = document.getElementById('sel-count');
   if (!bar) return;
-  bar.classList.toggle('visible', _selectedPilots.size > 0);
+  bar.classList.toggle('visible', _editMode && _selectedPilots.size > 0);
   if (count) count.textContent = `${_selectedPilots.size} seleccionado${_selectedPilots.size !== 1 ? 's' : ''}`;
 }
 
