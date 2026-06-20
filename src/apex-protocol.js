@@ -3,8 +3,8 @@
 // Sin dependencias de DOM ni Node.js — los wrappers aportan el parsing HTML del grid.
 //
 // Comportamiento canónico (fuente de verdad única):
-//   |*|  → siempre registra si !_lapInvalid; dedup valor ±0.05s con llp; resetea _lapInvalid
-//   llp  → refina si |*| registró el mismo tiempo (±0.05s); si no, vuelta nueva
+//   |*|  → si !colMap.llp: registra vuelta; siempre guarda _lapFromFlash/_lapFromFlashTs
+//   llp  → ventana 5s: si |*| llegó hace <5s → refina; si no → vuelta nueva
 //   so   → activa _lapInvalid para bloquear el parcial box→meta
 //   sr   → limpia _lapInvalid y pit
 //   Sesión nueva: sessionFinished O inactividad >10 min sin vueltas
@@ -67,7 +67,7 @@
         pit: false, pitState: null, pitS: 0, pitDuration: 0,
         standsCount: 0, _lapInvalid: false, checkered: false,
         _lapFlash: 0, _pitInTime: null, _pitTimerActive: false,
-        _lapFromFlash: undefined,
+        _lapFromFlash: undefined, _lapFromFlashTs: 0,
       };
       return _karts[rowId];
     }
@@ -135,11 +135,14 @@
       if (dtype === 'llp') {
         const t = parseTime(v);
         if (t && t >= 20 && t < 300) {
-          if (k._lapFromFlash !== undefined && Math.abs(k._lapFromFlash - t) <= 0.05 && k.lapHistory.length) {
+          const flashAge = k._lapFromFlashTs ? Date.now() - k._lapFromFlashTs : Infinity;
+          if (k._lapFromFlash !== undefined && flashAge < 5000 && k.lapHistory.length) {
+            // Refinamiento: llp llegó poco después de |*| (misma vuelta)
             k.lapHistory[k.lapHistory.length - 1] = t;
             k.lastLap = t;
             if (!k.bestLap || t < k.bestLap) k.bestLap = t;
           } else {
+            // Vuelta nueva (sin |*| previo, o llp tardío)
             k.lastLap = t;
             k.lapHistory.push(t);
             if (k.lapHistory.length > 1500) k.lapHistory.shift();
@@ -147,7 +150,8 @@
             if (callbacks.onLap && k.dorsal)
               callbacks.onLap(k.dorsal, k.name, Math.round(t * 1000), k.lapHistory.length, Date.now());
           }
-          k._lapFromFlash = undefined;
+          k._lapFromFlash  = undefined;
+          k._lapFromFlashTs = 0;
         }
         return;
       }
@@ -229,17 +233,22 @@
           _lastLapTime = Date.now();
           k._lapFlash  = Date.now();
           if (!k._lapInvalid) {
-            const t     = parseFloat((ms / 1000).toFixed(3));
-            const lastH = k.lapHistory[k.lapHistory.length - 1];
-            if (lastH === undefined || Math.abs(lastH - t) > 0.05) {
-              k.lastLap = t;
-              k.lapHistory.push(t);
-              if (k.lapHistory.length > 1500) k.lapHistory.shift();
-              if (!k.bestLap || t < k.bestLap) k.bestLap = t;
-              if (callbacks.onLap && k.dorsal)
-                callbacks.onLap(k.dorsal, k.name, ms, k.lapHistory.length, Date.now());
+            const t = parseFloat((ms / 1000).toFixed(3));
+            if (!_colMap.llp) {
+              // Sin columna llp → |*| es la fuente de verdad de tiempos
+              const lastH = k.lapHistory[k.lapHistory.length - 1];
+              if (lastH === undefined || Math.abs(lastH - t) > 0.05) {
+                k.lastLap = t;
+                k.lapHistory.push(t);
+                if (k.lapHistory.length > 1500) k.lapHistory.shift();
+                if (!k.bestLap || t < k.bestLap) k.bestLap = t;
+                if (callbacks.onLap && k.dorsal)
+                  callbacks.onLap(k.dorsal, k.name, ms, k.lapHistory.length, Date.now());
+              }
             }
-            k._lapFromFlash = t;
+            // Siempre guardar referencia para anti-duplicado de llp
+            k._lapFromFlash   = t;
+            k._lapFromFlashTs = Date.now();
           }
           k._lapInvalid = false;
           const s1 = parseInt(lapM[3]);
@@ -399,6 +408,28 @@
       get sessionFinished() { return _sessionFinished; },
       get leaderLap()       { return _leaderLap; },
       get kartCount()       { return Object.values(_karts).filter(k => k.dorsal).length; },
+
+      // Listado de rowId → dorsal para fetch HTTP externo
+      getKartIds() {
+        return Object.entries(_karts)
+          .filter(([, k]) => k.dorsal)
+          .map(([rowId, k]) => ({ rowId, dorsal: k.dorsal }));
+      },
+
+      // Inyectar historial de vueltas desde fuente HTTP (Apex REST)
+      // HTTP va al principio (historial antiguo), WS permanece al final (más reciente)
+      // Nunca sobreescribe lastLap — el WS (llp/|*|) es la fuente de verdad para Última
+      mergeHttpHistory(rowId, lapTimes, tourCount) {
+        const k = _kart(rowId);
+        if (!lapTimes.length) return;
+        const current = k.lapHistory;
+        const toAdd   = lapTimes.filter(t => !current.some(l => Math.abs(l - t) < 0.05));
+        k.lapHistory  = [...toAdd, ...current];
+        if (k.lapHistory.length > 1500) k.lapHistory = k.lapHistory.slice(-1500);
+        k.tours = Math.max(k.tours || 0, tourCount);
+        const best = Math.min(...k.lapHistory.filter(t => t >= 20 && t < 300));
+        if (!isNaN(best) && (!k.bestLap || best < k.bestLap)) k.bestLap = best;
+      },
     };
   }
 

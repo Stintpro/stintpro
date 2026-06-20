@@ -1988,7 +1988,7 @@ function _enRenderStrategy(eq, trackAvg){
     const first=EnBox.queue[0];
     if(first.quality==='good'){probAcceso=100; probExplain='Primero en cola: BUENO';}
     else if(first.quality==='bad'){probAcceso=0; probExplain='Primero en cola: MALO';}
-    else if(first.quality==='neutral'){probAcceso=25; probExplain='Primero en cola: NEUTRO';}
+    else if(first.quality==='neutral'){probAcceso=40; probExplain='Primero en cola: NEUTRO';}
     else{probAcceso=50; probExplain='Primero en cola: DESCONOCIDO';}
   } else if(boxType==='battery'){
     // Batería: sorteo entre los karts EN LOS PUESTOS (primeros N de la cola); el resto espera
@@ -2012,6 +2012,9 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Si toda la cola es desconocida, no hay datos reales
   const allUnknown=EnBox.queue.length>0&&EnBox.queue.every(k=>k.quality==='unknown');
+  const knownCount=EnBox.queue.filter(k=>k.quality!=='unknown').length;
+  const knownRatio=EnBox.queue.length>0?knownCount/EnBox.queue.length:0;
+  const partialData=!allUnknown&&knownRatio<0.5;
   let noBoxData=false;
   if(allUnknown){
     probAcceso=-1;
@@ -2068,10 +2071,10 @@ function _enRenderStrategy(eq, trackAvg){
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
       <div>
         <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">Acceso</div>
-        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>`}
+        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>${partialData?`<span style="font-size:11px;color:#fbbf24;background:#fbbf2418;border:0.5px solid #fbbf2444;border-radius:4px;padding:2px 5px;margin-left:6px;font-family:sans-serif;vertical-align:middle">⚠ datos parciales (${knownCount}/${EnBox.queue.length})</span>`:''}`}
       </div>
-      <div>
-        <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">Presencia</div>
+      <div title="% de karts buenos entre todos los que están físicamente en boxes ahora mismo (según cronometraje)">
+        <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">En pit ahora</div>
         <span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:monospace">${probPresencia}%</span>
       </div>
       <span style="font-size:15px;color:${probColor};font-family:sans-serif;margin-left:auto">${probLabel}</span>
@@ -2083,7 +2086,7 @@ function _enRenderStrategy(eq, trackAvg){
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:15px;color:#888">${neutralInPit}</span></div>
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:15px;color:#888">${badInPit}</span></div>
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:15px;color:#888">${unknownInPit}</span></div>
-      <span style="font-size:15px;color:#bdc2cc;margin-left:auto">${totalInPit} en boxes</span>
+      <span style="font-size:15px;color:#bdc2cc;margin-left:auto">${totalInPit} en pit · ${EnBox.queue.length} en cola</span>
     </div>
   </div>`;
 
@@ -2164,9 +2167,11 @@ function _enRenderStrategy(eq, trackAvg){
       const isFirst=i===EnBox.queue.length-1; // primero en salir
       const isMe=myD&&k.dorsal?.toString()===myD;
       const border=isMe?'3px solid #fff':isFirst?'2px solid #aaa':'1px solid transparent';
-      const label=isMe?(k.dorsal||'YO'):(k.quality==='unknown'?'?':'');
+      const rivalTextColor=k.quality==='good'?'#bbf7d0':k.quality==='bad'?'#fecaca':k.quality==='neutral'?'#fef08a':'#888';
+      const label=isMe?(k.dorsal||'YO'):(k.dorsal&&k.dorsal!=='?'?k.dorsal:(k.quality==='unknown'?'?':''));
       const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':(k.name||'#'+k.dorsal));
-      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:15px;color:#fff;font-weight:700" title="${title}">${label}</div>`;
+      const textColor=isMe?'#fff':rivalTextColor;
+      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:11px;color:${textColor};font-weight:700" title="${title}">${label}</div>`;
     });
     html+=`<span style="font-size:15px;color:#bdc2cc;margin-left:2px">SALE</span></div>`;
     const qGood=EnBox.queue.filter(k=>k.quality==='good').length;
@@ -2246,7 +2251,7 @@ function _enRenderStrategy(eq, trackAvg){
         if(goodBlocked>0){
           html+=`<div style="text-align:center;font-size:15px;color:#fbbf24">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
         } else {
-          html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Fila 1: accesible por sorteo · Fila 2+: bloqueado · ${nRows} fila${nRows>1?'s':''}</div>`;
+          html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Fila 1: sorteo aleatorio entre columnas · Fila 2+: bloqueada hasta que se vacíe fila 1 · ${nRows} fila${nRows>1?'s':''}</div>`;
         }
       }
       html+=`</div>`;
@@ -2308,6 +2313,7 @@ function _enRenderStrategy(eq, trackAvg){
     // Simular evolución del pool
     let simG=G;
     let simN=N;
+    let simQueue=[...EnBox.queue]; // copia para avanzar la simulación sin mutar la real
     let timeline=[];
     timeline.push({min:'Ahora', prob:probNow, event:'Estado actual', color:'#9ca3af'});
 
@@ -2316,20 +2322,19 @@ function _enRenderStrategy(eq, trackAvg){
       if(boxType==='battery'){
         // P(pool mejora) = P(no cogió bueno) × (trae bueno)
         if(p.quality==='good'){
-          // Valor esperado: E[G'] = simG + (simN-simG)/simN ≈ simG + 0.75 con N=4,G=1
-          const pNotTakeGood=(simN-simG)/simN;
-          simG=simG+pNotTakeGood*(1); // expected good karts after this entry
+          const pNotTakeGood=simN>0?(simN-simG)/simN:1;
+          simG=simG+pNotTakeGood;
         } else if(p.quality==='bad'){
-          // P(pool empeora) = simG/simN
-          const pTakeGood=simG/simN;
-          simG=simG-pTakeGood; // expected loss
+          const pTakeGood=simN>0?simG/simN:0;
+          simG=simG-pTakeGood;
         }
+        simQueue.push({quality:p.quality});
       } else {
-        // Línea/columnas: simplificado — el kart va al final
-        if(p.quality==='good')simG++;
-        // Sale el primero (puede ser bueno o no)
-        const firstGood=EnBox.queue.length>0&&EnBox.queue[0]?.quality==='good';
-        if(firstGood)simG--;
+        // Línea/columnas: el nuevo kart va al final, sale el primero de la cola simulada
+        simQueue.push({quality:p.quality});
+        const removed=simQueue.length>0?simQueue.shift():null;
+        simG=simQueue.filter(k=>k.quality==='good').length;
+        simN=simQueue.length;
       }
 
       const futureProb=simN>0?Math.round(Math.min(100,Math.max(0,(simG/simN)*100))):0;
@@ -2437,10 +2442,10 @@ function _enRenderStrategy(eq, trackAvg){
         tacticIcon='🔴'; tacticColor='#fbbf24';
         tacticHtml=`Stint mínimo no cumplido — <b>faltan ${stintMinLeft} min</b>`;
       }
-    } else if(myQuality==='good'&&stintPct>=50&&strategic>0&&probAcceso>=70){
+    } else if(myQuality==='good'&&strategic>0&&(stintPct>=30||raceRemMin<stintMaxMin2*1.5)&&probAcceso>=70){
       tacticIcon='💎'; tacticColor='#c084fc';
       tacticHtml=`Kart bueno (${stintPct}% stint) + pool excelente (${probAcceso}%) + parada extra → <b>Considerar parada anticipada para asegurar stint y medio con kart top</b>`;
-    } else if(myQuality==='good'&&stintPct>=50&&strategic>0&&probAcceso>=40){
+    } else if(myQuality==='good'&&strategic>0&&(stintPct>=30||raceRemMin<stintMaxMin2*1.5)&&probAcceso>=40){
       tacticIcon='🤔'; tacticColor='#60a5fa';
       tacticHtml=`Kart bueno (${stintPct}% stint) + pool favorable (${probAcceso}%) → <b>Valorar parada anticipada</b>`;
     } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso>=25){
@@ -2841,6 +2846,20 @@ window.showEnduranceDashboard=function(cfg){
                 EnSession.rivalPitOut[ev.dorsal]=ev.time;
               }
             });
+            // Cruzar cola con el grid actual para inferir calidad de karts que siguen en box
+            // data.equipos tiene el estado real del momento de conexión con lapHistory y bestLap
+            if(Array.isArray(data.equipos)&&data.equipos.length>0){
+              const snapAvg=_enTrackAvgLive(data.equipos);
+              EnBox.queue.forEach(k=>{
+                if(k.quality!=='unknown'||!k.dorsal||k.dorsal==='?')return;
+                const snap=data.equipos.find(e=>e.dorsal?.toString()===k.dorsal?.toString());
+                if(snap){
+                  const q=_enEffectiveQuality(snap.dorsal, snap, snapAvg);
+                  if(q&&q!=='unknown')k.quality=q;
+                  if(snap.name)k.name=snap.name;
+                }
+              });
+            }
             EnBox.queueInited=true;
           }catch(e){}
         }
