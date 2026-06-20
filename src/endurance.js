@@ -2864,6 +2864,18 @@ window.showEnduranceDashboard=function(cfg){
           }catch(e){}
         }
 
+        // Reconstruir stintStartIdx desde stintLapCount del snapshot del logger
+        // stintLapCount = vueltas completadas por el kart actual desde el último pit out
+        if(data._isHistory){
+          (data.equipos||[]).forEach(e=>{
+            if(!e.dorsal||e.stintLapCount===undefined)return;
+            if(!EnSession.kartAutoState[e.dorsal])
+              EnSession.kartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
+            EnSession.kartAutoState[e.dorsal].stintStartIdx=
+              Math.max(0,(e.lapHistory||[]).length-e.stintLapCount);
+          });
+        }
+
         // ── Tracking blindado: un error aquí NUNCA debe congelar el dashboard ──
         try{
         // Trackear pit out de todos los karts para estimar stint restante

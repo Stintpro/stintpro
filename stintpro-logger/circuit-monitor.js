@@ -225,6 +225,14 @@ class CircuitMonitor {
             const lap = dbLaps.find(l => l.dorsal === e.dorsal && l.name);
             if (lap) e.name = lap.name;
           }
+          // stintLapCount: vueltas desde el último pit out → permite al cliente reconstruir stintStartIdx
+          const lastOut = this.pitEvents
+            .filter(ev => String(ev.dorsal) === String(e.dorsal) && ev.event === 'out')
+            .reduce((latest, ev) => !latest || ev.time > latest.time ? ev : latest, null);
+          if (lastOut) {
+            const dorsalLaps = dbLaps.filter(l => String(l.dorsal) === String(e.dorsal));
+            e.stintLapCount = dorsalLaps.filter(l => l.timestamp > lastOut.time).length;
+          }
         });
       } catch(err) { console.error(`[${this.slug}] enrichHistory:`, err.message); }
     }
