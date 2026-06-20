@@ -40,6 +40,95 @@ function startMonitors() {
   console.log(`[Logger] ${monitors.size} circuitos monitorizados`);
 }
 
+// ── Página principal ─────────────────────────────────────────────────────
+
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StintPro Logger</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #08090a; color: #c9d1d9; font-family: 'DM Mono', 'Fira Mono', monospace; font-size: 13px; padding: 28px 24px; max-width: 720px; }
+  h1 { color: #5b8dee; font-size: 20px; font-weight: 500; margin-bottom: 2px; }
+  .subtitle { color: #444; font-size: 11px; margin-bottom: 32px; }
+  .nav { display: flex; gap: 10px; margin-bottom: 36px; flex-wrap: wrap; }
+  .nav a { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; transition: background .15s; }
+  .nav a.primary { background: #1e3a6e; color: #5b8dee; border: 1px solid #253f7a; }
+  .nav a.primary:hover { background: #253f7a; }
+  .nav a.secondary { background: #0e0f11; color: #888; border: 1px solid #1e2030; }
+  .nav a.secondary:hover { background: #13141a; color: #c9d1d9; }
+  .icon { font-size: 15px; }
+  h2 { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+  .circuits { display: flex; flex-direction: column; gap: 8px; }
+  .card { background: #0e0f11; border: 1px solid #1e2030; border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .dot.red   { background: #ef4444; }
+  .card-info { flex: 1; }
+  .card-name { color: #e6edf3; font-weight: 500; margin-bottom: 3px; }
+  .card-meta { color: #555; font-size: 11px; }
+  .card-stats { text-align: right; font-size: 11px; color: #666; line-height: 1.6; }
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 500; }
+  .tag-on  { background: #14532d; color: #22c55e; }
+  .tag-off { background: #1a1b1f; color: #333; }
+  .uptime { color: #333; font-size: 11px; margin-top: 36px; }
+</style>
+</head>
+<body>
+<h1>StintPro Logger</h1>
+<div class="subtitle" id="host-line">Cargando...</div>
+
+<nav class="nav">
+  <a class="primary" href="/stats"><span class="icon">📊</span> Stats</a>
+  <a class="primary" href="/recordings"><span class="icon">⏺</span> Grabaciones</a>
+  <a class="secondary" href="/api/status" target="_blank"><span class="icon">⚡</span> API Status</a>
+  <a class="secondary" href="/api/sessions" target="_blank"><span class="icon">📋</span> Sesiones</a>
+</nav>
+
+<h2>Circuitos</h2>
+<div class="circuits" id="circuits"></div>
+<div class="uptime" id="uptime"></div>
+
+<script>
+async function load() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    document.getElementById('host-line').textContent = location.host + '  ·  v' + (d.version || '1.0');
+    const up = d.uptime || 0;
+    const h  = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
+    document.getElementById('uptime').textContent = 'Uptime: ' + h + 'h ' + m + 'm';
+    const el = document.getElementById('circuits');
+    if (!d.circuits?.length) { el.innerHTML = '<div style="color:#333;padding:12px 0">Sin circuitos configurados</div>'; return; }
+    el.innerHTML = d.circuits.map(c => \`
+      <div class="card">
+        <div class="dot \${c.connected ? 'green' : 'red'}"></div>
+        <div class="card-info">
+          <div class="card-name">\${c.name}</div>
+          <div class="card-meta">\${c.slug} · puerto \${c.port}</div>
+        </div>
+        <div class="card-stats">
+          \${c.lapCount || 0} vueltas · \${c.kartCount || 0} karts<br>
+          \${c.subscribers || 0} clientes
+          <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}" style="margin-left:6px">\${c.rawLog ? '⏺ REC' : 'REC'}</span>
+        </div>
+      </div>
+    \`).join('');
+  } catch(e) {
+    document.getElementById('circuits').innerHTML = '<div style="color:#ef4444">Error conectando con el logger</div>';
+  }
+}
+load();
+setInterval(load, 8000);
+</script>
+</body>
+</html>`);
+});
+
 // ── REST API ──────────────────────────────────────────────────────────────
 
 // Estado general
@@ -264,6 +353,239 @@ app.get('/api/circuit/:slug/pilots', (req, res) => {
 app.get('/api/cleanup', (req, res) => {
   db.cleanupEmptySessions();
   res.json({ ok: true });
+});
+
+// ── Stats (logger-stats.html servido desde src/) ─────────────────────────
+
+app.get('/stats', (req, res) => {
+  try {
+    let html = fs.readFileSync(path.join(__dirname, '../src/logger-stats.html'), 'utf8');
+
+    // Auto-conectar al propio servidor si no hay URL guardada en localStorage
+    html = html.replace(
+      `localStorage.getItem(LS_URL) || 'https://stintpro.duckdns.org'`,
+      `localStorage.getItem(LS_URL) || location.origin`,
+    );
+    // Cargar aunque no haya API key (la key es opcional si no está configurada)
+    html = html.replace(
+      `if (savedUrl && savedKey) load();`,
+      `if (savedUrl) load(); else { document.getElementById('cfg-url').value = location.origin; load(); }`,
+    );
+    // Inyectar nav de vuelta al inicio
+    html = html.replace(
+      `<div class="header">`,
+      `<div style="background:#08090a;padding:10px 20px;border-bottom:1px solid #1a1b1e;display:flex;gap:10px">
+  <a href="/" style="color:#555;text-decoration:none;font-size:12px;padding:4px 10px;border:1px solid #1e2030;border-radius:4px">← Inicio</a>
+  <a href="/recordings" style="color:#5b8dee;text-decoration:none;font-size:12px;padding:4px 10px;border:1px solid #1e3a6e;border-radius:4px">⏺ Grabaciones</a>
+</div>
+<div class="header">`,
+    );
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch(e) {
+    res.status(500).send(`<pre>Error cargando logger-stats.html: ${e.message}</pre>`);
+  }
+});
+
+// ── Panel de grabaciones (UI) ─────────────────────────────────────────────
+
+app.get('/recordings', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StintPro Logger — Grabaciones</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #08090a; color: #c9d1d9; font-family: 'DM Mono', 'Fira Mono', monospace; font-size: 13px; padding: 24px; }
+  h1 { color: #5b8dee; font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { color: #555; margin-bottom: 28px; font-size: 11px; }
+  h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 10px; }
+  .circuits { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .circuit-card { background: #0e0f11; border: 1px solid #1e2030; border-radius: 6px; padding: 12px 16px; min-width: 200px; }
+  .circuit-card .cname { font-weight: 500; color: #e6edf3; margin-bottom: 6px; }
+  .circuit-card .cmeta { color: #555; font-size: 11px; margin-bottom: 10px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+  .dot.green  { background: #22c55e; }
+  .dot.red    { background: #ef4444; }
+  .dot.yellow { background: #fbbf24; }
+  .btn { display: inline-block; padding: 5px 12px; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 500; }
+  .btn-blue   { background: #1e3a6e; color: #5b8dee; }
+  .btn-blue:hover { background: #253f7a; }
+  .btn-green  { background: #14532d; color: #22c55e; }
+  .btn-green:hover { background: #166534; }
+  .btn-red    { background: #450a0a; color: #ef4444; }
+  .btn-red:hover  { background: #5a0e0e; }
+  .btn-sm { padding: 3px 8px; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th { color: #555; font-weight: 400; text-align: left; padding: 6px 10px; border-bottom: 1px solid #1e2030; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  td { padding: 7px 10px; border-bottom: 1px solid #12141a; color: #c9d1d9; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #0e0f11; }
+  .file-name { color: #8b949e; font-size: 11px; }
+  .size { color: #555; }
+  .empty { color: #333; font-style: italic; padding: 20px 10px; text-align: center; }
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; }
+  .tag-on  { background: #14532d; color: #22c55e; }
+  .tag-off { background: #1a1b1f; color: #444; }
+  #toast { position: fixed; bottom: 20px; right: 20px; background: #1e2030; border: 1px solid #2d3250; padding: 10px 16px; border-radius: 6px; color: #c9d1d9; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="/" style="color:#555;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e2030;border-radius:4px">← Inicio</a>
+  <a href="/stats" style="color:#5b8dee;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e3a6e;border-radius:4px">📊 Stats</a>
+</div>
+<h1>StintPro Logger</h1>
+<div class="subtitle">Panel de grabaciones raw — <span id="server-url"></span></div>
+
+<h2>Circuitos</h2>
+<div class="circuits" id="circuits-list">
+  <div class="empty">Cargando...</div>
+</div>
+
+<h2>Grabaciones</h2>
+<table>
+  <thead><tr><th>Circuito</th><th>Fichero</th><th>Tamaño</th><th>Fecha</th><th></th></tr></thead>
+  <tbody id="recordings-body"><tr><td colspan="5" class="empty">Cargando...</td></tr></tbody>
+</table>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+document.getElementById('server-url').textContent = location.host;
+
+function toast(msg, ok = true) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? '#22c55e44' : '#ef444444';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function loadCircuits() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const el = $('circuits-list');
+    if (!d.circuits?.length) { el.innerHTML = '<div class="empty">Sin circuitos configurados</div>'; return; }
+    el.innerHTML = d.circuits.map(c => \`
+      <div class="circuit-card">
+        <div class="cname">
+          <span class="dot \${c.connected ? 'green' : 'red'}"></span>\${c.name}
+        </div>
+        <div class="cmeta">
+          \${c.connected ? '● Conectado' : '○ Desconectado'}
+          · \${c.lapCount || 0} vueltas
+          · \${c.subscribers || 0} clientes
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}" id="tag-\${c.slug}">
+            \${c.rawLog ? 'REC ●' : 'REC ○'}
+          </span>
+          <button class="btn btn-sm \${c.rawLog ? 'btn-red' : 'btn-green'}"
+            id="btn-\${c.slug}"
+            onclick="toggleRawLog('\${c.slug}', \${!c.rawLog})">
+            \${c.rawLog ? 'Detener' : 'Grabar'}
+          </button>
+        </div>
+      </div>
+    \`).join('');
+  } catch(e) { $('circuits-list').innerHTML = '<div class="empty">Error cargando circuitos</div>'; }
+}
+
+async function toggleRawLog(slug, enable) {
+  try {
+    const r = await fetch(\`/api/circuit/\${slug}/raw-log\`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enable }),
+    });
+    if (r.ok) {
+      toast(enable ? \`Grabando \${slug}\` : \`Grabación \${slug} detenida\`);
+      await loadCircuits();
+    }
+  } catch(e) { toast('Error', false); }
+}
+
+async function loadRecordings() {
+  try {
+    const r = await fetch('/api/recordings');
+    const files = await r.json();
+    const tbody = $('recordings-body');
+    if (!files.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay grabaciones todavía.<br>Activa la grabación en un circuito para empezar.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = files.map(f => {
+      const slug = f.name.split('_')[0];
+      const kb   = f.size < 1024 * 1024
+        ? (f.size / 1024).toFixed(1) + ' KB'
+        : (f.size / 1024 / 1024).toFixed(1) + ' MB';
+      const date = new Date(f.mtime).toLocaleString('es-ES', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+      return \`<tr>
+        <td><b>\${slug}</b></td>
+        <td class="file-name">\${f.name}</td>
+        <td class="size">\${kb}</td>
+        <td>\${date}</td>
+        <td><a href="/api/recordings/\${f.name}" download class="btn btn-blue btn-sm">Descargar</a></td>
+      </tr>\`;
+    }).join('');
+  } catch(e) {
+    $('recordings-body').innerHTML = '<tr><td colspan="5" class="empty">Error cargando grabaciones</td></tr>';
+  }
+}
+
+loadCircuits();
+loadRecordings();
+setInterval(loadCircuits, 10000);
+setInterval(loadRecordings, 15000);
+</script>
+</body>
+</html>`);
+});
+
+// ── Raw log / recordings ──────────────────────────────────────────────────
+
+// Listar grabaciones
+app.get('/api/recordings', (req, res) => {
+  const dir = path.join(__dirname, 'recordings');
+  if (!fs.existsSync(dir)) return res.json([]);
+  try {
+    const files = fs.readdirSync(dir)
+      .filter(f => f.endsWith('.ndjson'))
+      .map(f => {
+        const stat = fs.statSync(path.join(dir, f));
+        return { name: f, size: stat.size, mtime: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    res.json(files);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Descargar una grabación
+app.get('/api/recordings/:file', (req, res) => {
+  const name = path.basename(req.params.file);
+  if (!name.endsWith('.ndjson')) return res.status(400).json({ error: 'Tipo inválido' });
+  const filePath = path.join(__dirname, 'recordings', name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'No encontrado' });
+  res.download(filePath);
+});
+
+// Activar/desactivar raw log de un circuito
+app.post('/api/circuit/:slug/raw-log', (req, res) => {
+  const mon = monitors.get(req.params.slug);
+  if (!mon) return res.status(404).json({ error: 'Circuito no encontrado' });
+  const enabled = req.body?.enabled !== false;
+  mon.setRawLog(enabled);
+  res.json({ ok: true, slug: req.params.slug, rawLog: enabled });
 });
 
 // ── WebSocket server ──────────────────────────────────────────────────────

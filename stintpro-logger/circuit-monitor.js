@@ -1,5 +1,7 @@
 // ── CircuitMonitor — gestiona una conexión Apex + sesión + subscriptores ──
 const WebSocket  = require('ws');
+const fs         = require('fs');
+const path       = require('path');
 const ApexParser = require('./apex-parser');
 const db         = require('./db');
 
@@ -27,6 +29,10 @@ class CircuitMonitor {
 
     this.recording = cfg.recording !== false; // true por defecto
 
+    // Raw log (replay mode)
+    this._rawLog        = null;
+    this._rawLogEnabled = cfg.rawLog || !!process.env.STINTPRO_RAW_LOG;
+
     this.parser = new ApexParser({
       onLap:        this._onLap.bind(this),
       onPit:        this._onPit.bind(this),
@@ -38,6 +44,7 @@ class CircuitMonitor {
 
   start() {
     console.log(`[${this.slug}] Iniciando monitor (${this.name}, port ${this.port})`);
+    if (this._rawLogEnabled) this._openRawLog();
     this._connect();
   }
 
@@ -45,6 +52,7 @@ class CircuitMonitor {
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
+    if (this._rawLog)         { try { this._rawLog.end(); } catch(e) {} this._rawLog = null;      }
     this.connected = false;
   }
 
@@ -68,7 +76,11 @@ class CircuitMonitor {
       });
 
       this.ws.on('message', (data) => {
-        try { this.parser.parse(data.toString()); }
+        const raw = data.toString();
+        if (this._rawLog) {
+          try { this._rawLog.write(JSON.stringify({ t: Date.now(), raw }) + '\n'); } catch(e) {}
+        }
+        try { this.parser.parse(raw); }
         catch(e) { console.error(`[${this.slug}] parse error:`, e.message); }
       });
 
@@ -94,6 +106,31 @@ class CircuitMonitor {
   setRecording(enabled) {
     this.recording = enabled;
     console.log(`[${this.slug}] Grabación ${enabled ? 'activada' : 'pausada'}`);
+  }
+
+  setRawLog(enabled) {
+    if (enabled && !this._rawLog) {
+      this._rawLogEnabled = true;
+      this._openRawLog();
+    } else if (!enabled && this._rawLog) {
+      this._rawLogEnabled = false;
+      try { this._rawLog.end(); } catch(e) {}
+      this._rawLog = null;
+      console.log(`[${this.slug}] Raw log detenido`);
+    }
+  }
+
+  _openRawLog() {
+    try {
+      const dir = path.join(__dirname, 'recordings');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const file  = path.join(dir, `${this.slug}_${stamp}.ndjson`);
+      this._rawLog = fs.createWriteStream(file, { flags: 'a' });
+      console.log(`[${this.slug}] Raw log: recordings/${this.slug}_${stamp}.ndjson`);
+    } catch(e) {
+      console.error(`[${this.slug}] No se pudo abrir raw log:`, e.message);
+    }
   }
 
   _onLap(dorsal, name, lapMs, lapNumber, timestamp) {
@@ -221,12 +258,13 @@ class CircuitMonitor {
       name:          this.name,
       port:          this.port,
       connected:     this.connected,
-      sessionActive: !!this.sessionId && !this.parser._sessionFinished,
+      sessionActive: !!this.sessionId && !this.parser.sessionFinished,
       sessionId:     this.sessionId,
       lapCount:      this._lapCount,
-      kartCount:     Object.values(this.parser._karts).filter(k => k.dorsal).length,
+      kartCount:     this.parser.kartCount,
       subscribers:   this.subscribers.size,
       recording:     this.recording,
+      rawLog:        this._rawLogEnabled,
     };
   }
 }
