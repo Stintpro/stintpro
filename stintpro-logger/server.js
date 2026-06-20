@@ -266,6 +266,166 @@ app.get('/api/cleanup', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Panel de grabaciones (UI) ─────────────────────────────────────────────
+
+app.get('/recordings', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StintPro Logger — Grabaciones</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #08090a; color: #c9d1d9; font-family: 'DM Mono', 'Fira Mono', monospace; font-size: 13px; padding: 24px; }
+  h1 { color: #5b8dee; font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { color: #555; margin-bottom: 28px; font-size: 11px; }
+  h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 10px; }
+  .circuits { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .circuit-card { background: #0e0f11; border: 1px solid #1e2030; border-radius: 6px; padding: 12px 16px; min-width: 200px; }
+  .circuit-card .cname { font-weight: 500; color: #e6edf3; margin-bottom: 6px; }
+  .circuit-card .cmeta { color: #555; font-size: 11px; margin-bottom: 10px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+  .dot.green  { background: #22c55e; }
+  .dot.red    { background: #ef4444; }
+  .dot.yellow { background: #fbbf24; }
+  .btn { display: inline-block; padding: 5px 12px; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; font-size: 11px; font-weight: 500; }
+  .btn-blue   { background: #1e3a6e; color: #5b8dee; }
+  .btn-blue:hover { background: #253f7a; }
+  .btn-green  { background: #14532d; color: #22c55e; }
+  .btn-green:hover { background: #166534; }
+  .btn-red    { background: #450a0a; color: #ef4444; }
+  .btn-red:hover  { background: #5a0e0e; }
+  .btn-sm { padding: 3px 8px; font-size: 11px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th { color: #555; font-weight: 400; text-align: left; padding: 6px 10px; border-bottom: 1px solid #1e2030; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  td { padding: 7px 10px; border-bottom: 1px solid #12141a; color: #c9d1d9; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #0e0f11; }
+  .file-name { color: #8b949e; font-size: 11px; }
+  .size { color: #555; }
+  .empty { color: #333; font-style: italic; padding: 20px 10px; text-align: center; }
+  .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; }
+  .tag-on  { background: #14532d; color: #22c55e; }
+  .tag-off { background: #1a1b1f; color: #444; }
+  #toast { position: fixed; bottom: 20px; right: 20px; background: #1e2030; border: 1px solid #2d3250; padding: 10px 16px; border-radius: 6px; color: #c9d1d9; font-size: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<h1>StintPro Logger</h1>
+<div class="subtitle">Panel de grabaciones raw — <span id="server-url"></span></div>
+
+<h2>Circuitos</h2>
+<div class="circuits" id="circuits-list">
+  <div class="empty">Cargando...</div>
+</div>
+
+<h2>Grabaciones</h2>
+<table>
+  <thead><tr><th>Circuito</th><th>Fichero</th><th>Tamaño</th><th>Fecha</th><th></th></tr></thead>
+  <tbody id="recordings-body"><tr><td colspan="5" class="empty">Cargando...</td></tr></tbody>
+</table>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+document.getElementById('server-url').textContent = location.host;
+
+function toast(msg, ok = true) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.borderColor = ok ? '#22c55e44' : '#ef444444';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function loadCircuits() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const el = $('circuits-list');
+    if (!d.circuits?.length) { el.innerHTML = '<div class="empty">Sin circuitos configurados</div>'; return; }
+    el.innerHTML = d.circuits.map(c => \`
+      <div class="circuit-card">
+        <div class="cname">
+          <span class="dot \${c.connected ? 'green' : 'red'}"></span>\${c.name}
+        </div>
+        <div class="cmeta">
+          \${c.connected ? '● Conectado' : '○ Desconectado'}
+          · \${c.lapCount || 0} vueltas
+          · \${c.subscribers || 0} clientes
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}" id="tag-\${c.slug}">
+            \${c.rawLog ? 'REC ●' : 'REC ○'}
+          </span>
+          <button class="btn btn-sm \${c.rawLog ? 'btn-red' : 'btn-green'}"
+            id="btn-\${c.slug}"
+            onclick="toggleRawLog('\${c.slug}', \${!c.rawLog})">
+            \${c.rawLog ? 'Detener' : 'Grabar'}
+          </button>
+        </div>
+      </div>
+    \`).join('');
+  } catch(e) { $('circuits-list').innerHTML = '<div class="empty">Error cargando circuitos</div>'; }
+}
+
+async function toggleRawLog(slug, enable) {
+  try {
+    const r = await fetch(\`/api/circuit/\${slug}/raw-log\`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enable }),
+    });
+    if (r.ok) {
+      toast(enable ? \`Grabando \${slug}\` : \`Grabación \${slug} detenida\`);
+      await loadCircuits();
+    }
+  } catch(e) { toast('Error', false); }
+}
+
+async function loadRecordings() {
+  try {
+    const r = await fetch('/api/recordings');
+    const files = await r.json();
+    const tbody = $('recordings-body');
+    if (!files.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay grabaciones todavía.<br>Activa la grabación en un circuito para empezar.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = files.map(f => {
+      const slug = f.name.split('_')[0];
+      const kb   = f.size < 1024 * 1024
+        ? (f.size / 1024).toFixed(1) + ' KB'
+        : (f.size / 1024 / 1024).toFixed(1) + ' MB';
+      const date = new Date(f.mtime).toLocaleString('es-ES', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+      return \`<tr>
+        <td><b>\${slug}</b></td>
+        <td class="file-name">\${f.name}</td>
+        <td class="size">\${kb}</td>
+        <td>\${date}</td>
+        <td><a href="/api/recordings/\${f.name}" download class="btn btn-blue btn-sm">Descargar</a></td>
+      </tr>\`;
+    }).join('');
+  } catch(e) {
+    $('recordings-body').innerHTML = '<tr><td colspan="5" class="empty">Error cargando grabaciones</td></tr>';
+  }
+}
+
+loadCircuits();
+loadRecordings();
+setInterval(loadCircuits, 10000);
+setInterval(loadRecordings, 15000);
+</script>
+</body>
+</html>`);
+});
+
 // ── Raw log / recordings ──────────────────────────────────────────────────
 
 // Listar grabaciones
