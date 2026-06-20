@@ -3,14 +3,16 @@
 // Sin dependencias de DOM ni Node.js — los wrappers aportan el parsing HTML del grid.
 //
 // Comportamiento canónico (fuente de verdad única):
-//   |*|  → si !colMap.llp: registra vuelta; siempre guarda _lapFromFlash/_lapFromFlashTs
+//   |*|  → si !colMap.llp: registra vuelta + guarda _lapFromFlash/_lapFromFlashTs para anti-dedup
 //   llp  → ventana 5s: si |*| llegó hace <5s → refina; si no → vuelta nueva
 //   so   → activa _lapInvalid para bloquear el parcial box→meta
 //   sr   → limpia _lapInvalid y pit
 //   Sesión nueva: sessionFinished O inactividad >10 min sin vueltas
 
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) {
+  // En Electron el renderer tiene 'module' definido pero también tiene 'window'/DOM
+  // → usar siempre el path de browser cuando hay DOM, aunque module exista
+  if (typeof module !== 'undefined' && module.exports && typeof window === 'undefined') {
     module.exports = factory();
   } else {
     root.ApexProtocol = factory();
