@@ -246,7 +246,7 @@ function _enAutoKartQuality(e, trackAvg){
     return state.prePitQuality||state.quality||null;
   }
 
-  // Pit OUT: kart NUEVO → reset total SOLO en la transición (el estado 'out' persiste varios ticks)
+  // Pit OUT: kart NUEVO → reset total SOLO en la transición
   if(e.pitState==='out'){
     if(state._lastPitState!=='out'){
       state.quality=null;
@@ -255,9 +255,12 @@ function _enAutoKartQuality(e, trackAvg){
       state.stintStartIdx=e.lapHistory.length; // las vueltas anteriores son del kart viejo
     }
     state._lastPitState='out';
-    return null; // sin datos del kart nuevo
+    // No retornamos null incondicionalmente: pitState='out' puede persistir mucho tiempo
+    // sin que llegue sr/su. Si ya hay vueltas del kart nuevo, evaluamos normalmente.
+    // Si no hay suficientes (< 3), el bloque de abajo retorna null igualmente.
+  } else {
+    state._lastPitState=e.pitState||null;
   }
-  state._lastPitState=e.pitState||null;
 
   // Solo vueltas del KART ACTUAL (desde el último pit out)
   const startIdx=Math.min(state.stintStartIdx||0, e.lapHistory.length);
