@@ -626,57 +626,82 @@ function _enSetBoxPositions(v){
 }
 function _enSetBoxColumns(v){EnBox.config.columns=parseInt(v)||2;}
 
+// Parsea el string de gap de Apex a segundos. "+30.000" → 30, "+2v" → 2*lapTime, "" → 0
+function _enParseGap(gapStr, lapTime){
+  if(!gapStr)return 0;
+  const s=String(gapStr).replace(/^\+/,'').trim();
+  if(s.endsWith('v')){
+    const laps=parseInt(s);
+    return isNaN(laps)?0:laps*(lapTime||67);
+  }
+  const t=parseFloat(s);
+  return isNaN(t)?0:t;
+}
+
 function _enShowEstimatedClassification(){
   const eq=EnSession.data.equipos||[];
   const trackAvg=_enTrackAvgLive(eq);
   if(!eq.length)return;
 
-  // Calcular coste medio de parada del circuito
-  // Validación: un coste medido < duración oficial es dato corrupto (imposible parar menos del mínimo)
+  // Coste medio de parada
   let allCosts=[];
   Object.values(EnSession.pitCosts).forEach(arr=>allCosts=allCosts.concat(arr));
-  const validCosts=allCosts.filter(c=>c>=EnBox.pitDuration*0.8); // margen 20% por variaciones de medición
-  // Fallback: sin datos medidos → duración oficial + ~10% (vuelta lenta de salida)
+  const validCosts=allCosts.filter(c=>c>=EnBox.pitDuration*0.8);
   const avgPitCost=validCosts.length>0
     ?validCosts.reduce((a,b)=>a+b,0)/validCosts.length
     :EnBox.pitDuration*1.1;
   const costSource=validCosts.length>0?`medido (${validCosts.length} paradas)`:'estimado por duración oficial';
 
-  // Paradas por equipo — prioridad: standsCount oficial de Apex (fiable aunque conectes tarde),
-  // fallback: nuestro conteo observado (EnSession.pitCounts)
+  // Paradas por equipo
   const getStops=(e)=>e.standsCount>0?e.standsCount:(EnSession.pitCounts[e.dorsal]||0);
   const maxStops=Math.max(...eq.map(getStops),1);
-  // Fiabilidad del conteo: si Apex da standsCount lo usamos (oficial); si no, advertimos
   const usingOfficial=eq.some(e=>e.standsCount>0);
 
-  // Calcular clasificación estimada
-  // Usamos vueltas (tours) como base del gap — fiable siempre, no depende del string de gap de Apex
+  // ── Clasificación estimada ────────────────────────────────────────────────
+  // Fórmula: estimatedGap = gapRealActual + (paradasPendientes × costePit)
+  //
+  // gapRealActual: lo que ya llevas de diferencia con el líder AHORA MISMO.
+  // Fuente preferida: e.gap de Apex (en segundos). Fallback: vueltas × ritmo.
+  // Así el que paró antes no "borra" su gap previo — mantiene lo que ya llevaba.
+  //
+  // paradasPendientes × costePit: lo que perderán los que aún no han parado.
+  //
+  // Resultado: "si todos hicieran las paradas que les faltan, ¿en qué orden quedarían?"
+
   const onTrack=eq.filter(e=>!e.pit);
-  // Referencia: vueltas del líder de clasificación (pos=1), NO el máximo de tours.
-  // El kart con más tours puede ser uno con muchas paradas — usarlo como ref distorsiona el gap.
+
+  // Referencia de vueltas: líder de clasificación (pos=1), para el fallback de gap
   const classLeader=onTrack.find(e=>e.pos===1);
-  const leaderTours=classLeader?(classLeader.tours||0):Math.max(...onTrack.map(e=>e.tours||0), 0);
+  const leaderTours=classLeader?(classLeader.tours||0):Math.max(...onTrack.map(e=>e.tours||0),0);
+
+  // ¿Hay gap de Apex disponible? (al menos un kart no-líder lo tiene en segundos)
+  const hasApexGap=onTrack.some(e=>e.pos!==1&&e.gap&&!String(e.gap).includes('v')&&parseFloat(String(e.gap).replace(/^\+/,''))>0);
 
   const estimated=onTrack.map(e=>{
     const stops=getStops(e);
     const diff=maxStops-stops;
-    // Coste individual si lo tenemos (validado), sino media del circuito
+    const avg5=_enAvg5(e.lapHistory);
+    const lapTime=avg5||trackAvg||67;
+
+    // Coste individual del equipo si está medido; sino media del circuito
     const teamCosts=(EnSession.pitCosts[e.dorsal]||[]).filter(c=>c>=EnBox.pitDuration*0.8);
     const teamAvgCost=teamCosts.length?teamCosts.reduce((a,b)=>a+b,0)/teamCosts.length:avgPitCost;
     const penalty=diff*teamAvgCost;
 
-    // Gap calculado desde vueltas completadas — robusto con doblados y gaps vacíos
-    const avg5=_enAvg5(e.lapHistory);
-    const lapTime=avg5||trackAvg||67;
-    const lapsBehind=Math.max(0, leaderTours-(e.tours||0));
-    const gapS=lapsBehind*lapTime;
+    // Gap real actual al líder
+    const lapsBehind=Math.max(0,leaderTours-(e.tours||0));
+    const gapFromLaps=lapsBehind*lapTime;
+    const gapFromApex=_enParseGap(e.gap, lapTime);
+    // Preferimos el gap de Apex si está disponible en segundos (más preciso que laps*ritmo)
+    const gapReal=hasApexGap?Math.max(gapFromApex, gapFromLaps):gapFromLaps;
 
-    const estimatedGap=gapS+penalty;
+    const estimatedGap=gapReal+penalty;
     const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
 
     return {
       dorsal:e.dorsal, name:e.name, pos:e.pos, stops, tours:e.tours||0,
-      gapS, penalty, estimatedGap, avg5, quality, diff, lapsBehind
+      gapReal, penalty, estimatedGap, avg5, quality, diff, lapsBehind,
+      gapFromApex, gapFromLaps,
     };
   }).sort((a,b)=>a.estimatedGap-b.estimatedGap);
 
@@ -690,21 +715,21 @@ function _enShowEstimatedClassification(){
   let rows='';
   estimated.forEach((e,i)=>{
     const kc=_enKartColor(e.dorsal);
-    let qBorder=e.quality==='good'?'#22c55e':e.quality==='bad'?'#ef4444':e.quality==='neutral'?'#fbbf24':kc.border;
-    const penaltyStr=e.diff>0?`<span style="color:#ef4444">+${e.diff} pit (${e.penalty.toFixed(1)}s)</span>`:'';
+    const qBorder=e.quality==='good'?'#22c55e':e.quality==='bad'?'#ef4444':e.quality==='neutral'?'#fbbf24':kc.border;
+    const penaltyStr=e.diff>0?`<span style="color:#ef4444">+${e.diff}pit (${e.penalty.toFixed(0)}s)</span>`:'';
     const estGapStr=i===0?'—':'+'+e.estimatedGap.toFixed(1)+'s';
-    const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapS>0?'+'+e.gapS.toFixed(1)+'s':'—';
+    const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapReal>0?'+'+e.gapReal.toFixed(1)+'s':'—';
     const posChange=e.pos-(i+1);
     const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:#bdc2cc">=</span>';
 
     rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px">
       <span style="font-size:15px;font-weight:600;color:#e4e6ed;text-align:center">${i+1}</span>
-      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${e.dorsal}</div>
-      <span style="font-size:15px;color:#e4e6ed;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
-      <span style="font-size:15px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}${e.stops===maxStops?' ★':''}</span>
-      <span style="font-size:15px;color:${e.lapsBehind>0?'#ef4444':'#9ca3af'};font-family:monospace;text-align:right">${realGapStr}</span>
+      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${_esc(e.dorsal)}${e.diff>0?'':' ★'}</div>
+      <span style="font-size:15px;color:#e4e6ed;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
+      <span style="font-size:15px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}</span>
+      <span style="font-size:15px;color:${e.lapsBehind>0?'#ef4444':e.gapReal>0?'#9ca3af':'#555'};font-family:monospace;text-align:right">${realGapStr}</span>
       <span style="font-size:15px;color:#5b8dee;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
-      <span style="font-size:15px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
+      <span style="font-size:13px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
       <span style="font-size:15px;text-align:center">${posStr}</span>
     </div>`;
   });
@@ -714,7 +739,7 @@ function _enShowEstimatedClassification(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Clasificación estimada</div>
-          <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas (ref: equipo con más paradas) · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource})</div>
+          <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource}) · Gap: ${hasApexGap?'Apex':'vueltas×ritmo'}</div>
           ${!usingOfficial?'<div style="font-size:15px;color:#fbbf24;font-family:sans-serif;margin-top:2px">⚠ Conteo de paradas observado localmente — puede estar incompleto si conectaste a mitad de carrera</div>':''}
         </div>
         <button onclick="_enDismissOverlay()" style="background:none;border:none;color:#bdc2cc;font-size:18px;cursor:pointer;padding:4px">✕</button>
