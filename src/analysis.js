@@ -42,14 +42,16 @@ function _enDeltaColor(d){
 }
 
 // ── Vueltas limpias ───────────────────────────────────────────────────────
-// Filtra outliers: vueltas ≥ 180s (pit, incidente) y vueltas > mediana + 2s
+// Filtra outliers: vueltas ≥ 180s (pit, incidente), vueltas > mediana + 2s,
+// y vueltas parciales del circuito (< mediana × 0.7 — tiempos imposibles
+// que Apex registra cuando un kart cruza meta desde el pit exit).
 function _enCleanLaps(hist){
   if(!hist||hist.length<2)return[];
   const clean=hist.filter(t=>t<180);
   if(clean.length<2)return clean;
   const sorted=[...clean].sort((a,b)=>a-b);
   const median=sorted[Math.floor(sorted.length/2)];
-  return clean.filter(t=>t<=median+2);
+  return clean.filter(t=>t>=median*0.7&&t<=median+2);
 }
 
 // ── Consistencia últimas 5 vueltas → {label, color} ──────────────────────
