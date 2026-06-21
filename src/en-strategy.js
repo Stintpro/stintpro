@@ -652,7 +652,10 @@ function _enShowEstimatedClassification(){
   // Calcular clasificación estimada
   // Usamos vueltas (tours) como base del gap — fiable siempre, no depende del string de gap de Apex
   const onTrack=eq.filter(e=>!e.pit);
-  const leaderTours=Math.max(...onTrack.map(e=>e.tours||0), 0);
+  // Referencia: vueltas del líder de clasificación (pos=1), NO el máximo de tours.
+  // El kart con más tours puede ser uno con muchas paradas — usarlo como ref distorsiona el gap.
+  const classLeader=onTrack.find(e=>e.pos===1);
+  const leaderTours=classLeader?(classLeader.tours||0):Math.max(...onTrack.map(e=>e.tours||0), 0);
 
   const estimated=onTrack.map(e=>{
     const stops=getStops(e);
