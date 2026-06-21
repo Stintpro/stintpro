@@ -5,7 +5,7 @@ let _circuitMode = 'library';
 let _simMode     = false; // desactivado permanentemente
 let _connMode    = 'apex'; // 'apex' o 'logger'
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
-const _loggerApiKey = (()=>{const a=[99,100,56,101,51,51,49,100,53,54,98,50,97,54,101,54,98,57,50,49,102,99,55,54,50,48,55,56,51,101,99,100,99,50,57,48,55,54,100,57,101,54,48,55,102,56,49,48,49,97,102,98,55,52,102,55,98,52,97,52,56,99,100,101];return a.map(c=>String.fromCharCode(c)).join('');})();
+const _loggerApiKey = (()=>{const a=[100,98,98,98,102,57,55,55,50,99,57,102,54,57,102,100,102,99,54,102,53,54,99,102,55,98,52,49,48,56,53,97,97,50,48,57,49,98,57,53,102,57,97,101,50,56,97,54,51,48,54,57,99,57,48,97,101,55,97,48,99,51,52,102];return a.map(c=>String.fromCharCode(c)).join('');})();
 const _origApex  = window.ApexConnector; // guardar conector original
 
 function renderSetup() {
