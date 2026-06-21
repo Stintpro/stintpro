@@ -335,13 +335,19 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     const labels={good:'BUENO',neutral:'NEUTRO',bad:'MALO'};
     return `${labels[manual]} (manual)`;
   }
+
+  // Vueltas limpias del KART ACTUAL (desde el último pit out)
+  const state=EnSession.kartAutoState?.[dorsal];
+  const stintStartIdx=state?.stintStartIdx||0;
+  const stintLaps=(e.lapHistory||[]).slice(stintStartIdx);
+  const cleanStint=_enCleanLaps(stintLaps);
+  const fewData=cleanStint.length<5;
+  const fewDataNote=fewData?`\n⚠ Datos provisionales (${cleanStint.length}/5 vueltas del kart actual)`:'';
+
   const avg5=_enAvg5(e.lapHistory);
-  const cons=_enCons(e.lapHistory);
   if(!avg5||!trackAvg){
-    const cleanLaps=(e.lapHistory||[]).length;
-    return `SIN DATOS\nVueltas: ${cleanLaps} (necesita 5)`;
+    return `SIN DATOS\nVueltas del kart actual: ${cleanStint.length} (necesita 5)`;
   }
-  // Calcular rango numérico para el tooltip (independiente del objeto cons)
   const cleanH=_enCleanLaps(e.lapHistory);
   const last5H=cleanH.slice(-5);
   const consRange=last5H.length>=2?(Math.max(...last5H)-Math.min(...last5H)):null;
@@ -351,11 +357,11 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   const label=labels[effective]||'SIN DATOS';
   if(isRegular){
     const delta=(avg5-trackAvg).toFixed(3);
-    return `${label} (auto)\nM5v: ${_enFmt(avg5)} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto regular (rango ${consRange.toFixed(2)}s)`;
+    return `${label} (auto)\nM5v: ${_enFmt(avg5)} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto regular (rango ${consRange.toFixed(2)}s)${fewDataNote}`;
   } else {
     const best=e.bestLap;
     const delta=best?(best-trackAvg).toFixed(3):'—';
-    return `${label} (auto)\nMejor: ${best?_enFmt(best):'—'} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto ${consRange>1?'errático':'irregular'} (rango ${consRange!==null?consRange.toFixed(2):'—'}s) → evalúa mejor vuelta\nM5v: ${_enFmt(avg5)} (no fiable)`;
+    return `${label} (auto)\nMejor: ${best?_enFmt(best):'—'} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto ${consRange>1?'errático':'irregular'} (rango ${consRange!==null?consRange.toFixed(2):'—'}s) → evalúa mejor vuelta\nM5v: ${_enFmt(avg5)} (no fiable)${fewDataNote}`;
   }
 }
 
