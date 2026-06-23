@@ -316,35 +316,39 @@ function _enAutoKartQuality(e, trackAvg){
   const startIdx=Math.min(state.stintStartIdx||0, e.lapHistory.length);
   const stintLaps=e.lapHistory.slice(startIdx);
   const clean=_enCleanLaps(stintLaps);
-  if(clean.length<3)return null; // el kart actual aún no tiene datos suficientes
+  if(clean.length<3)return null;
   const last5=clean.slice(-5);
-  const mn=Math.min(...last5), mx=Math.max(...last5);
-  const range=mx-mn;
   const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
-  const isRegular=range<0.5;
-  // Mejor vuelta del KART ACTUAL, no de toda la carrera (el best global puede ser de otro kart)
   const stintBest=Math.min(...clean);
+
+  // Score histórico del piloto → decide qué referencia y qué umbral usar
+  const pilotScore=_enPilotRatings[e.name]??null;
+
+  // Piloto fiable (score≥600) → M5v es representativo, usar avg5
+  // Piloto errático o sin datos → usar mejor vuelta del stint (más resistente a incidentes)
+  const isReliable=pilotScore!=null?pilotScore>=600:(mx-mn)<0.5;
+  const ref=isReliable?avg5:stintBest;
+
+  // Umbral ajustado por nivel: un Elite rodando +0.3s ya indica kart malo;
+  // un Novato necesita +1.0s para descartar que sea el piloto
+  const threshold=pilotScore>=800?0.3
+                 :pilotScore>=600?0.5
+                 :pilotScore>=400?0.7
+                 :                1.0;
 
   // Calcular calidad instantánea
   let instant=null;
-  if(isRegular){
-    const delta=avg5-trackAvg;
-    if(delta<-0.5)instant='good';
-    else if(delta>0.5)instant='bad';
-  } else {
-    const delta=stintBest-trackAvg;
-    if(delta<-0.5)instant='good';
-    else if(delta>0.5)instant='bad';
-  }
+  const delta=ref-trackAvg;
+  if(delta<-threshold)instant='good';
+  else if(delta>threshold)instant='bad';
 
-  // Bloqueo: si rueda POR ENCIMA de la media, no puede ser bueno
-  // salvo que tenga una vuelta rápida < media - 0.5s (del kart actual)
+  // Bloqueo: si rueda POR ENCIMA de la media no puede ser bueno
+  // salvo que tenga una vuelta rápida clara (del kart actual)
   if(instant==='good'&&avg5>trackAvg){
-    const hasFastLap=stintBest<trackAvg-0.5;
-    if(!hasFastLap)instant=null;
+    if(stintBest>=trackAvg-threshold)instant=null;
   }
 
-  // Malo si rueda +2.0s más lento que la vuelta rápida del kart actual
+  // Malo si rueda +2.0s más lento que su mejor vuelta (degradación mecánica)
   if(avg5>stintBest+2.0)instant='bad';
 
   // Si no es bueno ni malo → neutro
