@@ -390,32 +390,40 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     return `${labels[manual]} (manual)`;
   }
 
-  // Vueltas limpias del KART ACTUAL (desde el último pit out)
   const state=EnSession.kartAutoState?.[dorsal];
   const stintStartIdx=state?.stintStartIdx||0;
   const stintLaps=(e.lapHistory||[]).slice(stintStartIdx);
   const cleanStint=_enCleanLaps(stintLaps);
-  const fewData=cleanStint.length<5;
-  const fewDataNote=fewData?`\n⚠ Datos provisionales (${cleanStint.length}/5 vueltas del kart actual)`:'';
+  const fewDataNote=cleanStint.length<5?`\n⚠ Datos provisionales (${cleanStint.length}/5 vueltas del kart actual)`:'';
 
   const avg5=_enAvg5(e.lapHistory);
-  if(!avg5||!trackAvg){
+  if(!avg5||!trackAvg)
     return `SIN DATOS\nVueltas del kart actual: ${cleanStint.length} (necesita 5)`;
-  }
-  const cleanH=_enCleanLaps(e.lapHistory);
-  const last5H=cleanH.slice(-5);
-  const consRange=last5H.length>=2?(Math.max(...last5H)-Math.min(...last5H)):null;
-  const isRegular=consRange!==null&&consRange<0.5;
+
+  const stintBest=cleanStint.length?Math.min(...cleanStint):null;
+  const pilotScore=_enPilotRatings[e.name]??null;
+  const isReliable=pilotScore!=null?pilotScore>=600:false;
+  const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
+  const ref=isReliable?avg5:stintBest;
+  const delta=ref!=null?(ref-trackAvg):null;
+  const deltaStr=delta!=null?`${delta>=0?'+':''}${delta.toFixed(3)}s`:'—';
+
   const effective=_enEffectiveQuality(dorsal, e, trackAvg);
-  const labels={good:'BUENO',neutral:'NEUTRO',bad:'MALO'};
-  const label=labels[effective]||'SIN DATOS';
-  if(isRegular){
-    const delta=(avg5-trackAvg).toFixed(3);
-    return `${label} (auto)\nM5v: ${_enFmt(avg5)} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto regular (rango ${consRange.toFixed(2)}s)${fewDataNote}`;
-  } else {
-    const best=e.bestLap;
-    const delta=best?(best-trackAvg).toFixed(3):'—';
-    return `${label} (auto)\nMejor: ${best?_enFmt(best):'—'} · Media: ${_enFmt(trackAvg)}\nDelta: ${delta>0?'+':''}${delta}s (umbral: ±0.5s)\nPiloto ${consRange>1?'errático':'irregular'} (rango ${consRange!==null?consRange.toFixed(2):'—'}s) → evalúa mejor vuelta\nM5v: ${_enFmt(avg5)} (no fiable)${fewDataNote}`;
-  }
+  const label={good:'BUENO',neutral:'NEUTRO',bad:'MALO'}[effective]||'SIN DATOS';
+
+  const pilotLabel=pilotScore>=800?'Elite'
+                  :pilotScore>=600?'Avanzado'
+                  :pilotScore>=400?'Intermedio'
+                  :pilotScore>=200?'Novato'
+                  :pilotScore!=null?'Principiante'
+                  :'Sin datos';
+  const pilotLine=pilotScore!=null
+    ?`Piloto: ${pilotLabel} (${pilotScore}) · umbral ±${threshold}s`
+    :`Piloto: sin score histórico · umbral ±${threshold}s`;
+  const refLine=isReliable
+    ?`Referencia: M5v ${_enFmt(avg5)} (piloto fiable)`
+    :`Referencia: mejor vuelta ${stintBest?_enFmt(stintBest):'—'} (piloto no fiable / sin datos)`;
+
+  return `${label} (auto)\n${pilotLine}\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${fewDataNote}`;
 }
 
