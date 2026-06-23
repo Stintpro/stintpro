@@ -36,6 +36,56 @@ async function _enFetchPilotHistory(karts, slug) {
   _enPilotHistoryFetching = false;
 }
 
+// ── Ratings de pilotos — score 0-1000 por circuito ───────────────────────
+// Cargado del logger si disponible, si no del caché localStorage (7 días)
+let _enPilotRatings = {};        // name → score (número o null)
+let _enPilotRatingsFetching = false;
+const _RATINGS_TTL = 7 * 24 * 3600 * 1000;
+
+async function _enFetchPilotRatings(slug) {
+  if (_enPilotRatingsFetching) return;
+
+  // Intentar del logger si está disponible
+  if (Logger?._serverUrl) {
+    try {
+      _enPilotRatingsFetching = true;
+      const res = await fetch(`${Logger._serverUrl}/api/circuit/${slug}/pilot-ratings`, {
+        headers: Logger._apiKey ? { 'X-API-Key': Logger._apiKey } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const map = Object.fromEntries(data.map(p => [p.name, p.score]));
+        _enPilotRatings = map;
+        // Guardar en caché para cuando no haya logger
+        try {
+          localStorage.setItem(`stintpro_ratings_${slug}`, JSON.stringify({ ts: Date.now(), data: map }));
+        } catch(e) {}
+        _enPilotRatingsFetching = false;
+        return;
+      }
+    } catch(e) {}
+    _enPilotRatingsFetching = false;
+  }
+
+  // Fallback: caché localStorage
+  try {
+    const raw = localStorage.getItem(`stintpro_ratings_${slug}`);
+    if (raw) {
+      const { ts, data } = JSON.parse(raw);
+      if (Date.now() - ts < _RATINGS_TTL) { _enPilotRatings = data; return; }
+    }
+  } catch(e) {}
+}
+
+function _enScoreColor(score) {
+  if (score == null) return '#475569';
+  if (score >= 800)  return '#22c55e';
+  if (score >= 600)  return '#84cc16';
+  if (score >= 400)  return '#fbbf24';
+  if (score >= 200)  return '#f97316';
+  return '#ef4444';
+}
+
 // ── Configuración del box (persistente en la sesión) ──────────────────────
 const EnBox = {
   config:         { type:'line', positions:4, columns:2 },

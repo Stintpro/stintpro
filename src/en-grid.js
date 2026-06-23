@@ -42,6 +42,12 @@ function _enRender(){
     if(cfg?.slug) _enFetchPilotHistory(eq, cfg.slug);
   }
 
+  // Cargar ratings de pilotos (logger o caché localStorage)
+  if(!Object.keys(_enPilotRatings).length){
+    const cfg=window.AppState?.config;
+    if(cfg?.slug) _enFetchPilotRatings(cfg.slug);
+  }
+
   try{
     const body=el.querySelector('#en-grid-body');
     if(body)body.innerHTML=_enRenderRows(eq, trackAvg, bestSess, leader, myDorsal);
@@ -355,7 +361,7 @@ function _enRenderRow(e, d){
       <div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>
       <div class="sp-gap">${d.gapHtml}</div>
       <div class="sp-gap">${e.interval||'—'}</div>
-      <div class="sp-cons" style="font-size:9px;cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)">${d.cons?`<span style="color:${d.cons.color}">${d.cons.label}</span>`:'—'}</div>
+      <div class="sp-cons">${(()=>{const s=_enPilotRatings[e.name];return s!=null?`<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>`:'<span style="color:#2d2f38">—</span>';})()}</div>
       <div class="sp-pitc">${e.standsCount||0}</div>
       <div class="sp-lapbar ${d.barClass}" id="en-bar-${e.dorsal}" style="width:${d.barPct}%"></div>
     </div>
@@ -574,7 +580,7 @@ function _enTheadHtml(){
     <span>Δ Pista</span>
     <span>Gap</span>
     <span>Int</span>
-    <span>Consist.</span>
+    <span>Score</span>
     <span>Pit</span>`;
 }
 
