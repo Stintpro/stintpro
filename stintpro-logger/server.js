@@ -52,7 +52,7 @@ const monitors = new Map(); // slug → CircuitMonitor
 function startMonitors() {
   for (const cfg of (config.circuits || [])) {
     if (!cfg.slug) continue;
-    const mon = new CircuitMonitor(cfg);
+    const mon = new CircuitMonitor(cfg, _computePilotRatings);
     monitors.set(cfg.slug, mon);
     mon.start();
   }

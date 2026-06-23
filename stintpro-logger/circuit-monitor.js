@@ -8,7 +8,8 @@ const db         = require('./db');
 const BROADCAST_INTERVAL_MS = 200; // throttle live updates a 5 fps
 
 class CircuitMonitor {
-  constructor(cfg) {
+  constructor(cfg, computeRatings) {
+    this._computeRatings = computeRatings || null;
     this.slug      = cfg.slug;
     this.port      = cfg.port || 7913;
     this.name      = cfg.name || cfg.slug;
@@ -282,6 +283,9 @@ class CircuitMonitor {
     }
 
     const snapshot = { ...state, pitEvents: [...this.pitEvents] };
+    if (this._computeRatings) {
+      try { snapshot.pilotRatings = this._computeRatings(this.slug); } catch(e) {}
+    }
     try { ws.send(JSON.stringify({ type: 'history', snapshot })); } catch(e) {}
   }
 

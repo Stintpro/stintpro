@@ -992,6 +992,12 @@ window.showEnduranceDashboard=function(cfg){
           }catch(e){}
         }
 
+        // Cargar ratings del snapshot del logger (cross-device, sin fetch adicional)
+        if(data._isHistory && data.pilotRatings && Array.isArray(data.pilotRatings)){
+          const map=Object.fromEntries(data.pilotRatings.map(p=>[p.name,p.score]));
+          if(Object.keys(map).length) _enPilotRatings=map;
+        }
+
         // Reconstruir stintStartIdx desde stintLapCount del snapshot del logger
         // stintLapCount = vueltas completadas por el kart actual desde el último pit out
         if(data._isHistory){
