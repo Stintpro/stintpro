@@ -368,6 +368,123 @@ app.get('/api/circuit/:slug/pilots', (req, res) => {
   res.json(pilots);
 });
 
+// Rating de pilotos por circuito (puntuación 0-1000)
+function _computePilotRatings(slug) {
+  const rows = db.getPilotSessionsByCircuit(slug);
+
+  function validName(n) {
+    if (!n || typeof n !== 'string') return false;
+    const s = n.trim();
+    if (s.length < 3) return false;
+    if (/^\d+$/.test(s)) return false;
+    if (/^kart\s*\d+$/i.test(s)) return false;
+    if (/^(equipo|team|piloto|driver)\s*\d*$/i.test(s)) return false;
+    if (/^\(sin nombre\)$/i.test(s)) return false;
+    return true;
+  }
+
+  const validRows = rows.filter(r => validName(r.name));
+  if (!validRows.length) return [];
+
+  // Récord absoluto del circuito = mejor vuelta histórica de cualquier piloto
+  const circuitRecord = Math.min(...validRows.map(r => r.best_ms));
+
+  // Agrupar por sesión para calcular posiciones relativas
+  const bySession = {};
+  for (const r of validRows) {
+    if (!bySession[r.session_id]) bySession[r.session_id] = [];
+    bySession[r.session_id].push(r);
+  }
+  for (const sid of Object.keys(bySession)) {
+    bySession[sid].sort((a, b) => a.best_ms - b.best_ms);
+  }
+
+  // Agregar por piloto
+  const pilotMap = {};
+  for (const r of validRows) {
+    const key = r.name.trim();
+    if (!pilotMap[key]) pilotMap[key] = { name: key, sessions: [], total_laps: 0 };
+    const rank = bySession[r.session_id];
+    const pos  = rank.findIndex(x => x.name === r.name) + 1;
+    pilotMap[key].sessions.push({ best_ms: r.best_ms, laps: r.laps, position: pos, total: rank.length });
+    pilotMap[key].total_laps += r.laps;
+  }
+
+  // 12% sobre el récord = 0 puntos de pace (calibrable según circuito)
+  const PACE_FLOOR = 0.12;
+  const MIN_LAPS   = 10;
+
+  const results = [];
+
+  for (const p of Object.values(pilotMap)) {
+    const pilot_best = Math.min(...p.sessions.map(s => s.best_ms));
+    const n_sessions = p.sessions.length;
+    const total_laps = p.total_laps;
+
+    if (total_laps < MIN_LAPS) {
+      results.push({
+        name: p.name, score: null, tier: 'Sin datos',
+        pace_score: null, position_score: null, consistency_score: null,
+        pilot_best_ms: pilot_best, circuit_record_ms: circuitRecord,
+        gap_to_record_pct: null, session_count: n_sessions, total_laps,
+      });
+      continue;
+    }
+
+    // ── Componente 1: Pace (0-500) ────────────────────────────────────────
+    // Qué tan cerca está la mejor vuelta del piloto del récord del circuito
+    const pace_raw   = (pilot_best - circuitRecord) / circuitRecord;
+    const pace_score = Math.round(Math.max(0, 1 - pace_raw / PACE_FLOOR) * 500);
+
+    // ── Componente 2: Posición (0-300) ────────────────────────────────────
+    // Percentil medio de posición en sesiones con ≥3 pilotos
+    const compSessions = p.sessions.filter(s => s.total >= 5);
+    let position_score = 150; // neutro si no hay sesiones comparables
+    if (compSessions.length > 0) {
+      const avgPct = compSessions.reduce((sum, s) =>
+        sum + (1 - (s.position - 1) / Math.max(1, s.total - 1)), 0
+      ) / compSessions.length;
+      position_score = Math.round(avgPct * 300);
+    }
+
+    // ── Componente 3: Consistencia (0-200) ───────────────────────────────
+    // Baja varianza del pace entre sesiones = piloto estable
+    let consistency_score = 100; // neutro si solo 1 sesión
+    if (n_sessions >= 2) {
+      const paces  = p.sessions.map(s => (s.best_ms - circuitRecord) / circuitRecord);
+      const mean   = paces.reduce((a, b) => a + b, 0) / paces.length;
+      const stddev = Math.sqrt(paces.reduce((a, b) => a + (b - mean) ** 2, 0) / paces.length);
+      const cv     = stddev / (mean + 0.001);
+      consistency_score = Math.round(Math.max(0, 1 - cv / 0.3) * 200);
+    }
+
+    const score = pace_score + position_score + consistency_score;
+    results.push({
+      name: p.name,
+      score,
+      pace_score,
+      position_score,
+      consistency_score,
+      pilot_best_ms:     pilot_best,
+      circuit_record_ms: circuitRecord,
+      gap_to_record_pct: Math.round(pace_raw * 1000) / 10,
+      session_count:     n_sessions,
+      total_laps,
+    });
+  }
+
+  return results.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+}
+
+app.get('/api/circuit/:slug/pilot-ratings', (req, res) => {
+  try {
+    res.json(_computePilotRatings(req.params.slug));
+  } catch(e) {
+    console.error('[Logger] Error calculando ratings:', e.message);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Limpiar sesiones vacías
 app.post('/api/cleanup', httpAuth, (req, res) => {
   db.cleanupEmptySessions();

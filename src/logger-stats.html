@@ -140,6 +140,13 @@ a{color:#5b8dee;text-decoration:none}
 .pos-n{background:#1a1b1e;color:#64748b;border:1px solid #2a2d3a}
 .info-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#0d1520;border:1px solid #1d3a6e;color:#5b8dee;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;font-style:normal;line-height:1;vertical-align:middle;margin-left:6px}
 .info-btn:hover{background:#1a2d4a}
+.score-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;margin-left:7px;vertical-align:middle;font-family:monospace;flex-shrink:0}
+.score-nd{background:#1a1b1e;color:#475569}
+.score-0{background:#2d0a0a;color:#ef4444}
+.score-1{background:#2d1508;color:#f97316}
+.score-2{background:#2d2408;color:#fbbf24}
+.score-3{background:#1a2808;color:#84cc16}
+.score-4{background:#052e16;color:#22c55e}
 
 /* Empty / loading */
 .empty{color:#475569;font-size:13px;padding:24px;text-align:center}
@@ -198,6 +205,7 @@ let _currentSessions = [];
 let _currentBest = [];
 let _currentPilots = [];
 let _openPilots = new Set();
+let _currentRatings = {};
 
 // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -278,14 +286,18 @@ async function selectCircuit(slug) {
   setMain('<div class="loading">Cargando...</div>');
 
   try {
-    const [sessions, bestRaw, pilotsRaw] = await Promise.all([
+    const [sessions, bestRaw, pilotsRaw, ratingsRaw] = await Promise.all([
       api(`/api/sessions/${slug}`),
       api(`/api/circuit/${slug}/history`).catch(() => []),
       api(`/api/circuit/${slug}/pilots`).catch(() => []),
+      api(`/api/circuit/${slug}/pilot-ratings`).catch(() => []),
     ]);
     _currentSessions = sessions;
     _currentBest = Array.isArray(bestRaw) ? bestRaw : [];
     _currentPilots = Array.isArray(pilotsRaw) ? pilotsRaw : [];
+    _currentRatings = {};
+    for (const r of (Array.isArray(ratingsRaw) ? ratingsRaw : []))
+      _currentRatings[r.name] = r.score;
     renderCircuitView(slug);
   } catch(e) {
     setMain(`<div class="empty">Error: ${e.message}</div>`);
@@ -446,7 +458,7 @@ function renderPilotsTab() {
     return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}" data-name="${esc(p.name)}">
       <div class="pilot-hdr${isOpen?' open':''}" style="grid-template-columns:${colDef}" onclick="handlePilotClick(event,${i})">
         ${_editMode ? `<input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})">` : ''}
-        <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}<span class="score-badge ${scoreClass(_currentRatings[p.name])}">${_currentRatings[p.name] ?? '—'}</span></div>
         <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div></div>
         <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div></div>
         <div class="ph-col"><div class="ph-val">${p.session_count}</div></div>
@@ -814,6 +826,15 @@ function isValidName(n) {
   if (/^(equipo|team|piloto|driver)\s*\d*$/i.test(s)) return false; // genéricos
   if (/^\(sin nombre\)$/i.test(s)) return false;
   return true;
+}
+
+function scoreClass(score) {
+  if (score === null || score === undefined) return 'score-nd';
+  if (score >= 800) return 'score-4';
+  if (score >= 600) return 'score-3';
+  if (score >= 400) return 'score-2';
+  if (score >= 200) return 'score-1';
+  return 'score-0';
 }
 
 function esc(s) {
