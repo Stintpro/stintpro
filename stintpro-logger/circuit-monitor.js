@@ -22,6 +22,9 @@ class CircuitMonitor {
     // Subscriptores WebSocket del dashboard
     this.subscribers = new Set();
 
+    // Subscriptores piloto: Map dorsal → Set de ws
+    this.pilotSubscribers = new Map();
+
     // Estado de sesión
     this.sessionId  = null;
     this.pitEvents  = [];   // eventos de pit de la sesión actual (para snapshot)
@@ -166,6 +169,37 @@ class CircuitMonitor {
       equipos: state.equipos.map(e => ({ ...e, lapHistory: (e.lapHistory || []).slice(-10) })),
     };
     this._broadcast({ type: 'live', data: liveData });
+
+    // Emitir datos filtrados a subscriptores piloto
+    this._broadcastPilots(state);
+  }
+
+  _broadcastPilots(state) {
+    if (!this.pilotSubscribers.size) return;
+    for (const [dorsal, clients] of this.pilotSubscribers) {
+      if (!clients.size) continue;
+      const kart = state.equipos.find(e => String(e.dorsal) === String(dorsal));
+      if (!kart) continue;
+
+      // Calcular gapBehind: interval del kart en pos+1
+      const sorted = [...state.equipos].sort((a, b) => (a.pos || 999) - (b.pos || 999));
+      const myIdx  = sorted.findIndex(e => String(e.dorsal) === String(dorsal));
+      const behind = myIdx >= 0 && myIdx + 1 < sorted.length ? sorted[myIdx + 1] : null;
+
+      const msg = JSON.stringify({
+        type:       'pilot',
+        pos:        kart.pos,
+        gap:        kart.gap,
+        interval:   kart.interval,
+        gapBehind:  behind ? behind.interval : null,
+        lastLap:    kart.lastLap,
+        pit:        kart.pit,
+      });
+
+      for (const ws of clients) {
+        if (ws.readyState === 1) try { ws.send(msg); } catch(e) {}
+      }
+    }
   }
 
   _onSessionEnd() {
@@ -196,6 +230,16 @@ class CircuitMonitor {
     ws.on('error', () => this.subscribers.delete(ws));
     // Enviar snapshot histórico completo de inmediato
     this._sendHistoryTo(ws);
+  }
+
+  subscribePilot(ws, dorsal) {
+    const key = String(dorsal);
+    if (!this.pilotSubscribers.has(key)) this.pilotSubscribers.set(key, new Set());
+    const clients = this.pilotSubscribers.get(key);
+    clients.add(ws);
+    ws.on('close', () => clients.delete(ws));
+    ws.on('error', () => clients.delete(ws));
+    ws.send(JSON.stringify({ type: 'pilot_ack', slug: this.slug, dorsal: key }));
   }
 
   _sendHistoryTo(ws) {

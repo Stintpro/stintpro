@@ -68,7 +68,14 @@ class ApexParser {
 
         if (colMap.dr) {
           const c = cell(colMap.dr);
-          if (c) { const n = c.text.trim(); if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) kg.name = n; }
+          if (c) {
+            const n = c.text.trim();
+            if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) {
+              const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
+              if (pm) { kg.name = pm[1].trim(); }
+              else { kg.teamName = n; }
+            }
+          }
         }
 
         if (colMap.blp) {

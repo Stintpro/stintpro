@@ -128,10 +128,12 @@ function cleanupEmptySessions() {
 }
 
 function deleteSession(sessionId) {
-  db.run(`DELETE FROM laps        WHERE session_id=${sessionId}`);
-  db.run(`DELETE FROM pit_events  WHERE session_id=${sessionId}`);
-  db.run(`DELETE FROM snapshots   WHERE session_id=${sessionId}`);
-  db.run(`DELETE FROM sessions    WHERE id=${sessionId}`);
+  for (const sql of [
+    'DELETE FROM laps       WHERE session_id=?',
+    'DELETE FROM pit_events WHERE session_id=?',
+    'DELETE FROM snapshots  WHERE session_id=?',
+    'DELETE FROM sessions   WHERE id=?',
+  ]) { const s = db.prepare(sql); s.run([sessionId]); s.free(); }
   _save();
 }
 
@@ -146,10 +148,10 @@ function insertLap(sessionId, dorsal, name, lapTimeMs, lapNumber, timestamp) {
 }
 
 function getLapsBySession(sessionId) {
-  const r = db.exec(
-    `SELECT dorsal,name,lap_time_ms,lap_number,timestamp FROM laps WHERE session_id=${sessionId} ORDER BY timestamp ASC`
+  return _query(
+    'SELECT dorsal,name,lap_time_ms,lap_number,timestamp FROM laps WHERE session_id=? ORDER BY timestamp ASC',
+    [sessionId]
   );
-  return _rows(r);
 }
 
 // ── Pit events ────────────────────────────────────────────────────────────
@@ -163,10 +165,10 @@ function insertPitEvent(sessionId, dorsal, eventType, standsCount, timestamp) {
 }
 
 function getPitEventsBySession(sessionId) {
-  const r = db.exec(
-    `SELECT dorsal,event_type,stands_count,timestamp FROM pit_events WHERE session_id=${sessionId} ORDER BY timestamp ASC`
+  return _query(
+    'SELECT dorsal,event_type,stands_count,timestamp FROM pit_events WHERE session_id=? ORDER BY timestamp ASC',
+    [sessionId]
   );
-  return _rows(r);
 }
 
 // ── Snapshots ─────────────────────────────────────────────────────────────
@@ -192,38 +194,38 @@ function getAllSessions() {
 }
 
 function getCircuitSessions(slug, limit = 50) {
-  const s = slug.replace(/'/g, "''");
-  const r = db.exec(
+  return _query(
     `SELECT s.id, s.slug, s.circuit_name, s.started_at, s.ended_at, s.is_active,
             COUNT(l.id) as lap_count
      FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
-     WHERE s.slug='${s}'
-     GROUP BY s.id ORDER BY s.id DESC LIMIT ${limit}`
+     WHERE s.slug=?
+     GROUP BY s.id ORDER BY s.id DESC LIMIT ?`,
+    [slug, limit]
   );
-  return _rows(r);
 }
 
 function deletePilotFromCircuit(slug, name) {
-  const s = slug.replace(/'/g, "''");
-  const n = (name || '').replace(/'/g, "''");
-  db.run(`DELETE FROM laps WHERE name='${n}' AND session_id IN (SELECT id FROM sessions WHERE slug='${s}')`);
+  const stmt = db.prepare(
+    'DELETE FROM laps WHERE name=? AND session_id IN (SELECT id FROM sessions WHERE slug=?)'
+  );
+  stmt.run([name || '', slug]);
+  stmt.free();
   _save();
 }
 
 function mergePilotsInCircuit(slug, names, target) {
-  const s = slug.replace(/'/g, "''");
-  const t = (target || '').replace(/'/g, "''");
-  const others = (names || []).filter(n => n !== target).map(n => n.replace(/'/g, "''"));
+  const others = (names || []).filter(n => n !== target);
   if (!others.length) return;
-  const inList = others.map(n => `'${n}'`).join(',');
-  db.run(`UPDATE laps SET name='${t}'
-          WHERE name IN (${inList}) AND session_id IN (SELECT id FROM sessions WHERE slug='${s}')`);
+  const stmt = db.prepare(
+    'UPDATE laps SET name=? WHERE name=? AND session_id IN (SELECT id FROM sessions WHERE slug=?)'
+  );
+  for (const name of others) { stmt.run([target, name, slug]); }
+  stmt.free();
   _save();
 }
 
 function searchPilotsGlobal(query) {
-  const q = query.replace(/'/g, "''");
-  const r = db.exec(`
+  return _query(`
     SELECT s.slug, s.circuit_name, l.name,
            MIN(l.lap_time_ms) as best_ms,
            CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
@@ -231,44 +233,41 @@ function searchPilotsGlobal(query) {
            COUNT(DISTINCT l.session_id) as session_count
     FROM laps l JOIN sessions s ON s.id=l.session_id
     WHERE l.lap_time_ms BETWEEN 20000 AND 300000
-      AND UPPER(l.name) LIKE UPPER('%${q}%')
+      AND UPPER(l.name) LIKE UPPER(?)
     GROUP BY s.slug, l.name
     ORDER BY s.slug, best_ms ASC
-  `);
-  return _rows(r);
+  `, [`%${query}%`]);
 }
 
 function getTotalLapsByCircuit(slug) {
-  const s = slug.replace(/'/g, "''");
-  const r = db.exec(`SELECT COUNT(*) as n FROM laps l JOIN sessions s ON s.id=l.session_id WHERE s.slug='${s}'`);
-  return r.length ? (r[0].values[0][0] || 0) : 0;
+  const rows = _query(
+    'SELECT COUNT(*) as n FROM laps l JOIN sessions s ON s.id=l.session_id WHERE s.slug=?',
+    [slug]
+  );
+  return rows.length ? (rows[0].n || 0) : 0;
 }
 
 function getPilotSessionsByCircuit(slug) {
-  const s = slug.replace(/'/g, "''");
-  const r = db.exec(`
+  return _query(`
     SELECT l.name, l.session_id, s.started_at,
            MIN(l.lap_time_ms) as best_ms,
            CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
            COUNT(*) as laps
     FROM laps l JOIN sessions s ON s.id=l.session_id
-    WHERE s.slug='${s}' AND l.lap_time_ms BETWEEN 20000 AND 300000
+    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
     GROUP BY l.name, l.session_id
     ORDER BY s.started_at DESC
-  `);
-  return _rows(r);
+  `, [slug]);
 }
 
 function getBestLapsByCircuit(slug) {
-  const s = slug.replace(/'/g, "''");
-  const r = db.exec(`
+  return _query(`
     SELECT l.dorsal, l.name, MIN(l.lap_time_ms) as best_ms, COUNT(*) as total_laps,
            s.circuit_name, s.started_at
     FROM laps l JOIN sessions s ON s.id=l.session_id
-    WHERE s.slug='${s}' AND l.lap_time_ms BETWEEN 20000 AND 300000
+    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
     GROUP BY l.dorsal, l.name ORDER BY best_ms ASC LIMIT 100
-  `);
-  return _rows(r);
+  `, [slug]);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -279,6 +278,15 @@ function _rows(result) {
   return result[0].values.map(row =>
     Object.fromEntries(cols.map((c, i) => [c, row[i]]))
   );
+}
+
+function _query(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
 }
 
 module.exports = {

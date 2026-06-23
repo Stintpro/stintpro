@@ -18,13 +18,32 @@ const PORT    = parseInt(process.env.PORT || config.port || config.server?.httpP
 
 const app = express();
 app.use(express.json());
+const ALLOWED_ORIGINS = new Set([
+  'https://stintpro.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:8080',
+  'null', // Electron (file:// origin)
+]);
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin',  '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
   if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
+
+function httpAuth(req, res, next) {
+  if (!API_KEY) return next();
+  const key = req.headers['x-api-key'] || req.query.apikey;
+  if (key !== API_KEY) return res.status(401).json({ error: 'No autorizado' });
+  next();
+}
 
 // ── Monitores por circuito ────────────────────────────────────────────────
 
@@ -184,7 +203,7 @@ app.get('/api/session/:sessionId/laps', (req, res) => {
 });
 
 // Borrar una sesión y todos sus datos
-app.delete('/api/sessions/:id', (req, res) => {
+app.delete('/api/sessions/:id', httpAuth, (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
   db.deleteSession(id);
@@ -192,7 +211,7 @@ app.delete('/api/sessions/:id', (req, res) => {
 });
 
 // Toggle grabación de un circuito
-app.post('/api/circuit/:slug/recording', (req, res) => {
+app.post('/api/circuit/:slug/recording', httpAuth, (req, res) => {
   const mon = monitors.get(req.params.slug);
   if (!mon) return res.status(404).json({ error: 'Circuito no encontrado' });
   const enabled = req.body?.enabled !== false;
@@ -219,7 +238,7 @@ app.get('/api/pilots/search', (req, res) => {
 });
 
 // Borrar pilotos de un circuito (body: { names: ["Piloto A", "Piloto B"] })
-app.delete('/api/circuit/:slug/pilots', (req, res) => {
+app.delete('/api/circuit/:slug/pilots', httpAuth, (req, res) => {
   const names = req.body?.names;
   if (!Array.isArray(names) || !names.length) return res.status(400).json({ error: 'names requerido' });
   for (const name of names) db.deletePilotFromCircuit(req.params.slug, name);
@@ -227,7 +246,7 @@ app.delete('/api/circuit/:slug/pilots', (req, res) => {
 });
 
 // Unificar pilotos duplicados (body: { names: ["Variante A", "Variante B"], target: "Nombre final" })
-app.post('/api/circuit/:slug/pilots/merge', (req, res) => {
+app.post('/api/circuit/:slug/pilots/merge', httpAuth, (req, res) => {
   const names  = req.body?.names;
   const target = (req.body?.target || '').trim();
   if (!Array.isArray(names) || names.length < 2) return res.status(400).json({ error: 'names requiere 2+ nombres' });
@@ -350,7 +369,7 @@ app.get('/api/circuit/:slug/pilots', (req, res) => {
 });
 
 // Limpiar sesiones vacías
-app.get('/api/cleanup', (req, res) => {
+app.post('/api/cleanup', httpAuth, (req, res) => {
   db.cleanupEmptySessions();
   res.json({ ok: true });
 });
@@ -384,7 +403,8 @@ app.get('/stats', (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch(e) {
-    res.status(500).send(`<pre>Error cargando logger-stats.html: ${e.message}</pre>`);
+    console.error('[Logger] Error cargando logger-stats.html:', e.message);
+    res.status(500).send('<pre>Error interno del servidor</pre>');
   }
 });
 
@@ -458,6 +478,8 @@ app.get('/recordings', (req, res) => {
 
 <script>
 const $ = id => document.getElementById(id);
+const API_KEY = '${API_KEY}';
+const AUTH_HEADERS = API_KEY ? { 'Content-Type': 'application/json', 'X-API-Key': API_KEY } : { 'Content-Type': 'application/json' };
 document.getElementById('server-url').textContent = location.host;
 
 function toast(msg, ok = true) {
@@ -502,7 +524,7 @@ async function loadCircuits() {
 async function toggleRawLog(slug, enable) {
   try {
     const r = await fetch(\`/api/circuit/\${slug}/raw-log\`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: AUTH_HEADERS,
       body: JSON.stringify({ enabled: enable }),
     });
     if (r.ok) {
@@ -567,7 +589,7 @@ app.get('/api/recordings', (req, res) => {
       })
       .sort((a, b) => b.mtime - a.mtime);
     res.json(files);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { console.error('[Logger] Error listando grabaciones:', e.message); res.status(500).json({ error: 'Error interno del servidor' }); }
 });
 
 // Descargar una grabación
@@ -580,7 +602,7 @@ app.get('/api/recordings/:file', (req, res) => {
 });
 
 // Activar/desactivar raw log de un circuito
-app.post('/api/circuit/:slug/raw-log', (req, res) => {
+app.post('/api/circuit/:slug/raw-log', httpAuth, (req, res) => {
   const mon = monitors.get(req.params.slug);
   if (!mon) return res.status(404).json({ error: 'Circuito no encontrado' });
   const enabled = req.body?.enabled !== false;
@@ -593,23 +615,42 @@ app.post('/api/circuit/:slug/raw-log', (req, res) => {
 const server = http.createServer(app);
 const wss    = new WebSocketServer({ server });
 
-function checkAuth(req) {
-  if (!API_KEY) return true;
-  const url = new URL(req.url, 'http://localhost');
-  return url.searchParams.get('apikey') === API_KEY;
-}
+wss.on('connection', (ws) => {
+  ws._authed = !API_KEY; // si no hay key configurada, auto-autenticado
 
-wss.on('connection', (ws, req) => {
-  if (!checkAuth(req)) {
-    ws.send(JSON.stringify({ type: 'error', msg: 'auth_failed', fatal: true }));
-    ws.close();
-    return;
-  }
+  // Timeout: si no llega auth en 10s, cerrar
+  const authTimeout = API_KEY
+    ? setTimeout(() => {
+        if (!ws._authed) {
+          ws.send(JSON.stringify({ type: 'error', msg: 'auth_timeout', fatal: true }));
+          ws.close();
+        }
+      }, 10000)
+    : null;
 
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); }
     catch(e) { ws.send(JSON.stringify({ type: 'error', msg: 'json_invalido' })); return; }
+
+    // auth — primer mensaje obligatorio cuando hay API_KEY
+    if (msg.type === 'auth') {
+      if (!API_KEY || msg.apikey === API_KEY) {
+        ws._authed = true;
+        if (authTimeout) clearTimeout(authTimeout);
+        ws.send(JSON.stringify({ type: 'auth_ok' }));
+      } else {
+        ws.send(JSON.stringify({ type: 'error', msg: 'auth_failed', fatal: true }));
+        ws.close();
+      }
+      return;
+    }
+
+    if (!ws._authed) {
+      ws.send(JSON.stringify({ type: 'error', msg: 'auth_required', fatal: true }));
+      ws.close();
+      return;
+    }
 
     // list — estado de todos los circuitos
     if (msg.type === 'list') {
@@ -632,6 +673,44 @@ wss.on('connection', (ws, req) => {
         return;
       }
       mon.subscribe(ws);
+      return;
+    }
+
+    // pilot — subscripción filtrada por dorsal para la app del piloto
+    if (msg.type === 'pilot') {
+      const slug   = (msg.slug   || '').trim();
+      const dorsal = (msg.dorsal || '').toString().trim();
+      const mon    = monitors.get(slug);
+      if (!mon) {
+        ws.send(JSON.stringify({ type: 'error', msg: `Circuito '${slug}' no encontrado` }));
+        return;
+      }
+      if (!dorsal) {
+        ws.send(JSON.stringify({ type: 'error', msg: 'dorsal requerido' }));
+        return;
+      }
+      mon.subscribePilot(ws, dorsal);
+      return;
+    }
+
+    // team_msg — mensaje del equipo al piloto
+    if (msg.type === 'team_msg') {
+      const slug   = (msg.slug   || '').trim();
+      const dorsal = (msg.dorsal || '').toString().trim();
+      const text   = (msg.text   || '').trim();
+      const mon    = monitors.get(slug);
+      if (!mon || !dorsal || !text) {
+        ws.send(JSON.stringify({ type: 'error', msg: 'slug, dorsal y text requeridos' }));
+        return;
+      }
+      const clients = mon.pilotSubscribers.get(dorsal);
+      if (clients) {
+        const payload = JSON.stringify({ type: 'team_msg', text });
+        for (const c of clients) {
+          if (c.readyState === 1) try { c.send(payload); } catch(e) {}
+        }
+      }
+      ws.send(JSON.stringify({ type: 'team_msg_sent', dorsal, text }));
       return;
     }
 

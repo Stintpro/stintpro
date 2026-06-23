@@ -211,9 +211,15 @@ window.onload = () => {
 
 // ── API ───────────────────────────────────────────────────────────────────
 
-async function api(path) {
-  const sep = path.includes('?') ? '&' : '?';
-  const res = await fetch(`${_url}${path}${sep}apikey=${_key}`);
+function _authHeaders() {
+  return _key ? { 'X-API-Key': _key } : {};
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(`${_url}${path}`, {
+    ...opts,
+    headers: { ...(_authHeaders()), ...(opts.headers || {}) },
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -556,9 +562,9 @@ async function confirmMerge(names) {
   if (!target) return;
 
   try {
-    const res = await fetch(`${_url}/api/circuit/${_selected}/pilots/merge?apikey=${_key}`, {
+    const res = await fetch(`${_url}/api/circuit/${_selected}/pilots/merge`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ..._authHeaders() },
       body: JSON.stringify({ names, target }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -580,9 +586,9 @@ async function deleteSelected() {
   if (!confirm(`¿Borrar todos los datos de ${names.length} piloto${names.length !== 1 ? 's' : ''}?\n\n${names.join('\n')}\n\nEsta acción no se puede deshacer.`)) return;
 
   try {
-    const res = await fetch(`${_url}/api/circuit/${_selected}/pilots?apikey=${_key}`, {
+    const res = await fetch(`${_url}/api/circuit/${_selected}/pilots`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ..._authHeaders() },
       body: JSON.stringify({ names }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -748,8 +754,7 @@ async function deleteSession(e, id, dateStr) {
   e.stopPropagation();
   if (!confirm(`¿Borrar sesión del ${dateStr}?\nSe eliminarán todas las vueltas y eventos de pit.\n\nEsta acción no se puede deshacer.`)) return;
   try {
-    const sep = _key ? '?' : '';
-    const res = await fetch(`${_url}/api/sessions/${id}${sep}apikey=${_key}`, { method: 'DELETE' });
+    const res = await fetch(`${_url}/api/sessions/${id}`, { method: 'DELETE', headers: _authHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     if (_selected) selectCircuit(_selected);
   } catch(e) {
@@ -759,7 +764,7 @@ async function deleteSession(e, id, dateStr) {
 
 async function cleanup() {
   try {
-    await api('/api/cleanup');
+    await api('/api/cleanup', { method: 'POST' });
     alert('Sesiones vacías eliminadas.');
     if (_selected) selectCircuit(_selected);
   } catch(e) {
@@ -890,10 +895,9 @@ function renderRecordingsView(recordings, circuits) {
 
 async function toggleRawLog(slug, enable) {
   try {
-    const sep = _key ? '?' : '';
-    await fetch(`${_url}/api/circuit/${slug}/raw-log${sep}apikey=${_key}`, {
+    await fetch(`${_url}/api/circuit/${slug}/raw-log`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ..._authHeaders() },
       body: JSON.stringify({ enabled: enable }),
     });
     showRecordings();
@@ -908,10 +912,9 @@ async function toggleRecording(slug, evt) {
   if (!circ) return;
   const newVal = circ.recording === false ? true : false;
   try {
-    const sep = _key ? '?' : '';
-    await fetch(`${_url}/api/circuit/${slug}/recording${sep}apikey=${_key}`, {
+    await fetch(`${_url}/api/circuit/${slug}/recording`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ..._authHeaders() },
       body: JSON.stringify({ enabled: newVal }),
     });
     circ.recording = newVal;

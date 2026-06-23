@@ -97,6 +97,23 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
   const cfg=window.AppState?.config;
   el.innerHTML=`
   <div class="sp-header">
+    ${window.ApexConnector === window.ReplayConnector ? `
+    <div id="en-replay-bar" style="-webkit-app-region:no-drag;display:flex;align-items:center;gap:10px;padding:6px 14px;background:#0e0f11;border-bottom:0.5px solid #1a1b22;font-family:sans-serif">
+      <span style="font-size:11px;color:#a78bfa;font-weight:600;flex-shrink:0;-webkit-app-region:no-drag">📼 REPLAY</span>
+      <button data-replay-btn
+        style="-webkit-app-region:no-drag;width:24px;height:24px;border-radius:4px;border:0.5px solid #a78bfa44;background:rgba(167,139,250,0.1);color:#a78bfa;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0"
+        onclick="(function(){if(window.ReplayConnector._paused){window.ReplayConnector.resume();}else{window.ReplayConnector.pause();}})()">⏸</button>
+      <div style="-webkit-app-region:no-drag;flex:1;height:12px;display:flex;align-items:center;cursor:pointer"
+        onclick="(function(e){var r=e.currentTarget.getBoundingClientRect();var pct=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));window.ReplayConnector.seekTo(pct);})(event)">
+        <div style="width:100%;height:4px;background:#1e1f25;border-radius:2px;overflow:hidden;pointer-events:none">
+          <div data-replay-prog style="height:4px;background:#a78bfa;border-radius:2px;width:0%;transition:width 0.4s linear"></div>
+        </div>
+      </div>
+      <span data-replay-time style="font-size:10px;color:#6b7280;font-family:monospace;flex-shrink:0;-webkit-app-region:no-drag">0:00 / 0:00</span>
+      <span style="font-size:10px;color:#555;flex-shrink:0;-webkit-app-region:no-drag">vel:</span>
+      ${[1,2,5,10].map(s=>`<span data-spd="${s}" onclick="window.ReplayConnector.setSpeed(${s})" style="-webkit-app-region:no-drag;font-size:10px;font-family:monospace;padding:2px 6px;border-radius:3px;cursor:pointer;border:0.5px solid #2a2b2e;color:#6b7280">${s}×</span>`).join('')}
+    </div>
+    ` : ''}
     <div class="sp-topbar">
       <div style="display:flex;gap:5px">
       </div>

@@ -3,7 +3,9 @@ let _pitLayout   = 'fila1';
 let _myDorsal    = null;
 let _circuitMode = 'library';
 let _simMode     = false; // desactivado permanentemente
-let _connMode    = 'apex'; // 'apex' o 'logger'
+let _connMode    = 'apex'; // 'apex', 'logger' o 'replay'
+let _replayFile  = null;  // File cargado en modo replay
+let _replaySpeed = 1;     // velocidad de reproducción
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
 const _loggerApiKey = (()=>{const a=[100,98,98,98,102,57,55,55,50,99,57,102,54,57,102,100,102,99,54,102,53,54,99,102,55,98,52,49,48,56,53,97,97,50,48,57,49,98,57,53,102,57,97,101,50,56,97,54,51,48,54,57,99,57,48,97,101,55,97,48,99,51,52,102];return a.map(c=>String.fromCharCode(c)).join('');})();
 const _origApex  = window.ApexConnector; // guardar conector original
@@ -34,10 +36,13 @@ function renderSetup() {
     <div style="width:100%;max-width:500px;margin-bottom:16px;">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
         <div onclick="_connMode='apex';window.ApexConnector=_origApex;renderSetup()" style="flex:1;padding:10px;border-radius:var(--r-lg);border:0.5px solid ${_connMode==='apex'?'var(--blue)':'var(--border)'};background:${_connMode==='apex'?'var(--blue-dim)':'transparent'};cursor:pointer;text-align:center">
-          <div style="font-size:14.5px;font-weight:500;color:${_connMode==='apex'?'var(--blue)':'var(--text-2)'}">⚡ Directo a Apex</div>
+          <div style="font-size:13.5px;font-weight:500;color:${_connMode==='apex'?'var(--blue)':'var(--text-2)'}">⚡ Directo a Apex</div>
         </div>
         <div onclick="_connMode='logger';renderSetup()" style="flex:1;padding:10px;border-radius:var(--r-lg);border:0.5px solid ${_connMode==='logger'?'var(--green)':'var(--border)'};background:${_connMode==='logger'?'var(--green-dim)':'transparent'};cursor:pointer;text-align:center">
-          <div style="font-size:14.5px;font-weight:500;color:${_connMode==='logger'?'var(--green)':'var(--text-2)'}">🖥 StintPro Logger</div>
+          <div style="font-size:13.5px;font-weight:500;color:${_connMode==='logger'?'var(--green)':'var(--text-2)'}">🖥 Logger</div>
+        </div>
+        <div onclick="_connMode='replay';renderSetup()" style="flex:1;padding:10px;border-radius:var(--r-lg);border:0.5px solid ${_connMode==='replay'?'#a78bfa':'var(--border)'};background:${_connMode==='replay'?'rgba(167,139,250,0.1)':'transparent'};cursor:pointer;text-align:center">
+          <div style="font-size:13.5px;font-weight:500;color:${_connMode==='replay'?'#a78bfa':'var(--text-2)'}">📼 Replay</div>
         </div>
       </div>
       ${_connMode==='logger'?`
@@ -46,17 +51,43 @@ function renderSetup() {
         <span id="loggerStatus" style="font-size:12.5px;color:var(--text-3)"></span>
       </div>
       `:''}
+      ${_connMode==='replay'?`
+      <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="flex:1;padding:8px 12px;border-radius:6px;border:0.5px dashed #a78bfa44;background:#0e0f11;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12.5px;color:${_replayFile?'#a78bfa':'var(--text-3)'};font-family:sans-serif">
+            <span style="font-size:16px">📂</span>
+            <span>${_replayFile?_replayFile.name:'Seleccionar grabación (.ndjson)…'}</span>
+            <input type="file" accept=".ndjson" style="display:none" onchange="_onReplayFileChange(this)">
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:12px;color:var(--text-3);font-family:sans-serif;flex-shrink:0">Velocidad:</span>
+          ${[1,2,5,10].map(s=>`<div onclick="_replaySpeed=${s};renderSetup()" style="padding:4px 10px;border-radius:5px;border:0.5px solid ${_replaySpeed===s?'#a78bfa':'var(--border)'};background:${_replaySpeed===s?'rgba(167,139,250,0.15)':'transparent'};cursor:pointer;font-size:12px;color:${_replaySpeed===s?'#a78bfa':'var(--text-3)'};font-family:monospace">${s}×</div>`).join('')}
+          <div onclick="_replaySpeed=0;renderSetup()" style="padding:4px 10px;border-radius:5px;border:0.5px solid ${_replaySpeed===0?'#a78bfa':'var(--border)'};background:${_replaySpeed===0?'rgba(167,139,250,0.15)':'transparent'};cursor:pointer;font-size:12px;color:${_replaySpeed===0?'#a78bfa':'var(--text-3)'};font-family:monospace">∞</div>
+        </div>
+      </div>
+      `:''}
     </div>
   </div>`;
 }
 
+function _onReplayFileChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _replayFile = file;
+  renderSetup();
+}
+
 function selectRaceType(type) {
   _raceType = type;
-  // Activar conector según modo
   if (_connMode === 'logger') {
     window.AppState.loggerUrl = _loggerUrl;
     window.AppState.loggerApiKey = _loggerApiKey;
     window.ApexConnector = Logger;
+  } else if (_connMode === 'replay') {
+    window.ReplayConnector.speed = _replaySpeed;
+    if (_replayFile) window.ReplayConnector.loadFile(_replayFile);
+    window.ApexConnector = window.ReplayConnector;
   } else {
     window.ApexConnector = _origApex;
   }
@@ -78,6 +109,18 @@ function renderSprintSetup() {
       ${_simMode?'<span style="font-size:11.5px;padding:2px 8px;border-radius:20px;background:var(--green-dim);color:var(--green-txt);border:0.5px solid var(--green)">SIMULACIÓN</span>':''}
     </div>
 
+    ${_connMode==='replay'?`
+    <div class="sec-label">Grabación</div>
+    <div class="card" style="margin-bottom:12px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">📼</span>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-1)">${_replayFile?_replayFile.name:'Sin archivo'}</div>
+          <div style="font-size:11px;color:#a78bfa">Modo replay · ${_replaySpeed===0?'instantáneo':_replaySpeed+'×'}</div>
+        </div>
+      </div>
+    </div>
+    `:`
     <div class="sec-label">Circuito</div>
     <div class="card" style="margin-bottom:12px">
       <div style="padding:8px 14px;border-bottom:0.5px solid var(--border);display:flex;gap:6px">
@@ -108,6 +151,7 @@ function renderSprintSetup() {
         <button class="btn" onclick="testConn()">Verificar</button>
       </div>
     </div>
+    `}
 
     <div class="sec-label">Mi dorsal</div>
     <div class="card" style="margin-bottom:28px">
@@ -129,9 +173,11 @@ function renderSprintSetup() {
 }
 
 function sprintUpd() {
-  const hasCircuit = _circuitMode==='library'
-    ? !!document.getElementById('circuitSelect')?.value
-    : !!document.getElementById('apexSlug')?.value?.trim();
+  const hasCircuit = _connMode==='replay'
+    ? !!_replayFile
+    : (_circuitMode==='library'
+      ? !!document.getElementById('circuitSelect')?.value
+      : !!document.getElementById('apexSlug')?.value?.trim());
   const ok = _simMode || (_myDorsal && hasCircuit);
   const btn = document.getElementById('startBtn');
   if (btn) {
@@ -144,7 +190,8 @@ function startSprint() {
   const cfg = {
     name: 'Sesión Sprint', raceType:'sprint', simMode: _simMode,
     myDorsal: _myDorsal || '20', nKarts: 4, pitLayout: 'libre',
-    slug: getCircuitSlug(), port: getCircuitPort(), stintMin:0, stintMax:999, stops:0, pitMinTime:0,
+    slug: _connMode==='replay'?'replay':getCircuitSlug(), port: getCircuitPort(),
+    stintMin:0, stintMax:999, stops:0, pitMinTime:0,
     pilotos:[{name:'Yo',minutos:0}], duration:0
   };
   window.AppState.config = cfg;
@@ -206,6 +253,18 @@ function renderEnduranceSetup() {
       <div class="titlebar-drag"></div>
       <div style="height:56px"></div>
 
+      ${_connMode==='replay'?`
+      <div class="sec-label">Grabación</div>
+      <div class="card" style="margin-bottom:16px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">📼</span>
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text-1)">${_replayFile?_replayFile.name:'Sin archivo'}</div>
+            <div style="font-size:11px;color:#a78bfa">Modo replay · ${_replaySpeed===0?'instantáneo':_replaySpeed+'×'}</div>
+          </div>
+        </div>
+      </div>
+      `:`
       <div class="sec-label">Livetiming</div>
       <div class="card" style="margin-bottom:16px">
         <div style="padding:8px 14px;border-bottom:0.5px solid var(--border);display:flex;gap:6px">
@@ -236,6 +295,7 @@ function renderEnduranceSetup() {
           <button class="btn" onclick="testConn()">Verificar</button>
         </div>
       </div>
+      `}
 
       <button class="btn-cta" id="startBtn" onclick="startEndurance()" disabled>
         Iniciar carrera →
@@ -413,9 +473,11 @@ const REQUIRED_END=['rName'];
 
 function setupUpd() {
   const name=document.getElementById('rName')?.value.trim();
-  const hasCircuit = _circuitMode==='library'
-    ? !!document.getElementById('circuitSelect')?.value
-    : !!document.getElementById('apexSlug')?.value?.trim();
+  const hasCircuit = _connMode==='replay'
+    ? !!_replayFile
+    : (_circuitMode==='library'
+      ? !!document.getElementById('circuitSelect')?.value
+      : !!document.getElementById('apexSlug')?.value?.trim());
   REQUIRED_END.forEach(id=>{const v=document.getElementById(id)?.value?.trim();document.getElementById('ind-'+id)?.classList.toggle('ok',!!v);});
   const ok=name&&_myDorsal&&hasCircuit;
   if(document.getElementById('startBtn')) document.getElementById('startBtn').disabled=!ok;
@@ -431,7 +493,8 @@ function startEndurance() {
     name:document.getElementById('rName').value.trim(), raceType:'endurance', simMode:false,
     stintMin:0, stintMax:999, stops:0, pitMinTime:3,
     myDorsal:_myDorsal||'20', nKarts:4, pitLayout:'libre',
-    slug:getCircuitSlug(), port:getCircuitPort(), pilotos:getPilotosConfig()
+    slug:_connMode==='replay'?'replay':getCircuitSlug(), port:getCircuitPort(),
+    pilotos:getPilotosConfig()
   };
   window.AppState.config=cfg;
   window.showEnduranceDashboard(cfg);

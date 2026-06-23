@@ -32,14 +32,17 @@ const Logger = {
     try {
       const wsUrl = this._serverUrl.replace('http://', 'ws://').replace('https://', 'wss://');
       if (this.onStatus) this.onStatus('connecting', '● Conectando al logger...');
-      const wsUrlWithKey = this._apiKey ? `${wsUrl}?apikey=${this._apiKey}` : wsUrl;
-      this.ws = new WebSocket(wsUrlWithKey);
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        this.connected = true;
-        if (this.onStatus) this.onStatus('connected', '● Logger conectado');
+        // Auth como primer mensaje (sin key en URL)
+        if (this._apiKey) {
+          this.ws.send(JSON.stringify({ type: 'auth', apikey: this._apiKey }));
+        }
         // Suscribirse al circuito
         this.ws.send(JSON.stringify({ type: 'subscribe', slug: this.slug }));
+        this.connected = true;
+        if (this.onStatus) this.onStatus('connected', '● Logger conectado');
       };
 
       this.ws.onmessage = (evt) => {
@@ -90,10 +93,10 @@ const Logger = {
   async fetchPilotHistory(slug, names) {
     if (!this._serverUrl || !names.length) return {};
     try {
-      const sep = this._apiKey ? '&' : '?';
       const encoded = names.map(n => encodeURIComponent(n)).join(',');
-      const url = `${this._serverUrl}/api/circuit/${slug}/pilots/batch?names=${encoded}${sep}apikey=${this._apiKey}`;
-      const res = await fetch(url);
+      const url = `${this._serverUrl}/api/circuit/${slug}/pilots/batch?names=${encoded}`;
+      const headers = this._apiKey ? { 'X-API-Key': this._apiKey } : {};
+      const res = await fetch(url, { headers });
       if (!res.ok) return {};
       return await res.json();
     } catch(e) { return {}; }
@@ -104,10 +107,10 @@ const Logger = {
     return new Promise((resolve) => {
       try {
         const wsBase = url.replace('http://', 'ws://').replace('https://', 'wss://');
-        const wsUrl = apiKey ? `${wsBase}?apikey=${apiKey}` : wsBase;
-        const ws = new WebSocket(wsUrl);
+        const ws = new WebSocket(wsBase);
         const timer = setTimeout(() => { ws.close(); resolve(false); }, 5000);
         ws.onopen = () => {
+          if (apiKey) ws.send(JSON.stringify({ type: 'auth', apikey: apiKey }));
           ws.send(JSON.stringify({ type: 'list' }));
         };
         ws.onmessage = (evt) => {

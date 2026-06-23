@@ -124,7 +124,11 @@
       // ── Nombre ────────────────────────────────────────────────────────
       if (dtype === 'dr') {
         const n = (v || '').trim();
-        if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) k.name = n;
+        if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
+          const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
+          if (pm) { k.name = pm[1].trim(); }
+          else { k.teamName = n; }
+        }
         return;
       }
 
@@ -350,7 +354,7 @@
         .map(k => {
           if (!k.dorsal) k.dorsal = k._rowId.replace('r', '');
           return {
-            dorsal: k.dorsal, name: k.name || `#${k.dorsal}`,
+            dorsal: k.dorsal, name: k.name || `#${k.dorsal}`, teamName: k.teamName || null,
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
             lapHistory: k.lapHistory || [], gap: k.gap || '', interval: k.interval || '',
             pit: !!k.pit, pitState: k.pitState || null,
@@ -391,7 +395,11 @@
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
           if (kg.pos)                          k.pos          = kg.pos;
           if (kg.dorsal)                       k.dorsal       = kg.dorsal;
-          if (kg.name && !k.name)              k.name         = kg.name;
+          if (kg.name) {
+            const pm = kg.name.match(/^(.*?)\s*\[\d+:\d+\]$/);
+            if (pm) { if (!k.name) k.name = pm[1].trim(); }
+            else { if (!k.teamName) k.teamName = kg.name; }
+          }
           if (kg.bestLap && !k.bestLap)        k.bestLap      = kg.bestLap;
           if (kg.lastLap && !k.lastLap)        k.lastLap      = kg.lastLap;
           if (kg.tours)                        k.tours        = kg.tours;
