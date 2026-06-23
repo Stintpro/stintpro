@@ -386,12 +386,39 @@ function _computePilotRatings(slug) {
   const validRows = rows.filter(r => validName(r.name));
   if (!validRows.length) return [];
 
-  // Récord absoluto del circuito = mejor vuelta histórica de cualquier piloto
-  const circuitRecord = Math.min(...validRows.map(r => r.best_ms));
-
-  // Agrupar por sesión para calcular posiciones relativas
-  const bySession = {};
+  // ── Detección automática de sesiones lluviosas ────────────────────────────
+  // Ritmo medio ponderado por sesión (media de avg_ms ponderada por vueltas)
+  const sessionPace = {};
   for (const r of validRows) {
+    if (!sessionPace[r.session_id]) sessionPace[r.session_id] = { sum: 0, laps: 0 };
+    sessionPace[r.session_id].sum  += r.avg_ms * r.laps;
+    sessionPace[r.session_id].laps += r.laps;
+  }
+  const sessionAvgs = Object.entries(sessionPace)
+    .filter(([, d]) => d.laps >= 5)
+    .map(([sid, d]) => ({ session_id: parseInt(sid), avg: d.sum / d.laps }))
+    .sort((a, b) => a.avg - b.avg);
+
+  // Referencia seca = P25 de ritmos de sesión (sesiones rápidas → probablemente secas)
+  const dryRef = sessionAvgs.length
+    ? sessionAvgs[Math.floor(sessionAvgs.length * 0.25)].avg
+    : null;
+
+  // Sesión lluviosa: ritmo medio >8% sobre la referencia seca
+  const WET_THRESHOLD = 1.08;
+  const wetSessions = new Set(
+    dryRef
+      ? sessionAvgs.filter(s => s.avg / dryRef > WET_THRESHOLD).map(s => s.session_id)
+      : []
+  );
+
+  // Récord absoluto del circuito = mejor vuelta histórica en sesiones NO lluviosas
+  const dryRows = validRows.filter(r => !wetSessions.has(r.session_id));
+  const circuitRecord = Math.min(...(dryRows.length ? dryRows : validRows).map(r => r.best_ms));
+
+  // Agrupar por sesión para calcular posiciones relativas (solo sesiones secas)
+  const bySession = {};
+  for (const r of dryRows) {
     if (!bySession[r.session_id]) bySession[r.session_id] = [];
     bySession[r.session_id].push(r);
   }
@@ -399,9 +426,9 @@ function _computePilotRatings(slug) {
     bySession[sid].sort((a, b) => a.best_ms - b.best_ms);
   }
 
-  // Agregar por piloto
+  // Agregar por piloto usando solo sesiones secas
   const pilotMap = {};
-  for (const r of validRows) {
+  for (const r of dryRows) {
     const key = r.name.trim();
     if (!pilotMap[key]) pilotMap[key] = { name: key, sessions: [], total_laps: 0 };
     const rank = bySession[r.session_id];
