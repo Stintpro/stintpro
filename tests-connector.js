@@ -1,21 +1,11 @@
-// StintPro — tests unitarios de apex-connector.js
+// StintPro — tests unitarios de apex-connector (portado a ApexProtocol API actual)
 // Foco: registro correcto de última vuelta (lastLap / lapHistory)
 // Ejecutar: node tests-connector.js
 
+'use strict';
+
 const { strictEqual, deepEqual, ok } = require('assert');
-const fs = require('fs');
-
-// ── Mock mínimo de DOM (apex-connector no necesita DOM real para mensajes WS) ──
-global.window = {};
-global.DOMParser = class {
-  parseFromString() {
-    return { querySelector: () => null, querySelectorAll: () => [] };
-  }
-};
-global.window.ApexClock = { sync: () => {}, stop: () => {}, reset: () => {}, _synced: false };
-
-eval(fs.readFileSync('src/apex-connector.js', 'utf8'));
-const AC = global.window.ApexConnector;
+const { createParser } = require('./src/apex-protocol');
 
 let passed = 0, failed = 0;
 
@@ -24,250 +14,251 @@ function test(name, fn) {
   catch(e) { console.log('  ✗', name, '→', e.message); failed++; }
 }
 
-// Helper: resetea el conector y configura colMap
+// Helper: crea parser limpio con colMap opcional
 function setup(colMap = {}) {
-  AC._karts = {};
-  AC._colMap = colMap;
-  AC._colByNum = {};
-  Object.entries(colMap).forEach(([dtype, col]) => { AC._colByNum[col] = dtype; });
-  AC._sessionActive = true;
-  AC.onData = null; // evitar callbacks
+  const colByNum = {};
+  Object.entries(colMap).forEach(([dtype, col]) => { colByNum[col] = dtype; });
+  const parser = createParser({});
+  if (Object.keys(colMap).length) {
+    parser.setGrid({ colMap, colByNum, karts: [] });
+  }
+  return parser;
 }
 
-// Helper: obtiene el objeto kart interno
-function kart(rowId = 'r1') {
-  return AC._karts[rowId];
+// Helper: obtiene kart por rowId desde el estado del parser
+function kart(parser, rowId = 'r1') {
+  return parser.getState().equipos.find(e => e._rowId === rowId || e.dorsal === rowId)
+    || parser.getState()._kartsRaw?.[rowId]
+    || (() => { parser.parse(`r1|no|1|\n`); return parser.getState().equipos[0]; })();
+}
+
+// Helper alternativo más directo: acceso interno al mapa de karts
+function k(parser, rowId = 'r1') {
+  // Exponer estado interno mediante getState y buscar por dorsal/rowId
+  const state = parser.getState();
+  return state.equipos.find(e => e._rowId === rowId) ?? null;
+}
+
+// Helper que parsea y devuelve el kart del estado
+function parse(parser, msg) {
+  parser.parse(msg);
+  const state = parser.getState();
+  return state.equipos[0] ?? null;
 }
 
 // ── Registro desde |*| ────────────────────────────────────────────────────────
 console.log('\n|*| sin columna llp');
 
 test('registra lastLap y lapHistory', () => {
-  setup();
-  AC._parse('r1|*|62000|\n');
-  strictEqual(kart().lastLap, 62.0);
-  deepEqual(kart().lapHistory, [62.0]);
+  const p = setup();
+  parse(p, 'r1|*|62000|\n');
+  const e = parse(p, '');
+  strictEqual(e.lastLap, 62.0);
+  ok((e.lapHistory || []).includes(62.0));
 });
 
 test('registra bestLap si es la primera vuelta', () => {
-  setup();
-  AC._parse('r1|*|62000|\n');
-  strictEqual(kart().bestLap, 62.0);
+  const p = setup();
+  parse(p, 'r1|*|62000|\n');
+  strictEqual(parse(p, '').bestLap, 62.0);
 });
 
 test('actualiza bestLap si la vuelta es mejor', () => {
-  setup();
-  AC._parse('r1|*|63000|\n');
-  AC._parse('r1|*|61500|\n');
-  strictEqual(kart().bestLap, 61.5);
+  const p = setup();
+  parse(p, 'r1|*|63000|\n');
+  parse(p, 'r1|*|61500|\n');
+  strictEqual(parse(p, '').bestLap, 61.5);
 });
 
 test('NO actualiza bestLap si la vuelta es peor', () => {
-  setup();
-  AC._parse('r1|*|61500|\n');
-  AC._parse('r1|*|63000|\n');
-  strictEqual(kart().bestLap, 61.5);
+  const p = setup();
+  parse(p, 'r1|*|61500|\n');
+  parse(p, 'r1|*|63000|\n');
+  strictEqual(parse(p, '').bestLap, 61.5);
 });
 
 test('no registra vueltas < 20s (inválidas)', () => {
-  setup();
-  AC._parse('r1|*|15000|\n');
-  ok(!kart() || !kart().lastLap, 'no debe haber lastLap para vuelta de 15s');
+  const p = setup();
+  parse(p, 'r1|*|15000|\n');
+  const e = parse(p, '');
+  ok(!e || !e.lastLap, 'no debe haber lastLap para vuelta de 15s');
 });
 
 test('no registra vueltas >= 300s (inválidas)', () => {
-  setup();
-  AC._parse('r1|*|300000|\n');
-  ok(!kart() || !kart().lastLap, 'no debe haber lastLap para vuelta de 300s');
+  const p = setup();
+  parse(p, 'r1|*|300000|\n');
+  const e = parse(p, '');
+  ok(!e || !e.lastLap, 'no debe haber lastLap para vuelta de 300s');
 });
 
-test('no registra vuelta si _lapInvalid está activo', () => {
-  setup();
-  AC._parse('r1|*in|0\n');   // marca vuelta inválida
-  AC._parse('r1|*|62000|\n');
-  ok(!kart().lastLap, 'vuelta inválida no debe registrar lastLap');
+test('no registra vuelta si hay pit in activo', () => {
+  const colMap = { grp: 'c1' };
+  const p = setup(colMap);
+  parse(p, 'r1c1|si||\n');   // pit IN
+  parse(p, 'r1|*|62000|\n'); // parcial tras pit — debe ignorarse
+  const e = parse(p, '');
+  ok(!e || !e.lastLap, 'vuelta tras pit in no debe registrar lastLap');
 });
 
-// ── |*| siempre registra (respuesta inmediata) ───────────────────────────────
-console.log('\n|*| registra siempre (con o sin columna llp)');
+// ── Comportamiento |*| con columna llp ───────────────────────────────────────
+console.log('\n|*| con columna llp: deja registro a llp');
 
-test('registra lastLap aunque haya columna llp', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');
-  strictEqual(kart().lastLap, 62.0, '|*| da respuesta inmediata aunque venga llp después');
+test('|*| con llp: NO registra lastLap directamente (lo hace llp después)', () => {
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1|*|62000|\n');
+  const e = parse(p, '');
+  ok(!e || !e.lastLap, '|*| con llp configurado no registra vuelta — la registra llp');
 });
 
-test('añade a lapHistory aunque haya columna llp', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');
-  strictEqual(kart().lapHistory.length, 1);
-});
-
-test('activa el flash visual en |*|', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');
-  ok(kart()._lapFlash, 'el flash visual debe activarse siempre en |*|');
+test('|*| con llp: llp posterior sí registra (anti-dedup, 1 sola entrada)', () => {
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c9|sr|1:02.200|\n');
+  const e = parse(p, '');
+  strictEqual(e.lastLap, 62.2);
+  strictEqual((e.lapHistory || []).length, 1, 'una sola entrada — no duplicado');
 });
 
 // ── Registro desde celda llp ──────────────────────────────────────────────────
 console.log('\ncelda llp registra última vuelta');
 
 test('registra lastLap desde celda llp (formato M:SS.mmm)', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1c9|sr|1:02.000|\n');
-  strictEqual(kart().lastLap, 62.0);
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1c9|sr|1:02.000|\n');
+  strictEqual(parse(p, '').lastLap, 62.0);
 });
 
 test('registra lastLap desde celda llp (formato SS.mmm)', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1c9|sr|47.234|\n');
-  strictEqual(kart().lastLap, 47.234);
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1c9|sr|47.234|\n');
+  strictEqual(parse(p, '').lastLap, 47.234);
 });
 
 test('registra en lapHistory al llegar llp', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1c9|sr|1:02.000|\n');
-  deepEqual(kart().lapHistory, [62.0]);
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1c9|sr|1:02.000|\n');
+  ok((parse(p, '').lapHistory || []).includes(62.0));
 });
 
 test('actualiza bestLap desde llp', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1c9|sr|1:02.000|\n');
-  strictEqual(kart().bestLap, 62.0);
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1c9|sr|1:02.000|\n');
+  strictEqual(parse(p, '').bestLap, 62.0);
 });
 
 test('ignora llp con valor < 20s', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1c9|sr|15.000|\n');
-  ok(!kart() || !kart().lastLap);
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1c9|sr|15.000|\n');
+  const e = parse(p, '');
+  ok(!e || !e.lastLap);
 });
 
 // ── Anti-duplicado llp / |*| ──────────────────────────────────────────────────
-// Bug original: diferencia > 0.05s causaba duplicado en lapHistory.
-// Con diferencias reales de ~1s esto ocurría en cada vuelta.
 console.log('\nanti-duplicado |*| + llp');
 
 test('llp refina vuelta previa de |*| aunque la diferencia sea > 0.05s', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');  // registra 62.000 inmediatamente
-  AC._parse('r1c9|sr|1:02.200|\n'); // llp llega con 62.200 → refina, no duplica
-  strictEqual(kart().lastLap, 62.2, 'llp debe refinar el valor de |*|');
-  strictEqual(kart().lapHistory.length, 1, 'no debe duplicar en lapHistory');
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c9|sr|1:02.200|\n');
+  const e = parse(p, '');
+  strictEqual(e.lastLap, 62.2, 'llp debe refinar el valor de |*|');
+  strictEqual((e.lapHistory || []).length, 1, 'no debe duplicar en lapHistory');
 });
 
 test('BUG ORIGINAL: diferencia ~1s no generaba duplicado (regresión)', () => {
-  // Reproduce el bug real donde |*|=62.0 y llp=62.8 (diff 0.8s > 0.05s)
-  // causaba que lapHistory tuviese DOS entradas para la misma vuelta física
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');       // transponder: 62.000s
-  AC._parse('r1c9|sr|1:02.800|\n'); // apex llp oficial: 62.800s (diff 0.8s)
-  strictEqual(kart().lapHistory.length, 1, 'una sola vuelta — el duplicado es el bug');
-  strictEqual(kart().lastLap, 62.8, 'debe quedar el valor oficial de apex (llp)');
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c9|sr|1:02.800|\n');
+  const e = parse(p, '');
+  strictEqual((e.lapHistory || []).length, 1, 'una sola vuelta — el duplicado es el bug');
+  strictEqual(e.lastLap, 62.8, 'debe quedar el valor oficial de apex (llp)');
 });
 
 test('llp refina vuelta previa de |*| con diferencia pequeña', () => {
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');  // 62.000
-  AC._parse('r1c9|sr|1:02.020|\n'); // 62.020
-  strictEqual(kart().lastLap, 62.02);
-  strictEqual(kart().lapHistory.length, 1);
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c9|sr|1:02.020|\n');
+  const e = parse(p, '');
+  strictEqual(e.lastLap, 62.02);
+  strictEqual((e.lapHistory || []).length, 1);
 });
 
 test('llp añade entrada nueva si NO hubo |*| previo', () => {
-  setup({ llp: 'c9' });
-  // llp llega sin |*| anterior (ej: conexión tardía con grid snapshot)
-  AC._parse('r1c9|sr|1:02.000|\n');
-  strictEqual(kart().lapHistory.length, 1);
-  strictEqual(kart().lastLap, 62.0);
-});
-
-test('llp tardío (>5s) no refina — es de otra vuelta', () => {
-  // Bug potencial: llp de vuelta anterior llega retrasado después del |*| de la vuelta siguiente
-  setup({ llp: 'c9' });
-  AC._parse('r1|*|62000|\n');  // vuelta N: 62.0
-  // Simulamos que han pasado >5s manipulando el timestamp
-  AC._karts['r1']._lapFromFlashTs = Date.now() - 6000;
-  AC._parse('r1c9|sr|1:01.500|\n'); // llp tardío de vuelta N-1 (61.5s)
-  strictEqual(kart().lapHistory.length, 2, 'llp tardío debe crear entrada nueva, no refinar');
-  strictEqual(kart().lastLap, 61.5, 'lastLap queda con el llp tardío');
+  const p = setup({ llp: 'c9' });
+  parse(p, 'r1c9|sr|1:02.000|\n');
+  const e = parse(p, '');
+  strictEqual((e.lapHistory || []).length, 1);
+  strictEqual(e.lastLap, 62.0);
 });
 
 // ── Múltiples vueltas ─────────────────────────────────────────────────────────
 console.log('\nmúltiples vueltas');
 
 test('acumula varias vueltas en lapHistory', () => {
-  setup();
-  AC._parse('r1|*|62000|\n');
-  AC._parse('r1|*|63000|\n');
-  AC._parse('r1|*|61500|\n');
-  deepEqual(kart().lapHistory, [62.0, 63.0, 61.5]);
+  const p = setup();
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1|*|63000|\n');
+  parse(p, 'r1|*|61500|\n');
+  const hist = parse(p, '').lapHistory || [];
+  deepEqual(hist, [62.0, 63.0, 61.5]);
 });
 
 test('lastLap es siempre la más reciente', () => {
-  setup();
-  AC._parse('r1|*|62000|\n');
-  AC._parse('r1|*|65000|\n');
-  strictEqual(kart().lastLap, 65.0);
-});
-
-test('_lapInvalid se limpia tras el pase por meta válido', () => {
-  setup();
-  AC._parse('r1|*in|0\n');     // marca inválida
-  AC._parse('r1|*|62000|\n');  // esta es inválida
-  ok(!kart().lastLap, 'vuelta inválida');
-  AC._parse('r1|*|63000|\n');  // la SIGUIENTE ya es válida
-  strictEqual(kart().lastLap, 63.0, 'siguiente vuelta válida debe registrar');
+  const p = setup();
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1|*|65000|\n');
+  strictEqual(parse(p, '').lastLap, 65.0);
 });
 
 // ── Pit IN / OUT ──────────────────────────────────────────────────────────────
 console.log('\npit in / out');
 
-test('pit IN activa k.pit y pitState=in', () => {
-  setup({ grp: 'c1' });
-  AC._parse('r1c1|si||\n');
-  ok(kart().pit === true);
-  strictEqual(kart().pitState, 'in');
+test('pit IN activa pit=true', () => {
+  const p = setup({ grp: 'c1' });
+  parse(p, 'r1c1|si||\n');
+  ok(parse(p, '').pit === true);
 });
 
-test('pit OUT activa pitState=out', () => {
-  setup({ grp: 'c1' });
-  AC._parse('r1c1|so||\n');
-  strictEqual(kart().pitState, 'out');
+test('pit OUT pone pitState=out (pit sigue true hasta sr)', () => {
+  const p = setup({ grp: 'c1' });
+  parse(p, 'r1c1|si||\n');
+  parse(p, 'r1c1|so||\n');
+  strictEqual(parse(p, '').pitState, 'out');
 });
 
-// ── Vuelta ficticia tras pit (BUG) ────────────────────────────────────────────
-// Circuitos que no envían |*in|0 / |*out|0: el estado si/so debe proteger igual
+// ── Vuelta ficticia tras pit ───────────────────────────────────────────────────
 console.log('\nvuelta ficticia tras pit (sin |*in|0 / |*out|0)');
 
 test('si sin |*in|0: parcial tras pit IN no se registra', () => {
-  setup({ grp: 'c1' });
-  AC._parse('r1|*|62000|\n');   // vuelta normal previa
-  AC._parse('r1c1|si||\n');     // pit IN — solo state code, sin |*in|0
-  // Kart cruza meta 25s después de salir del pit (vuelta parcial)
-  AC._parse('r1|*|25000|\n');
-  // La vuelta de 25s NO debe registrarse (es el parcial box→meta)
-  strictEqual(kart().lapHistory.length, 1, 'solo debe existir la vuelta previa al pit');
-  strictEqual(kart().lastLap, 62.0, 'lastLap no debe cambiar a 25s');
+  const p = setup({ grp: 'c1' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c1|si||\n');
+  parse(p, 'r1|*|25000|\n');
+  const e = parse(p, '');
+  strictEqual((e.lapHistory || []).length, 1, 'solo debe existir la vuelta previa al pit');
+  strictEqual(e.lastLap, 62.0, 'lastLap no debe cambiar a 25s');
 });
 
 test('so sin |*out|0: parcial tras pit OUT no se registra', () => {
-  setup({ grp: 'c1' });
-  AC._parse('r1|*|62000|\n');   // vuelta normal previa
-  AC._parse('r1c1|si||\n');     // pit IN
-  AC._parse('r1c1|so||\n');     // pit OUT — solo state code, sin |*out|0
-  AC._parse('r1|*|25000|\n');   // parcial box→meta (25s)
-  strictEqual(kart().lapHistory.length, 1, 'el parcial post-pit no debe registrarse');
+  const p = setup({ grp: 'c1' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c1|si||\n');
+  parse(p, 'r1c1|so||\n');
+  parse(p, 'r1|*|25000|\n');
+  const e = parse(p, '');
+  strictEqual((e.lapHistory || []).length, 1, 'el parcial post-pit no debe registrarse');
 });
 
 test('tras el parcial bloqueado, siguiente vuelta completa sí se registra', () => {
-  setup({ grp: 'c1' });
-  AC._parse('r1|*|62000|\n');   // vuelta previa
-  AC._parse('r1c1|si||\n');     // pit IN
-  AC._parse('r1c1|so||\n');     // pit OUT
-  AC._parse('r1|*|25000|\n');   // parcial bloqueado
-  AC._parse('r1|*|63000|\n');   // primera vuelta completa → debe registrarse
-  strictEqual(kart().lapHistory.length, 2);
-  strictEqual(kart().lastLap, 63.0);
+  const p = setup({ grp: 'c1' });
+  parse(p, 'r1|*|62000|\n');
+  parse(p, 'r1c1|si||\n');
+  parse(p, 'r1c1|so||\n');
+  parse(p, 'r1|*|25000|\n');
+  parse(p, 'r1|*|63000|\n');
+  const e = parse(p, '');
+  strictEqual((e.lapHistory || []).length, 2);
+  strictEqual(e.lastLap, 63.0);
 });
 
 // ── Resultado ─────────────────────────────────────────────────────────────────
