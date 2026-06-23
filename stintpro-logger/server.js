@@ -405,7 +405,7 @@ function _computePilotRatings(slug) {
     : null;
 
   // Sesión lluviosa: ritmo medio >8% sobre la referencia seca
-  const WET_THRESHOLD = 1.08;
+  const WET_THRESHOLD = 1.12;
   const wetSessions = new Set(
     dryRef
       ? sessionAvgs.filter(s => s.avg / dryRef > WET_THRESHOLD).map(s => s.session_id)
