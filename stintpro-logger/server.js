@@ -475,10 +475,15 @@ function _computePilotRatings(slug) {
     }
 
     // ── Componente 3: Consistencia (0-200) ───────────────────────────────
-    // Baja varianza del pace entre sesiones = piloto estable
+    // Varianza del pace en la mitad mejor de sesiones — ignora días malos
+    // (kart lento, primera vuelta, condiciones límite) para no penalizar
+    // a pilotos con muchas sesiones respecto a los que tienen pocas
     let consistency_score = 100; // neutro si solo 1 sesión
     if (n_sessions >= 2) {
-      const paces  = p.sessions.map(s => (s.best_ms - circuitRecord) / circuitRecord);
+      const paces = p.sessions
+        .map(s => (s.best_ms - circuitRecord) / circuitRecord)
+        .sort((a, b) => a - b)
+        .slice(0, Math.ceil(n_sessions / 2)); // mitad más rápida
       const mean   = paces.reduce((a, b) => a + b, 0) / paces.length;
       const stddev = Math.sqrt(paces.reduce((a, b) => a + (b - mean) ** 2, 0) / paces.length);
       const cv     = stddev / (mean + 0.001);
