@@ -490,10 +490,10 @@ function _computePilotRatings(slug) {
       consistency_score = Math.round(Math.max(0, 1 - cv / 0.3) * 200);
     }
 
-    const score = pace_score + position_score + consistency_score;
     results.push({
       name: p.name,
-      score,
+      score: null, // se calcula en segunda pasada
+      raw_score: pace_score + position_score + consistency_score,
       pace_score,
       position_score,
       consistency_score,
@@ -503,6 +503,22 @@ function _computePilotRatings(slug) {
       session_count:     n_sessions,
       total_laps,
     });
+  }
+
+  // Media del circuito sobre scores crudos (prior del shrinkage)
+  const scored = results.filter(p => p.raw_score != null);
+  const circuitMean = scored.length
+    ? scored.reduce((s, p) => s + p.raw_score, 0) / scored.length
+    : 500;
+
+  // Segunda pasada: shrinkage bayesiano — k=4 sesiones como prior
+  // Con pocas sesiones el score se acerca a la media del circuito;
+  // con muchas sesiones prevalece el rendimiento real del piloto.
+  const K = 4;
+  for (const p of results) {
+    if (p.raw_score == null) continue;
+    const w  = p.session_count / (p.session_count + K);
+    p.score  = Math.round(w * p.raw_score + (1 - w) * circuitMean);
   }
 
   return results.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
