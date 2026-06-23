@@ -429,11 +429,12 @@ function renderPilotsTab() {
 
   // Cabecera columnas
   const colDef = _editMode
-    ? `28px 1fr 90px 90px 70px 60px 32px`
-    : `1fr 90px 90px 70px 60px 32px`;
+    ? `28px 1fr 64px 90px 90px 70px 60px 32px`
+    : `1fr 64px 90px 90px 70px 60px 32px`;
   html += `<div style="display:grid;grid-template-columns:${colDef};gap:0;padding:6px 16px 6px 12px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.4px">
     ${_editMode ? '<div></div>' : ''}
     <div>Piloto / Equipo</div>
+    <div style="text-align:right">Score</div>
     <div style="text-align:right">Mejor</div>
     <div style="text-align:right">Media</div>
     <div style="text-align:right">Ses.</div>
@@ -443,6 +444,7 @@ function renderPilotsTab() {
 
   html += pilots.map((p, i) => {
     const isOpen = _openPilots.has(i);
+    const score  = _currentRatings[p.name];
     const sessionRows = p.sessions.map(s => {
       const posClass = s.position === 1 ? 'pos-1' : s.position === 2 ? 'pos-2' : s.position === 3 ? 'pos-3' : 'pos-n';
       return `<tr>
@@ -458,7 +460,8 @@ function renderPilotsTab() {
     return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}" data-name="${esc(p.name)}">
       <div class="pilot-hdr${isOpen?' open':''}" style="grid-template-columns:${colDef}" onclick="handlePilotClick(event,${i})">
         ${_editMode ? `<input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})">` : ''}
-        <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}<span class="score-badge ${scoreClass(_currentRatings[p.name])}">${_currentRatings[p.name] ?? '—'}</span></div>
+        <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="ph-col"><span class="score-badge ${scoreClass(score)}" style="font-size:12px;padding:2px 8px">${score ?? '—'}</span></div>
         <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div></div>
         <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div></div>
         <div class="ph-col"><div class="ph-val">${p.session_count}</div></div>
