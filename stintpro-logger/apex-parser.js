@@ -2,7 +2,7 @@
 // Responsabilidades: grid HTML (node-html-parser), callbacks de BD, relay de estado.
 
 const { parse: parseHTML }          = require('node-html-parser');
-const { createParser, parseTime }   = require('../src/apex-protocol');
+const { createParser, parseTime }   = require('./apex-protocol');
 
 class ApexParser {
   constructor({ onLap, onPit, onState, onSessionEnd, onNewSession } = {}) {
