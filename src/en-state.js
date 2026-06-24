@@ -322,6 +322,7 @@ function _enAutoKartQuality(e, trackAvg){
   const last5=clean.slice(-5);
   const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
   const stintBest=Math.min(...clean);
+  const mn=stintBest, mx=Math.max(...clean);
 
   // Score histórico del piloto → decide qué referencia y qué umbral usar
   const pilotScore=_enPilotRatings[e.name]??null;
