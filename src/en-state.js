@@ -354,9 +354,11 @@ function _enAutoKartQuality(e, trackAvg){
   // Si no es bueno ni malo → neutro
   if(!instant)instant='neutral';
 
-  // Si era bueno, se mantiene verde (solo se quita en pit o manual)
+  // Kart bueno: aguanta 5 evaluaciones consecutivas fuera del umbral antes de bajar
   if(state.quality==='good'){
-    return state.quality;
+    if(instant==='good'){state.badCount=0;return'good';}
+    state.badCount=(state.badCount||0)+1;
+    if(state.badCount<5)return'good';
   }
 
   // Si no era bueno, actualizar directamente
