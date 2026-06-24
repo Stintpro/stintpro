@@ -354,7 +354,7 @@ function _enRenderRow(e, d){
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
       <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory('${(e.name||'').replace(/'/g,"\\'")}',event)" title="Ver historial">ℹ</span>`:''}</div>
-      <div class="sp-name" style="font-size:12px;color:#555">${e.teamName||'—'}</div>
+      <div class="sp-name" style="font-size:12px;color:#555">${(e.teamName&&e.teamName!==e.name)?e.teamName:'—'}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
