@@ -80,9 +80,9 @@ function _onReplayFileChange(input) {
 
 function selectRaceType(type) {
   _raceType = type;
+  window.AppState.loggerUrl    = _loggerUrl;
+  window.AppState.loggerApiKey = _loggerApiKey;
   if (_connMode === 'logger') {
-    window.AppState.loggerUrl = _loggerUrl;
-    window.AppState.loggerApiKey = _loggerApiKey;
     window.ApexConnector = Logger;
   } else if (_connMode === 'replay') {
     window.ReplayConnector.speed = _replaySpeed;

@@ -45,12 +45,14 @@ const _RATINGS_TTL = 7 * 24 * 3600 * 1000;
 async function _enFetchPilotRatings(slug) {
   if (_enPilotRatingsFetching) return;
 
-  // Intentar del logger si está disponible
-  if (Logger?._serverUrl) {
+  // Intentar del logger si está disponible (o URL configurada en AppState para modo Apex/Replay)
+  const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
+  const _rKey = Logger?._apiKey    || window.AppState?.loggerApiKey || '';
+  if (_rUrl) {
     try {
       _enPilotRatingsFetching = true;
-      const res = await fetch(`${Logger._serverUrl}/api/circuit/${slug}/pilot-ratings`, {
-        headers: Logger._apiKey ? { 'X-API-Key': Logger._apiKey } : {},
+      const res = await fetch(`${_rUrl}/api/circuit/${slug}/pilot-ratings`, {
+        headers: _rKey ? { 'X-API-Key': _rKey } : {},
       });
       if (res.ok) {
         const data = await res.json();
