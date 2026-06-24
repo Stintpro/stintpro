@@ -127,7 +127,7 @@
         if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) { k.name = pm[1].trim(); }
-          else { k.teamName = n; }
+          else { k.teamName = n; if (!k.name) k.name = n; }
         }
         return;
       }

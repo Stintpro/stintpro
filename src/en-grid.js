@@ -354,6 +354,7 @@ function _enRenderRow(e, d){
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
       <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory('${(e.name||'').replace(/'/g,"\\'")}',event)" title="Ver historial">ℹ</span>`:''}</div>
+      <div class="sp-name" style="font-size:12px;color:#555">${e.teamName||'—'}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
@@ -579,6 +580,7 @@ function _enToggleSort(){
 
 function _enTheadHtml(){
   return `<span></span><span style="cursor:pointer;color:${EnUi.sortMode==='pos'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${EnUi.sortMode==='pos'?' ▼':''}</span><span>Kart</span>
+    <span style="text-align:left">Piloto</span>
     <span style="text-align:left">Equipo</span>
     <span>Vtas</span><span>Última</span><span>Mejor</span>
     <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
