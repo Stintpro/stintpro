@@ -45,18 +45,20 @@ const _RATINGS_TTL = 7 * 24 * 3600 * 1000;
 async function _enFetchPilotRatings(slug) {
   if (_enPilotRatingsFetching) return;
 
-  // Intentar del logger si está disponible
-  if (Logger?._serverUrl) {
+  // URL y key: del logger conectado o de la config guardada (funciona en modo replay)
+  const loggerUrl = (Logger?._serverUrl || window.AppState?.loggerUrl || localStorage.getItem('stintpro_logger_url') || '').replace(/\/$/, '');
+  const apiKey    = Logger?._apiKey    || window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || '';
+
+  if (loggerUrl) {
     try {
       _enPilotRatingsFetching = true;
-      const res = await fetch(`${Logger._serverUrl}/api/circuit/${slug}/pilot-ratings`, {
-        headers: Logger._apiKey ? { 'X-API-Key': Logger._apiKey } : {},
+      const res = await fetch(`${loggerUrl}/api/circuit/${slug}/pilot-ratings`, {
+        headers: apiKey ? { 'X-API-Key': apiKey } : {},
       });
       if (res.ok) {
         const data = await res.json();
         const map = Object.fromEntries(data.map(p => [p.name, p.score]));
         _enPilotRatings = map;
-        // Guardar en caché para cuando no haya logger
         try {
           localStorage.setItem(`stintpro_ratings_${slug}`, JSON.stringify({ ts: Date.now(), data: map }));
         } catch(e) {}
