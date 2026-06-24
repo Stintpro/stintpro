@@ -85,6 +85,8 @@ function selectRaceType(type) {
     window.AppState.loggerApiKey = _loggerApiKey;
     window.ApexConnector = Logger;
   } else if (_connMode === 'replay') {
+    window.AppState.loggerUrl    = _loggerUrl;
+    window.AppState.loggerApiKey = _loggerApiKey;
     window.ReplayConnector.speed = _replaySpeed;
     if (_replayFile) window.ReplayConnector.loadFile(_replayFile);
     window.ApexConnector = window.ReplayConnector;
