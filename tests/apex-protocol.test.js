@@ -671,6 +671,100 @@ group('sesión realista (flujo |*| + llp)', () => {
   });
 });
 
+// ── Regresión: nombres de piloto (bugs corregidos 2026-06-24) ─────────────────
+
+group('dr column — pilot name regression', () => {
+
+  // Bug: en TimeAttack/individuales, setGrid ponía el nombre solo en teamName
+  // y k.name quedaba vacío → grid mostraba #55, #48 en vez del nombre
+  test('TimeAttack setGrid: nombre sin brackets va a k.name', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '55', pos: 1, name: 'JAVIER COY' }],
+    });
+    const { equipos } = p.getState();
+    assert.equal(equipos[0].name, 'JAVIER COY', 'name debe venir de grid.name en individuales');
+  });
+
+  // Formato de celda en vivo: r1c2|ti|VALOR  (rowId+col concatenados)
+  test('TimeAttack _applyCell dr sin brackets: establece k.name si estaba vacío', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '55', pos: 1 }],
+    });
+    p.parse('r1c2|ti|JAVIER COY');
+    assert.equal(p.getState().equipos[0].name, 'JAVIER COY');
+  });
+
+  test('TimeAttack _applyCell dr sin brackets: teamName también se actualiza', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '55', pos: 1 }],
+    });
+    p.parse('r1c2|ti|TEAM RACING');
+    assert.equal(p.getState().equipos[0].teamName, 'TEAM RACING');
+  });
+
+  // Endurance: brackets → k.name limpio (sin el "[0:10]"), k.teamName separado
+  test('Endurance _applyCell dr con brackets: k.name limpio sin contador', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1, name: 'Team StintPro' }],
+    });
+    p.parse('r1c2|ti|Javier Coy [0:10]');
+    const k = p.getState().equipos[0];
+    assert.equal(k.name, 'Javier Coy', 'name debe ser solo el nombre, sin [0:10]');
+  });
+
+  test('Endurance _applyCell dr: brackets no sobreescriben teamName', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1, name: 'Team StintPro' }],
+    });
+    // primero llega el nombre de equipo (sin brackets)
+    p.parse('r1c2|ti|Team StintPro');
+    // luego llega el piloto (con brackets)
+    p.parse('r1c2|ti|Javier Coy [0:10]');
+    const k = p.getState().equipos[0];
+    assert.equal(k.name, 'Javier Coy', 'name debe ser el piloto');
+    assert.equal(k.teamName, 'Team StintPro', 'teamName debe conservarse del mensaje sin brackets');
+  });
+
+  test('Endurance _applyCell dr con brackets: no sobreescribe k.name si ya está puesto', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }],
+    });
+    p.parse('r1c2|ti|Javier Coy [0:10]');
+    // alternancia: llega equipo sin brackets — NO debe pisar k.name
+    p.parse('r1c2|ti|Team StintPro');
+    assert.equal(p.getState().equipos[0].name, 'Javier Coy', 'nombre de equipo no debe pisar el piloto ya conocido');
+  });
+
+  test('getState() expone teamName en el equipo', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1, name: 'Team StintPro' }],
+    });
+    p.parse('r1c2|ti|Javier Coy [0:10]');
+    assert.ok('teamName' in p.getState().equipos[0], 'teamName debe estar en getState()');
+  });
+});
+
 // ── Results ───────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
