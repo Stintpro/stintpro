@@ -34,24 +34,47 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 
 ## Estructura de archivos
 
-### App Electron (`karting-v10/`)
+### App principal (raíz del repo)
 
 | Archivo | Función |
 |---|---|
 | `main.js` | Proceso principal Electron, crea ventana frameless |
 | `package.json` | Dependencias (electron, ws) |
-| `src/index.html` | HTML base, carga todos los scripts |
-| `src/styles.css` | Estilos globales (tema oscuro) |
-| `src/app.js` | Orquestador: carga circuitos, decide sprint/endurance |
-| `src/state.js` | Estado global (AppState) |
-| `src/setup.js` | Pantalla de configuración (circuito, pilotos, dorsal) |
-| `src/circuits.js` | Lista de circuitos guardados (localStorage) |
-| `src/clock.js` | ApexClock: reloj sincronizado con countdown de Apex |
-| `src/helpers.js` | Utilidades (formateo, parseo) |
-| `src/apex-connector.js` | Conector WebSocket a Apex Timing (parser del protocolo) |
-| `src/logger-connector.js` | Conector WebSocket al Logger del NAS |
-| `src/sprint.js` | Dashboard Sprint completo |
-| `src/endurance.js` | Dashboard Endurance completo (~2700 líneas) |
+| `vercel.json` | Deploy web: `outputDirectory: src` |
+
+### Frontend (`src/`)
+
+| Archivo | Función |
+|---|---|
+| `index.html` | HTML base, carga todos los scripts |
+| `styles.css` | Estilos globales (tema oscuro) |
+| `app.js` | Orquestador: carga circuitos, decide sprint/endurance |
+| `state.js` | Estado global (AppState) |
+| `setup.js` | Pantalla de configuración (circuito, pilotos, dorsal) |
+| `circuits.js` | Lista de circuitos guardados (localStorage) |
+| `clock.js` | ApexClock: reloj sincronizado con countdown de Apex |
+| `helpers.js` | Utilidades (formateo, parseo) |
+| `analysis.js` | Funciones puras de cálculo (sin DOM, testeable) |
+| `apex-protocol.js` | Módulo compartido de parseo del protocolo Apex (fuente de verdad) |
+| `apex-connector.js` | Conector WebSocket a Apex Timing (wrapper browser de apex-protocol) |
+| `logger-connector.js` | Conector WebSocket al Logger del NAS |
+| `replay-connector.js` | Reproduce grabaciones .ndjson del logger (misma interfaz que apex-connector) |
+| `sprint.js` | Dashboard Sprint completo |
+| `en-state.js` | Estado del dashboard Endurance |
+| `en-grid.js` | Pestaña Clasificación (grid 13 columnas) |
+| `en-team.js` | Pestaña Mi equipo (stints, pilotos, paradas) |
+| `en-strategy.js` | Pestaña Estrategia (pool box, probabilidad, recomendación) |
+| `en-advanced.js` | Pestaña Avanzado (túnel salida, plan paradas) |
+| `supabase.js` | Pantalla de login + cliente Supabase (autenticación) |
+| `supabase-config.js` | Config pública Supabase (URL + anon key, safe to commit) |
+| `logger-stats.html` | Panel web del Logger: sesiones, ranking, fichas de pilotos |
+
+### Backend / Auth (`api/` + `supabase/`)
+
+| Archivo | Función |
+|---|---|
+| `api/admin.js` | Función serverless Vercel — gestión de usuarios (requiere `SUPABASE_SERVICE_KEY` en env) |
+| `supabase/schema.sql` | Esquema de base de datos Supabase |
 
 ### Logger NAS (`stintpro-logger/`)
 
@@ -59,10 +82,26 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 |---|---|
 | `server.js` | Express + WebSocket server, gestión de sesiones |
 | `db.js` | Capa SQLite (sql.js para ARM Docker) |
-| `apex-connector.js` | Conector a Apex (versión servidor, sin DOM) |
+| `apex-connector.js` | Conector a Apex (wrapper Node de apex-protocol, sin DOM) |
+| `apex-protocol.js` | Copia del módulo compartido de parseo (idéntico a `src/apex-protocol.js`) |
+| `apex-parser.js` | Parser auxiliar del protocolo Apex |
+| `circuit-monitor.js` | Monitor de circuito individual |
+| `replay.js` | Replay de sesiones grabadas (uso local) |
+| `replay-vps.js` | Replay adaptado para VPS/Hetzner |
 | `config.json` | Lista de circuitos a monitorizar (hasta 10) |
 | `package.json` | Dependencias (express, ws, sql.js) |
 | `start.sh` | Script arranque Docker |
+| `deploy-hetzner.sh` | Script de deploy al VPS Hetzner |
+| `install-hetzner.sh` | Script de instalación inicial en Hetzner |
+
+### Tests
+
+| Archivo | Función |
+|---|---|
+| `tests.js` | 38 tests para funciones puras de `analysis.js` |
+| `tests-connector.js` | 25 tests para `apex-connector.js` (anti-duplicado, ventana 5s, pit) |
+| `tests/apex-protocol.test.js` | Tests del módulo compartido `apex-protocol.js` |
+| `tests/session-changes.test.js` | Tests de detección de cambio de sesión |
 
 ## Dominio: Karting Endurance
 
@@ -212,7 +251,24 @@ La meta puede estar lejos del pit. La app auto-calibra el offset midiendo el tie
 
 ### Verificación de sintaxis
 ```bash
-node -e "const fs=require('fs'); const code=fs.readFileSync('src/endurance.js','utf8'); try{new Function(code);console.log('OK')}catch(e){console.log('ERROR:',e.message)}"
+# Verificar cualquier archivo src/
+node -e "const fs=require('fs'); const code=fs.readFileSync('src/en-grid.js','utf8'); try{new Function(code);console.log('OK')}catch(e){console.log('ERROR:',e.message)}"
+```
+
+### Ejecutar tests
+```bash
+node tests.js              # 38 tests — analysis.js
+node tests-connector.js    # 25 tests — apex-connector.js
+```
+
+### Deploy web (Vercel)
+```bash
+# Opción A — push a main (si Vercel tiene auto-deploy activado desde GitHub)
+git push origin main
+
+# Opción B — deploy directo
+export VERCEL_TOKEN=tu_token_aqui
+npx vercel --prod --token $VERCEL_TOKEN
 ```
 
 ### Reemplazos grandes
@@ -235,6 +291,13 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - `console.error('[StintPro] ...')` para diagnóstico sin congelar la UI
 
 ## Cosas a tener en cuenta
+
+### Módulo compartido de parseo (`apex-protocol.js`)
+- Fuente de verdad única del protocolo Apex. Funciona en browser (`window.ApexProtocol`) y Node.js (`module.exports`)
+- Sin dependencias de DOM ni Node.js — los wrappers (`apex-connector.js` en app y logger) aportan el contexto de cada entorno
+- Comportamiento canónico: `|*|` registra siempre de inmediato; `llp` en ventana <5s refina, fuera de ventana crea entrada nueva
+- `so` activa `_lapInvalid` para bloquear el parcial box→meta; `sr` lo limpia
+- Sesión nueva: `sessionFinished` O inactividad >10 min sin vueltas
 
 ### Conector Apex (`apex-connector.js`)
 - **Fallback de tiempos desde `|*|`**: si las celdas `llp` no llegan (colMap roto/circuito sin mapear), el tiempo de vuelta se extrae del mensaje `|*|` (ms validados 20-300s)
@@ -261,6 +324,13 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - GET `/api/cleanup` borra sesiones sin vueltas
 - CORS habilitado para acceso desde navegador
 - Tailscale configurado: IP 100.71.53.12 (cuenta coyjavier@gmail.com)
+- `apex-protocol.js` del logger debe mantenerse sincronizado con `src/apex-protocol.js`
+
+### Supabase (auth + usuarios)
+- `src/supabase-config.js` — URL y anon key públicas (safe to commit, RLS protege los datos)
+- `src/supabase.js` — pantalla de login y cliente; usa `persistSession: true` con storageKey `stintpro_auth`
+- `api/admin.js` — función serverless Vercel para gestión de usuarios; requiere `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` como variables de entorno en Vercel (NUNCA en el cliente)
+- `supabase/schema.sql` — esquema completo de la BD
 
 ## Marca
 
