@@ -836,12 +836,18 @@ function scoreTooltip(r) {
   if (!r || r.score == null) return 'Sin datos suficientes (mín. 10 vueltas)';
   const tier = r.score >= 800 ? 'Élite' : r.score >= 600 ? 'Avanzado' : r.score >= 400 ? 'Intermedio' : r.score >= 200 ? 'Novato' : 'Muy bajo';
   const gapStr = r.gap_to_record_pct != null ? `+${r.gap_to_record_pct}% sobre récord` : '—';
+  const raw = r.pace_score + r.position_score + r.consistency_score;
+  const w   = Math.round(r.session_count / (r.session_count + 4) * 100);
   const lines = [
     `Score: ${r.score} — ${tier}`,
     ``,
     `🏎 Pace     ${r.pace_score}/500   (mejor vuelta: ${gapStr})`,
     `🏆 Posición ${r.position_score}/300  (percentil medio en sesiones)`,
     `📊 Consist. ${r.consistency_score}/200  (varianza mitad mejor de sesiones)`,
+    ``,
+    `Suma bruta: ${raw}`,
+    `Ajuste bayesiano: ${w}% rendimiento + ${100-w}% media del circuito`,
+    `Score final: ${r.score}`,
     ``,
     `Sesiones: ${r.session_count}  ·  Vueltas totales: ${r.total_laps}`,
   ];
