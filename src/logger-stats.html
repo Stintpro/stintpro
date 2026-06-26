@@ -297,7 +297,7 @@ async function selectCircuit(slug) {
     _currentPilots = Array.isArray(pilotsRaw) ? pilotsRaw : [];
     _currentRatings = {};
     for (const r of (Array.isArray(ratingsRaw) ? ratingsRaw : []))
-      _currentRatings[r.name] = r.score;
+      _currentRatings[r.name] = r;
     renderCircuitView(slug);
   } catch(e) {
     setMain(`<div class="empty">Error: ${e.message}</div>`);
@@ -444,7 +444,8 @@ function renderPilotsTab() {
 
   html += pilots.map((p, i) => {
     const isOpen = _openPilots.has(i);
-    const score  = _currentRatings[p.name];
+    const rating = _currentRatings[p.name] || null;
+    const score  = rating ? rating.score : undefined;
     const sessionRows = p.sessions.map(s => {
       const posClass = s.position === 1 ? 'pos-1' : s.position === 2 ? 'pos-2' : s.position === 3 ? 'pos-3' : 'pos-n';
       return `<tr>
@@ -461,7 +462,7 @@ function renderPilotsTab() {
       <div class="pilot-hdr${isOpen?' open':''}" style="grid-template-columns:${colDef}" onclick="handlePilotClick(event,${i})">
         ${_editMode ? `<input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})">` : ''}
         <div class="ph-name" title="${esc(p.name)}">${esc(p.name)}</div>
-        <div class="ph-col"><span class="score-badge ${scoreClass(score)}" style="font-size:12px;padding:2px 8px">${score ?? '—'}</span></div>
+        <div class="ph-col"><span class="score-badge ${scoreClass(score)}" style="font-size:12px;padding:2px 8px;cursor:default" title="${esc(scoreTooltip(rating))}">${score ?? '—'}</span></div>
         <div class="ph-col"><div class="ph-val green" style="font-family:monospace">${fmtMs(p.best_ms)}</div></div>
         <div class="ph-col"><div class="ph-val blue" style="font-family:monospace">${fmtMs(p.avg_ms)}</div></div>
         <div class="ph-col"><div class="ph-val">${p.session_count}</div></div>
@@ -829,6 +830,22 @@ function isValidName(n) {
   if (/^(equipo|team|piloto|driver)\s*\d*$/i.test(s)) return false; // genéricos
   if (/^\(sin nombre\)$/i.test(s)) return false;
   return true;
+}
+
+function scoreTooltip(r) {
+  if (!r || r.score == null) return 'Sin datos suficientes (mín. 10 vueltas)';
+  const tier = r.score >= 800 ? 'Élite' : r.score >= 600 ? 'Avanzado' : r.score >= 400 ? 'Intermedio' : r.score >= 200 ? 'Novato' : 'Muy bajo';
+  const gapStr = r.gap_to_record_pct != null ? `+${r.gap_to_record_pct}% sobre récord` : '—';
+  const lines = [
+    `Score: ${r.score} — ${tier}`,
+    ``,
+    `🏎 Pace     ${r.pace_score}/500   (mejor vuelta: ${gapStr})`,
+    `🏆 Posición ${r.position_score}/300  (percentil medio en sesiones)`,
+    `📊 Consist. ${r.consistency_score}/200  (varianza mitad mejor de sesiones)`,
+    ``,
+    `Sesiones: ${r.session_count}  ·  Vueltas totales: ${r.total_laps}`,
+  ];
+  return lines.join('\n');
 }
 
 function scoreClass(score) {
