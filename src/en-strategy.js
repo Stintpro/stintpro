@@ -994,7 +994,7 @@ window.showEnduranceDashboard=function(cfg){
 
         // Cargar ratings del snapshot del logger (cross-device, sin fetch adicional)
         if(data._isHistory && data.pilotRatings && Array.isArray(data.pilotRatings)){
-          const map=Object.fromEntries(data.pilotRatings.map(p=>[p.name,p.score]));
+          const map=Object.fromEntries(data.pilotRatings.map(p=>[p.name,p]));
           if(Object.keys(map).length) _enPilotRatings=map;
         }
 

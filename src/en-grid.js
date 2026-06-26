@@ -362,7 +362,7 @@ function _enRenderRow(e, d){
       <div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>
       <div class="sp-gap">${d.gapHtml}</div>
       <div class="sp-gap">${e.interval||'—'}</div>
-      <div class="sp-cons">${(()=>{const s=_enPilotRatings[e.name];return s!=null?`<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>`:'<span style="color:#2d2f38">—</span>';})()}</div>
+      <div class="sp-cons">${(()=>{const r=_enPilotRatings[e.name];const s=r?.score??r;return s!=null?`<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>`:'<span style="color:#2d2f38">—</span>';})()}</div>
       <div class="sp-pitc">${e.standsCount||0}</div>
       <div class="sp-lapbar ${d.barClass}" id="en-bar-${e.dorsal}" style="width:${d.barPct}%"></div>
     </div>
@@ -529,7 +529,8 @@ function _enShowPilotHistory(name, evt) {
   overlay.id = 'en-pilot-history-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:998;';
   overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
-  const score = _enPilotRatings[name] ?? null;
+  const _r = _enPilotRatings[name] ?? null;
+  const score = _r?.score ?? _r;
   const scoreColor = _enScoreColor(score);
   const scoreLabel = score>=800?'Elite':score>=600?'Avanzado':score>=400?'Intermedio':score>=200?'Novato':score!=null?'Principiante':'Sin datos';
 

@@ -56,7 +56,7 @@ async function _enFetchPilotRatings(slug) {
       });
       if (res.ok) {
         const data = await res.json();
-        const map = Object.fromEntries(data.map(p => [p.name, p.score]));
+        const map = Object.fromEntries(data.map(p => [p.name, p]));
         _enPilotRatings = map;
         // Guardar en caché para cuando no haya logger
         try {

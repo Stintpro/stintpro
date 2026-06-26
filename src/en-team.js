@@ -565,11 +565,22 @@ function _enRenderTeam(myKart, trackAvg){
     // Barra de progreso hacia mínimo
     const pct=minMs>0?Math.min(100,totalMs/minMs*100):0;
 
+    const _pr=_enPilotRatings[p.name];
+    const _prObj=(_pr && typeof _pr==='object') ? _pr : null;
+    const _prScore=_prObj?.score ?? (typeof _pr==='number'?_pr:null);
+    const _scoreBadge=(val,max,label)=>{
+      if(val==null) return '';
+      const pct=val/max;
+      const c=pct>=0.8?'#22c55e':pct>=0.55?'#84cc16':pct>=0.35?'#fbbf24':pct>=0.15?'#f97316':'#ef4444';
+      return `<span style="font-size:10px;color:${c};font-family:monospace;font-weight:600" title="${label}: ${val}/${max}">${label} ${val}</span>`;
+    };
+    const _scoreRow=_prObj?`<div style="display:flex;gap:8px;margin-top:2px">${_scoreBadge(_prObj.pace_score,500,'Pace')}${_scoreBadge(_prObj.position_score,300,'Pos')}${_scoreBadge(_prObj.consistency_score,200,'Con')}</div>`:'';
     html+=`<div class="en-queue-item" style="flex-wrap:wrap">
       <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14px">${p.name.charAt(0)}</div>
       <div style="flex:1;min-width:120px">
         <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${p.name}${isCurrent?' 🟢':''}</div>
         <div style="font-size:12.5px;color:#555;font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
+        ${_scoreRow}
       </div>
       <div style="text-align:right;min-width:90px">
         <div style="font-size:14.5px;color:#6b7280;font-family:monospace">${avgAll?_enFmt(avgAll):'—'}</div>
