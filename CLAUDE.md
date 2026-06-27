@@ -274,12 +274,13 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - **Solución diseñada:** filtrar por título de sesión de Apex.
   - Apex emite el título de sesión vía `dyn1|text|` — actualmente el parser solo extrae el contador de vueltas (`Lap X/Y`) y descarta el resto del texto.
   - El título identifica la categoría ANTES de que llegue ninguna vuelta (discriminador limpio).
-  - **Opción A (filtro activo):** configurar por circuito qué títulos grabar; si el título no incluye las palabras clave configuradas, se descarta la sesión entera. Config en `config.json`:
+  - **Implementado (paso 1):** `apex-protocol.js` parsea `title1||` y `title2||` del mensaje `init` de Apex y los expone en `getState()`. `circuit-monitor.js` los combina como `"título1 · título2"` al crear la sesión. `db.js` los guarda en `sessions.title` (columna añadida con migración automática). Aplica a **todos** los circuitos.
+  - **Pendiente (paso 2):** configurar el filtro activo una vez confirmados los títulos exactos que manda Apex para cada circuito problemático. Campillos es el caso urgente (mezcla 4T alquiler con motos y otras categorías). Ver títulos acumulados en `/api/sessions/campillos`.
+  - **Opción A (filtro activo, pendiente):** configurar por circuito qué títulos grabar; si el título no incluye las palabras clave configuradas, se descarta la sesión entera. Config en `config.json`:
     ```json
     { "slug": "circuito-x", "sessionFilter": { "titleIncludes": ["4T", "alquiler"] } }
     ```
-  - **Opción B (solo etiquetar):** guardar el título en `sessions.title` y filtrar a posteriori desde la UI/API.
-  - Pendiente confirmar el texto exacto que manda Apex para ese circuito antes de implementar.
+  - El título en Apex llega por `title1||<valor>` y `title2||<valor>` dentro del mensaje `init|r|`, antes del `grid|`. Ejemplo real de Henakart: `title1=85 PRO`, `title2=CARRERA`.
 
 ## Marca
 
