@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>StintPro — Admin</title>
+  <link rel="icon" href="logo.png"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const _SBURL = 'https://nyybrybnvflwbdwdqpwa.supabase.co';
+    const _SBKEY = 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H';
+    const _sb = supabase.createClient(_SBURL, _SBKEY);
+  </script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#080809;--bg-card:#0f0f12;--bg-raised:#18181e;
+      --border:rgba(255,255,255,0.06);--border-md:rgba(255,255,255,0.11);
+      --text-1:#f2f2f6;--text-2:#8888a0;--text-3:#444458;
+      --green:#3ddb6f;--green-dim:rgba(61,219,111,0.1);--green-glow:rgba(61,219,111,0.2);
+      --red:#e85555;--red-dim:rgba(232,85,85,0.1);
+      --blue:#5b9cf6;--purple:#c084fc;--orange:#f09040;
+    }
+    body{background:var(--bg);color:var(--text-1);font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+
+    /* NAV */
+    nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:56px;background:var(--bg-card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+    .nav-logo{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--text-1);text-decoration:none}
+    .nav-logo .ac{color:var(--green)}
+    .nav-badge{font-size:10px;font-weight:600;background:rgba(192,132,252,.15);color:var(--purple);border:1px solid rgba(192,132,252,.3);padding:2px 8px;border-radius:100px;letter-spacing:.05em}
+    .nav-r{display:flex;align-items:center;gap:8px}
+    .nav-user{font-size:13px;color:var(--text-2)}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;text-decoration:none;border:none}
+    .btn-g{background:transparent;color:var(--text-2);border:1px solid var(--border)}
+    .btn-g:hover{color:var(--text-1);border-color:var(--border-md)}
+    .btn-p{background:var(--green);color:#050905;font-weight:700}
+    .btn-p:hover{background:#4deb7f}
+    .btn-d{background:var(--red-dim);color:var(--red);border:1px solid rgba(232,85,85,.2)}
+    .btn-d:hover{background:rgba(232,85,85,.2)}
+    .btn-sm{padding:4px 10px;font-size:12px;border-radius:5px}
+
+    /* LAYOUT */
+    .layout{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 56px)}
+    .sidebar{background:var(--bg-card);border-right:1px solid var(--border);padding:20px 0}
+    .sb-section{padding:0 12px;margin-bottom:4px}
+    .sb-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);padding:8px 12px 4px}
+    .sb-link{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;font-size:13.5px;font-weight:500;color:var(--text-2);cursor:pointer;transition:all .12s;text-decoration:none;border:none;background:transparent;width:100%;text-align:left}
+    .sb-link:hover{background:var(--bg-raised);color:var(--text-1)}
+    .sb-link.active{background:var(--bg-raised);color:var(--text-1)}
+    .sb-link .icon{font-size:16px;width:20px;text-align:center}
+    .sb-back{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:13px;color:var(--text-3);cursor:pointer;text-decoration:none;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:16px}
+    .sb-back:hover{color:var(--text-2)}
+
+    /* MAIN */
+    .main{padding:32px;overflow-y:auto}
+    .page{display:none}.page.active{display:block}
+    .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px}
+    .page-title{font-size:22px;font-weight:700;letter-spacing:-.02em}
+    .page-sub{font-size:14px;color:var(--text-2);margin-top:4px}
+
+    /* STATS ROW */
+    .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:28px}
+    .stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 20px}
+    .stat-val{font-family:'DM Mono',monospace;font-size:28px;font-weight:500;line-height:1;margin-bottom:4px}
+    .stat-label{font-size:12px;color:var(--text-3)}
+
+    /* TABLE */
+    .table-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .table-head{display:grid;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-raised)}
+    .table-row{display:grid;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;transition:background .1s}
+    .table-row:last-child{border-bottom:none}
+    .table-row:hover{background:rgba(255,255,255,.025)}
+    .table-head span,.table-row span,.table-row div{font-size:13px}
+    .table-head span{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em}
+    .col-actions{display:flex;gap:6px;justify-content:flex-end}
+
+    /* Users table: email | name | role | joined | actions */
+    .tbl-users .table-head,.tbl-users .table-row{grid-template-columns:1fr 140px 80px 110px 100px}
+    /* Circuits table: name | slug | port | actions */
+    .tbl-circuits .table-head,.tbl-circuits .table-row{grid-template-columns:1fr 160px 80px 100px}
+
+    .role-badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.04em}
+    .role-admin{background:rgba(192,132,252,.15);color:var(--purple);border:1px solid rgba(192,132,252,.25)}
+    .role-user{background:rgba(91,156,246,.1);color:var(--blue);border:1px solid rgba(91,156,246,.2)}
+
+    /* MODAL */
+    .overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+    .overlay.open{opacity:1;pointer-events:all}
+    .modal{background:var(--bg-card);border:1px solid var(--border-md);border-radius:16px;padding:32px;width:100%;max-width:420px;position:relative;transform:scale(.96) translateY(6px);transition:transform .2s cubic-bezier(.34,1.56,.64,1);box-shadow:0 40px 80px rgba(0,0,0,.7)}
+    .overlay.open .modal{transform:scale(1) translateY(0)}
+    .modal-close{position:absolute;top:12px;right:12px;width:28px;height:28px;background:var(--bg-raised);border:1px solid var(--border);border-radius:50%;color:var(--text-2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .modal-close:hover{color:var(--text-1)}
+    .modal h3{font-size:18px;font-weight:700;margin-bottom:6px;letter-spacing:-.01em}
+    .modal-desc{font-size:13px;color:var(--text-2);margin-bottom:24px}
+    .form-group{margin-bottom:14px}
+    .form-group label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px}
+    .form-group input,.form-group select{width:100%;background:var(--bg-raised);border:1px solid var(--border-md);border-radius:8px;color:var(--text-1);font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;outline:none;transition:border-color .15s}
+    .form-group input:focus,.form-group select:focus{border-color:var(--green)}
+    .form-group select option{background:var(--bg-raised)}
+    .form-group input::placeholder{color:var(--text-3)}
+    .modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+    .modal-err{font-size:12px;color:var(--red);margin-top:8px;min-height:18px}
+
+    /* LOADING / EMPTY */
+    .loading{text-align:center;padding:48px;color:var(--text-3);font-size:14px}
+    .empty{text-align:center;padding:48px;color:var(--text-3)}
+    .empty-icon{font-size:32px;margin-bottom:12px}
+    .empty p{font-size:14px}
+
+    /* TOAST */
+    .toast{position:fixed;bottom:24px;right:24px;background:var(--bg-card);border:1px solid var(--border-md);border-radius:10px;padding:12px 18px;font-size:13.5px;box-shadow:0 20px 40px rgba(0,0,0,.5);transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:500}
+    .toast.show{transform:translateY(0);opacity:1}
+    .toast.ok{border-color:rgba(61,219,111,.3);color:var(--green)}
+    .toast.err{border-color:rgba(232,85,85,.3);color:var(--red)}
+
+    /* AUTH SCREEN */
+    #authScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;font-size:14px;color:var(--text-3)}
+  </style>
+</head>
+<body>
+
+<div id="authScreen">Verificando acceso…</div>
+
+<nav id="appNav" style="display:none">
+  <a class="nav-logo" href="landing.html">
+    Stint<span class="ac">Pro</span>
+    <span class="nav-badge">ADMIN</span>
+  </a>
+  <div class="nav-r">
+    <span class="nav-user" id="navUser"></span>
+    <a href="index.html" class="btn btn-g">🏁 App</a>
+    <a href="logger-stats.html" class="btn btn-g">📋 Logger</a>
+    <button class="btn btn-g" onclick="doSignOut()">Salir</button>
+  </div>
+</nav>
+
+<div class="layout" id="appLayout" style="display:none">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <a href="landing.html" class="sb-back">← Volver al inicio</a>
+    <div class="sb-section">
+      <div class="sb-label">Gestión</div>
+      <button class="sb-link active" id="sb-users" onclick="showPage('users')">
+        <span class="icon">👤</span> Usuarios
+      </button>
+      <button class="sb-link" id="sb-circuits" onclick="showPage('circuits')">
+        <span class="icon">🏎</span> Circuitos
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ── USUARIOS ── -->
+    <div class="page active" id="page-users">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Usuarios</div>
+          <div class="page-sub">Gestiona el acceso a StintPro</div>
+        </div>
+        <button class="btn btn-p" onclick="openCreateUser()">+ Nuevo usuario</button>
+      </div>
+      <div class="stats-row" id="userStats"></div>
+      <div class="table-wrap tbl-users">
+        <div class="table-head">
+          <span>Email</span><span>Nombre</span><span>Rol</span><span>Creado</span><span style="text-align:right">Acciones</span>
+        </div>
+        <div id="usersList"><div class="loading">Cargando usuarios…</div></div>
+      </div>
+    </div>
+
+    <!-- ── CIRCUITOS ── -->
+    <div class="page" id="page-circuits">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Circuitos</div>
+          <div class="page-sub">Circuitos disponibles en StintPro y el Logger</div>
+        </div>
+        <button class="btn btn-p" onclick="openCreateCircuit()">+ Nuevo circuito</button>
+      </div>
+      <div class="stats-row" id="circuitStats"></div>
+      <div class="table-wrap tbl-circuits">
+        <div class="table-head">
+          <span>Nombre</span><span>Slug</span><span>Puerto</span><span style="text-align:right">Acciones</span>
+        </div>
+        <div id="circuitsList"><div class="loading">Cargando circuitos…</div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL CREAR USUARIO -->
+<div class="overlay" id="modalUser" onclick="if(event.target===this)closeModal('modalUser')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalUser')">✕</button>
+    <h3>Nuevo usuario</h3>
+    <p class="modal-desc">El usuario podrá iniciar sesión inmediatamente.</p>
+    <div class="form-group"><label>Email</label><input type="email" id="cu-email" placeholder="usuario@email.com"/></div>
+    <div class="form-group"><label>Nombre</label><input type="text" id="cu-name" placeholder="Nombre completo"/></div>
+    <div class="form-group"><label>Contraseña</label><input type="password" id="cu-pass" placeholder="Mínimo 6 caracteres"/></div>
+    <div class="form-group"><label>Rol</label>
+      <select id="cu-role">
+        <option value="user">Usuario</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="modal-err" id="cu-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-g" onclick="closeModal('modalUser')">Cancelar</button>
+      <button class="btn btn-p" id="cu-btn" onclick="createUser()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CREAR CIRCUITO -->
+<div class="overlay" id="modalCircuit" onclick="if(event.target===this)closeModal('modalCircuit')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalCircuit')">✕</button>
+    <h3>Nuevo circuito</h3>
+    <p class="modal-desc">Añade un circuito disponible en StintPro y el Logger.</p>
+    <div class="form-group"><label>Nombre</label><input type="text" id="cc-name" placeholder="RKC Alcañiz 1000m"/></div>
+    <div class="form-group"><label>Slug</label><input type="text" id="cc-slug" placeholder="rkc-alcaniz-1000" oninput="autoSlug(this)"/></div>
+    <div class="form-group"><label>Puerto Logger</label><input type="number" id="cc-port" placeholder="7913" value="7913"/></div>
+    <div class="modal-err" id="cc-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-g" onclick="closeModal('modalCircuit')">Cancelar</button>
+      <button class="btn btn-p" id="cc-btn" onclick="createCircuit()">Añadir circuito</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+let _session = null;
+let _users   = [];
+let _circuits = [];
+
+// ── AUTH CHECK ────────────────────────────────────────────────
+(async () => {
+  const { data: { session } } = await _sb.auth.getSession();
+  if (!session) { window.location.replace('landing.html'); return; }
+
+  const { data: profile } = await _sb.from('profiles').select('role,name,email').eq('id', session.user.id).single();
+  if (profile?.role !== 'admin') { window.location.replace('landing.html'); return; }
+
+  _session = session;
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appNav').style.display = '';
+  document.getElementById('appLayout').style.display = '';
+  document.getElementById('navUser').textContent = profile.name || session.user.email;
+
+  loadUsers();
+  loadCircuits();
+})();
+
+// ── SIGN OUT ──────────────────────────────────────────────────
+async function doSignOut() {
+  await _sb.auth.signOut();
+  window.location.replace('landing.html');
+}
+
+// ── PAGES ─────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.getElementById('sb-' + id).classList.add('active');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type + ' show';
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── MODALS ────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── API HELPER ────────────────────────────────────────────────
+async function adminAPI(action, extra = {}) {
+  const { data: { session } } = await _sb.auth.getSession();
+  const res = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ action, ...extra })
+  });
+  return res.json();
+}
+
+// ────────────────────────────────────────────────────────────
+// USUARIOS
+// ────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const { users, error } = await adminAPI('list-users');
+  if (error) { document.getElementById('usersList').innerHTML = `<div class="loading">Error: ${error}</div>`; return; }
+  _users = users || [];
+  renderUsers();
+  renderUserStats();
+}
+
+function renderUserStats() {
+  const admins = _users.filter(u => u.role === 'admin').length;
+  document.getElementById('userStats').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${_users.length}</div><div class="stat-label">Usuarios totales</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--purple)">${admins}</div><div class="stat-label">Admins</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--blue)">${_users.length - admins}</div><div class="stat-label">Usuarios</div></div>`;
+}
+
+function renderUsers() {
+  const el = document.getElementById('usersList');
+  if (!_users.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">👤</div><p>No hay usuarios todavía</p></div>';
+    return;
+  }
+  el.innerHTML = _users.map(u => `
+    <div class="table-row">
+      <span>${u.email}</span>
+      <span style="color:var(--text-2)">${u.name || '—'}</span>
+      <span><span class="role-badge role-${u.role}">${u.role}</span></span>
+      <span style="color:var(--text-3)">${fmtDate(u.created_at)}</span>
+      <div class="col-actions">
+        <button class="btn btn-d btn-sm" onclick="deleteUser('${u.id}','${escAttr(u.email)}')">Eliminar</button>
+      </div>
+    </div>`).join('');
+}
+
+function openCreateUser() {
+  document.getElementById('cu-email').value = '';
+  document.getElementById('cu-name').value = '';
+  document.getElementById('cu-pass').value = '';
+  document.getElementById('cu-role').value = 'user';
+  document.getElementById('cu-err').textContent = '';
+  openModal('modalUser');
+  setTimeout(() => document.getElementById('cu-email').focus(), 150);
+}
+
+async function createUser() {
+  const btn = document.getElementById('cu-btn');
+  const errEl = document.getElementById('cu-err');
+  const email = document.getElementById('cu-email').value.trim();
+  const name  = document.getElementById('cu-name').value.trim();
+  const pass  = document.getElementById('cu-pass').value;
+  const role  = document.getElementById('cu-role').value;
+
+  if (!email || !pass) { errEl.textContent = 'Email y contraseña son obligatorios'; return; }
+  if (pass.length < 6)  { errEl.textContent = 'La contraseña debe tener al menos 6 caracteres'; return; }
+
+  btn.textContent = 'Creando…'; btn.disabled = true; errEl.textContent = '';
+  const res = await adminAPI('create-user', { email, name, password: pass, role });
+  btn.textContent = 'Crear usuario'; btn.disabled = false;
+
+  if (res.error) { errEl.textContent = res.error; return; }
+  closeModal('modalUser');
+  toast('Usuario creado correctamente');
+  loadUsers();
+}
+
+async function deleteUser(id, email) {
+  if (!confirm(`¿Eliminar el usuario ${email}? Esta acción no se puede deshacer.`)) return;
+  const res = await adminAPI('delete-user', { userId: id });
+  if (res.error) { toast(res.error, 'err'); return; }
+  toast('Usuario eliminado');
+  loadUsers();
+}
+
+// ────────────────────────────────────────────────────────────
+// CIRCUITOS
+// ────────────────────────────────────────────────────────────
+async function loadCircuits() {
+  const { data, error } = await _sb.from('circuits').select('*').order('name');
+  if (error) { document.getElementById('circuitsList').innerHTML = `<div class="loading">Error: ${error.message}</div>`; return; }
+  _circuits = data || [];
+  renderCircuits();
+  renderCircuitStats();
+}
+
+function renderCircuitStats() {
+  document.getElementById('circuitStats').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${_circuits.length}</div><div class="stat-label">Circuitos activos</div></div>`;
+}
+
+function renderCircuits() {
+  const el = document.getElementById('circuitsList');
+  if (!_circuits.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🏎</div><p>No hay circuitos configurados</p></div>';
+    return;
+  }
+  el.innerHTML = _circuits.map(c => `
+    <div class="table-row">
+      <span>${c.name}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${c.slug}</span>
+      <span style="font-family:'DM Mono',monospace;color:var(--text-3)">${c.port}</span>
+      <div class="col-actions">
+        <button class="btn btn-d btn-sm" onclick="deleteCircuit('${c.id}','${escAttr(c.name)}')">Eliminar</button>
+      </div>
+    </div>`).join('');
+}
+
+function openCreateCircuit() {
+  document.getElementById('cc-name').value = '';
+  document.getElementById('cc-slug').value = '';
+  document.getElementById('cc-port').value = '7913';
+  document.getElementById('cc-err').textContent = '';
+  openModal('modalCircuit');
+  setTimeout(() => document.getElementById('cc-name').focus(), 150);
+}
+
+function autoSlug(input) {
+  input.value = input.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('cc-name').addEventListener('input', e => {
+    const slug = document.getElementById('cc-slug');
+    if (!slug.dataset.manual) {
+      slug.value = e.target.value.toLowerCase().trim()
+        .replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
+    }
+  });
+  document.getElementById('cc-slug').addEventListener('input', e => {
+    e.target.dataset.manual = e.target.value ? '1' : '';
+  });
+});
+
+async function createCircuit() {
+  const btn = document.getElementById('cc-btn');
+  const errEl = document.getElementById('cc-err');
+  const name = document.getElementById('cc-name').value.trim();
+  const slug = document.getElementById('cc-slug').value.trim();
+  const port = parseInt(document.getElementById('cc-port').value) || 7913;
+
+  if (!name || !slug) { errEl.textContent = 'Nombre y slug son obligatorios'; return; }
+
+  btn.textContent = 'Añadiendo…'; btn.disabled = true; errEl.textContent = '';
+  const { error } = await _sb.from('circuits').insert({ name, slug, port });
+  btn.textContent = 'Añadir circuito'; btn.disabled = false;
+
+  if (error) { errEl.textContent = error.message; return; }
+  closeModal('modalCircuit');
+  toast('Circuito añadido');
+  loadCircuits();
+}
+
+async function deleteCircuit(id, name) {
+  if (!confirm(`¿Eliminar el circuito "${name}"?`)) return;
+  const { error } = await _sb.from('circuits').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Circuito eliminado');
+  loadCircuits();
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'2-digit' });
+}
+function escAttr(s) {
+  return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

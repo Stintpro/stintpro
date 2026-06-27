@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>StintPro — Logger Stats</title>
+<script>
+(function(){
+  const key=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
+  if(!key)window.location.replace('/landing.html');
+})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#08090a;color:#e2e8f0;font-family:system-ui,sans-serif;font-size:14px;min-height:100vh}
