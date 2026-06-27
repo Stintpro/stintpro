@@ -262,6 +262,25 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - CORS habilitado para acceso desde navegador
 - Tailscale configurado: IP 100.71.53.12 (cuenta coyjavier@gmail.com)
 
+### Logger VPS — rol y fiabilidad
+- El VPS es ahora la raíz de la aplicación web StintPro (no solo un relay/logger del NAS)
+- **Riesgos de fiabilidad conocidos:**
+  - Pérdida de hasta 2 min de vueltas en crash (SQLite se vuelca a disco cada 2 min en `db.js`)
+  - Reinicio del servidor rompe la sesión activa (sessionId vive en memoria del CircuitMonitor)
+  - Dos features del app NO portadas al logger: fallback de tiempos desde `|*|` y detección de estado por código
+
+### Filtro de sesiones por título (pendiente de implementar)
+- **Problema:** algunos circuitos mezclan categorías (4T alquiler, motos, karts de competición) y el logger graba todo, contaminando los datos históricos de pilotos.
+- **Solución diseñada:** filtrar por título de sesión de Apex.
+  - Apex emite el título de sesión vía `dyn1|text|` — actualmente el parser solo extrae el contador de vueltas (`Lap X/Y`) y descarta el resto del texto.
+  - El título identifica la categoría ANTES de que llegue ninguna vuelta (discriminador limpio).
+  - **Opción A (filtro activo):** configurar por circuito qué títulos grabar; si el título no incluye las palabras clave configuradas, se descarta la sesión entera. Config en `config.json`:
+    ```json
+    { "slug": "circuito-x", "sessionFilter": { "titleIncludes": ["4T", "alquiler"] } }
+    ```
+  - **Opción B (solo etiquetar):** guardar el título en `sessions.title` y filtrar a posteriori desde la UI/API.
+  - Pendiente confirmar el texto exacto que manda Apex para ese circuito antes de implementar.
+
 ## Marca
 
 - **Nombre:** StintPro
