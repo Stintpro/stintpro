@@ -62,6 +62,8 @@
     let _sessionFinished = false;
     let _leaderLap       = 0;
     let _lastLapTime     = 0;
+    let _title1          = '';
+    let _title2          = '';
 
     function _kart(rowId) {
       if (!_karts[rowId]) _karts[rowId] = {
@@ -298,6 +300,16 @@
         return true;
       }
 
+      // ── TÍTULO DE SESIÓN ──────────────────────────────────────────────
+      if (line.startsWith('title1|')) {
+        _title1 = (line.split('|')[2] || '').trim();
+        return true;
+      }
+      if (line.startsWith('title2|')) {
+        _title2 = (line.split('|')[2] || '').trim();
+        return true;
+      }
+
       // ── COUNTDOWN ─────────────────────────────────────────────────────
       if (line.startsWith('dyn1|countdown|')) {
         const ms = parseInt(line.split('|')[2]) || null;
@@ -371,7 +383,7 @@
         .sort((a, b) => a.pos === 99 && b.pos === 99
           ? parseInt(a.dorsal) - parseInt(b.dorsal)
           : a.pos - b.pos);
-      return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap };
+      return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap, title1: _title1, title2: _title2 };
     }
 
     return {
@@ -413,6 +425,7 @@
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0;
+        _title1 = ''; _title2 = '';
       },
 
       get colMap()          { return _colMap; },

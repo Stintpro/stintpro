@@ -141,7 +141,9 @@ class CircuitMonitor {
     if (!this.recording) return;
     if (!this.sessionId) {
       // Primera vuelta real → crear sesión
-      this.sessionId = db.createSession(this.slug, this.name);
+      const { title1, title2 } = this.parser.getState();
+      const title = [title1, title2].filter(Boolean).join(' · ') || null;
+      this.sessionId = db.createSession(this.slug, this.name, title);
       this.pitEvents = [];
       this._lapCount = 0;
       // Auto-guardar snapshot cada 10s

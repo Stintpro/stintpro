@@ -22,6 +22,10 @@ function _migrate() {
       db.run("UPDATE sessions SET circuit_name=circuit WHERE circuit_name IS NULL");
       console.log('[DB] Migración completada');
     }
+    if (!names.includes('title')) {
+      db.run('ALTER TABLE sessions ADD COLUMN title TEXT');
+      console.log('[DB] Columna title añadida a sessions');
+    }
   } catch(e) {
     console.warn('[DB] Aviso migración:', e.message);
   }
@@ -46,6 +50,7 @@ async function init() {
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       slug         TEXT    NOT NULL,
       circuit_name TEXT,
+      title        TEXT,
       started_at   INTEGER,
       ended_at     INTEGER,
       is_active    INTEGER DEFAULT 1
@@ -101,11 +106,11 @@ function _save() {
 
 // ── Sessions ──────────────────────────────────────────────────────────────
 
-function createSession(slug, circuitName) {
+function createSession(slug, circuitName, title) {
   const stmt = db.prepare(
-    'INSERT INTO sessions (slug, circuit_name, started_at, is_active) VALUES (?, ?, ?, 1)'
+    'INSERT INTO sessions (slug, circuit_name, title, started_at, is_active) VALUES (?, ?, ?, ?, 1)'
   );
-  stmt.run([slug, circuitName || slug, Date.now()]);
+  stmt.run([slug, circuitName || slug, title || null, Date.now()]);
   stmt.free();
   const r = db.exec('SELECT last_insert_rowid() as id');
   const id = r[0].values[0][0];
@@ -185,7 +190,7 @@ function saveSnapshot(sessionId, obj) {
 
 function getAllSessions() {
   const r = db.exec(`
-    SELECT s.id, s.slug, s.circuit_name, s.started_at, s.ended_at, s.is_active,
+    SELECT s.id, s.slug, s.circuit_name, s.title, s.started_at, s.ended_at, s.is_active,
            COUNT(l.id) as lap_count
     FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
     GROUP BY s.id ORDER BY s.id DESC LIMIT 200
@@ -195,7 +200,7 @@ function getAllSessions() {
 
 function getCircuitSessions(slug, limit = 50) {
   return _query(
-    `SELECT s.id, s.slug, s.circuit_name, s.started_at, s.ended_at, s.is_active,
+    `SELECT s.id, s.slug, s.circuit_name, s.title, s.started_at, s.ended_at, s.is_active,
             COUNT(l.id) as lap_count
      FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
      WHERE s.slug=?
