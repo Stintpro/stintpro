@@ -325,7 +325,8 @@ function _enAutoKartQuality(e, trackAvg){
   const mn=stintBest, mx=Math.max(...clean);
 
   // Score histórico del piloto → decide qué referencia y qué umbral usar
-  const pilotScore=_enPilotRatings[e.name]??null;
+  const _pr=_enPilotRatings[e.name]??null;
+  const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
 
   // Piloto fiable (score≥600) → M5v es representativo, usar avg5
   // Piloto errático o sin datos → usar mejor vuelta del stint (más resistente a incidentes)
@@ -406,7 +407,8 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     return `SIN DATOS\nVueltas del kart actual: ${cleanStint.length} (necesita 5)`;
 
   const stintBest=cleanStint.length?Math.min(...cleanStint):null;
-  const pilotScore=_enPilotRatings[e.name]??null;
+  const _pr=_enPilotRatings[e.name]??null;
+  const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
   const isReliable=pilotScore!=null?pilotScore>=600:false;
   const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
   const ref=isReliable?avg5:stintBest;

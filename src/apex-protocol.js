@@ -62,6 +62,8 @@
     let _sessionFinished = false;
     let _leaderLap       = 0;
     let _lastLapTime     = 0;
+    let _title1          = '';
+    let _title2          = '';
 
     function _kart(rowId) {
       if (!_karts[rowId]) _karts[rowId] = {
@@ -145,6 +147,22 @@
       if (dtype === 's2') { const x = parseFloat(v); if (!isNaN(x) && x > 0 && x < 120) k.s2 = x; return; }
       if (dtype === 's3') { const x = parseFloat(v); if (!isNaN(x) && x > 0 && x < 120) k.s3 = x; return; }
 
+      // ── Nombre vía drteam (algunos circuitos usan tipo 'drteam' en col llp) ──
+      if (type === 'drteam') {
+        const n = (val || '').trim();
+        if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
+          const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
+          if (pm) {
+            k.name = pm[1].trim();
+            k._pilotName = pm[1].trim();
+          } else {
+            k.teamName = n;
+            if (!k._pilotName) k.name = n;
+          }
+        }
+        return;
+      }
+
       // ── Última vuelta ─────────────────────────────────────────────────
       if (dtype === 'llp') {
         const t = parseTime(v);
@@ -162,7 +180,7 @@
             if (k.lapHistory.length > 1500) k.lapHistory.shift();
             if (!k.bestLap || t < k.bestLap) k.bestLap = t;
             if (callbacks.onLap && k.dorsal)
-              callbacks.onLap(k.dorsal, k._pilotName || k.name, Math.round(t * 1000), k.lapHistory.length, Date.now());
+              callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now());
           }
           k._lapFromFlash  = undefined;
           k._lapFromFlashTs = 0;
@@ -257,7 +275,7 @@
                 if (k.lapHistory.length > 1500) k.lapHistory.shift();
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
-                  callbacks.onLap(k.dorsal, k._pilotName || k.name, ms, k.lapHistory.length, Date.now());
+                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, k.lapHistory.length, Date.now());
               }
               // Anti-dedup solo cuando |*| empujó: si llp llega después refina esa entrada
               // Con colMap.llp, |*| no empuja → llp siempre crea entrada nueva (no hay nada que refinar)
@@ -334,6 +352,26 @@
         return true;
       }
 
+      // ── TÍTULOS DE SESIÓN ─────────────────────────────────────────────
+      if (line.startsWith('title1|')) {
+        const v = line.split('|')[2] || '';
+        if (v && v !== _title1) {
+          _title1 = v;
+          const t = [_title1, _title2].filter(Boolean).join(' · ');
+          if (callbacks.onTitle) callbacks.onTitle(t);
+        }
+        return true;
+      }
+      if (line.startsWith('title2|')) {
+        const v = line.split('|')[2] || '';
+        if (v && v !== _title2) {
+          _title2 = v;
+          const t = [_title1, _title2].filter(Boolean).join(' · ');
+          if (callbacks.onTitle) callbacks.onTitle(t);
+        }
+        return true;
+      }
+
       // ── COMENTARIOS ───────────────────────────────────────────────────
       if (line.startsWith('com|')) {
         if (callbacks.onComment) {
@@ -379,7 +417,8 @@
         .sort((a, b) => a.pos === 99 && b.pos === 99
           ? parseInt(a.dorsal) - parseInt(b.dorsal)
           : a.pos - b.pos);
-      return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap };
+      return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap,
+               title1: _title1, title2: _title2 };
     }
 
     return {
@@ -424,7 +463,7 @@
       reset() {
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
-        _leaderLap = 0; _lastLapTime = 0;
+        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = '';
       },
 
       get colMap()          { return _colMap; },

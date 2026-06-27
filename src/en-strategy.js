@@ -1114,6 +1114,8 @@ window.showEnduranceDashboard=function(cfg){
 
         // Trackear mejor vuelta del stint y posición
         if(myK&&myK.lastLap&&!myK.pit){
+          // Arrancar stint si conectamos en mitad de carrera (sin pit OUT previo ni countdown)
+          if(!EnSession.stintStart&&!EnSession.stintFrozen)EnSession.stintStart=Date.now();
           if(myK.lastLap!==EnSession.data._lastMyLap){
             EnSession.stintLapTimes.push(myK.lastLap);
             EnSession.data._lastMyLap=myK.lastLap;

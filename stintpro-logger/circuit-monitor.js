@@ -43,6 +43,7 @@ class CircuitMonitor {
       onState:      this._onState.bind(this),
       onSessionEnd: this._onSessionEnd.bind(this),
       onNewSession: this._onNewSession.bind(this),
+      onTitle:      this._onTitle.bind(this),
     });
   }
 
@@ -223,6 +224,12 @@ class CircuitMonitor {
     this.pitEvents = [];
     this._lapCount = 0;
     if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
+  }
+
+  _onTitle(title) {
+    if (!this.sessionId) return;
+    db.updateSessionTitle(this.sessionId, title);
+    console.log(`[${this.slug}] Título de sesión actualizado: "${title}"`);
   }
 
   // ── Subscriptores WebSocket ───────────────────────────────────────────

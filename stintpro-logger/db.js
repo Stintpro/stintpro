@@ -2,6 +2,16 @@
 const path = require('path');
 const fs   = require('fs');
 
+// Normaliza nombres de piloto: quita tildes/diacríticos y colapsa espacios.
+// "Germán Muñoz" y "German Muñoz" → "German Munoz" (misma persona en BD).
+function _normalizeName(name) {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 let SQL = null;
 let db  = null;
 let _saving = false;
@@ -138,6 +148,12 @@ function endSession(sessionId) {
   _save();
 }
 
+function updateSessionTitle(sessionId, title) {
+  const stmt = db.prepare('UPDATE sessions SET title=? WHERE id=?');
+  stmt.run([title, sessionId]);
+  stmt.free();
+}
+
 function cleanupEmptySessions() {
   db.run(`DELETE FROM sessions WHERE is_active=0
           AND id NOT IN (SELECT DISTINCT session_id FROM laps)`);
@@ -160,7 +176,7 @@ function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, time
   const stmt = db.prepare(
     'INSERT INTO laps (session_id,dorsal,name,team_name,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?,?)'
   );
-  stmt.run([sessionId, dorsal, name || '', teamName || null, lapTimeMs, lapNumber, timestamp || Date.now()]);
+  stmt.run([sessionId, dorsal, _normalizeName(name), teamName ? _normalizeName(teamName) : null, lapTimeMs, lapNumber, timestamp || Date.now()]);
   stmt.free();
 }
 
@@ -225,23 +241,25 @@ function deletePilotFromCircuit(slug, name) {
   const stmt = db.prepare(
     'DELETE FROM laps WHERE name=? AND session_id IN (SELECT id FROM sessions WHERE slug=?)'
   );
-  stmt.run([name || '', slug]);
+  stmt.run([_normalizeName(name), slug]);
   stmt.free();
   _save();
 }
 
 function mergePilotsInCircuit(slug, names, target) {
-  const others = (names || []).filter(n => n !== target);
+  const normTarget = _normalizeName(target);
+  const others = (names || []).map(_normalizeName).filter(n => n !== normTarget);
   if (!others.length) return;
   const stmt = db.prepare(
     'UPDATE laps SET name=? WHERE name=? AND session_id IN (SELECT id FROM sessions WHERE slug=?)'
   );
-  for (const name of others) { stmt.run([target, name, slug]); }
+  for (const name of others) { stmt.run([normTarget, name, slug]); }
   stmt.free();
   _save();
 }
 
 function searchPilotsGlobal(query) {
+  const q = `%${_normalizeName(query)}%`;
   return _query(`
     SELECT s.slug, s.circuit_name, l.name, l.team_name,
            MIN(l.lap_time_ms) as best_ms,
@@ -253,7 +271,7 @@ function searchPilotsGlobal(query) {
       AND (UPPER(l.name) LIKE UPPER(?) OR UPPER(l.team_name) LIKE UPPER(?))
     GROUP BY s.slug, l.name
     ORDER BY s.slug, best_ms ASC
-  `, [`%${query}%`, `%${query}%`]);
+  `, [q, q]);
 }
 
 function getTotalLapsByCircuit(slug) {
@@ -338,7 +356,7 @@ function _query(sql, params = []) {
 
 module.exports = {
   init,
-  createSession, endSession, cleanupEmptySessions, deleteSession,
+  createSession, endSession, updateSessionTitle, cleanupEmptySessions, deleteSession,
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,

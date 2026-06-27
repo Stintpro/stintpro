@@ -147,6 +147,22 @@
       if (dtype === 's2') { const x = parseFloat(v); if (!isNaN(x) && x > 0 && x < 120) k.s2 = x; return; }
       if (dtype === 's3') { const x = parseFloat(v); if (!isNaN(x) && x > 0 && x < 120) k.s3 = x; return; }
 
+      // ── Nombre vía drteam (algunos circuitos usan tipo 'drteam' en col llp) ──
+      if (type === 'drteam') {
+        const n = (val || '').trim();
+        if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
+          const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
+          if (pm) {
+            k.name = pm[1].trim();
+            k._pilotName = pm[1].trim();
+          } else {
+            k.teamName = n;
+            if (!k._pilotName) k.name = n;
+          }
+        }
+        return;
+      }
+
       // ── Última vuelta ─────────────────────────────────────────────────
       if (dtype === 'llp') {
         const t = parseTime(v);
@@ -308,16 +324,6 @@
         return true;
       }
 
-      // ── TÍTULO DE SESIÓN ──────────────────────────────────────────────
-      if (line.startsWith('title1|')) {
-        _title1 = (line.split('|')[2] || '').trim();
-        return true;
-      }
-      if (line.startsWith('title2|')) {
-        _title2 = (line.split('|')[2] || '').trim();
-        return true;
-      }
-
       // ── COUNTDOWN ─────────────────────────────────────────────────────
       if (line.startsWith('dyn1|countdown|')) {
         const ms = parseInt(line.split('|')[2]) || null;
@@ -343,6 +349,26 @@
       if (line.startsWith('light|lf')) {
         _sessionFinished = true;
         if (callbacks.onSessionEnd) callbacks.onSessionEnd();
+        return true;
+      }
+
+      // ── TÍTULOS DE SESIÓN ─────────────────────────────────────────────
+      if (line.startsWith('title1|')) {
+        const v = line.split('|')[2] || '';
+        if (v && v !== _title1) {
+          _title1 = v;
+          const t = [_title1, _title2].filter(Boolean).join(' · ');
+          if (callbacks.onTitle) callbacks.onTitle(t);
+        }
+        return true;
+      }
+      if (line.startsWith('title2|')) {
+        const v = line.split('|')[2] || '';
+        if (v && v !== _title2) {
+          _title2 = v;
+          const t = [_title1, _title2].filter(Boolean).join(' · ');
+          if (callbacks.onTitle) callbacks.onTitle(t);
+        }
         return true;
       }
 
@@ -391,7 +417,8 @@
         .sort((a, b) => a.pos === 99 && b.pos === 99
           ? parseInt(a.dorsal) - parseInt(b.dorsal)
           : a.pos - b.pos);
-      return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap, title1: _title1, title2: _title2 };
+      return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap,
+               title1: _title1, title2: _title2 };
     }
 
     return {
@@ -436,8 +463,7 @@
       reset() {
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
-        _leaderLap = 0; _lastLapTime = 0;
-        _title1 = ''; _title2 = '';
+        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = '';
       },
 
       get colMap()          { return _colMap; },
