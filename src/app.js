@@ -2,7 +2,8 @@
 const _ACCESS_PIN = '2712';
 const _PIN_KEY    = 'stintpro_unlocked';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.CircuitDB.loadFromSupabase();
   if (localStorage.getItem(_PIN_KEY) === _ACCESS_PIN) {
     renderSetup();
   } else {

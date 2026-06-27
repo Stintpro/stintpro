@@ -69,21 +69,18 @@ window.CircuitDB = {
   }
 };
 
-// Carga async desde Supabase — llamar tras auth, antes de renderSetup()
+// Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
 window.CircuitDB.loadFromSupabase = async function() {
   if (!window.supabaseClient) return;
   try {
     const { data, error } = await window.supabaseClient
       .from('circuits').select('*').order('name');
-    if (!error && data) {
-      data.forEach(c => this.add({
-        id:         'sb_' + c.id,
-        name:       c.name,
-        slug:       c.slug,
-        port:       c.port || 7913,
-        _supabase:  true,
-        _sbId:      c.id
-      }));
+    if (!error && data && data.length > 0) {
+      const custom = this.list.filter(c => c._custom);
+      this.list = [
+        ...data.map(c => ({ id:'sb_'+c.id, name:c.name, slug:c.slug, port:c.port||7913, _supabase:true, _sbId:c.id })),
+        ...custom.filter(c => !data.find(d => d.slug === c.slug))
+      ];
     }
   } catch(e) {
     console.warn('[StintPro] No se pudieron cargar circuitos de Supabase:', e.message);

@@ -19,8 +19,8 @@
   <button id="btn-signout" onclick="signOutSP()" title="Cerrar sesión" style="position:fixed;bottom:14px;right:14px;z-index:9999;background:rgba(15,15,18,0.85);border:1px solid rgba(255,255,255,0.1);color:#555;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;backdrop-filter:blur(8px);font-family:sans-serif;transition:color .15s,border-color .15s">Salir</button>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const _sbApp = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
-    async function signOutSP(){ await _sbApp.auth.signOut(); window.location.replace('/landing.html'); }
+    window.supabaseClient = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
+    async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('/landing.html'); }
     document.getElementById('btn-signout').addEventListener('mouseenter',function(){this.style.color='#f2f2f6';this.style.borderColor='rgba(255,255,255,0.25)';});
     document.getElementById('btn-signout').addEventListener('mouseleave',function(){this.style.color='#555';this.style.borderColor='rgba(255,255,255,0.1)';});
   </script>
