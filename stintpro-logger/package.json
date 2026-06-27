@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "StintPro Logger — graba sesiones Apex Timing 24/7",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node server.js", "test": "jest --forceExit" },
+  "jest": { "testEnvironment": "node", "testTimeout": 10000, "testPathIgnorePatterns": ["/node_modules/"] },
+  "devDependencies": { "jest": "^30.0.0" },
   "dependencies": {
     "express": "^4.18.0",
     "ws": "^8.14.0",

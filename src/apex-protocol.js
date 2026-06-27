@@ -70,6 +70,7 @@
         standsCount: 0, _lapInvalid: false, checkered: false,
         _lapFlash: 0, _pitInTime: null, _pitTimerActive: false,
         _lapFromFlash: undefined, _lapFromFlashTs: 0,
+        _pilotName: undefined, // solo se actualiza con nombres que llevan [X:XX] (carreras por equipos)
       };
       return _karts[rowId];
     }
@@ -126,8 +127,15 @@
         const n = (v || '').trim();
         if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
-          if (pm) { k.name = pm[1].trim(); }
-          else { k.teamName = n; if (!k.name) k.name = n; }
+          if (pm) {
+            // Nombre con brackets = piloto confirmado (carreras por equipos)
+            k.name = pm[1].trim();
+            k._pilotName = pm[1].trim();
+          } else {
+            // Sin brackets = nombre de equipo (o piloto en carrera individual)
+            k.teamName = n;
+            if (!k._pilotName) k.name = n; // no sobreescribir si ya hay piloto confirmado
+          }
         }
         return;
       }
@@ -154,7 +162,7 @@
             if (k.lapHistory.length > 1500) k.lapHistory.shift();
             if (!k.bestLap || t < k.bestLap) k.bestLap = t;
             if (callbacks.onLap && k.dorsal)
-              callbacks.onLap(k.dorsal, k.name, Math.round(t * 1000), k.lapHistory.length, Date.now());
+              callbacks.onLap(k.dorsal, k._pilotName || k.name, Math.round(t * 1000), k.lapHistory.length, Date.now());
           }
           k._lapFromFlash  = undefined;
           k._lapFromFlashTs = 0;
@@ -249,7 +257,7 @@
                 if (k.lapHistory.length > 1500) k.lapHistory.shift();
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
-                  callbacks.onLap(k.dorsal, k.name, ms, k.lapHistory.length, Date.now());
+                  callbacks.onLap(k.dorsal, k._pilotName || k.name, ms, k.lapHistory.length, Date.now());
               }
               // Anti-dedup solo cuando |*| empujó: si llp llega después refina esa entrada
               // Con colMap.llp, |*| no empuja → llp siempre crea entrada nueva (no hay nada que refinar)
@@ -395,9 +403,13 @@
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
           if (kg.pos)                          k.pos          = kg.pos;
           if (kg.dorsal)                       k.dorsal       = kg.dorsal;
+          if (kg.pilotName && !k._pilotName) k._pilotName = kg.pilotName; // nombre con [X:XX] confirmado
           if (kg.name) {
             const pm = kg.name.match(/^(.*?)\s*\[\d+:\d+\]$/);
-            if (pm) { if (!k.name) k.name = pm[1].trim(); }
+            if (pm) {
+              if (!k.name) k.name = pm[1].trim();
+              if (!k._pilotName) k._pilotName = pm[1].trim();
+            }
             else { if (!k.teamName) k.teamName = kg.name; if (!k.name) k.name = kg.name; }
           }
           if (kg.bestLap && !k.bestLap)        k.bestLap      = kg.bestLap;

@@ -72,8 +72,8 @@ class ApexParser {
             const n = c.text.trim();
             if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) {
               const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
-              if (pm) { kg.name = pm[1].trim(); }
-              else { kg.teamName = n; }
+              if (pm) { kg.name = pm[1].trim(); kg.pilotName = pm[1].trim(); }
+              else { kg.teamName = n; kg.name = n; } // fallback para carreras individuales (sin brackets nunca)
             }
           }
         }

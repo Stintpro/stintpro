@@ -89,3 +89,5 @@ function _enTrend(hist){
   if(diff>0.15)return{arrow:'↓',color:'#ef4444'};   // empeorando
   return{arrow:'→',color:'#555'};                    // estable
 }
+
+if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend};

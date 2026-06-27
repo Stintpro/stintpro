@@ -137,7 +137,7 @@ class CircuitMonitor {
     }
   }
 
-  _onLap(dorsal, name, lapMs, lapNumber, timestamp) {
+  _onLap(dorsal, name, teamName, lapMs, lapNumber, timestamp) {
     if (!this.recording) return;
     if (!this.sessionId) {
       // Primera vuelta real → crear sesión
@@ -152,7 +152,7 @@ class CircuitMonitor {
     }
     this._lapCount++;
     const cleanName = (name || '').replace(/\s*\[\d+:\d+\]\s*$/, '').trim();
-    db.insertLap(this.sessionId, dorsal, cleanName, lapMs, lapNumber, timestamp);
+    db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp);
   }
 
   _onPit(dorsal, eventType, standsCount, timestamp) {

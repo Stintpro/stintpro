@@ -362,7 +362,7 @@ function _enRenderRow(e, d){
       <div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>
       <div class="sp-gap">${d.gapHtml}</div>
       <div class="sp-gap">${e.interval||'—'}</div>
-      <div class="sp-cons">${(()=>{const r=_enPilotRatings[e.name];const s=r?.score??r;return s!=null?`<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>`:'<span style="color:#2d2f38">—</span>';})()}</div>
+      <div class="sp-cons">${(()=>{const r=_enPilotRatings[e.name];const s=typeof r==='object'?r?.score:r;return s!=null?`<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>`:'<span style="color:#2d2f38">—</span>';})()}</div>
       <div class="sp-pitc">${e.standsCount||0}</div>
       <div class="sp-lapbar ${d.barClass}" id="en-bar-${e.dorsal}" style="width:${d.barPct}%"></div>
     </div>

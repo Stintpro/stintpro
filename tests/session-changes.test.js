@@ -93,7 +93,7 @@ group('Discriminación piloto/equipo — apex-protocol.js', () => {
     assert.equal(k.name, 'Javier Coy');
   });
 
-  test('setGrid con nombre de equipo → va a teamName, k.name cae al fallback #dorsal', () => {
+  test('setGrid con nombre de equipo → va a teamName y también a name (muestra equipo hasta que llegue piloto)', () => {
     const p = createParser({});
     p.setGrid({
       colMap:   { no: 'c1', dr: 'c2' },
@@ -101,7 +101,7 @@ group('Discriminación piloto/equipo — apex-protocol.js', () => {
       karts: [{ rowId: 'r1', pos: 1, dorsal: '7', name: 'Team StintPro' }],
     });
     const k = p.getState().equipos[0];
-    assert.equal(k.name, '#7', 'sin piloto identificado, name cae al fallback #dorsal');
+    assert.equal(k.name, 'Team StintPro', 'nombre de equipo visible hasta que llega el piloto');
     assert.equal(k.teamName, 'Team StintPro');
   });
 

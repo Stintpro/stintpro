@@ -8,7 +8,6 @@ let _saving = false;
 const DB_PATH = path.join(__dirname, 'data', 'stintpro.db');
 
 function _migrate() {
-  // Detectar esquema antiguo del NAS (columna 'active' en vez de 'is_active')
   try {
     const cols = db.exec("PRAGMA table_info(sessions)");
     if (!cols.length || !cols[0].values.length) return;
@@ -16,18 +15,30 @@ function _migrate() {
     if (names.includes('active') && !names.includes('is_active')) {
       console.log('[DB] Migrando esquema antiguo (active → is_active)...');
       db.run('ALTER TABLE sessions RENAME COLUMN active TO is_active');
-      // Mapear columnas antiguas al nuevo nombre si existen
       if (names.includes('circuit') && !names.includes('circuit_name'))
         db.run('ALTER TABLE sessions ADD COLUMN circuit_name TEXT');
       db.run("UPDATE sessions SET circuit_name=circuit WHERE circuit_name IS NULL");
-      console.log('[DB] Migración completada');
+      console.log('[DB] Migración sessions completada');
     }
     if (!names.includes('title')) {
       db.run('ALTER TABLE sessions ADD COLUMN title TEXT');
       console.log('[DB] Columna title añadida a sessions');
     }
   } catch(e) {
-    console.warn('[DB] Aviso migración:', e.message);
+    console.warn('[DB] Aviso migración sessions:', e.message);
+  }
+
+  try {
+    const lapCols = db.exec("PRAGMA table_info(laps)");
+    if (lapCols.length && lapCols[0].values.length) {
+      const lapNames = lapCols[0].values.map(r => r[1]);
+      if (!lapNames.includes('team_name')) {
+        db.run('ALTER TABLE laps ADD COLUMN team_name TEXT');
+        console.log('[DB] Columna team_name añadida a laps');
+      }
+    }
+  } catch(e) {
+    console.warn('[DB] Aviso migración laps:', e.message);
   }
 }
 
@@ -60,6 +71,7 @@ async function init() {
       session_id   INTEGER NOT NULL,
       dorsal       TEXT,
       name         TEXT,
+      team_name    TEXT,
       lap_time_ms  INTEGER,
       lap_number   INTEGER,
       timestamp    INTEGER,
@@ -144,17 +156,17 @@ function deleteSession(sessionId) {
 
 // ── Laps ──────────────────────────────────────────────────────────────────
 
-function insertLap(sessionId, dorsal, name, lapTimeMs, lapNumber, timestamp) {
+function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, timestamp) {
   const stmt = db.prepare(
-    'INSERT INTO laps (session_id,dorsal,name,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?)'
+    'INSERT INTO laps (session_id,dorsal,name,team_name,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?,?)'
   );
-  stmt.run([sessionId, dorsal, name || '', lapTimeMs, lapNumber, timestamp || Date.now()]);
+  stmt.run([sessionId, dorsal, name || '', teamName || null, lapTimeMs, lapNumber, timestamp || Date.now()]);
   stmt.free();
 }
 
 function getLapsBySession(sessionId) {
   return _query(
-    'SELECT dorsal,name,lap_time_ms,lap_number,timestamp FROM laps WHERE session_id=? ORDER BY timestamp ASC',
+    'SELECT dorsal,name,team_name,lap_time_ms,lap_number,timestamp FROM laps WHERE session_id=? ORDER BY timestamp ASC',
     [sessionId]
   );
 }
@@ -231,17 +243,17 @@ function mergePilotsInCircuit(slug, names, target) {
 
 function searchPilotsGlobal(query) {
   return _query(`
-    SELECT s.slug, s.circuit_name, l.name,
+    SELECT s.slug, s.circuit_name, l.name, l.team_name,
            MIN(l.lap_time_ms) as best_ms,
            CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
            COUNT(*) as total_laps,
            COUNT(DISTINCT l.session_id) as session_count
     FROM laps l JOIN sessions s ON s.id=l.session_id
     WHERE l.lap_time_ms BETWEEN 20000 AND 300000
-      AND UPPER(l.name) LIKE UPPER(?)
+      AND (UPPER(l.name) LIKE UPPER(?) OR UPPER(l.team_name) LIKE UPPER(?))
     GROUP BY s.slug, l.name
     ORDER BY s.slug, best_ms ASC
-  `, [`%${query}%`]);
+  `, [`%${query}%`, `%${query}%`]);
 }
 
 function getTotalLapsByCircuit(slug) {
@@ -254,7 +266,7 @@ function getTotalLapsByCircuit(slug) {
 
 function getPilotSessionsByCircuit(slug) {
   return _query(`
-    SELECT l.name, l.session_id, s.started_at,
+    SELECT l.name, l.team_name, l.session_id, s.started_at,
            MIN(l.lap_time_ms) as best_ms,
            CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
            COUNT(*) as laps
@@ -267,11 +279,41 @@ function getPilotSessionsByCircuit(slug) {
 
 function getBestLapsByCircuit(slug) {
   return _query(`
-    SELECT l.dorsal, l.name, MIN(l.lap_time_ms) as best_ms, COUNT(*) as total_laps,
+    SELECT l.dorsal, l.name, l.team_name, MIN(l.lap_time_ms) as best_ms, COUNT(*) as total_laps,
            s.circuit_name, s.started_at
     FROM laps l JOIN sessions s ON s.id=l.session_id
     WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
     GROUP BY l.dorsal, l.name ORDER BY best_ms ASC LIMIT 100
+  `, [slug]);
+}
+
+function getTeamSessionsByCircuit(slug) {
+  return _query(`
+    SELECT l.team_name, l.session_id, s.started_at,
+           MIN(l.lap_time_ms) as best_ms,
+           CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
+           COUNT(*) as laps,
+           COUNT(DISTINCT l.name) as pilot_count
+    FROM laps l JOIN sessions s ON s.id=l.session_id
+    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
+      AND l.team_name IS NOT NULL
+    GROUP BY l.team_name, l.session_id
+    ORDER BY s.started_at DESC
+  `, [slug]);
+}
+
+function getBestLapsByTeam(slug) {
+  return _query(`
+    SELECT l.team_name,
+           MIN(l.lap_time_ms) as best_ms,
+           CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
+           COUNT(*) as total_laps,
+           COUNT(DISTINCT l.name) as pilot_count,
+           COUNT(DISTINCT l.session_id) as session_count
+    FROM laps l JOIN sessions s ON s.id=l.session_id
+    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
+      AND l.team_name IS NOT NULL
+    GROUP BY l.team_name ORDER BY best_ms ASC LIMIT 100
   `, [slug]);
 }
 
@@ -300,5 +342,7 @@ module.exports = {
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
-  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit, deletePilotFromCircuit, mergePilotsInCircuit, getTotalLapsByCircuit, searchPilotsGlobal,
+  getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit,
+  getTeamSessionsByCircuit, getBestLapsByTeam,
+  deletePilotFromCircuit, mergePilotsInCircuit, getTotalLapsByCircuit, searchPilotsGlobal,
 };
