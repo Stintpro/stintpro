@@ -4,12 +4,111 @@ const _PIN_KEY    = 'stintpro_unlocked';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await window.CircuitDB.loadFromSupabase();
-  if (localStorage.getItem(_PIN_KEY) === _ACCESS_PIN) {
-    renderSetup();
-  } else {
-    _renderPinScreen();
+  const role = await window._spRolePromise;
+  window._spUserRole = role;
+  if (role !== 'admin') {
+    const { data } = await window.supabaseClient
+      .from('settings').select('value').eq('key', 'demo_mode').single();
+    if (data?.value !== 'true') {
+      window.location.replace('/landing.html');
+      return;
+    }
+    _launchDemoMode();
+    return;
   }
+  renderSetup();
 });
+
+// ── DEMO MODE ─────────────────────────────────────────────────────────────
+
+async function _launchDemoMode() {
+  _showDemoModal();
+}
+
+function _showDemoModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'demo-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(8,9,10,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(12px);';
+  overlay.innerHTML = `
+    <div style="background:#13141a;border:0.5px solid #252630;border-radius:16px;padding:40px 36px;max-width:360px;width:90%;text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#F5A623;letter-spacing:0.15em;margin-bottom:20px;">STINTPRO DEMO</div>
+      <div style="font-size:22px;font-weight:600;color:#f2f2f6;margin-bottom:8px;line-height:1.3;">Simulación de carrera real</div>
+      <div style="font-size:13px;color:#555;margin-bottom:32px;line-height:1.6;">Reproducción en bucle de una carrera endurance grabada en vivo.</div>
+      <div style="font-size:13px;color:#666;margin-bottom:10px;">La demo comienza en</div>
+      <div id="demo-countdown" style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:700;color:#F5A623;margin-bottom:28px;line-height:1;">20</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button onclick="_startDemoNow()" style="background:#F5A623;border:none;border-radius:8px;color:#08090a;font-size:14px;font-weight:600;padding:13px 24px;cursor:pointer;font-family:sans-serif;transition:opacity .15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Comenzar ahora</button>
+        <button onclick="signOutSP()" style="background:transparent;border:1px solid #252630;border-radius:8px;color:#555;font-size:13px;padding:11px 24px;cursor:pointer;font-family:sans-serif;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#999';this.style.borderColor='#3a3b45'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  let t = 20;
+  window._demoCountdownIv = setInterval(() => {
+    t--;
+    const el = document.getElementById('demo-countdown');
+    if (el) el.textContent = t;
+    if (t <= 0) { clearInterval(window._demoCountdownIv); _startDemoNow(); }
+  }, 1000);
+}
+
+async function _startDemoNow() {
+  clearInterval(window._demoCountdownIv);
+  const overlay = document.getElementById('demo-overlay');
+  if (overlay) {
+    overlay.style.transition = 'opacity .4s';
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.remove(), 400);
+  }
+
+  try {
+    await window.ReplayConnector.loadUrl('/demo/demo-race.ndjson');
+  } catch(e) {
+    console.error('[Demo] No se pudo cargar demo-race.ndjson:', e);
+    const msg = document.createElement('div');
+    msg.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#08090a;color:#ef4444;font-family:monospace;font-size:14px;z-index:10000;';
+    msg.textContent = 'Error al cargar el archivo de demo. Contacta con el administrador.';
+    document.body.appendChild(msg);
+    return;
+  }
+
+  window.ReplayConnector.loopMode = true;
+  window.ReplayConnector.speed = 1;
+  window.ApexConnector = window.ReplayConnector;
+
+  const cfg = {
+    name: 'Demo · Endurance en vivo', raceType: 'endurance', simMode: false,
+    stintMin: 0, stintMax: 999, stops: 0, pitMinTime: 3,
+    myDorsal: '1', nKarts: 4, pitLayout: 'libre',
+    slug: 'demo', port: 0,
+    pilotos: [{ name: 'Demo', minutos: 90 }]
+  };
+  window.AppState.config = cfg;
+  window.AppState.loggerUrl    = null;
+  window.AppState.loggerApiKey = null;
+  window.showEnduranceDashboard(cfg);
+
+  setTimeout(_injectDemoBanner, 400);
+}
+
+function _injectDemoBanner() {
+  if (document.getElementById('demo-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'demo-banner';
+  banner.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.35);border-radius:6px;padding:5px 14px;display:flex;align-items:center;gap:14px;font-family:monospace;font-size:11.5px;backdrop-filter:blur(8px);white-space:nowrap;';
+  banner.innerHTML = `
+    <span style="color:#F5A623;font-weight:700;letter-spacing:0.1em;">● DEMO</span>
+    <span style="color:#444;font-size:10px;">Reproducción en bucle · modo simulación</span>
+    <button onclick="_exitDemo()" style="background:transparent;border:1px solid #252630;border-radius:4px;color:#555;font-size:10px;padding:2px 8px;cursor:pointer;font-family:monospace;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#ccc';this.style.borderColor='#555'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>`;
+  document.body.appendChild(banner);
+}
+
+function _exitDemo() {
+  window.ReplayConnector.loopMode = false;
+  window.ReplayConnector.disconnect();
+  document.getElementById('demo-banner')?.remove();
+  signOutSP();
+}
 
 function _renderPinScreen() {
   const setup = document.getElementById('screen-setup');

@@ -7,6 +7,7 @@ window.ReplayConnector = {
   _playing:    false,
   _paused:     false,
   speed:       1,
+  loopMode:    false,
   _currentIdx: 0,
   _t0:         0,       // timestamp del primer mensaje
   _tEnd:       0,       // timestamp del último mensaje
@@ -25,15 +26,27 @@ window.ReplayConnector = {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        this._lines = e.target.result.split('\n')
-          .filter(Boolean)
-          .map(l => { try { return JSON.parse(l); } catch { return null; } })
-          .filter(l => l && l.t && l.raw);
+        this._lines = this._parseNdjson(e.target.result);
         resolve(this._lines.length);
       };
       reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
       reader.readAsText(file);
     });
+  },
+
+  async loadUrl(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} cargando ${url}`);
+    const text = await res.text();
+    this._lines = this._parseNdjson(text);
+    return this._lines.length;
+  },
+
+  _parseNdjson(text) {
+    return text.split('\n')
+      .filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(l => l && l.t && l.raw);
   },
 
   connect(slug, onData, onStatus, onComment) {
@@ -42,22 +55,7 @@ window.ReplayConnector = {
     this.onComment = onComment;
     this._comments = [];
     this._paused   = false;
-
-    this._parser = ApexProtocol.createParser({
-      onGrid:       (html)     => this._parseGrid(html),
-      onCountdown:  (ms, mode) => {
-        if (!window.ApexClock) return;
-        if (mode === 'stop') ApexClock.stop();
-        else ApexClock.sync(ms, mode);
-      },
-      onNewSession: ()         => {
-        if (window.ApexClock?.reset) ApexClock.reset();
-      },
-      onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
-      onComment:    (html)     => this._parseComment(html),
-      onChange:     (state)    => this._emit(state),
-    });
-
+    this._parser   = this._createParser();
     this._startFrom(0);
   },
 
@@ -99,20 +97,7 @@ window.ReplayConnector = {
     const wasPaused = this._paused;
     if (this._tid) { clearTimeout(this._tid); this._tid = null; }
     // Reiniciar el parser para evitar estado inconsistente
-    if (this._parser) {
-      this._parser = ApexProtocol.createParser({
-        onGrid:       (html)     => this._parseGrid(html),
-        onCountdown:  (ms, mode) => {
-          if (!window.ApexClock) return;
-          if (mode === 'stop') ApexClock.stop();
-          else ApexClock.sync(ms, mode);
-        },
-        onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); },
-        onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
-        onComment:    (html)     => this._parseComment(html),
-        onChange:     (state)    => this._emit(state),
-      });
-    }
+    if (this._parser) this._parser = this._createParser();
     this._currentIdx = lo;
     if (wasPaused) {
       this._mediaStart = this._lines[lo].t;
@@ -132,6 +117,21 @@ window.ReplayConnector = {
   },
 
   // ── Lógica interna ────────────────────────────────────────────────────────
+
+  _createParser() {
+    return ApexProtocol.createParser({
+      onGrid:       (html)     => this._parseGrid(html),
+      onCountdown:  (ms, mode) => {
+        if (!window.ApexClock) return;
+        if (mode === 'stop') ApexClock.stop();
+        else ApexClock.sync(ms, mode);
+      },
+      onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); },
+      onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
+      onComment:    (html)     => this._parseComment(html),
+      onChange:     (state)    => this._emit(state),
+    });
+  },
 
   _startFrom(idx) {
     if (!this._lines.length) {
@@ -153,6 +153,12 @@ window.ReplayConnector = {
   _scheduleNext(idx) {
     if (!this._playing || this._paused || idx >= this._lines.length) {
       if (idx >= this._lines.length) {
+        if (this.loopMode) {
+          this._parser = this._createParser();
+          this._comments = [];
+          this._startFrom(0);
+          return;
+        }
         this._playing    = false;
         this._currentIdx = this._lines.length - 1;
         if (this.onStatus) this.onStatus('disconnected', '■ Replay finalizado');

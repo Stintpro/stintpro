@@ -147,6 +147,9 @@
       <button class="sb-link" id="sb-circuits" onclick="showPage('circuits')">
         <span class="icon">🏎</span> Circuitos
       </button>
+      <button class="sb-link" id="sb-demo" onclick="showPage('demo')">
+        <span class="icon">📼</span> Modo Demo
+      </button>
     </div>
   </aside>
 
@@ -168,6 +171,45 @@
           <span>Email</span><span>Nombre</span><span>Rol</span><span>Creado</span><span style="text-align:right">Acciones</span>
         </div>
         <div id="usersList"><div class="loading">Cargando usuarios…</div></div>
+      </div>
+    </div>
+
+    <!-- ── DEMO ── -->
+    <div class="page" id="page-demo">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Modo Demo</div>
+          <div class="page-sub">Controla si los usuarios no-admin ven la simulación al entrar</div>
+        </div>
+      </div>
+
+      <div style="max-width:520px">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:28px 28px 24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <div style="font-size:15px;font-weight:600;color:var(--text-1);margin-bottom:4px">Simulación en bucle</div>
+              <div style="font-size:13px;color:var(--text-3);line-height:1.5">Cuando está activo, los usuarios normales ven<br>una reproducción de carrera real al entrar.</div>
+            </div>
+            <button id="demo-toggle-btn" onclick="toggleDemoMode()" style="position:relative;width:52px;height:28px;border-radius:14px;border:none;cursor:pointer;transition:background .2s;flex-shrink:0;outline:none">
+              <span id="demo-toggle-knob" style="position:absolute;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.4)"></span>
+            </button>
+          </div>
+
+          <div id="demo-status-row" style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:8px;font-size:13px;transition:all .2s">
+            <span id="demo-status-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0"></span>
+            <span id="demo-status-txt"></span>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px 28px;margin-top:12px">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">Cómo funciona</div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text-2);line-height:1.5">
+            <div>&#8226; Los <strong style="color:var(--text-1)">admins</strong> siempre acceden al dashboard real, sin cambios.</div>
+            <div>&#8226; Los <strong style="color:var(--text-1)">usuarios normales</strong>, si el modo demo está activo, ven un modal de cuenta atrás (20 s) y después una carrera grabada reproduciéndose en bucle.</div>
+            <div>&#8226; Si el modo demo está <strong style="color:var(--text-1)">desactivado</strong>, los usuarios normales son redirigidos a la landing.</div>
+            <div>&#8226; El archivo de demo se sirve desde <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--bg-raised);padding:1px 6px;border-radius:4px">/demo/demo-race.ndjson</code></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -256,6 +298,7 @@ let _circuits = [];
 
   loadUsers();
   loadCircuits();
+  loadDemoMode();
 })();
 
 // ── SIGN OUT ──────────────────────────────────────────────────
@@ -455,6 +498,48 @@ async function deleteCircuit(id, name) {
   if (error) { toast(error.message, 'err'); return; }
   toast('Circuito eliminado');
   loadCircuits();
+}
+
+// ── DEMO MODE ────────────────────────────────────────────────
+let _demoActive = false;
+
+async function loadDemoMode() {
+  const { data } = await _sb.from('settings').select('value').eq('key', 'demo_mode').single();
+  _demoActive = data?.value === 'true';
+  _renderDemoToggle();
+}
+
+function _renderDemoToggle() {
+  const btn  = document.getElementById('demo-toggle-btn');
+  const knob = document.getElementById('demo-toggle-knob');
+  const dot  = document.getElementById('demo-status-dot');
+  const txt  = document.getElementById('demo-status-txt');
+  const row  = document.getElementById('demo-status-row');
+  if (!btn) return;
+
+  btn.style.background  = _demoActive ? 'var(--green)' : 'var(--bg-raised)';
+  btn.style.border      = _demoActive ? 'none' : '1px solid var(--border-md)';
+  knob.style.left       = _demoActive ? '27px' : '3px';
+  dot.style.background  = _demoActive ? 'var(--green)' : 'var(--text-3)';
+  txt.textContent       = _demoActive
+    ? 'Activo — los usuarios normales ven la simulación al entrar'
+    : 'Inactivo — los usuarios normales son redirigidos a la landing';
+  txt.style.color       = _demoActive ? 'var(--green)' : 'var(--text-3)';
+  row.style.background  = _demoActive ? 'var(--green-dim)' : 'var(--bg-raised)';
+  row.style.border      = _demoActive ? '1px solid rgba(61,219,111,.2)' : '1px solid transparent';
+}
+
+async function toggleDemoMode() {
+  const btn = document.getElementById('demo-toggle-btn');
+  btn.disabled = true;
+  const next = !_demoActive;
+  const { error } = await _sb.from('settings')
+    .upsert({ key: 'demo_mode', value: String(next) }, { onConflict: 'key' });
+  btn.disabled = false;
+  if (error) { toast('Error al guardar: ' + error.message, 'err'); return; }
+  _demoActive = next;
+  _renderDemoToggle();
+  toast(_demoActive ? 'Modo demo activado' : 'Modo demo desactivado');
 }
 
 // ── UTILS ─────────────────────────────────────────────────────
