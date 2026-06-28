@@ -14,56 +14,59 @@ function renderSetup() {
   document.getElementById('screen-setup').innerHTML = `
   <div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;position:relative;">
     <div class="titlebar-drag" style="position:absolute;top:0;left:0;right:0;height:28px"></div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:44px;">
-      <div class="app-icon">🏁</div>
-      <div><div class="app-title">Karting Strategy</div><div class="app-ver">v1.0d</div></div>
+
+    <div style="margin-bottom:48px;text-align:center;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:#F5A623;letter-spacing:0.12em;margin-bottom:6px;">STINTPRO</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#2A3848;letter-spacing:0.1em;">KARTING STRATEGY INTELLIGENCE</div>
     </div>
-    <div style="font-size:16.5px;font-weight:500;color:var(--text-1);margin-bottom:8px;text-align:center">¿Qué tipo de sesión?</div>
-    <div style="font-size:13.5px;color:var(--text-3);margin-bottom:28px;text-align:center">Selecciona el modo para configurar la sesión</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:500px;margin-bottom:24px;">
-      <div onclick="selectRaceType('sprint')" style="border:0.5px solid var(--border);border-radius:var(--r-lg);padding:32px 20px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-dim)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
-        <div style="font-size:41.5px;margin-bottom:14px">⚡</div>
-        <div style="font-size:16.5px;font-weight:500;color:var(--text-1);margin-bottom:6px">Sprint</div>
-        <div style="font-size:12.5px;color:var(--text-3)">Solo circuito y dorsal<br>Dashboard con datos reales</div>
+
+    <div style="font-size:13px;font-weight:500;color:var(--text-1);margin-bottom:6px;text-align:center;">¿Qué tipo de sesión?</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:28px;text-align:center;">Selecciona el modo para configurar la sesión</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:480px;margin-bottom:20px;">
+      <div onclick="selectRaceType('sprint')" style="border:1px solid var(--border);border-radius:4px;padding:28px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-dim)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
+        <div style="font-size:32px;margin-bottom:12px;">⚡</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:5px;">Sprint</div>
+        <div style="font-size:11.5px;color:var(--text-3);line-height:1.5;">Solo circuito y dorsal<br>Dashboard con datos reales</div>
       </div>
-      <div onclick="selectRaceType('endurance')" style="border:0.5px solid var(--border);border-radius:var(--r-lg);padding:32px 20px;cursor:pointer;text-align:center;transition:all .15s" onmouseover="this.style.borderColor='var(--green)';this.style.background='var(--green-dim)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
-        <div style="font-size:41.5px;margin-bottom:14px">🏁</div>
-        <div style="font-size:16.5px;font-weight:500;color:var(--text-1);margin-bottom:6px">Endurance</div>
-        <div style="font-size:12.5px;color:var(--text-3)">Setup completo de carrera<br>Estrategia y gestión de equipo</div>
+      <div onclick="selectRaceType('endurance')" style="border:1px solid var(--border);border-radius:4px;padding:28px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='#F5A623';this.style.background='rgba(245,166,35,0.08)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
+        <div style="font-size:32px;margin-bottom:12px;">🏁</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:5px;">Endurance</div>
+        <div style="font-size:11.5px;color:var(--text-3);line-height:1.5;">Setup completo de carrera<br>Estrategia y gestión de equipo</div>
       </div>
     </div>
-    <!-- Modo conexión -->
-    <div style="width:100%;max-width:500px;margin-bottom:16px;">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-        <div onclick="_connMode='apex';window.ApexConnector=_origApex;renderSetup()" style="flex:1;padding:10px;border-radius:var(--r-lg);border:0.5px solid ${_connMode==='apex'?'var(--blue)':'var(--border)'};background:${_connMode==='apex'?'var(--blue-dim)':'transparent'};cursor:pointer;text-align:center">
-          <div style="font-size:13.5px;font-weight:500;color:${_connMode==='apex'?'var(--blue)':'var(--text-2)'}">⚡ Directo a Apex</div>
+
+    <div style="width:100%;max-width:480px;margin-bottom:16px;">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+        <div onclick="_connMode='apex';window.ApexConnector=_origApex;renderSetup()" style="flex:1;padding:9px;border-radius:3px;border:1px solid ${_connMode==='apex'?'#F5A623':'var(--border)'};background:${_connMode==='apex'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;transition:all .15s;">
+          <div style="font-size:12.5px;font-weight:500;color:${_connMode==='apex'?'#F5A623':'var(--text-3)'};">⚡ Directo a Apex</div>
         </div>
-        <div onclick="_connMode='logger';renderSetup()" style="flex:1;padding:10px;border-radius:var(--r-lg);border:0.5px solid ${_connMode==='logger'?'var(--green)':'var(--border)'};background:${_connMode==='logger'?'var(--green-dim)':'transparent'};cursor:pointer;text-align:center">
-          <div style="font-size:13.5px;font-weight:500;color:${_connMode==='logger'?'var(--green)':'var(--text-2)'}">🖥 Logger</div>
+        <div onclick="_connMode='logger';renderSetup()" style="flex:1;padding:9px;border-radius:3px;border:1px solid ${_connMode==='logger'?'#F5A623':'var(--border)'};background:${_connMode==='logger'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;transition:all .15s;">
+          <div style="font-size:12.5px;font-weight:500;color:${_connMode==='logger'?'#F5A623':'var(--text-3)'};">🖥 Logger</div>
         </div>
-        <div onclick="_connMode='replay';renderSetup()" style="flex:1;padding:10px;border-radius:var(--r-lg);border:0.5px solid ${_connMode==='replay'?'#a78bfa':'var(--border)'};background:${_connMode==='replay'?'rgba(167,139,250,0.1)':'transparent'};cursor:pointer;text-align:center">
-          <div style="font-size:13.5px;font-weight:500;color:${_connMode==='replay'?'#a78bfa':'var(--text-2)'}">📼 Replay</div>
+        <div onclick="_connMode='replay';renderSetup()" style="flex:1;padding:9px;border-radius:3px;border:1px solid ${_connMode==='replay'?'#F5A623':'var(--border)'};background:${_connMode==='replay'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;transition:all .15s;">
+          <div style="font-size:12.5px;font-weight:500;color:${_connMode==='replay'?'#F5A623':'var(--text-3)'};">📼 Replay</div>
         </div>
       </div>
       ${_connMode==='logger'?`
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn" onclick="testLogger()" style="flex:none">Verificar conexión</button>
-        <span id="loggerStatus" style="font-size:12.5px;color:var(--text-3)"></span>
+        <span id="loggerStatus" style="font-size:12px;color:var(--text-3)"></span>
       </div>
       `:''}
       ${_connMode==='replay'?`
-      <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:12px 14px;display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;gap:8px;align-items:center">
-          <label style="flex:1;padding:8px 12px;border-radius:6px;border:0.5px dashed #a78bfa44;background:#0e0f11;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12.5px;color:${_replayFile?'#a78bfa':'var(--text-3)'};font-family:sans-serif">
-            <span style="font-size:16px">📂</span>
+          <label style="flex:1;padding:8px 12px;border-radius:3px;border:1px dashed rgba(245,166,35,0.25);background:var(--bg);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;color:${_replayFile?'#F5A623':'var(--text-3)'};font-family:var(--font-sans)">
+            <span style="font-size:15px">📂</span>
             <span>${_replayFile?_replayFile.name:'Seleccionar grabación (.ndjson)…'}</span>
             <input type="file" accept=".ndjson" style="display:none" onchange="_onReplayFileChange(this)">
           </label>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:12px;color:var(--text-3);font-family:sans-serif;flex-shrink:0">Velocidad:</span>
-          ${[1,2,5,10].map(s=>`<div onclick="_replaySpeed=${s};renderSetup()" style="padding:4px 10px;border-radius:5px;border:0.5px solid ${_replaySpeed===s?'#a78bfa':'var(--border)'};background:${_replaySpeed===s?'rgba(167,139,250,0.15)':'transparent'};cursor:pointer;font-size:12px;color:${_replaySpeed===s?'#a78bfa':'var(--text-3)'};font-family:monospace">${s}×</div>`).join('')}
-          <div onclick="_replaySpeed=0;renderSetup()" style="padding:4px 10px;border-radius:5px;border:0.5px solid ${_replaySpeed===0?'#a78bfa':'var(--border)'};background:${_replaySpeed===0?'rgba(167,139,250,0.15)':'transparent'};cursor:pointer;font-size:12px;color:${_replaySpeed===0?'#a78bfa':'var(--text-3)'};font-family:monospace">∞</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:11.5px;color:var(--text-3);flex-shrink:0">Velocidad:</span>
+          ${[1,2,5,10].map(s=>`<div onclick="_replaySpeed=${s};renderSetup()" style="padding:4px 10px;border-radius:3px;border:1px solid ${_replaySpeed===s?'#F5A623':'var(--border)'};background:${_replaySpeed===s?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;font-size:12px;color:${_replaySpeed===s?'#F5A623':'var(--text-3)'};font-family:monospace">${s}×</div>`).join('')}
+          <div onclick="_replaySpeed=0;renderSetup()" style="padding:4px 10px;border-radius:3px;border:1px solid ${_replaySpeed===0?'#F5A623':'var(--border)'};background:${_replaySpeed===0?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;font-size:12px;color:${_replaySpeed===0?'#F5A623':'var(--text-3)'};font-family:monospace">∞</div>
         </div>
       </div>
       `:''}

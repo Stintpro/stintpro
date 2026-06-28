@@ -1,13 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap');
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
-  --bg:         #0d0d0f;
-  --bg-card:    #16161a;
-  --bg-raised:  #1e1e24;
-  --bg-hover:   #25252e;
-  --border:     rgba(255,255,255,0.07);
-  --border-md:  rgba(255,255,255,0.13);
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --bg:         #07090F;
+  --bg-card:    #0D1018;
+  --bg-raised:  #131820;
+  --bg-hover:   #1A2030;
+  --border:     #1A2030;
+  --border-md:  #242E40;
   --text-1:     #f0f0f4;
   --text-2:     #9090a0;
   --text-3:     #55556a;
