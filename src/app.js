@@ -80,7 +80,7 @@ async function _startDemoNow() {
     name: 'Demo · Endurance en vivo', raceType: 'endurance', simMode: false,
     stintMin: 0, stintMax: 999, stops: 0, pitMinTime: 3,
     myDorsal: '1', nKarts: 4, pitLayout: 'libre',
-    slug: 'demo', port: 0,
+    slug: 'karting-lossantos', port: 8093,
     pilotos: [{ name: 'Demo', minutos: 90 }]
   };
   window.AppState.config = cfg;
