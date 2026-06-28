@@ -4,553 +4,467 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>StintPro — Karting Strategy Intelligence</title>
-  <link rel="icon" href="logo.png"/>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    const _SBURL = 'https://nyybrybnvflwbdwdqpwa.supabase.co';
-    const _SBKEY = 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H';
-    const _sb = supabase.createClient(_SBURL, _SBKEY);
-  </script>
+  <link rel="icon" href="src/logo.png"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet"/>
   <style>
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{
-      --bg:#080809; --bg-card:#0f0f12; --bg-raised:#18181e;
-      --border:rgba(255,255,255,0.06); --border-md:rgba(255,255,255,0.11);
-      --text-1:#f2f2f6; --text-2:#8888a0; --text-3:#444458;
-      --green:#3ddb6f; --green-dim:rgba(61,219,111,0.1); --green-glow:rgba(61,219,111,0.2);
-      --orange:#f09040; --blue:#5b9cf6; --gold:#d4a843; --red:#e85555;
-      --purple:#c084fc;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #07090F;
+      color: #C8D0DB;
+      font-family: 'Inter', sans-serif;
     }
-    html{scroll-behavior:smooth}
-    body{background:var(--bg);color:var(--text-1);font-family:'DM Sans',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 
-    /* ─ NAV ─ */
-    nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:0 48px;height:58px;background:rgba(8,8,9,0.85);backdrop-filter:blur(24px);border-bottom:1px solid var(--border)}
-    .nav-logo{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:700;color:var(--text-1);text-decoration:none}
-    .nav-logo img{width:24px;height:24px;object-fit:contain}
-    .nav-logo .ac{color:var(--green)}
-    .nav-r{display:flex;align-items:center;gap:6px}
-    .btn{display:inline-flex;align-items:center;gap:7px;padding:7px 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;transition:all .15s;text-decoration:none;border:none}
-    .btn-g{background:transparent;color:var(--text-2)}
-    .btn-g:hover{color:var(--text-1);background:var(--bg-raised)}
-    .btn-p{background:var(--green);color:#050905;font-weight:700;box-shadow:0 0 24px var(--green-glow)}
-    .btn-p:hover{background:#4deb7f;box-shadow:0 0 40px rgba(61,219,111,.35);transform:translateY(-1px)}
-    .btn-o{background:transparent;color:var(--text-1);border:1px solid var(--border-md)}
-    .btn-o:hover{border-color:var(--green);color:var(--green);background:var(--green-dim)}
-    .btn-lg{padding:13px 30px;font-size:15px;border-radius:10px}
+    .page {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 28px 48px;
+      text-align: center;
+    }
 
-    /* ─ HERO ─ */
-    .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 60px;position:relative;overflow:hidden}
-    .hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(61,219,111,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(61,219,111,.035) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse 90% 70% at 50% 50%,black 20%,transparent 75%)}
-    .hero-glow{position:absolute;width:700px;height:500px;background:radial-gradient(ellipse,rgba(61,219,111,.13) 0%,transparent 65%);top:5%;left:50%;transform:translateX(-50%);pointer-events:none;filter:blur(8px)}
-    .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(61,219,111,.08);border:1px solid rgba(61,219,111,.2);color:var(--green);font-size:11px;font-weight:600;padding:5px 14px;border-radius:100px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:36px}
-    .live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 8px var(--green);animation:lp 1.8s ease-in-out infinite}
-    @keyframes lp{0%,100%{opacity:1;box-shadow:0 0 8px var(--green)}50%{opacity:.4;box-shadow:0 0 3px var(--green)}}
-    h1{font-size:clamp(46px,7.5vw,86px);font-weight:800;letter-spacing:-.035em;line-height:1.05;margin-bottom:24px;max-width:860px}
-    .shine{background:linear-gradient(100deg,var(--green) 0%,#90f5b0 45%,var(--green) 100%);background-size:200%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:sh 3.5s linear infinite}
-    @keyframes sh{0%{background-position:0%}100%{background-position:200%}}
-    .hero-sub{font-size:clamp(15px,2vw,18px);color:var(--text-2);max-width:500px;margin-bottom:44px;line-height:1.75}
-    .hero-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
 
-    /* ─ PORTAL SECTION ─ */
-    .portal-track{height:600vh;position:relative}
-    .portal-sticky{position:sticky;top:0;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
-    .portal-vignette{position:absolute;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse 75% 75% at 50% 50%, transparent 30%, rgba(8,8,9,0.95) 100%);opacity:0;transition:opacity 0s}
-    .feat-layer{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;pointer-events:none}
-    .feat-card{position:absolute;background:rgba(15,15,18,0.95);border:1px solid var(--border-md);border-radius:14px;padding:20px 22px;width:240px;opacity:0;pointer-events:none;transition:opacity .5s ease, transform .5s ease;backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,.8),0 0 0 1px var(--border)}
-    .feat-card.show{opacity:1;pointer-events:all}
-    .feat-card .fc-icon{font-size:20px;margin-bottom:10px}
-    .feat-card .fc-title{font-size:13px;font-weight:700;margin-bottom:5px;color:var(--text-1)}
-    .feat-card .fc-val{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;margin-bottom:4px;line-height:1}
-    .feat-card .fc-desc{font-size:12px;color:var(--text-2);line-height:1.5}
-    .feat-card .fc-bar{height:3px;border-radius:2px;margin-top:8px;background:linear-gradient(90deg,var(--green),rgba(61,219,111,.2))}
-    .fc-m5v  {top:18%;left:3%;transform:translateX(-20px)}.fc-m5v.show{transform:translateX(0)}
-    .fc-class{top:12%;right:3%;transform:translateX(20px)}.fc-class.show{transform:translateX(0)}
-    .fc-pit  {bottom:20%;left:3%;transform:translateX(-20px)}.fc-pit.show{transform:translateX(0)}
-    .fc-kart {bottom:15%;right:3%;transform:translateX(20px)}.fc-kart.show{transform:translateX(0)}
-    .fc-strat{top:50%;left:50%;transform:translate(-50%,-50%) scale(.8)}.fc-strat.show{transform:translate(-50%,-50%) scale(1)}
-    .feat-connector{position:absolute;z-index:3;pointer-events:none;opacity:0;transition:opacity .5s ease}.feat-connector.show{opacity:1}
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
 
-    /* THE DASHBOARD */
-    .dash-wrap{position:relative;z-index:4;width:1100px;max-width:calc(100vw - 20px);transform-origin:center center;transform:scale(0.24);will-change:transform, opacity}
-    .sp-app{background:#0e0f11;border-radius:12px;border:1px solid #1e2028;overflow:hidden;box-shadow:0 0 0 1px #1e2028, 0 40px 100px rgba(0,0,0,.8), 0 0 80px rgba(61,219,111,.04);position:relative;font-size:13px}
-    .sp-app::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(61,219,111,.5),transparent);z-index:1}
-    .sp-titlebar{background:#13141a;border-bottom:.5px solid #252630;padding:8px 16px;display:flex;align-items:center;gap:8px}
-    .sp-tb-dots{display:flex;gap:5px}.sp-tb-dot{width:10px;height:10px;border-radius:50%}
-    .d-r{background:#ff5f57}.d-y{background:#febc2e}.d-g{background:#28c840}
-    .sp-tb-title{font-family:'DM Mono',monospace;font-size:11px;color:#3a3b42;margin-left:8px;letter-spacing:.03em}
-    .sp-tb-right{margin-left:auto;display:flex;align-items:center;gap:6px}
-    .live-badge{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#ef4444;background:rgba(239,68,68,.1);padding:2px 8px;border-radius:20px;border:.5px solid #ef4444}
-    .live-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:#ef4444;animation:lp .8s infinite alternate}
-    .sp-clock-val{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:#fff;letter-spacing:-1px}
-    .sp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 14px;border-bottom:.5px solid #1a1b20}
-    .sp-kpi{background:#0e0f11;border-radius:8px;padding:9px 12px;border:.5px solid #1e1f25}
-    .sp-kpi-lbl{font-size:10.5px;color:#3a3b42;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-family:sans-serif}
-    .sp-kpi-val{font-size:21px;font-weight:500;font-family:monospace;line-height:1.1;letter-spacing:-.5px}
-    .sp-kpi-sub{font-size:10.5px;color:#444;margin-top:2px;font-family:sans-serif}
-    .sp-nav{display:flex;border-bottom:.5px solid #1a1b20}
-    .nav-btn{flex:1;padding:8px 6px;font-size:12.5px;font-weight:500;color:#444;background:transparent;border:none;border-bottom:2px solid transparent;cursor:default;font-family:sans-serif;display:flex;align-items:center;justify-content:center;gap:4px}
-    .nav-btn.active{color:#d0d2db;border-bottom-color:#5b8dee}
-    .en-thead{display:grid;grid-template-columns:20px 42px 42px 1fr 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:5px 14px;border-bottom:.5px solid #1a1b20;flex-shrink:0}
-    .en-thead span{font-size:11px;color:#333;text-transform:uppercase;letter-spacing:.5px;text-align:right}
-    .en-thead span:nth-child(4){text-align:left}.en-thead span:nth-child(1),.en-thead span:nth-child(2){text-align:center}
-    .en-row{display:grid;grid-template-columns:20px 42px 42px 1fr 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:7px 14px;border-bottom:.5px solid #111213;align-items:center;position:relative}
-    .en-row:nth-child(odd){background:rgba(255,255,255,.012)}
-    .en-row.myrow{background:rgba(91,141,238,.05)!important;border-left:2px solid #5b8dee}
-    .en-row.p1row{background:rgba(212,168,67,.04)!important}
-    .sp-dot{width:8px;height:8px;border-radius:50%;margin:auto}
-    .sp-pos{font-size:13.5px;font-weight:500;color:#bbb;text-align:center;font-family:monospace}
-    .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:12.5px;font-weight:700;margin:auto}
-    .sp-name{font-size:13.5px;color:#d0d2db;font-family:sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
-    .sp-vtas{font-size:12.5px;color:#2d2f38;text-align:right;font-family:monospace}
-    .sp-t{font-size:13.5px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums}
-    .en-m5{font-size:12.5px;text-align:right;font-family:monospace}
-    .en-delta{font-size:11.5px;text-align:right;font-family:monospace}
-    .sp-gap{font-size:12.5px;text-align:right;font-family:monospace;color:#6b7280}
-    .sp-int{font-size:11.5px;text-align:right;font-family:monospace;color:#3a3c48}
-    .sp-cons{font-size:10px;text-align:center}
-    .sp-pitc{font-size:11.5px;color:#333;text-align:right;font-family:monospace}
-    .sp-pit-b{background:#ef4444;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0}
-    .sp-out-b{background:#f97316;color:#fff;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:4px;flex-shrink:0}
-    .sp-chk{font-size:10px}
-    @keyframes rowFlash{0%{background:rgba(251,146,60,.25)}100%{background:transparent}}
-    .flash-row{animation:rowFlash 2.5s ease-out forwards}
-    .sp-footer{padding:6px 14px;display:flex;gap:16px;border-top:.5px solid #181920;background:#0c0d10}
-    .sp-fl{font-size:10.5px;color:#2d2f38;display:flex;align-items:center;gap:4px}
-    .sp-fldot{width:6px;height:6px;border-radius:50%}
+    .logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: #F5A623;
+      letter-spacing: 0.12em;
+    }
 
-    /* ─ REST ─ */
-    .section{padding:110px 0}
-    .container{max-width:1080px;margin:0 auto;padding:0 32px}
-    .eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:14px}
-    h2{font-size:clamp(28px,4.5vw,48px);font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-bottom:18px}
-    .sub{font-size:17px;color:var(--text-2);line-height:1.7;max-width:460px}
-    .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-    .bento-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:28px;transition:border-color .2s,transform .2s;position:relative;overflow:hidden}
-    .bento-card:hover{border-color:rgba(61,219,111,.2);transform:translateY(-2px)}
-    .bento-card::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(61,219,111,.05) 0%,transparent 60%);opacity:0;transition:opacity .3s;pointer-events:none}
-    .bento-card:hover::after{opacity:1}
-    .bento-card.wide{grid-column:span 2}.bento-card.tall{grid-row:span 2}
-    .b-icon{font-size:24px;width:48px;height:48px;border-radius:12px;background:var(--bg-raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
-    .bento-card h3{font-size:16px;font-weight:700;margin-bottom:8px}
-    .bento-card p{font-size:14px;color:var(--text-2);line-height:1.65}
-    .mini-chart{margin-top:20px;height:52px;display:flex;align-items:flex-end;gap:4px}
-    .bar{flex:1;border-radius:3px 3px 0 0;background:var(--bg-raised);position:relative;overflow:hidden}
-    .bar-fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,var(--green),rgba(61,219,111,.3));border-radius:3px 3px 0 0;height:0%;transition:height .8s ease}
-    .bar.best .bar-fill{background:linear-gradient(0deg,var(--gold),rgba(212,168,67,.3))}
-    .kpi-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
-    .kpi-mini{background:var(--bg-raised);border-radius:8px;padding:12px;border:1px solid var(--border)}
-    .kpi-mini-val{font-family:'DM Mono',monospace;font-size:22px;color:var(--text-1);line-height:1;margin-bottom:4px}
-    .kpi-mini-val.g{color:var(--green)}.kpi-mini-val.o{color:var(--orange)}.kpi-mini-val.b{color:var(--blue)}
-    .kpi-mini-label{font-size:11px;color:var(--text-3)}
-    .how-inner{display:grid;grid-template-columns:1fr 1fr;gap:100px;align-items:center}
-    .steps{display:flex;flex-direction:column}
-    .step{display:flex;gap:22px;padding:26px 0;border-bottom:1px solid var(--border)}
-    .step:last-child{border-bottom:none}
-    .step-num{flex-shrink:0;width:34px;height:34px;border-radius:50%;border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:12px;color:var(--green);background:var(--green-dim)}
-    .step h3{font-size:15px;font-weight:600;margin-bottom:6px}
-    .step p{font-size:14px;color:var(--text-2);line-height:1.6}
-    #cta{padding:140px 0}
-    .cta-inner{background:var(--bg-card);border:1px solid var(--border);border-radius:24px;padding:80px 48px;text-align:center;position:relative;overflow:hidden}
-    .cta-inner::before{content:'';position:absolute;top:0;left:25%;right:25%;height:1px;background:linear-gradient(90deg,transparent,var(--green),transparent)}
-    .cta-glow{position:absolute;width:500px;height:350px;background:radial-gradient(ellipse,rgba(61,219,111,.08) 0%,transparent 65%);top:-100px;left:50%;transform:translateX(-50%);pointer-events:none}
-    .cta-inner h2{margin-bottom:18px}.cta-inner .sub{margin:0 auto 44px}
-    footer{border-top:1px solid var(--border);padding:28px 48px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text-3)}
-    footer a{color:var(--text-3);text-decoration:none}footer a:hover{color:var(--text-2)}
+    .nav-link {
+      font-size: 13px;
+      color: #3E4E62;
+      text-decoration: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      padding: 0;
+    }
 
-    /* Modal */
-    .overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
-    .overlay.open{opacity:1;pointer-events:all}
-    .modal{background:var(--bg-card);border:1px solid var(--border-md);border-radius:20px;padding:40px;width:100%;max-width:400px;position:relative;transform:scale(.96) translateY(8px);transition:transform .22s cubic-bezier(.34,1.56,.64,1);box-shadow:0 50px 100px rgba(0,0,0,.7)}
-    .modal::before{content:'';position:absolute;top:0;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,var(--green),transparent)}
-    .overlay.open .modal{transform:scale(1) translateY(0)}
-    .modal-close{position:absolute;top:14px;right:14px;width:28px;height:28px;background:var(--bg-raised);border:1px solid var(--border);border-radius:50%;color:var(--text-2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s}
-    .modal-close:hover{color:var(--text-1);background:var(--bg-raised)}
-    .modal-logo{display:flex;align-items:center;gap:8px;margin-bottom:28px}
-    .modal-logo img{width:26px}
-    .modal-logo span{font-size:16px;font-weight:700}
-    .modal-logo .accent{color:var(--green)}
-    .modal h3{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
-    .modal-desc{font-size:14px;color:var(--text-2);margin-bottom:28px}
-    .form-group{margin-bottom:14px}
-    .form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--text-2);margin-bottom:7px}
-    .form-group input{width:100%;background:var(--bg-raised);border:1px solid var(--border-md);border-radius:9px;color:var(--text-1);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color .15s,box-shadow .15s}
-    .form-group input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(61,219,111,.1)}
-    .form-group input::placeholder{color:var(--text-3)}
-    .btn-full{width:100%;justify-content:center;margin-top:4px;padding:11px 20px;font-size:14.5px;border-radius:9px}
-    .admin-choice{display:flex;flex-direction:column;gap:10px}
-    .admin-choice .btn{justify-content:flex-start;padding:14px 18px;font-size:14px;border-radius:10px}
-    .login-err{font-size:13px;color:var(--red);text-align:center;margin-top:10px;min-height:20px}
+    .nav-link:hover { color: #6A7A8E; }
 
-    .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
-    .reveal.visible{opacity:1;transform:translateY(0)}
-    .reveal-d1{transition-delay:.1s}.reveal-d2{transition-delay:.2s}.reveal-d3{transition-delay:.3s}
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
-    @media(max-width:900px){nav{padding:0 20px}.bento{grid-template-columns:1fr 1fr}.bento-card.wide{grid-column:span 2}.bento-card.tall{grid-row:auto}.how-inner{grid-template-columns:1fr;gap:48px}footer{flex-direction:column;gap:10px}.cta-inner{padding:48px 24px}}
-    @media(max-width:600px){.bento{grid-template-columns:1fr}.bento-card.wide{grid-column:span 1}}
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #F5A623;
+      letter-spacing: 0.14em;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 500;
+      color: #EDF0F4;
+      line-height: 1.18;
+      margin-bottom: 18px;
+    }
+
+    .subtitle {
+      font-size: 15px;
+      color: #4E5E72;
+      line-height: 1.6;
+      max-width: 400px;
+      margin-bottom: 36px;
+    }
+
+    .btn-primary {
+      font-size: 13px;
+      font-weight: 500;
+      color: #07090F;
+      background: #F5A623;
+      border: none;
+      padding: 12px 26px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: opacity 0.15s;
+    }
+
+    .btn-primary:hover { opacity: 0.88; }
+
+    .ticker {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #F5A623;
+      flex-shrink: 0;
+      transition: opacity 0.4s;
+    }
+
+    #ticker-line {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #1E2C3A;
+      letter-spacing: 0.06em;
+      transition: opacity 0.3s;
+    }
+
+    /* OVERLAY */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 9, 15, 0.88);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    /* MODALS */
+    .modal {
+      display: none;
+      background: #0D1018;
+      border: 1px solid #1A2030;
+      border-radius: 6px;
+      padding: 32px;
+      width: 360px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .modal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #F5A623;
+      letter-spacing: 0.1em;
+    }
+
+    .btn-close {
+      background: none;
+      border: none;
+      color: #3E4E62;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .btn-close:hover { color: #6A7A8E; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+      font-size: 11px;
+      color: #3E4E62;
+      letter-spacing: 0.06em;
+    }
+
+    input, textarea {
+      background: #07090F;
+      border: 1px solid #1A2030;
+      border-radius: 3px;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: #EDF0F4;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+
+    input:focus, textarea:focus { border-color: #F5A623; }
+    textarea { resize: none; }
+
+    input::placeholder, textarea::placeholder { color: #2A3848; }
+
+    .fields { display: flex; flex-direction: column; gap: 14px; }
+
+    .btn-submit {
+      width: 100%;
+      font-size: 13px;
+      font-weight: 500;
+      color: #07090F;
+      background: #F5A623;
+      border: none;
+      padding: 11px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      margin-top: 6px;
+      transition: opacity 0.15s;
+    }
+
+    .btn-submit:hover { opacity: 0.88; }
+
+    .modal-footer {
+      font-size: 12px;
+      color: #3E4E62;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .modal-footer a {
+      color: #F5A623;
+      text-decoration: none;
+    }
+
+    /* QUE ES modal */
+    #modal-que { width: 400px; }
+
+    .que-body {
+      font-size: 13px;
+      color: #7A8A9E;
+      line-height: 1.7;
+      margin-bottom: 18px;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .feature-dash {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #F5A623;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    .feature-text {
+      font-size: 12px;
+      color: #4E5E72;
+      line-height: 1.5;
+    }
+
+    /* SUCCESS */
+    #modal-success { width: 320px; text-align: center; }
+
+    .success-check {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      color: #F5A623;
+      margin-bottom: 14px;
+    }
+
+    .success-title {
+      font-size: 15px;
+      font-weight: 500;
+      color: #EDF0F4;
+      margin-bottom: 8px;
+    }
+
+    .success-body {
+      font-size: 13px;
+      color: #3E4E62;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .btn-ghost {
+      font-size: 13px;
+      color: #3E4E62;
+      background: transparent;
+      border: 1px solid #1A2030;
+      padding: 9px 20px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .btn-ghost:hover { border-color: #2A3848; color: #6A7A8E; }
   </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav>
-  <a class="nav-logo" href="#">
-    <img src="logo.png" alt="" onerror="this.style.display='none'"/>
-    Stint<span class="ac">Pro</span>
-  </a>
-  <div class="nav-r">
-    <a href="#features" class="btn btn-g">Funciones</a>
-    <a href="#how" class="btn btn-g">Cómo funciona</a>
-    <button class="btn btn-p" onclick="openModal()">Acceder →</button>
-  </div>
-</nav>
+<div class="page">
 
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-glow"></div>
-  <div class="badge"><span class="live-dot"></span>Apex Timing · Datos en tiempo real</div>
-  <h1>La ventaja táctica<br/><span class="shine">que gana carreras</span></h1>
-  <p class="hero-sub">StintPro convierte el timing de Apex en inteligencia de carrera: ritmos, costes de parada y clasificación real al instante.</p>
-  <div class="hero-actions">
-    <button class="btn btn-p btn-lg" onclick="openModal()">Entrar a StintPro →</button>
-    <a href="#features" class="btn btn-o btn-lg">Ver funciones</a>
-  </div>
-</section>
-
-<!-- ── PORTAL ZOOM ── -->
-<div class="portal-track" id="portalTrack">
-  <div class="portal-sticky" id="portalSticky">
-    <div class="portal-vignette" id="portalVignette"></div>
-    <div class="feat-layer">
-      <div class="feat-card fc-m5v" id="fc-m5v">
-        <div class="fc-icon">📊</div>
-        <div class="fc-title">Ritmo M5v</div>
-        <div class="fc-val" style="color:var(--green)" id="fc-m5v-val">36.580</div>
-        <div class="fc-desc">Media de las últimas 5 vueltas volantes. Sin out laps, sin vueltas parciales.</div>
-        <div class="fc-bar" style="width:82%"></div>
-      </div>
-      <div class="feat-card fc-class" id="fc-class">
-        <div class="fc-icon">🏁</div>
-        <div class="fc-title">Clasificación estimada</div>
-        <div class="fc-val" style="color:var(--blue)">P2 → <b>P1</b></div>
-        <div class="fc-desc">Posición real descontando paradas pendientes de cada rival.</div>
-      </div>
-      <div class="feat-card fc-pit" id="fc-pit">
-        <div class="fc-icon">⏱</div>
-        <div class="fc-title">Coste real de pit stop</div>
-        <div class="fc-val" style="color:var(--orange)">28.4s</div>
-        <div class="fc-desc">Tiempo fuera de clasificación, medido con precisión de ms.</div>
-      </div>
-      <div class="feat-card fc-kart" id="fc-kart">
-        <div class="fc-icon">🔧</div>
-        <div class="fc-title">Calidad de kart</div>
-        <div class="fc-val" style="color:var(--green)">87%</div>
-        <div class="fc-desc">Consistencia, tendencia y ritmo relativo al grid en cada stint.</div>
-        <div class="fc-bar" style="width:87%"></div>
-      </div>
-      <div class="feat-card fc-strat" id="fc-strat">
-        <div class="fc-icon">🎯</div>
-        <div class="fc-title">Estrategia táctica</div>
-        <div class="fc-val" style="color:var(--purple)">ENTRAR →</div>
-        <div class="fc-desc">Todo el análisis en un dashboard. Conecta y empieza a ganar.</div>
-      </div>
+  <nav>
+    <div class="nav-left">
+      <span class="logo">STINTPRO</span>
+      <button class="nav-link" onclick="openQue()">¿Qué es StintPro?</button>
     </div>
+    <button class="nav-link" onclick="openLogin()">Iniciar sesión</button>
+  </nav>
 
-    <div class="dash-wrap" id="dashWrap">
-      <div class="sp-app">
-        <div class="sp-titlebar">
-          <div class="sp-tb-dots"><div class="sp-tb-dot d-r"></div><div class="sp-tb-dot d-y"></div><div class="sp-tb-dot d-g"></div></div>
-          <span class="sp-tb-title">StintPro · RKC 1000m · Endurance 6h</span>
-          <div class="sp-tb-right"><div class="live-badge">LIVE</div><span class="sp-clock-val" id="dash-clk">3:22:14</span></div>
-        </div>
-        <div class="sp-kpis">
-          <div class="sp-kpi"><div class="sp-kpi-lbl">Mi posición</div><div class="sp-kpi-val" style="color:#5b8dee">P3 <span style="font-size:11px;color:#22c55e">↑</span></div><div class="sp-kpi-sub">ALPHA RACING</div></div>
-          <div class="sp-kpi"><div class="sp-kpi-lbl">Stint actual</div><div class="sp-kpi-val" style="color:#f97316" id="dash-stint">42:18</div><div class="sp-kpi-sub">Máx 75 min</div></div>
-          <div class="sp-kpi"><div class="sp-kpi-lbl">Media pista</div><div class="sp-kpi-val" style="color:#60a5fa" id="dash-avg">36.91</div><div class="sp-kpi-sub">10 karts en pista</div></div>
-          <div class="sp-kpi"><div class="sp-kpi-lbl">Mejor sesión</div><div class="sp-kpi-val" style="color:#c084fc">35.901</div><div class="sp-kpi-sub">ALPHA RACING</div></div>
-        </div>
-        <div class="sp-nav">
-          <div class="nav-btn active">📊 Clasificación</div>
-          <div class="nav-btn">👥 Mi equipo</div>
-          <div class="nav-btn">🎯 Estrategia</div>
-          <div class="nav-btn">🔬 Avanzado</div>
-        </div>
-        <div class="en-thead">
-          <span></span><span style="color:#5b8dee;text-align:center">Pos ▼</span><span>Kart</span><span style="text-align:left">Equipo</span><span>Vtas</span><span>Última</span><span>Mejor</span><span style="color:#5b8dee">M5v</span><span>Δ Pista</span><span>Gap</span><span>Int</span><span>Consist.</span><span>Pit</span>
-        </div>
-        <div id="dash-grid">
-          <div class="en-row myrow"><div class="sp-dot" style="background:#22c55e"></div><div class="sp-pos">1</div><div><div class="en-kart" style="background:rgba(34,197,94,.15);color:#22c55e;border:1.5px solid #22c55e">7</div></div><div class="sp-name">ALPHA RACING <span class="sp-chk">🏠</span></div><div class="sp-vtas">47</div><div class="sp-t" style="color:#f0f0f4" id="r1t">36.412</div><div class="sp-t" style="color:#22c55e">35.901</div><div class="en-m5" style="color:#22c55e" id="r1m5">36.580 <span style="color:#22c55e;font-size:10px">↗</span></div><div class="en-delta" style="color:#22c55e">-0.33</div><div class="sp-gap">—</div><div class="sp-int">—</div><div class="sp-cons"><span style="color:#22c55e">●●●●○</span></div><div class="sp-pitc">3</div></div>
-          <div class="en-row"><div class="sp-dot" style="background:#3a3c48"></div><div class="sp-pos">2</div><div><div class="en-kart" style="background:rgba(251,191,36,.1);color:#fbbf24;border:1.5px solid #fbbf24">12</div></div><div class="sp-name">THUNDER KART</div><div class="sp-vtas">46</div><div class="sp-t" style="color:#9090a0" id="r2t">36.788</div><div class="sp-t" style="color:#22c55e">36.204</div><div class="en-m5" style="color:#9090a0" id="r2m5">36.810</div><div class="en-delta" style="color:#f97316">+0.22</div><div class="sp-gap" style="color:#f09040">+4.2s</div><div class="sp-int" style="color:#f09040">+4.2s</div><div class="sp-cons"><span style="color:#fbbf24">●●●○○</span></div><div class="sp-pitc">3</div></div>
-          <div class="en-row flash-row"><div class="sp-dot" style="background:#3a3c48"></div><div class="sp-pos">3</div><div><div class="en-kart" style="background:rgba(239,68,68,.1);color:#ef4444;border:1.5px solid #ef4444">5</div></div><div class="sp-name">RACING ONE <span class="sp-pit-b">PIT</span></div><div class="sp-vtas">45</div><div class="sp-t" style="color:#2d2f38">—</div><div class="sp-t" style="color:#22c55e">36.510</div><div class="en-m5" style="color:#6b7280">36.944</div><div class="en-delta" style="color:#ef4444">+0.55</div><div class="sp-gap" style="color:#f09040">+12.8s</div><div class="sp-int" style="color:#f09040">+8.6s</div><div class="sp-cons"><span style="color:#ef4444">●●○○○</span></div><div class="sp-pitc">3</div></div>
-          <div class="en-row"><div class="sp-dot" style="background:#3a3c48"></div><div class="sp-pos">4</div><div><div class="en-kart" style="background:rgba(251,191,36,.1);color:#fbbf24;border:1.5px solid #fbbf24">3</div></div><div class="sp-name">SPEED TEAM</div><div class="sp-vtas">44</div><div class="sp-t" style="color:#9090a0" id="r3t">36.990</div><div class="sp-t" style="color:#22c55e">36.722</div><div class="en-m5" style="color:#6b7280">37.102</div><div class="en-delta" style="color:#ef4444">+0.71</div><div class="sp-gap" style="color:#f09040">+18.1s</div><div class="sp-int" style="color:#f09040">+5.3s</div><div class="sp-cons"><span style="color:#fbbf24">●●●○○</span></div><div class="sp-pitc">3</div></div>
-          <div class="en-row"><div class="sp-dot" style="background:#3a3c48"></div><div class="sp-pos">5</div><div><div class="en-kart" style="background:rgba(239,68,68,.1);color:#ef4444;border:1.5px solid #ef4444">9</div></div><div class="sp-name">DRIFT KINGS <span class="sp-out-b">OUT</span></div><div class="sp-vtas">43</div><div class="sp-t" style="color:#2d2f38">—</div><div class="sp-t" style="color:#22c55e">36.988</div><div class="en-m5" style="color:#6b7280">37.440</div><div class="en-delta" style="color:#ef4444">+1.02</div><div class="sp-gap" style="color:#f09040">+29.4s</div><div class="sp-int" style="color:#f09040">+11.3s</div><div class="sp-cons"><span style="color:#ef4444">●○○○○</span></div><div class="sp-pitc">2</div></div>
-        </div>
-        <div class="sp-footer">
-          <div class="sp-fl"><div class="sp-fldot" style="background:#22c55e"></div>Kart bueno</div>
-          <div class="sp-fl"><div class="sp-fldot" style="background:#fbbf24"></div>Kart neutro</div>
-          <div class="sp-fl"><div class="sp-fldot" style="background:#ef4444"></div>Kart malo</div>
-          <div class="sp-fl" style="margin-left:auto;color:#5b8dee">M5v propio: <span style="color:#22c55e;margin-left:4px" id="dash-m5v">36.580</span></div>
-          <div class="sp-fl">Coste pit: <span style="color:#f97316;margin-left:4px">~28.4s</span></div>
-        </div>
-      </div>
-    </div>
+  <div class="hero">
+    <p class="eyebrow">KARTING STRATEGY INTELLIGENCE</p>
+    <h1>Cada segundo<br>de decisión<br>tiene un coste.</h1>
+    <p class="subtitle">StintPro convierte el timing de Apex en inteligencia de carrera.</p>
+    <button class="btn-primary" onclick="openAcceso()">Solicitar acceso a StintPro</button>
   </div>
+
+  <div class="ticker">
+    <span id="dot"></span>
+    <span id="ticker-line">RACING LINE · M5V 1:23.456 · P1</span>
+  </div>
+
 </div>
 
-<!-- FEATURES -->
-<section class="section" id="features">
-  <div class="container">
-    <div style="text-align:center;margin-bottom:56px" class="reveal">
-      <div class="eyebrow">Funciones</div>
-      <h2>Todo lo que necesitas<br/>durante la carrera</h2>
-      <p class="sub" style="margin:0 auto">Diseñado para entornos de alta presión donde cada segundo de decisión tiene coste real.</p>
+<!-- OVERLAY -->
+<div id="overlay" onclick="closeAll(event)">
+
+  <!-- ¿Qué es StintPro? -->
+  <div id="modal-que" class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">¿QUÉ ES STINTPRO?</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
     </div>
-    <div class="bento">
-      <div class="bento-card wide reveal">
-        <div class="b-icon">📊</div>
-        <h3>Ritmo M5v — el indicador real</h3>
-        <p>Media de las últimas 5 vueltas volantes, excluyendo out laps y vueltas parciales. Filtra el ruido y muestra el ritmo genuino.</p>
-        <div class="mini-chart" id="m5chart"></div>
+    <p class="que-body">StintPro es una app de escritorio o web destinada a equipos de rental karting que participan en carreras endurance. Se conecta en tiempo real al cronometraje del circuito (Apex Timing) y convierte los datos de vuelta en decisiones estratégicas.</p>
+    <div class="feature-list">
+      <div class="feature-item">
+        <span class="feature-dash">—</span>
+        <span class="feature-text">Calidad de karts y momento óptimo de parada</span>
       </div>
-      <div class="bento-card reveal reveal-d1">
-        <div class="b-icon">🏁</div>
-        <h3>Clasificación estimada</h3>
-        <p>Proyecta posiciones descontando paradas pendientes de cada rival. Sabes quién lidera de verdad.</p>
+      <div class="feature-item">
+        <span class="feature-dash">—</span>
+        <span class="feature-text">Posición en carrera y cálculo del pool de boxes</span>
       </div>
-      <div class="bento-card tall reveal reveal-d1">
-        <div class="b-icon">⏱</div>
-        <h3>KPIs de carrera en vivo</h3>
-        <p>Coste real de pit stop, calidad de kart, consistencia y tendencia tras cada stint.</p>
-        <div class="kpi-mini-grid">
-          <div class="kpi-mini"><div class="kpi-mini-val g">36.58</div><div class="kpi-mini-label">Ritmo M5v</div></div>
-          <div class="kpi-mini"><div class="kpi-mini-val o">28.4s</div><div class="kpi-mini-label">Coste pit</div></div>
-          <div class="kpi-mini"><div class="kpi-mini-val g">87%</div><div class="kpi-mini-label">Calidad kart</div></div>
-          <div class="kpi-mini"><div class="kpi-mini-val b">P1</div><div class="kpi-mini-label">Pos. estimada</div></div>
-        </div>
+      <div class="feature-item">
+        <span class="feature-dash">—</span>
+        <span class="feature-text">Predicción de mejora del pool de boxes</span>
       </div>
-      <div class="bento-card reveal reveal-d2">
-        <div class="b-icon">⚡</div>
-        <h3>Conexión directa a Apex</h3>
-        <p>WebSocket sin intermediarios. Grid actualizado al instante, sin polling ni refresco manual.</p>
+      <div class="feature-item">
+        <span class="feature-dash">—</span>
+        <span class="feature-text">Túnel de pit out y gestión de equipo</span>
       </div>
-      <div class="bento-card reveal reveal-d3">
-        <div class="b-icon">📋</div>
-        <h3>Logger de sesiones</h3>
-        <p>Guarda tiempos, pilotos y KPIs de cada carrera. Analiza el rendimiento sesión a sesión.</p>
+      <div class="feature-item">
+        <span class="feature-dash">—</span>
+        <span class="feature-text">Recomendaciones estratégicas y mucho más</span>
       </div>
     </div>
+    <button class="btn-submit" onclick="closeAll(); openAcceso();">Solicitar acceso a StintPro</button>
   </div>
-</section>
 
-<!-- HOW -->
-<section class="section" id="how" style="background:linear-gradient(180deg,transparent,rgba(61,219,111,.025),transparent)">
-  <div class="container">
-    <div class="how-inner">
-      <div class="reveal">
-        <div class="eyebrow">Cómo funciona</div>
-        <h2>Conecta, mira,<br/>decide.</h2>
-        <p class="sub" style="margin-bottom:44px">Sin hardware extra. StintPro se conecta al cronometraje que ya usa el circuito.</p>
-        <div class="steps">
-          <div class="step"><div class="step-num">01</div><div><h3>Introduce la URL de Apex Timing</h3><p>StintPro detecta el circuito y las columnas automáticamente: sectores, gap, pit…</p></div></div>
-          <div class="step"><div class="step-num">02</div><div><h3>Empieza la sesión</h3><p>El grid se pobla en tiempo real. Los ritmos se calculan desde la primera vuelta completada.</p></div></div>
-          <div class="step"><div class="step-num">03</div><div><h3>Toma decisiones con datos</h3><p>M5v, clasificación estimada, momento óptimo de parada. Todo en pantalla, sin hojas de cálculo.</p></div></div>
-        </div>
+  <!-- Login -->
+  <div id="modal-login" class="modal" style="width:320px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">INICIAR SESIÓN</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label>CORREO ELECTRÓNICO</label>
+        <input type="email" placeholder="tu@equipo.com"/>
       </div>
-      <div class="reveal reveal-d2" style="display:flex;align-items:center;justify-content:center">
-        <svg viewBox="0 0 400 380" xmlns="http://www.w3.org/2000/svg" width="100%" style="max-width:380px;filter:drop-shadow(0 0 40px rgba(61,219,111,.1))">
-          <defs>
-            <linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3ddb6f" stop-opacity=".8"/><stop offset="100%" stop-color="#28b858" stop-opacity=".3"/></linearGradient>
-            <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-          </defs>
-          <path d="M80 300 Q40 300 40 260 L40 160 Q40 80 120 80 L200 80 Q260 80 280 120 L340 200 Q360 230 340 260 L300 300 Q280 340 240 340 L160 340 Q100 340 80 300 Z" fill="none" stroke="rgba(255,255,255,.04)" stroke-width="28"/>
-          <path d="M80 300 Q40 300 40 260 L40 160 Q40 80 120 80 L200 80 Q260 80 280 120 L340 200 Q360 230 340 260 L300 300 Q280 340 240 340 L160 340 Q100 340 80 300 Z" fill="none" stroke="url(#tg)" stroke-width="3" filter="url(#glow)" stroke-dasharray="8 5"/>
-          <line x1="160" y1="340" x2="240" y2="340" stroke="rgba(91,156,246,.5)" stroke-width="4" stroke-linecap="round"/>
-          <text x="200" y="360" text-anchor="middle" fill="rgba(91,156,246,.6)" font-size="9" font-family="DM Mono,monospace">PIT</text>
-          <line x1="80" y1="288" x2="80" y2="312" stroke="rgba(61,219,111,.7)" stroke-width="3"/>
-          <circle cx="80" cy="258" r="7" fill="#d4a843" filter="url(#glow)"/>
-          <text x="95" y="254" fill="#d4a843" font-size="9" font-family="DM Mono,monospace" font-weight="bold">P1</text>
-          <circle cx="40" cy="198" r="6" fill="#8888a0"/>
-          <text x="55" y="194" fill="#8888a0" font-size="9" font-family="DM Mono,monospace">P2</text>
-          <circle cx="190" cy="340" r="6" fill="#5b9cf6"/>
-          <text x="190" y="328" text-anchor="middle" fill="#5b9cf6" font-size="9" font-family="DM Mono,monospace">P3</text>
-          <rect x="130" y="148" width="140" height="54" rx="8" fill="rgba(8,8,9,.92)" stroke="rgba(61,219,111,.22)" stroke-width="1"/>
-          <text x="200" y="168" text-anchor="middle" fill="#444458" font-size="9" font-family="DM Mono,monospace">M5V PROPIO</text>
-          <text x="200" y="190" text-anchor="middle" fill="#3ddb6f" font-size="22" font-family="DM Mono,monospace">36.580</text>
-        </svg>
+      <div class="field">
+        <label>CONTRASEÑA</label>
+        <input type="password" placeholder="••••••••"/>
       </div>
+      <button class="btn-submit">Entrar</button>
+      <p class="modal-footer">¿No tienes acceso? <a href="#" onclick="switchToAcceso(); return false;">Solicítalo aquí</a></p>
     </div>
   </div>
-</section>
 
-<!-- CTA -->
-<section id="cta">
-  <div class="container">
-    <div class="cta-inner reveal">
-      <div class="cta-glow"></div>
-      <div class="eyebrow">Acceso</div>
-      <h2>Entra a StintPro</h2>
-      <p class="sub">Tu próxima carrera, con los datos de tu lado.</p>
-      <button class="btn btn-p btn-lg" onclick="openModal()">Iniciar sesión →</button>
+  <!-- Solicitar acceso -->
+  <div id="modal-acceso" class="modal" style="width:320px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">SOLICITUD DE ACCESO</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label>NOMBRE</label>
+        <input type="text" placeholder="Tu nombre"/>
+      </div>
+      <div class="field">
+        <label>CORREO ELECTRÓNICO</label>
+        <input type="email" placeholder="tu@equipo.com"/>
+      </div>
+      <div class="field">
+        <label>¿POR QUÉ QUIERES ACCESO?</label>
+        <textarea rows="3" placeholder="Cuéntanos en qué carreras compites y cómo usarías StintPro."></textarea>
+      </div>
+      <button class="btn-submit" onclick="submitAcceso()">Enviar solicitud</button>
+      <p class="modal-footer">¿Ya tienes acceso? <a href="#" onclick="switchToLogin(); return false;">Inicia sesión</a></p>
     </div>
   </div>
-</section>
 
-<footer>
-  <span>© 2026 StintPro · Karting Strategy Intelligence</span>
-  <a href="mailto:coyjavier@gmail.com">Contacto</a>
-</footer>
-
-<!-- MODAL -->
-<div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
-  <div class="modal" id="modal">
-    <button class="modal-close" onclick="closeModal()">✕</button>
-    <div class="modal-logo"><img src="logo.png" alt="" onerror="this.style.display='none'"/><span>Stint<span class="accent">Pro</span></span></div>
-    <h3>Bienvenido</h3>
-    <p class="modal-desc">Introduce tus credenciales para acceder</p>
-    <form id="loginForm" onsubmit="handleLogin(event)">
-      <div class="form-group"><label>Email</label><input type="email" id="email" placeholder="tu@email.com" required autocomplete="email"/></div>
-      <div class="form-group"><label>Contraseña</label><input type="password" id="password" placeholder="••••••••" required autocomplete="current-password"/></div>
-      <button type="submit" class="btn btn-p btn-full" id="loginBtn">Entrar →</button>
-    </form>
-    <p class="login-err" id="loginErr"></p>
-    <p style="margin-top:8px;text-align:center;font-size:13px;color:var(--text-3)">¿Problemas? <a href="mailto:coyjavier@gmail.com" style="color:var(--text-2);text-decoration:none">Contacta con nosotros</a></p>
+  <!-- Éxito -->
+  <div id="modal-success" class="modal" style="width:320px;" onclick="event.stopPropagation()">
+    <div class="success-check">✓</div>
+    <p class="success-title">Solicitud enviada</p>
+    <p class="success-body">Te avisaremos en cuanto tu acceso esté listo.</p>
+    <button class="btn-ghost" onclick="closeAll()">Cerrar</button>
   </div>
+
 </div>
 
 <script>
-// ── PORTAL SCROLL ZOOM ─────────────────────────────────────────
-const track    = document.getElementById('portalTrack');
-const dashWrap = document.getElementById('dashWrap');
-const vignette = document.getElementById('portalVignette');
-const featCards = {m5v:document.getElementById('fc-m5v'),class:document.getElementById('fc-class'),pit:document.getElementById('fc-pit'),kart:document.getElementById('fc-kart'),strat:document.getElementById('fc-strat')};
-const cardTriggers = {m5v:.42,class:.52,pit:.62,kart:.72,strat:.84};
-const cardShown    = {m5v:false,class:false,pit:false,kart:false,strat:false};
-function lerp(a,b,t){return a+(b-a)*t}
-function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v))}
-function ease(t){return t<.5?2*t*t:-1+(4-2*t)*t}
-function onScroll(){
-  const rect=track.getBoundingClientRect();
-  const total=track.offsetHeight-window.innerHeight;
-  const raw=clamp(-rect.top/total,0,1);
-  const scaleP=clamp(raw/0.38,0,1);
-  dashWrap.style.transform=`scale(${lerp(0.24,3.5,ease(scaleP))})`;
-  dashWrap.style.opacity=clamp(1-(raw-0.33)/0.20,0,1);
-  const vigIn=clamp((raw-0.05)/0.20,0,1);
-  const vigOut=clamp((raw-0.50)/0.15,0,1);
-  vignette.style.opacity=vigIn*(1-vigOut)*0.80;
-  for(const[key,threshold] of Object.entries(cardTriggers)){
-    if(raw>=threshold&&!cardShown[key]){cardShown[key]=true;featCards[key].classList.add('show');}
-    else if(raw<threshold-0.04&&cardShown[key]){cardShown[key]=false;featCards[key].classList.remove('show');}
-  }
-}
-window.addEventListener('scroll',onScroll,{passive:true});
-onScroll();
-
-// ── LIVE TIMING IN DASHBOARD ──────────────────────────────────
-const liveRows=[{el:'r1t',base:36.412,m5el:'r1m5',m5base:36.580,spread:.55},{el:'r2t',base:36.788,m5el:'r2m5',m5base:36.810,spread:.7},{el:'r3t',base:36.990,m5el:null,m5base:null,spread:.8},{el:'r4t',base:37.144,m5el:null,m5base:null,spread:.9}];
-function tickDash(){
-  liveRows.forEach(r=>{
-    const cell=document.getElementById(r.el);
-    if(cell){cell.textContent=(r.base+(Math.random()-.3)*r.spread).toFixed(3);}
-    if(r.m5el){
-      const mc=document.getElementById(r.m5el);const fv=document.getElementById('fc-m5v-val');const dm=document.getElementById('dash-m5v');
-      if(mc){const s=(r.m5base+(Math.random()-.5)*.12).toFixed(3);mc.textContent=s+' ↗';if(dm)dm.textContent=s;if(fv)fv.textContent=s;}
-    }
-  });
-  const stint=document.getElementById('dash-stint');
-  if(stint){const p=stint.textContent.split(':');let m=parseInt(p[0]),s=parseInt(p[1]);s++;if(s>=60){s=0;m++;}stint.textContent=`${m}:${String(s).padStart(2,'0')}`;}
-}
-setInterval(tickDash,2800);
-
-// ── MINI CHART ────────────────────────────────────────────────
-const barData=[52,48,61,55,43,38,50,46,44,41,36,42];
-const bestIdx=barData.indexOf(Math.min(...barData));
-const chartEl=document.getElementById('m5chart');
-if(chartEl){
-  const mx=Math.max(...barData);
-  barData.forEach((v,i)=>{
-    const b=document.createElement('div');b.className='bar'+(i===bestIdx?' best':'');
-    const f=document.createElement('div');f.className='bar-fill';f.style.height='0%';
-    b.appendChild(f);chartEl.appendChild(b);
-    setTimeout(()=>{f.style.height=(v/mx*100)+'%'},400+i*55);
-  });
-}
-
-// ── BENTO GLOW ────────────────────────────────────────────────
-document.querySelectorAll('.bento-card').forEach(c=>{
-  c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();c.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%');c.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%');});
-});
-
-// ── SCROLL REVEAL ─────────────────────────────────────────────
-const io=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.1});
-document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-
-// ── MODAL ─────────────────────────────────────────────────────
-const savedModal=document.getElementById('modal').innerHTML;
-function openModal(){
-  document.getElementById('overlay').classList.add('open');
-  setTimeout(()=>document.getElementById('email')?.focus(),250);
-}
-function closeModal(){
-  document.getElementById('overlay').classList.remove('open');
-  setTimeout(()=>{document.getElementById('modal').innerHTML=savedModal;},300);
-}
-function handleOverlayClick(e){if(e.target.id==='overlay')closeModal();}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
-
-function showAdminChoice(name){
-  document.getElementById('modal').innerHTML=`
-    <button class="modal-close" onclick="closeModal()">✕</button>
-    <div class="modal-logo"><img src="logo.png" alt="" onerror="this.style.display='none'"/><span>Stint<span class="accent">Pro</span></span></div>
-    <h3>Hola, ${name || 'Admin'}</h3>
-    <p class="modal-desc" style="margin-bottom:28px">Selecciona la herramienta</p>
-    <div class="admin-choice">
-      <a href="index.html" class="btn btn-p">🏁 &nbsp;StintPro — App de carrera</a>
-      <a href="logger-stats.html" class="btn btn-o">📋 &nbsp;StintPro Logger — Historial</a>
-      <a href="admin.html" class="btn btn-o" style="border-color:rgba(192,132,252,.3);color:var(--purple)">⚙️ &nbsp;Panel de administración</a>
-    </div>
-    <button onclick="_sb.auth.signOut().then(()=>location.reload())" style="width:100%;margin-top:16px;background:transparent;border:none;color:var(--text-3);font-size:13px;cursor:pointer;padding:6px">Cerrar sesión</button>`;
-}
-
-async function handleLogin(e){
-  e.preventDefault();
-  const btn=document.getElementById('loginBtn');
-  const errEl=document.getElementById('loginErr');
-  btn.textContent='Verificando…'; btn.disabled=true;
-  errEl.textContent='';
-
-  const email=document.getElementById('email').value.trim().toLowerCase();
-  const password=document.getElementById('password').value;
-
-  const {data,error}=await _sb.auth.signInWithPassword({email,password});
-  if(error){
-    errEl.textContent='Credenciales incorrectas. Inténtalo de nuevo.';
-    btn.textContent='Entrar →'; btn.disabled=false;
-    return;
+  function show(id) {
+    ['modal-que','modal-login','modal-acceso','modal-success'].forEach(function(m) {
+      document.getElementById(m).style.display = m === id ? 'block' : 'none';
+    });
+    document.getElementById('overlay').style.display = 'flex';
   }
 
-  const {data:profile}=await _sb.from('profiles').select('role,name').eq('id',data.user.id).single();
-  if(profile?.role==='admin'){
-    showAdminChoice(profile.name||email.split('@')[0]);
-    document.getElementById('overlay').classList.add('open');
-  } else {
-    window.location.href='index.html';
-  }
-}
+  function openQue()    { show('modal-que'); }
+  function openLogin()  { show('modal-login'); }
+  function openAcceso() { show('modal-acceso'); }
+  function switchToAcceso() { show('modal-acceso'); }
+  function switchToLogin()  { show('modal-login'); }
+  function submitAcceso()   { show('modal-success'); }
 
-// ── SESIÓN ACTIVA AL CARGAR ────────────────────────────────────
-(async()=>{
-  const {data:{session}}=await _sb.auth.getSession();
-  if(!session) return;
-  const {data:profile}=await _sb.from('profiles').select('role,name').eq('id',session.user.id).single();
-  if(profile?.role==='admin'){
-    openModal();
-    showAdminChoice(profile.name||session.user.email.split('@')[0]);
-  } else {
-    window.location.replace('index.html');
+  function closeAll(e) {
+    if (e && e.target !== document.getElementById('overlay')) return;
+    document.getElementById('overlay').style.display = 'none';
   }
-})();
+
+  var lines = [
+    'RACING LINE · M5V 1:23.456 · P1',
+    'APEX DOGS · M5V 1:23.712 · P2',
+    'FAST & LOUD · M5V 1:24.011 · P3',
+    'CIRCUIT 7 · M5V 1:24.398 · P4',
+  ];
+  var idx = 0, dotVisible = true;
+
+  setInterval(function() {
+    dotVisible = !dotVisible;
+    var d = document.getElementById('dot');
+    if (d) d.style.opacity = dotVisible ? '1' : '0.15';
+  }, 900);
+
+  setInterval(function() {
+    idx = (idx + 1) % lines.length;
+    var el = document.getElementById('ticker-line');
+    if (!el) return;
+    el.style.opacity = '0';
+    setTimeout(function() { el.textContent = lines[idx]; el.style.opacity = '1'; }, 300);
+  }, 3000);
 </script>
+
 </body>
 </html>
