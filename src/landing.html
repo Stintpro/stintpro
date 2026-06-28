@@ -318,7 +318,6 @@
       <button class="nav-link" onclick="openQue()">¿Qué es StintPro?</button>
       <button class="nav-link" onclick="openAcerca()">Acerca de</button>
     </div>
-    <button class="nav-link" onclick="openLogin()">Iniciar sesión</button>
   </nav>
 
   <div class="hero">
@@ -326,6 +325,7 @@
     <h1 id="headline" style="transition: opacity 0.5s;">Cada segundo de decisión tiene un coste.</h1>
     <p class="subtitle">StintPro convierte el timing de Apex en inteligencia de carrera.</p>
     <button class="btn-primary" onclick="openAcceso()">Solicitar acceso a StintPro</button>
+    <button class="btn-primary" onclick="openLogin()" style="margin-top:10px; background:transparent; color:#F5A623; border:1px solid #F5A623;">Iniciar sesión</button>
   </div>
 
   <div class="ticker">
@@ -539,7 +539,7 @@
     if (!el) return;
     el.style.opacity = '0';
     setTimeout(function() { el.textContent = headlines[hIdx]; el.style.opacity = '1'; }, 500);
-  }, 4000);
+  }, 20000);
 
   var lines = [
     'RACING LINE · M5V 1:23.456 · P1',
