@@ -4,12 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Karting Strategy v1.0</title>
-  <script>
-    (function(){
-      const key=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
-      if(!key)window.location.replace('/landing.html');
-    })();
-  </script>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -20,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.supabaseClient = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
-    async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('/landing.html'); }
+    async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('../landing.html'); }
     document.getElementById('btn-signout').addEventListener('mouseenter',function(){this.style.color='#f2f2f6';this.style.borderColor='rgba(255,255,255,0.25)';});
     document.getElementById('btn-signout').addEventListener('mouseleave',function(){this.style.color='#555';this.style.borderColor='rgba(255,255,255,0.1)';});
   </script>
