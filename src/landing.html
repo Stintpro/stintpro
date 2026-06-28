@@ -316,6 +316,7 @@
     <div class="nav-left">
       <span class="logo">STINTPRO</span>
       <button class="nav-link" onclick="openQue()">¿Qué es StintPro?</button>
+      <button class="nav-link" onclick="openAcerca()">Acerca de</button>
     </div>
     <button class="nav-link" onclick="openLogin()">Iniciar sesión</button>
   </nav>
@@ -367,6 +368,15 @@
       </div>
     </div>
     <button class="btn-submit" onclick="closeAll(); openAcceso();">Solicitar acceso a StintPro</button>
+  </div>
+
+  <!-- Acerca de -->
+  <div id="modal-acerca" class="modal" style="width:360px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">ACERCA DE</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
+    </div>
+    <p class="que-body" style="margin-bottom:0;">Aplicación desarrollada por Javier Coy.<br>Todos los derechos reservados.</p>
   </div>
 
   <!-- Login -->
@@ -473,8 +483,10 @@
     }
   }
 
+  function openAcerca() { show('modal-acerca'); }
+
   function show(id) {
-    ['modal-que','modal-login','modal-acceso','modal-success'].forEach(function(m) {
+    ['modal-que','modal-acerca','modal-login','modal-acceso','modal-success'].forEach(function(m) {
       document.getElementById(m).style.display = m === id ? 'block' : 'none';
     });
     document.getElementById('overlay').style.display = 'flex';
