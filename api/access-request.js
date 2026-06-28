@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: 'StintPro <onboarding@resend.dev>',
-      to: 'bnh7dd9bzy@privaterelay.appleid.com',
+      to: 'coyjavier@gmail.com',
       subject: 'Nueva solicitud de acceso — ' + name,
       html: `
         <p><strong>Nombre:</strong> ${name}</p>
