@@ -14,7 +14,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.supabaseClient = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
-    async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('../landing.html'); }
+    if (!navigator.userAgent.includes('Electron')) {
+      window.supabaseClient.auth.getSession().then(function(r) {
+        if (!r.data.session) window.location.replace('/landing.html');
+      });
+    }
+    async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('/landing.html'); }
     document.getElementById('btn-signout').addEventListener('mouseenter',function(){this.style.color='#f2f2f6';this.style.borderColor='rgba(255,255,255,0.25)';});
     document.getElementById('btn-signout').addEventListener('mouseleave',function(){this.style.color='#555';this.style.borderColor='rgba(255,255,255,0.1)';});
   </script>
