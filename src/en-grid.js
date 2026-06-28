@@ -103,7 +103,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
   const cfg=window.AppState?.config;
   el.innerHTML=`
   <div class="sp-header">
-    ${window.ApexConnector === window.ReplayConnector ? `
+    ${window.ApexConnector === window.ReplayConnector && window._spUserRole === 'admin' ? `
     <div id="en-replay-bar" style="-webkit-app-region:no-drag;display:flex;align-items:center;gap:10px;padding:6px 14px;background:#0e0f11;border-bottom:0.5px solid #1a1b22;font-family:sans-serif">
       <span style="font-size:11px;color:#a78bfa;font-weight:600;flex-shrink:0;-webkit-app-region:no-drag">📼 REPLAY</span>
       <button data-replay-btn
@@ -127,7 +127,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
         ${cfg?.name||'Endurance'}
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
-      <button class="sp-back" onclick="window._enGoBack()">← Setup</button>
+      ${window._spUserRole === 'admin' ? '<button class="sp-back" onclick="window._enGoBack()">← Setup</button>' : ''}
       <div class="sp-clock">
         <div class="sp-clock-val" id="sp-clk">${clk}</div>
         <div class="sp-clock-lbl" id="sp-clk-lbl">tiempo restante</div>
