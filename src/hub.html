@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>StintPro — Hub</title>
+  <link rel="icon" href="logo.png"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #07090F; color: #C8D0DB; font-family: 'Inter', sans-serif; }
+    .page { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; gap: 48px; }
+    .logo { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 700; color: #F5A623; letter-spacing: 0.12em; }
+    .subtitle { font-size: 13px; color: #3E4E62; margin-top: 6px; text-align: center; }
+    .cards { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; }
+    .card {
+      display: flex; align-items: center; gap: 18px;
+      background: #0D1018; border: 1px solid #1A2030; border-radius: 6px;
+      padding: 20px 22px; cursor: pointer; text-decoration: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .card:hover { border-color: #F5A623; background: rgba(245,166,35,0.04); }
+    .card-icon { font-size: 22px; flex-shrink: 0; width: 28px; text-align: center; }
+    .card-title { font-size: 14px; font-weight: 500; color: #EDF0F4; margin-bottom: 3px; }
+    .card-desc { font-size: 12px; color: #3E4E62; }
+    .signout { font-size: 12px; color: #2A3848; background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; }
+    .signout:hover { color: #4E5E72; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div style="text-align:center">
+    <div class="logo">STINTPRO</div>
+    <div class="subtitle">¿A dónde vas?</div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <button class="signout" onclick="signOut()">Cerrar sesión</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  var _sb = supabase.createClient(
+    'https://nyybrybnvflwbdwdqpwa.supabase.co',
+    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H',
+    { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'stintpro_auth' } }
+  );
+
+  _sb.auth.getSession().then(function(r) {
+    if (!r.data.session) { window.location.replace('/landing.html'); return; }
+    var user = r.data.session.user;
+    _sb.from('profiles').select('role').eq('id', user.id).single().then(function(res) {
+      var role = res.data?.role || 'user';
+      renderCards(role);
+    });
+  });
+
+  function renderCards(role) {
+    var cards = [
+      { href: '/index.html', icon: '🏁', title: 'StintPro App', desc: 'Dashboard de carrera en tiempo real' },
+      { href: 'http://188.245.90.48:3000/stats', icon: '📊', title: 'Logger Stats', desc: 'Historial de sesiones y pilotos' },
+    ];
+    if (role === 'admin') {
+      cards.push({ href: '/admin.html', icon: '⚙️', title: 'Panel Admin', desc: 'Usuarios, circuitos y configuración' });
+    }
+    document.getElementById('cards').innerHTML = cards.map(function(c) {
+      return '<a class="card" href="' + c.href + '">' +
+        '<div class="card-icon">' + c.icon + '</div>' +
+        '<div><div class="card-title">' + c.title + '</div><div class="card-desc">' + c.desc + '</div></div>' +
+        '</a>';
+    }).join('');
+  }
+
+  async function signOut() {
+    await _sb.auth.signOut();
+    window.location.replace('/landing.html');
+  }
+</script>
+</body>
+</html>
