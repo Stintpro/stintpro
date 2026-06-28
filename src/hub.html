@@ -43,8 +43,7 @@
 <script>
   var _sb = supabase.createClient(
     'https://nyybrybnvflwbdwdqpwa.supabase.co',
-    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H',
-    { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'stintpro_auth' } }
+    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
   );
 
   _sb.auth.getSession().then(function(r) {
