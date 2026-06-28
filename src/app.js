@@ -9,12 +9,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (role !== 'admin') {
     const { data } = await window.supabaseClient
       .from('settings').select('value').eq('key', 'demo_mode').single();
-    if (data?.value !== 'true') {
-      window.location.replace('/landing.html');
+    if (data?.value === 'true') {
+      _launchDemoMode();
       return;
     }
-    _launchDemoMode();
-    return;
   }
   renderSetup();
 });
