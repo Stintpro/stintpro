@@ -425,7 +425,7 @@
 </div>
 
 <script>
-  function handleLogin() {
+  async function handleLogin() {
     var email = (document.getElementById('login-email').value || '').trim();
     var pw    = document.getElementById('login-pw').value || '';
     var errEl = document.getElementById('login-err');
@@ -434,27 +434,34 @@
     errEl.textContent = '';
     btn.disabled = true; btn.textContent = 'Accediendo…';
 
-    var script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.onload = function() {
-      var sb = supabase.createClient(
-        'https://nyybrybnvflwbdwdqpwa.supabase.co',
-        'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
-      );
-      sb.auth.signInWithPassword({ email: email, password: pw }).then(function(result) {
-        if (result.error) {
-          errEl.textContent = 'Email o contraseña incorrectos';
-          btn.disabled = false; btn.textContent = 'Entrar';
-        } else {
-          window.location.href = 'src/index.html';
-        }
+    try {
+      var res = await fetch('https://nyybrybnvflwbdwdqpwa.supabase.co/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
+        },
+        body: JSON.stringify({ email: email, password: pw })
       });
-    };
-    script.onerror = function() {
+      var data = await res.json();
+      if (!res.ok || data.error) {
+        errEl.textContent = 'Email o contraseña incorrectos';
+        btn.disabled = false; btn.textContent = 'Entrar';
+        return;
+      }
+      localStorage.setItem('sb-nyybrybnvflwbdwdqpwa-auth-token', JSON.stringify({
+        access_token:  data.access_token,
+        refresh_token: data.refresh_token,
+        expires_in:    data.expires_in,
+        expires_at:    Math.floor(Date.now() / 1000) + data.expires_in,
+        token_type:    'bearer',
+        user:          data.user
+      }));
+      window.location.href = '/src/index.html';
+    } catch(e) {
       errEl.textContent = 'Error de red. Comprueba la conexión.';
       btn.disabled = false; btn.textContent = 'Entrar';
-    };
-    document.head.appendChild(script);
+    }
   }
 
   function show(id) {
