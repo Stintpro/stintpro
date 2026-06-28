@@ -20,32 +20,20 @@ function renderSetup() {
       <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#2A3848;letter-spacing:0.1em;">KARTING STRATEGY INTELLIGENCE</div>
     </div>
 
-    <div style="font-size:13px;font-weight:500;color:var(--text-1);margin-bottom:6px;text-align:center;">¿Qué tipo de sesión?</div>
-    <div style="font-size:12px;color:var(--text-3);margin-bottom:28px;text-align:center;">Selecciona el modo para configurar la sesión</div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:480px;margin-bottom:20px;">
-      <div onclick="selectRaceType('sprint')" style="border:1px solid var(--border);border-radius:4px;padding:28px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-dim)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
-        <div style="font-size:32px;margin-bottom:12px;">⚡</div>
-        <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:5px;">Sprint</div>
-        <div style="font-size:11.5px;color:var(--text-3);line-height:1.5;">Solo circuito y dorsal<br>Dashboard con datos reales</div>
+    <div style="width:100%;max-width:480px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#F5A623;letter-spacing:0.1em;">01</span>
+        <span style="font-size:12px;color:var(--text-2);font-weight:500;">Conexión</span>
       </div>
-      <div onclick="selectRaceType('endurance')" style="border:1px solid var(--border);border-radius:4px;padding:28px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='#F5A623';this.style.background='rgba(245,166,35,0.08)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
-        <div style="font-size:32px;margin-bottom:12px;">🏁</div>
-        <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:5px;">Endurance</div>
-        <div style="font-size:11.5px;color:var(--text-3);line-height:1.5;">Setup completo de carrera<br>Estrategia y gestión de equipo</div>
-      </div>
-    </div>
-
-    <div style="width:100%;max-width:480px;margin-bottom:16px;">
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
         <div onclick="_connMode='apex';window.ApexConnector=_origApex;renderSetup()" style="flex:1;padding:9px;border-radius:3px;border:1px solid ${_connMode==='apex'?'#F5A623':'var(--border)'};background:${_connMode==='apex'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;transition:all .15s;">
-          <div style="font-size:12.5px;font-weight:500;color:${_connMode==='apex'?'#F5A623':'var(--text-3)'};">⚡ Directo a Apex</div>
+          <div style="font-size:12px;font-weight:500;color:${_connMode==='apex'?'#F5A623':'var(--text-3)'};">⚡ Directo a Apex</div>
         </div>
         <div onclick="_connMode='logger';renderSetup()" style="flex:1;padding:9px;border-radius:3px;border:1px solid ${_connMode==='logger'?'#F5A623':'var(--border)'};background:${_connMode==='logger'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;transition:all .15s;">
-          <div style="font-size:12.5px;font-weight:500;color:${_connMode==='logger'?'#F5A623':'var(--text-3)'};">🖥 Logger</div>
+          <div style="font-size:12px;font-weight:500;color:${_connMode==='logger'?'#F5A623':'var(--text-3)'};">🖥 Logger</div>
         </div>
         <div onclick="_connMode='replay';renderSetup()" style="flex:1;padding:9px;border-radius:3px;border:1px solid ${_connMode==='replay'?'#F5A623':'var(--border)'};background:${_connMode==='replay'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;transition:all .15s;">
-          <div style="font-size:12.5px;font-weight:500;color:${_connMode==='replay'?'#F5A623':'var(--text-3)'};">📼 Replay</div>
+          <div style="font-size:12px;font-weight:500;color:${_connMode==='replay'?'#F5A623':'var(--text-3)'};">📼 Replay</div>
         </div>
       </div>
       ${_connMode==='logger'?`
@@ -70,6 +58,25 @@ function renderSetup() {
         </div>
       </div>
       `:''}
+    </div>
+
+    <div style="width:100%;max-width:480px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#F5A623;letter-spacing:0.1em;">02</span>
+        <span style="font-size:12px;color:var(--text-2);font-weight:500;">Tipo de sesión</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div onclick="selectRaceType('sprint')" style="border:1px solid var(--border);border-radius:4px;padding:24px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='var(--blue)';this.style.background='var(--blue-dim)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
+          <div style="font-size:28px;margin-bottom:10px;">⚡</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:4px;">Sprint</div>
+          <div style="font-size:11px;color:var(--text-3);line-height:1.5;">Solo circuito y dorsal<br>Dashboard con datos reales</div>
+        </div>
+        <div onclick="selectRaceType('endurance')" style="border:1px solid var(--border);border-radius:4px;padding:24px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s;" onmouseover="this.style.borderColor='#F5A623';this.style.background='rgba(245,166,35,0.08)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='transparent'">
+          <div style="font-size:28px;margin-bottom:10px;">🏁</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:4px;">Endurance</div>
+          <div style="font-size:11px;color:var(--text-3);line-height:1.5;">Setup completo de carrera<br>Estrategia y gestión de equipo</div>
+        </div>
+      </div>
     </div>
   </div>`;
 }
