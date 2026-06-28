@@ -84,8 +84,8 @@ async function _startDemoNow() {
     pilotos: [{ name: 'Demo', minutos: 90 }]
   };
   window.AppState.config = cfg;
-  window.AppState.loggerUrl    = null;
-  window.AppState.loggerApiKey = null;
+  window.AppState.loggerUrl    = _loggerUrl;
+  window.AppState.loggerApiKey = _loggerApiKey;
   window.showEnduranceDashboard(cfg);
 
   setTimeout(_injectDemoBanner, 400);
