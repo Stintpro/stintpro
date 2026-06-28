@@ -20,6 +20,7 @@
       });
     }
     async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('/landing.html'); }
+
     document.getElementById('btn-signout').addEventListener('mouseenter',function(){this.style.color='#f2f2f6';this.style.borderColor='rgba(255,255,255,0.25)';});
     document.getElementById('btn-signout').addEventListener('mouseleave',function(){this.style.color='#555';this.style.borderColor='rgba(255,255,255,0.1)';});
   </script>

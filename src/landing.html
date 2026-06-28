@@ -378,13 +378,14 @@
     <div class="fields">
       <div class="field">
         <label>CORREO ELECTRÓNICO</label>
-        <input type="email" placeholder="tu@equipo.com"/>
+        <input id="login-email" type="email" placeholder="tu@equipo.com" onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()"/>
       </div>
       <div class="field">
         <label>CONTRASEÑA</label>
-        <input type="password" placeholder="••••••••"/>
+        <input id="login-pw" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')handleLogin()"/>
       </div>
-      <button class="btn-submit">Entrar</button>
+      <div id="login-err" style="font-size:12px;color:#c04444;min-height:16px;text-align:center"></div>
+      <button id="login-btn" class="btn-submit" onclick="handleLogin()">Entrar</button>
       <p class="modal-footer">¿No tienes acceso? <a href="#" onclick="switchToAcceso(); return false;">Solicítalo aquí</a></p>
     </div>
   </div>
@@ -424,6 +425,45 @@
 </div>
 
 <script>
+  async function handleLogin() {
+    var email = (document.getElementById('login-email').value || '').trim();
+    var pw    = document.getElementById('login-pw').value || '';
+    var errEl = document.getElementById('login-err');
+    var btn   = document.getElementById('login-btn');
+    if (!email || !pw) { errEl.textContent = 'Introduce email y contraseña'; return; }
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Accediendo…';
+
+    try {
+      var res = await fetch('https://nyybrybnvflwbdwdqpwa.supabase.co/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
+        },
+        body: JSON.stringify({ email: email, password: pw })
+      });
+      var data = await res.json();
+      if (!res.ok || data.error) {
+        errEl.textContent = 'Email o contraseña incorrectos';
+        btn.disabled = false; btn.textContent = 'Entrar';
+        return;
+      }
+      localStorage.setItem('sb-nyybrybnvflwbdwdqpwa-auth-token', JSON.stringify({
+        access_token:  data.access_token,
+        refresh_token: data.refresh_token,
+        expires_in:    data.expires_in,
+        expires_at:    Math.floor(Date.now() / 1000) + data.expires_in,
+        token_type:    'bearer',
+        user:          data.user
+      }));
+      window.location.href = '/index.html';
+    } catch(e) {
+      errEl.textContent = 'Error de red. Comprueba la conexión.';
+      btn.disabled = false; btn.textContent = 'Entrar';
+    }
+  }
+
   function show(id) {
     ['modal-que','modal-login','modal-acceso','modal-success'].forEach(function(m) {
       document.getElementById(m).style.display = m === id ? 'block' : 'none';
