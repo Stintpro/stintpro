@@ -322,7 +322,7 @@
 
   <div class="hero">
     <p class="eyebrow">KARTING STRATEGY INTELLIGENCE</p>
-    <h1>Cada segundo<br>de decisión<br>tiene un coste.</h1>
+    <h1 id="headline" style="transition: opacity 0.5s;">Cada segundo de decisión tiene un coste.</h1>
     <p class="subtitle">StintPro convierte el timing de Apex en inteligencia de carrera.</p>
     <button class="btn-primary" onclick="openAcceso()">Solicitar acceso a StintPro</button>
   </div>
@@ -512,6 +512,22 @@
     if (e && e.target !== document.getElementById('overlay')) return;
     document.getElementById('overlay').style.display = 'none';
   }
+
+  var headlines = [
+    'Cada segundo de decisión tiene un coste.',
+    'La carrera no espera. Tu estrategia tampoco.',
+    'Mientras decides, alguien ya paró.',
+    'Los que ganan no tienen suerte. Tienen datos.',
+    'Ellos pararon en el momento exacto. Tú no lo sabías.',
+  ];
+  var hIdx = 0;
+  setInterval(function() {
+    hIdx = (hIdx + 1) % headlines.length;
+    var el = document.getElementById('headline');
+    if (!el) return;
+    el.style.opacity = '0';
+    setTimeout(function() { el.textContent = headlines[hIdx]; el.style.opacity = '1'; }, 500);
+  }, 4000);
 
   var lines = [
     'RACING LINE · M5V 1:23.456 · P1',

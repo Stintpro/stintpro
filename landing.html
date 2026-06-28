@@ -322,7 +322,7 @@
 
   <div class="hero">
     <p class="eyebrow">KARTING STRATEGY INTELLIGENCE</p>
-    <h1>Cada segundo<br>de decisión<br>tiene un coste.</h1>
+    <h1 id="headline" style="transition: opacity 0.5s;">Cada segundo de decisión tiene un coste.</h1>
     <p class="subtitle">StintPro convierte el timing de Apex en inteligencia de carrera.</p>
     <button class="btn-primary" onclick="openAcceso()">Solicitar acceso a StintPro</button>
   </div>
@@ -399,17 +399,18 @@
     <div class="fields">
       <div class="field">
         <label>NOMBRE</label>
-        <input type="text" placeholder="Tu nombre"/>
+        <input id="acceso-name" type="text" placeholder="Tu nombre"/>
       </div>
       <div class="field">
         <label>CORREO ELECTRÓNICO</label>
-        <input type="email" placeholder="tu@equipo.com"/>
+        <input id="acceso-email" type="email" placeholder="tu@equipo.com"/>
       </div>
       <div class="field">
         <label>¿POR QUÉ QUIERES ACCESO?</label>
-        <textarea rows="3" placeholder="Cuéntanos en qué carreras compites y cómo usarías StintPro."></textarea>
+        <textarea id="acceso-reason" rows="3" placeholder="Cuéntanos en qué carreras compites y cómo usarías StintPro."></textarea>
       </div>
-      <button class="btn-submit" onclick="submitAcceso()">Enviar solicitud</button>
+      <div id="acceso-err" style="font-size:12px;color:#c04444;min-height:16px;text-align:center"></div>
+      <button id="acceso-btn" class="btn-submit" onclick="submitAcceso()">Enviar solicitud</button>
       <p class="modal-footer">¿Ya tienes acceso? <a href="#" onclick="switchToLogin(); return false;">Inicia sesión</a></p>
     </div>
   </div>
@@ -457,7 +458,15 @@
         token_type:    'bearer',
         user:          data.user
       }));
-      window.location.href = '/src/index.html';
+      var profileRes = await fetch('https://nyybrybnvflwbdwdqpwa.supabase.co/rest/v1/profiles?select=role&id=eq.' + data.user.id, {
+        headers: {
+          'apikey': 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H',
+          'Authorization': 'Bearer ' + data.access_token
+        }
+      });
+      var profile = await profileRes.json();
+      var role = (profile[0] && profile[0].role) || 'user';
+      window.location.href = role === 'admin' ? '/hub.html' : '/index.html';
     } catch(e) {
       errEl.textContent = 'Error de red. Comprueba la conexión.';
       btn.disabled = false; btn.textContent = 'Entrar';
@@ -476,12 +485,49 @@
   function openAcceso() { show('modal-acceso'); }
   function switchToAcceso() { show('modal-acceso'); }
   function switchToLogin()  { show('modal-login'); }
-  function submitAcceso()   { show('modal-success'); }
+  async function submitAcceso() {
+    var name   = (document.getElementById('acceso-name').value || '').trim();
+    var email  = (document.getElementById('acceso-email').value || '').trim();
+    var reason = (document.getElementById('acceso-reason').value || '').trim();
+    var errEl  = document.getElementById('acceso-err');
+    var btn    = document.getElementById('acceso-btn');
+    if (!name || !email) { errEl.textContent = 'Nombre y email son obligatorios'; return; }
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try {
+      var res = await fetch('/api/access-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, email: email, reason: reason })
+      });
+      if (!res.ok) throw new Error();
+      show('modal-success');
+    } catch(e) {
+      errEl.textContent = 'Error al enviar. Inténtalo de nuevo.';
+      btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    }
+  }
 
   function closeAll(e) {
     if (e && e.target !== document.getElementById('overlay')) return;
     document.getElementById('overlay').style.display = 'none';
   }
+
+  var headlines = [
+    'Cada segundo de decisión tiene un coste.',
+    'La carrera no espera. Tu estrategia tampoco.',
+    'Mientras decides, alguien ya paró.',
+    'Los que ganan no tienen suerte. Tienen datos.',
+    'Ellos pararon en el momento exacto. Tú no lo sabías.',
+  ];
+  var hIdx = 0;
+  setInterval(function() {
+    hIdx = (hIdx + 1) % headlines.length;
+    var el = document.getElementById('headline');
+    if (!el) return;
+    el.style.opacity = '0';
+    setTimeout(function() { el.textContent = headlines[hIdx]; el.style.opacity = '1'; }, 500);
+  }, 4000);
 
   var lines = [
     'RACING LINE · M5V 1:23.456 · P1',
