@@ -458,7 +458,15 @@
         token_type:    'bearer',
         user:          data.user
       }));
-      window.location.href = '/hub.html';
+      var profileRes = await fetch('https://nyybrybnvflwbdwdqpwa.supabase.co/rest/v1/profiles?select=role&id=eq.' + data.user.id, {
+        headers: {
+          'apikey': 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H',
+          'Authorization': 'Bearer ' + data.access_token
+        }
+      });
+      var profile = await profileRes.json();
+      var role = (profile[0] && profile[0].role) || 'user';
+      window.location.href = role === 'admin' ? '/hub.html' : '/index.html';
     } catch(e) {
       errEl.textContent = 'Error de red. Comprueba la conexión.';
       btn.disabled = false; btn.textContent = 'Entrar';
