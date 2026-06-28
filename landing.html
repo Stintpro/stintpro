@@ -424,29 +424,37 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-  var _sb = supabase.createClient(
-    'https://nyybrybnvflwbdwdqpwa.supabase.co',
-    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H',
-    { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'stintpro_auth' } }
-  );
-
-  async function handleLogin() {
-    var email  = (document.getElementById('login-email')?.value || '').trim();
-    var pw     = document.getElementById('login-pw')?.value || '';
-    var errEl  = document.getElementById('login-err');
-    var btn    = document.getElementById('login-btn');
+  function handleLogin() {
+    var email = (document.getElementById('login-email').value || '').trim();
+    var pw    = document.getElementById('login-pw').value || '';
+    var errEl = document.getElementById('login-err');
+    var btn   = document.getElementById('login-btn');
     if (!email || !pw) { errEl.textContent = 'Introduce email y contraseña'; return; }
     errEl.textContent = '';
     btn.disabled = true; btn.textContent = 'Accediendo…';
-    var result = await _sb.auth.signInWithPassword({ email: email, password: pw });
-    if (result.error) {
-      errEl.textContent = 'Email o contraseña incorrectos';
+
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    script.onload = function() {
+      var sb = supabase.createClient(
+        'https://nyybrybnvflwbdwdqpwa.supabase.co',
+        'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
+      );
+      sb.auth.signInWithPassword({ email: email, password: pw }).then(function(result) {
+        if (result.error) {
+          errEl.textContent = 'Email o contraseña incorrectos';
+          btn.disabled = false; btn.textContent = 'Entrar';
+        } else {
+          window.location.href = 'src/index.html';
+        }
+      });
+    };
+    script.onerror = function() {
+      errEl.textContent = 'Error de red. Comprueba la conexión.';
       btn.disabled = false; btn.textContent = 'Entrar';
-      return;
-    }
-    window.location.href = 'src/index.html';
+    };
+    document.head.appendChild(script);
   }
 
   function show(id) {
