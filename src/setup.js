@@ -211,99 +211,88 @@ function startSprint() {
 // ── ENDURANCE SETUP ───────────────────────────────────────────────────────
 function renderEnduranceSetup() {
   document.getElementById('screen-setup').innerHTML = `
-  <div class="setup-root">
-    <div class="setup-col">
-      <div class="titlebar-drag"></div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <button class="btn" onclick="renderSetup()">←</button>
-        <div class="app-icon">🏁</div>
-        <div><div class="app-title">StintPro</div><div class="app-ver">Endurance</div></div>
+  <div style="max-width:520px;margin:0 auto;padding:0 20px;min-height:100vh;display:flex;flex-direction:column;justify-content:center;gap:0;padding-top:60px;padding-bottom:32px">
+    <div class="titlebar-drag" style="flex-shrink:0;position:fixed;top:0;left:0;right:0;height:28px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
+      <button class="btn" onclick="renderSetup()">← Volver</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div><div class="app-title">STINTPRO</div><div class="app-ver">ENDURANCE</div></div>
       </div>
-
-      <div class="sec-label">Carrera</div>
-      <div class="card">
-      </div>
-
-      <div class="sec-label">Pilotos</div>
-      <div class="card">
-        <div class="field">
-          <div class="f-icon">👥</div>
-          <div class="f-body">
-            <div class="f-label">Número de pilotos</div>
-            <input class="f-input" id="nPilotos" type="number" min="1" max="10" value="3" oninput="renderPilotInputs()">
-          </div>
-          <span class="f-unit">pilotos</span>
-        </div>
-        <div id="pilotInputs"></div>
-      </div>
-
-      <div class="sec-label">Mi dorsal</div>
-      <div class="card">
-        <div class="dorsal-wrap">
-          <div class="dorsal-row">
-            <input class="dorsal-input" id="dorsalInput" type="number" min="1" max="999" placeholder="20" oninput="onDorsalInput()">
-            <div>
-              <div class="dorsal-label">Asignar dorsal</div>
-              <div class="dorsal-hint">La app obtiene tus datos del livetiming</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      ${_simMode?'<span style="font-size:11.5px;padding:2px 8px;border-radius:20px;background:var(--green-dim);color:var(--green-txt);border:0.5px solid var(--green)">SIMULACIÓN</span>':''}
     </div>
 
-    <div class="setup-col">
-      <div class="titlebar-drag"></div>
-      <div style="height:56px"></div>
+    <div class="sec-label">Pilotos</div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="field">
+        <div class="f-icon">👥</div>
+        <div class="f-body">
+          <div class="f-label">Número de pilotos</div>
+        </div>
+        <input class="f-input" id="nPilotos" type="number" min="1" max="10" value="3" oninput="renderPilotInputs()" style="width:44px;text-align:center;font-family:var(--font-mono)">
+        <span class="f-unit">pilotos</span>
+      </div>
+      <div style="padding:6px 14px 4px;font-size:10.5px;color:#3E4E62;font-family:var(--font-mono);letter-spacing:0.06em">NOMBRE · TIEMPO MÍNIMO EN PISTA</div>
+      <div id="pilotInputs"></div>
+    </div>
 
-      ${_connMode==='replay'?`
-      <div class="sec-label">Grabación</div>
-      <div class="card" style="margin-bottom:16px;padding:12px 14px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:20px">📼</span>
+    <div class="sec-label">Mi dorsal</div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="dorsal-wrap">
+        <div class="dorsal-row">
+          <input class="dorsal-input" id="dorsalInput" type="number" min="1" max="999" placeholder="20" oninput="onDorsalInput()">
           <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text-1)">${_replayFile?_replayFile.name:'Sin archivo'}</div>
-            <div style="font-size:11px;color:#a78bfa">Modo replay · ${_replaySpeed===0?'instantáneo':_replaySpeed+'×'}</div>
+            <div class="dorsal-label">Número de dorsal</div>
+            <div class="dorsal-hint">La app obtiene tus datos del livetiming</div>
           </div>
         </div>
       </div>
-      `:`
-      <div class="sec-label">Livetiming</div>
-      <div class="card" style="margin-bottom:16px">
-        <div style="padding:8px 14px;border-bottom:0.5px solid var(--border);display:flex;gap:6px">
-          <button class="btn" id="btn-library" onclick="setCircuitMode('library')" style="flex:1;background:var(--blue-dim)">📋 Guardado</button>
-          <button class="btn" id="btn-manual"  onclick="setCircuitMode('manual')"  style="flex:1">✏️ URL manual</button>
-        </div>
-        <div id="circuitLibrarySection" style="padding:8px 14px">
-          <div style="display:flex;gap:6px;align-items:center">
-            <select class="circuit-select" id="circuitSelect" onchange="onCircuitSelect()" style="flex:1">
-              <option value="">— Selecciona circuito —</option>
-              ${window.CircuitDB.list.map(c=>`<option value="${c.id}"${c._custom?' data-custom="1"':''}>${c.name}${c._custom?' ✕':''}</option>`).join('')}
-            </select>
-            <button class="btn" id="btnDeleteCircuit" onclick="deleteCircuit()" style="display:none;color:var(--red,#f55);flex-shrink:0" title="Borrar circuito">🗑</button>
-          </div>
-        </div>
-        <div id="circuitManualSection" style="padding:8px 14px;display:none">
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <input class="url-in" id="apexSlug" type="text" placeholder="URL del livetiming (ej: https://live.apex-timing.com/rkc/)" oninput="onSlug()" style="width:100%">
-            <div style="display:flex;gap:8px;align-items:center">
-              <input class="url-in" id="apexPort" type="number" placeholder="Puerto (ej: 7913)" oninput="onSlug()" style="width:120px">
-              <input class="url-in" id="apexCircuitName" type="text" placeholder="Nombre del circuito" style="flex:1">
-              <button class="btn" onclick="saveCircuit()" style="flex-shrink:0">💾 Guardar</button>
-            </div>
-          </div>
-        </div>
-        <div class="conn-row">
-          <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span></div>
-          <button class="btn" onclick="testConn()">Verificar</button>
-        </div>
-      </div>
-      `}
-
-      <button class="btn-cta" id="startBtn" onclick="startEndurance()" disabled>
-        Iniciar carrera →
-        <span class="cta-badge" id="ctaBadge" style="display:none">0 campos</span>
-      </button>
     </div>
+
+    ${_connMode==='replay'?`
+    <div class="sec-label">Grabación</div>
+    <div class="card" style="margin-bottom:12px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">📼</span>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text-1)">${_replayFile?_replayFile.name:'Sin archivo'}</div>
+          <div style="font-size:11px;color:#a78bfa">Modo replay · ${_replaySpeed===0?'instantáneo':_replaySpeed+'×'}</div>
+        </div>
+      </div>
+    </div>
+    `:`
+    <div class="sec-label">Livetiming</div>
+    <div class="card" style="margin-bottom:28px">
+      <div style="padding:8px 14px;border-bottom:0.5px solid var(--border);display:flex;gap:6px">
+        <button class="btn" id="btn-library" onclick="setCircuitMode('library')" style="flex:1;background:var(--blue-dim)">📋 Guardado</button>
+        <button class="btn" id="btn-manual"  onclick="setCircuitMode('manual')"  style="flex:1">✏️ URL manual</button>
+      </div>
+      <div id="circuitLibrarySection" style="padding:8px 14px">
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="circuit-select" id="circuitSelect" onchange="onCircuitSelect()" style="flex:1">
+            <option value="">— Selecciona circuito —</option>
+            ${window.CircuitDB.list.map(c=>`<option value="${c.id}"${c._custom?' data-custom="1"':''}>${c.name}${c._custom?' ✕':''}</option>`).join('')}
+          </select>
+          <button class="btn" id="btnDeleteCircuit" onclick="deleteCircuit()" style="display:none;color:var(--red,#f55);flex-shrink:0" title="Borrar circuito">🗑</button>
+        </div>
+      </div>
+      <div id="circuitManualSection" style="padding:8px 14px;display:none">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input class="url-in" id="apexSlug" type="text" placeholder="URL del livetiming (ej: https://live.apex-timing.com/rkc/)" oninput="onSlug()" style="width:100%">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="url-in" id="apexPort" type="number" placeholder="Puerto (ej: 7913)" oninput="onSlug()" style="width:120px">
+            <input class="url-in" id="apexCircuitName" type="text" placeholder="Nombre del circuito" style="flex:1">
+            <button class="btn" onclick="saveCircuit()" style="flex-shrink:0">💾 Guardar</button>
+          </div>
+        </div>
+      </div>
+      <div class="conn-row">
+        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span></div>
+        <button class="btn" onclick="testConn()">Verificar</button>
+      </div>
+    </div>
+    `}
+
+    <button class="btn-cta" id="startBtn" onclick="startEndurance()" disabled>Iniciar carrera →</button>
   </div>`;
 
   renderPilotInputs(); setupUpd();
