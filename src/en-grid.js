@@ -127,7 +127,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
         ${cfg?.name||'Endurance'}
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
-      ${window._spUserRole === 'admin' ? '<button class="sp-back" onclick="window._enGoBack()">← Setup</button>' : ''}
+      <button class="sp-back" onclick="window._enGoBack()">← Setup</button>
       <div class="sp-clock">
         <div class="sp-clock-val" id="sp-clk">${clk}</div>
         <div class="sp-clock-lbl" id="sp-clk-lbl">tiempo restante</div>
