@@ -15,7 +15,7 @@ function _spInjectStyles(){
   s.textContent=`
     #screen-dash{background:#0e0f11;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
     .sp-header{background:#13141a;border-bottom:0.5px solid #252630;padding:12px 18px;flex-shrink:0;-webkit-app-region:drag;}
-    .sp-topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+    .sp-topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-right:270px;}
     .sp-topbar>*{-webkit-app-region:no-drag;}
     .sp-wdot{width:11px;height:11px;border-radius:50%;}
     .sp-session{font-size:12.5px;color:#444;font-family:sans-serif;margin-left:4px;flex:1;}
