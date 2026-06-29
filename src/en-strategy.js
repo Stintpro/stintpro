@@ -1130,7 +1130,13 @@ window.showEnduranceDashboard=function(cfg){
       },
       (status,msg)=>console.log('[Apex]',status,msg),
       (comment)=>console.log('[Apex]',comment),
-      cfg.port||7913
+      cfg.port||7913,
+      (title)=>{
+        if(!title)return;
+        cfg.name=title;
+        const el=document.querySelector('.sp-session');
+        if(el)el.childNodes[0].textContent=title+' ';
+      }
     );
   }
 };

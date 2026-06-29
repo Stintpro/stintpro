@@ -222,14 +222,6 @@ function renderEnduranceSetup() {
 
       <div class="sec-label">Carrera</div>
       <div class="card">
-        <div class="field">
-          <div class="f-indicator" id="ind-rName"></div>
-          <div class="f-icon">🏆</div>
-          <div class="f-body">
-            <div class="f-label">Nombre de la carrera</div>
-            <input class="f-input" id="rName" type="text" placeholder="ej. 9h Henakart" oninput="setupUpd()">
-          </div>
-        </div>
       </div>
 
       <div class="sec-label">Pilotos</div>
@@ -479,7 +471,7 @@ function renderPitPreview() {
   el.innerHTML=scene+`<div class="pit-stats"><div class="pit-stat-row">1ª línea: <span class="pit-stat-val">${front} kart${front>1?'s':''}</span></div><div class="pit-stat-row">Acceso directo: <span class="pit-stat-val">${Math.round(front/n*100)}%</span></div></div>`;
 }
 
-const REQUIRED_END=['rName'];
+const REQUIRED_END=[];
 
 function setupUpd() {
   const name=document.getElementById('rName')?.value.trim();
@@ -489,7 +481,7 @@ function setupUpd() {
       ? !!document.getElementById('circuitSelect')?.value
       : !!document.getElementById('apexSlug')?.value?.trim());
   REQUIRED_END.forEach(id=>{const v=document.getElementById(id)?.value?.trim();document.getElementById('ind-'+id)?.classList.toggle('ok',!!v);});
-  const ok=name&&_myDorsal&&hasCircuit;
+  const ok=_myDorsal&&hasCircuit;
   if(document.getElementById('startBtn')) document.getElementById('startBtn').disabled=!ok;
 }
 
@@ -500,7 +492,7 @@ function getPilotosConfig() {
 
 function startEndurance() {
   const cfg={
-    name:document.getElementById('rName').value.trim(), raceType:'endurance', simMode:false,
+    name:'Endurance', raceType:'endurance', simMode:false,
     stintMin:0, stintMax:999, stops:0, pitMinTime:3,
     myDorsal:_myDorsal||'20', nKarts:4, pitLayout:'libre',
     slug:_connMode==='replay'?'replay':getCircuitSlug(), port:getCircuitPort(),

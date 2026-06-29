@@ -4,16 +4,16 @@
 
 window.ApexConnector = {
   ws: null, slug: null, port: 7913, connected: false,
-  onData: null, onStatus: null, onComment: null,
+  onData: null, onStatus: null, onComment: null, onTitle: null,
   _reconnectTimer: null,
   _parser: null,
   _comments: [],
   _httpPort: null,
   _historyFetched: false,
 
-  connect(slug, onData, onStatus, onComment, port) {
+  connect(slug, onData, onStatus, onComment, port, onTitle) {
     this.slug = slug; this.port = port || 7913;
-    this.onData = onData; this.onStatus = onStatus; this.onComment = onComment;
+    this.onData = onData; this.onStatus = onStatus; this.onComment = onComment; this.onTitle = onTitle || null;
     this._comments = [];
     this._httpPort = null; this._historyFetched = false;
     if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
@@ -31,6 +31,7 @@ window.ApexConnector = {
         if (this.onStatus) this.onStatus('connected', '● Nueva sesión');
       },
       onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
+      onTitle:      (title)    => { if (this.onTitle) this.onTitle(title); },
       onComment:    (html)     => this._parseComment(html),
       onChange:     (state)    => this._emit(state),
     });
