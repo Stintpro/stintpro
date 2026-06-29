@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>StintPro — Mi perfil</title>
+  <link rel="icon" href="logo.png"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #07090F;
+      color: #C8D0DB;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 48px 48px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 560px;
+      margin-bottom: 48px;
+    }
+
+    .logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: #F5A623;
+      letter-spacing: 0.12em;
+      text-decoration: none;
+    }
+
+    .nav-back {
+      font-size: 13px;
+      color: #3E4E62;
+      text-decoration: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .nav-back:hover { color: #6A7A8E; }
+
+    .content {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .page-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #F5A623;
+      letter-spacing: 0.14em;
+      margin-bottom: 8px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 500;
+      color: #EDF0F4;
+      margin-bottom: 4px;
+    }
+
+    .page-email {
+      font-size: 13px;
+      color: #3E4E62;
+      margin-bottom: 36px;
+    }
+
+    .section {
+      background: #0D1018;
+      border: 1px solid #1A2030;
+      border-radius: 6px;
+      padding: 24px;
+      margin-bottom: 12px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #EDF0F4;
+    }
+
+    .section-desc {
+      font-size: 12px;
+      color: #3E4E62;
+      margin-top: 3px;
+    }
+
+    .btn-action {
+      font-size: 12px;
+      color: #3E4E62;
+      background: none;
+      border: 1px solid #1A2030;
+      border-radius: 3px;
+      padding: 7px 16px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: color .15s, border-color .15s;
+      flex-shrink: 0;
+    }
+
+    .btn-action:hover { color: #C8D0DB; border-color: #2A3848; }
+
+    .btn-danger {
+      font-size: 12px;
+      color: #7A2828;
+      background: none;
+      border: 1px solid #2A1818;
+      border-radius: 3px;
+      padding: 7px 16px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: color .15s, border-color .15s;
+      flex-shrink: 0;
+    }
+
+    .btn-danger:hover { color: #c04444; border-color: #3A2020; }
+
+    /* OVERLAY */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 9, 15, 0.88);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    /* MODALS */
+    .modal {
+      display: none;
+      background: #0D1018;
+      border: 1px solid #1A2030;
+      border-radius: 6px;
+      padding: 32px;
+      width: 360px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .modal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #F5A623;
+      letter-spacing: 0.1em;
+    }
+
+    .btn-close {
+      background: none;
+      border: none;
+      color: #3E4E62;
+      cursor: pointer;
+      font-size: 20px;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .btn-close:hover { color: #6A7A8E; }
+
+    .fields { display: flex; flex-direction: column; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+      font-size: 11px;
+      color: #3E4E62;
+      letter-spacing: 0.06em;
+    }
+
+    input {
+      background: #07090F;
+      border: 1px solid #1A2030;
+      border-radius: 3px;
+      padding: 9px 12px;
+      font-size: 13px;
+      color: #EDF0F4;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+
+    input:focus { border-color: #F5A623; }
+    input::placeholder { color: #2A3848; }
+
+    .btn-submit {
+      width: 100%;
+      font-size: 13px;
+      font-weight: 500;
+      color: #07090F;
+      background: #F5A623;
+      border: none;
+      padding: 11px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      margin-top: 6px;
+      transition: opacity 0.15s;
+    }
+
+    .btn-submit:hover { opacity: 0.88; }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-submit-danger {
+      width: 100%;
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      background: #7A1A1A;
+      border: none;
+      padding: 11px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      margin-top: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-submit-danger:hover { background: #9A2020; }
+    .btn-submit-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .msg {
+      font-size: 12px;
+      min-height: 16px;
+      text-align: center;
+    }
+
+    .msg-ok  { color: #4CAF50; }
+    .msg-err { color: #c04444; }
+
+    .delete-warning {
+      font-size: 13px;
+      color: #7A3030;
+      line-height: 1.6;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+  <nav>
+    <a href="/hub.html" class="logo">STINTPRO</a>
+    <a href="/hub.html" class="nav-back">← Volver</a>
+  </nav>
+
+  <div class="content">
+    <p class="page-eyebrow">MI PERFIL</p>
+    <p class="page-title" id="profile-name">Cargando…</p>
+    <p class="page-email" id="profile-email"></p>
+
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Contraseña</div>
+          <div class="section-desc">Modifica tu contraseña de acceso</div>
+        </div>
+        <button class="btn-action" onclick="openModal('modal-pw')">Cambiar</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Correo electrónico</div>
+          <div class="section-desc">Actualiza la dirección de email de tu cuenta</div>
+        </div>
+        <button class="btn-action" onclick="openModal('modal-email')">Cambiar</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Eliminar cuenta</div>
+          <div class="section-desc">Esta acción es irreversible</div>
+        </div>
+        <button class="btn-danger" onclick="openModal('modal-delete')">Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- OVERLAY -->
+<div id="overlay" onclick="closeAll(event)">
+
+  <!-- Cambiar contraseña -->
+  <div id="modal-pw" class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">CAMBIAR CONTRASEÑA</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label>NUEVA CONTRASEÑA</label>
+        <input id="pw-new" type="password" placeholder="Mínimo 6 caracteres"/>
+      </div>
+      <div class="field">
+        <label>CONFIRMAR CONTRASEÑA</label>
+        <input id="pw-confirm" type="password" placeholder="Repite la contraseña" onkeydown="if(event.key==='Enter')submitPw()"/>
+      </div>
+      <div id="pw-msg" class="msg"></div>
+      <button id="pw-btn" class="btn-submit" onclick="submitPw()">Actualizar contraseña</button>
+    </div>
+  </div>
+
+  <!-- Cambiar email -->
+  <div id="modal-email" class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">CAMBIAR EMAIL</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label>NUEVO CORREO ELECTRÓNICO</label>
+        <input id="email-new" type="email" placeholder="nuevo@email.com" onkeydown="if(event.key==='Enter')submitEmail()"/>
+      </div>
+      <div id="email-msg" class="msg"></div>
+      <button id="email-btn" class="btn-submit" onclick="submitEmail()">Actualizar email</button>
+    </div>
+  </div>
+
+  <!-- Eliminar cuenta -->
+  <div id="modal-delete" class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">ELIMINAR CUENTA</span>
+      <button class="btn-close" onclick="closeAll()">×</button>
+    </div>
+    <div class="fields">
+      <p class="delete-warning">Se eliminarán permanentemente tus datos y no podrás recuperar el acceso. Esta acción no se puede deshacer.</p>
+      <div class="field">
+        <label>ESCRIBE "ELIMINAR" PARA CONFIRMAR</label>
+        <input id="delete-confirm" type="text" placeholder="ELIMINAR" onkeydown="if(event.key==='Enter')submitDelete()"/>
+      </div>
+      <div id="delete-msg" class="msg"></div>
+      <button id="delete-btn" class="btn-submit-danger" onclick="submitDelete()">Eliminar mi cuenta</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  var _sb = supabase.createClient(
+    'https://nyybrybnvflwbdwdqpwa.supabase.co',
+    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
+  );
+
+  var _currentUser = null;
+
+  _sb.auth.getSession().then(function(r) {
+    if (!r.data.session) { window.location.replace('/landing.html'); return; }
+    _currentUser = r.data.session.user;
+    _sb.from('profiles').select('name').eq('id', _currentUser.id).single().then(function(res) {
+      var name = res.data?.name || _currentUser.email;
+      document.getElementById('profile-name').textContent = name;
+      document.getElementById('profile-email').textContent = _currentUser.email;
+    });
+  });
+
+  function openModal(id) {
+    ['modal-pw','modal-email','modal-delete'].forEach(function(m) {
+      document.getElementById(m).style.display = m === id ? 'block' : 'none';
+    });
+    document.getElementById('overlay').style.display = 'flex';
+    // Clear state
+    ['pw-new','pw-confirm','email-new','delete-confirm'].forEach(function(f) {
+      var el = document.getElementById(f);
+      if (el) el.value = '';
+    });
+    ['pw-msg','email-msg','delete-msg'].forEach(function(m) {
+      var el = document.getElementById(m);
+      if (el) { el.textContent = ''; el.className = 'msg'; }
+    });
+    ['pw-btn','email-btn','delete-btn'].forEach(function(b) {
+      var el = document.getElementById(b);
+      if (el) el.disabled = false;
+    });
+  }
+
+  function closeAll(e) {
+    if (e && e.target !== document.getElementById('overlay')) return;
+    document.getElementById('overlay').style.display = 'none';
+  }
+
+  async function submitPw() {
+    var pw  = document.getElementById('pw-new').value;
+    var pw2 = document.getElementById('pw-confirm').value;
+    var msg = document.getElementById('pw-msg');
+    var btn = document.getElementById('pw-btn');
+    if (pw.length < 6) { setMsg(msg, 'La contraseña debe tener al menos 6 caracteres', 'err'); return; }
+    if (pw !== pw2)    { setMsg(msg, 'Las contraseñas no coinciden', 'err'); return; }
+    btn.disabled = true; btn.textContent = 'Actualizando…';
+    var { error } = await _sb.auth.updateUser({ password: pw });
+    if (error) {
+      setMsg(msg, error.message, 'err');
+      btn.disabled = false; btn.textContent = 'Actualizar contraseña';
+    } else {
+      setMsg(msg, 'Contraseña actualizada correctamente', 'ok');
+      btn.textContent = 'Actualizar contraseña';
+      setTimeout(function() { document.getElementById('overlay').style.display = 'none'; }, 1500);
+    }
+  }
+
+  async function submitEmail() {
+    var email = (document.getElementById('email-new').value || '').trim();
+    var msg   = document.getElementById('email-msg');
+    var btn   = document.getElementById('email-btn');
+    if (!email || !email.includes('@')) { setMsg(msg, 'Introduce un email válido', 'err'); return; }
+    btn.disabled = true; btn.textContent = 'Actualizando…';
+    var { error } = await _sb.auth.updateUser({ email: email });
+    if (error) {
+      setMsg(msg, error.message, 'err');
+      btn.disabled = false; btn.textContent = 'Actualizar email';
+    } else {
+      setMsg(msg, 'Revisa tu bandeja: te hemos enviado un enlace de confirmación', 'ok');
+      btn.textContent = 'Actualizar email';
+    }
+  }
+
+  async function submitDelete() {
+    var confirm = (document.getElementById('delete-confirm').value || '').trim().toUpperCase();
+    var msg = document.getElementById('delete-msg');
+    var btn = document.getElementById('delete-btn');
+    if (confirm !== 'ELIMINAR') { setMsg(msg, 'Escribe ELIMINAR para confirmar', 'err'); return; }
+    btn.disabled = true; btn.textContent = 'Eliminando…';
+    try {
+      var session = (await _sb.auth.getSession()).data.session;
+      var res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + session.access_token
+        },
+        body: JSON.stringify({ action: 'delete-self' })
+      });
+      var data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Error al eliminar');
+      await _sb.auth.signOut();
+      window.location.replace('/landing.html');
+    } catch(e) {
+      setMsg(msg, e.message, 'err');
+      btn.disabled = false; btn.textContent = 'Eliminar mi cuenta';
+    }
+  }
+
+  function setMsg(el, text, type) {
+    el.textContent = text;
+    el.className = 'msg msg-' + type;
+  }
+</script>
+</body>
+</html>

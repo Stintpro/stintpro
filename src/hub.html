@@ -25,9 +25,19 @@
     .card-desc { font-size: 12px; color: #3E4E62; }
     .signout { font-size: 12px; color: #2A3848; background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; }
     .signout:hover { color: #4E5E72; }
+    .top-nav { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 16px 28px; }
+    .nav-user { font-size: 12px; color: #2A3848; font-family: 'JetBrains Mono', monospace; }
+    .nav-btn { font-size: 12px; color: #3E4E62; background: none; border: 1px solid #1A2030; border-radius: 3px; padding: 6px 14px; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: none; transition: color .15s, border-color .15s; }
+    .nav-btn:hover { color: #C8D0DB; border-color: #2A3848; }
   </style>
 </head>
 <body>
+<div class="top-nav">
+  <span class="nav-user" id="nav-user"></span>
+  <a href="/profile.html" class="nav-btn">Mi perfil</a>
+  <button class="nav-btn" onclick="signOut()">Salir</button>
+</div>
+
 <div class="page">
   <div style="text-align:center">
     <div class="logo">STINTPRO</div>
@@ -35,8 +45,6 @@
   </div>
 
   <div class="cards" id="cards"></div>
-
-  <button class="signout" onclick="signOut()">Cerrar sesión</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -49,8 +57,10 @@
   _sb.auth.getSession().then(function(r) {
     if (!r.data.session) { window.location.replace('/landing.html'); return; }
     var user = r.data.session.user;
-    _sb.from('profiles').select('role').eq('id', user.id).single().then(function(res) {
+    _sb.from('profiles').select('role,name').eq('id', user.id).single().then(function(res) {
       var role = res.data?.role || 'user';
+      var name = res.data?.name || user.email;
+      document.getElementById('nav-user').textContent = name;
       renderCards(role);
     });
   });
