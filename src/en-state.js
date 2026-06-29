@@ -124,11 +124,11 @@ function _enInjectStyles(){
   s.textContent=`
     #screen-dash{background:#0e0f11;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
     .sp-header{background:#13141a;border-bottom:0.5px solid #252630;padding:12px 18px;flex-shrink:0;-webkit-app-region:drag;}
-    .sp-topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+    .sp-topbar{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-left:270px;padding-right:16px;}
     .sp-topbar>*{-webkit-app-region:no-drag;}
     .sp-wdot{width:11px;height:11px;border-radius:50%;}
-    .sp-session{font-size:12.5px;color:#444;font-family:sans-serif;margin-left:4px;flex:1;}
-    .sp-clock{text-align:right;}
+    .sp-session{font-size:12.5px;color:#444;font-family:sans-serif;position:fixed;left:0;right:0;text-align:center;pointer-events:none;}
+    .sp-clock{text-align:right;margin-left:auto;}
     .sp-clock-val{font-size:27.5px;font-weight:500;color:#fff;font-family:monospace;letter-spacing:-1px;line-height:1;}
     .sp-clock-lbl{font-size:11.5px;color:#3a3b42;margin-top:1px;}
     .en-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;width:100%;-webkit-app-region:no-drag;}
