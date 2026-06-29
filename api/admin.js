@@ -91,5 +91,49 @@ module.exports = async (req, res) => {
     return res.json({ ok: true });
   }
 
+  // ── LIST ACCESS REQUESTS ────────────────────────────────────────────────
+  if (action === 'list-requests') {
+    const { data, error } = await adminClient
+      .from('access_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ requests: data || [] });
+  }
+
+  // ── INVITE USER ─────────────────────────────────────────────────────────
+  if (action === 'invite-user') {
+    const { requestId, email, name } = body;
+    if (!email) return res.status(400).json({ error: 'email requerido' });
+
+    const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email);
+    if (error) return res.status(400).json({ error: error.message });
+
+    if (data?.user?.id) {
+      await adminClient.from('profiles').upsert({
+        id:   data.user.id,
+        email,
+        name: name || email.split('@')[0],
+        role: 'user'
+      }, { onConflict: 'id' });
+    }
+
+    if (requestId) {
+      await adminClient.from('access_requests')
+        .update({ status: 'invited', invited_at: new Date().toISOString() })
+        .eq('id', requestId);
+    }
+
+    return res.json({ ok: true });
+  }
+
+  // ── DISMISS REQUEST ──────────────────────────────────────────────────────
+  if (action === 'dismiss-request') {
+    const { requestId } = body;
+    if (!requestId) return res.status(400).json({ error: 'requestId requerido' });
+    await adminClient.from('access_requests').update({ status: 'dismissed' }).eq('id', requestId);
+    return res.json({ ok: true });
+  }
+
   return res.status(400).json({ error: 'Acción desconocida: ' + action });
 };

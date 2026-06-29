@@ -79,6 +79,13 @@
     .tbl-users .table-head,.tbl-users .table-row{grid-template-columns:1fr 140px 80px 110px 100px}
     /* Circuits table: name | slug | port | actions */
     .tbl-circuits .table-head,.tbl-circuits .table-row{grid-template-columns:1fr 160px 80px 100px}
+    /* Requests table: name | email | reason | date | status | actions */
+    .tbl-requests .table-head,.tbl-requests .table-row{grid-template-columns:140px 1fr 1fr 100px 80px 140px}
+
+    .req-status{display:inline-flex;align-items:center;padding:2px 9px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.04em}
+    .req-pending{background:rgba(240,144,64,.12);color:var(--orange);border:1px solid rgba(240,144,64,.25)}
+    .req-invited{background:var(--green-dim);color:var(--green);border:1px solid rgba(61,219,111,.25)}
+    .req-dismissed{background:var(--bg-raised);color:var(--text-3);border:1px solid var(--border)}
 
     .role-badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.04em}
     .role-admin{background:rgba(192,132,252,.15);color:var(--purple);border:1px solid rgba(192,132,252,.25)}
@@ -147,6 +154,10 @@
       <button class="sb-link" id="sb-circuits" onclick="showPage('circuits')">
         <span class="icon">🏎</span> Circuitos
       </button>
+      <button class="sb-link" id="sb-requests" onclick="showPage('requests')">
+        <span class="icon">📬</span> Solicitudes
+        <span id="requests-badge" style="display:none;margin-left:auto;background:var(--orange);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px"></span>
+      </button>
       <button class="sb-link" id="sb-demo" onclick="showPage('demo')">
         <span class="icon">📼</span> Modo Demo
       </button>
@@ -172,6 +183,17 @@
         </div>
         <div id="usersList"><div class="loading">Cargando usuarios…</div></div>
       </div>
+    </div>
+
+    <!-- ── SOLICITUDES ── -->
+    <div class="page" id="page-requests">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Solicitudes de acceso</div>
+          <div class="page-sub">Usuarios que han pedido acceso a StintPro</div>
+        </div>
+      </div>
+      <div id="requestsList"><div class="loading">Cargando solicitudes…</div></div>
     </div>
 
     <!-- ── DEMO ── -->
@@ -298,6 +320,7 @@ let _circuits = [];
 
   loadUsers();
   loadCircuits();
+  loadRequests();
   loadDemoMode();
 })();
 
@@ -498,6 +521,69 @@ async function deleteCircuit(id, name) {
   if (error) { toast(error.message, 'err'); return; }
   toast('Circuito eliminado');
   loadCircuits();
+}
+
+// ── SOLICITUDES ──────────────────────────────────────────────
+let _requests = [];
+
+async function loadRequests() {
+  const { requests, error } = await adminAPI('list-requests');
+  if (error) { document.getElementById('requestsList').innerHTML = `<div class="loading">Error: ${error}</div>`; return; }
+  _requests = requests || [];
+  renderRequests();
+  _updateRequestsBadge();
+}
+
+function _updateRequestsBadge() {
+  const pending = _requests.filter(r => r.status === 'pending').length;
+  const badge = document.getElementById('requests-badge');
+  if (!badge) return;
+  badge.style.display = pending > 0 ? '' : 'none';
+  badge.textContent = pending;
+}
+
+function renderRequests() {
+  const el = document.getElementById('requestsList');
+  if (!_requests.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📬</div><p>No hay solicitudes todavía</p></div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="table-wrap tbl-requests">
+      <div class="table-head">
+        <span>Nombre</span><span>Email</span><span>Motivo</span><span>Fecha</span><span>Estado</span><span style="text-align:right">Acciones</span>
+      </div>
+      ${_requests.map(r => `
+      <div class="table-row">
+        <span style="font-weight:500;color:var(--text-1)">${r.name}</span>
+        <span style="color:var(--text-2)">${r.email}</span>
+        <span style="color:var(--text-3);font-size:12px">${r.reason || '—'}</span>
+        <span style="color:var(--text-3)">${fmtDate(r.created_at)}</span>
+        <span><span class="req-status req-${r.status}">${r.status === 'pending' ? 'Pendiente' : r.status === 'invited' ? 'Invitado' : 'Descartado'}</span></span>
+        <div class="col-actions">
+          ${r.status === 'pending' ? `
+            <button class="btn btn-p btn-sm" onclick="inviteRequest('${r.id}','${escAttr(r.email)}','${escAttr(r.name)}')">Invitar</button>
+            <button class="btn btn-g btn-sm" onclick="dismissRequest('${r.id}')">Descartar</button>
+          ` : ''}
+        </div>
+      </div>`).join('')}
+    </div>`;
+}
+
+async function inviteRequest(id, email, name) {
+  if (!confirm(`¿Enviar invitación a ${email}?`)) return;
+  const res = await adminAPI('invite-user', { requestId: id, email, name });
+  if (res.error) { toast(res.error, 'err'); return; }
+  toast('Invitación enviada a ' + email);
+  loadRequests();
+}
+
+async function dismissRequest(id) {
+  if (!confirm('¿Descartar esta solicitud?')) return;
+  const res = await adminAPI('dismiss-request', { requestId: id });
+  if (res.error) { toast(res.error, 'err'); return; }
+  toast('Solicitud descartada');
+  loadRequests();
 }
 
 // ── DEMO MODE ────────────────────────────────────────────────
