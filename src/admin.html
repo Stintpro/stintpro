@@ -296,6 +296,24 @@
   </div>
 </div>
 
+<!-- MODAL DETALLE SOLICITUD -->
+<div class="overlay" id="modalRequest" onclick="if(event.target===this)closeModal('modalRequest')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalRequest')">✕</button>
+    <h3 id="req-modal-name"></h3>
+    <p class="modal-desc" id="req-modal-email"></p>
+    <div class="form-group">
+      <label>Fecha</label>
+      <div id="req-modal-date" style="font-size:13px;color:var(--text-2);padding:4px 0"></div>
+    </div>
+    <div class="form-group">
+      <label>Motivo</label>
+      <div id="req-modal-reason" style="font-size:13px;color:var(--text-2);line-height:1.6;padding:10px 12px;background:var(--bg-raised);border-radius:8px;border:1px solid var(--border-md);min-height:60px;white-space:pre-wrap"></div>
+    </div>
+    <div id="req-modal-actions" class="modal-actions"></div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -554,13 +572,13 @@ function renderRequests() {
         <span>Nombre</span><span>Email</span><span>Motivo</span><span>Fecha</span><span>Estado</span><span style="text-align:right">Acciones</span>
       </div>
       ${_requests.map(r => `
-      <div class="table-row">
+      <div class="table-row" onclick="openRequestModal('${r.id}')" style="cursor:pointer">
         <span style="font-weight:500;color:var(--text-1)">${r.name}</span>
         <span style="color:var(--text-2)">${r.email}</span>
-        <span style="color:var(--text-3);font-size:12px">${r.reason || '—'}</span>
+        <span style="color:var(--text-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason || '—'}</span>
         <span style="color:var(--text-3)">${fmtDate(r.created_at)}</span>
         <span><span class="req-status req-${r.status}">${r.status === 'pending' ? 'Pendiente' : r.status === 'invited' ? 'Invitado' : 'Descartado'}</span></span>
-        <div class="col-actions">
+        <div class="col-actions" onclick="event.stopPropagation()">
           ${r.status === 'pending' ? `
             <button class="btn btn-p btn-sm" onclick="inviteRequest('${r.id}','${escAttr(r.email)}','${escAttr(r.name)}')">Invitar</button>
             <button class="btn btn-g btn-sm" onclick="dismissRequest('${r.id}')">Descartar</button>
@@ -568,6 +586,22 @@ function renderRequests() {
         </div>
       </div>`).join('')}
     </div>`;
+}
+
+function openRequestModal(id) {
+  const r = _requests.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('req-modal-name').textContent  = r.name;
+  document.getElementById('req-modal-email').textContent = r.email;
+  document.getElementById('req-modal-date').textContent  = fmtDate(r.created_at);
+  document.getElementById('req-modal-reason').textContent = r.reason || '(sin motivo especificado)';
+  const actions = document.getElementById('req-modal-actions');
+  actions.innerHTML = r.status === 'pending' ? `
+    <button class="btn btn-g" onclick="closeModal('modalRequest')">Cerrar</button>
+    <button class="btn btn-d" onclick="closeModal('modalRequest');dismissRequest('${r.id}')">Descartar</button>
+    <button class="btn btn-p" onclick="closeModal('modalRequest');inviteRequest('${r.id}','${escAttr(r.email)}','${escAttr(r.name)}')">Enviar invitación</button>
+  ` : `<button class="btn btn-g" onclick="closeModal('modalRequest')">Cerrar</button>`;
+  openModal('modalRequest');
 }
 
 async function inviteRequest(id, email, name) {
