@@ -10,7 +10,17 @@
 <body>
   <div id="screen-setup" class="screen active"></div>
   <div id="screen-dash" class="screen"></div>
-  <button id="btn-signout" onclick="signOutSP()" title="Cerrar sesión" style="position:fixed;bottom:14px;right:14px;z-index:9999;background:rgba(15,15,18,0.85);border:1px solid rgba(255,255,255,0.1);color:#555;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;backdrop-filter:blur(8px);font-family:sans-serif;transition:color .15s,border-color .15s">Salir</button>
+  <style>
+    #sp-topnav { position:fixed;top:0;right:0;z-index:9999;display:flex;align-items:center;gap:10px;padding:12px 18px; }
+    #sp-topnav .sp-nav-user { font-size:11px;color:#2A3848;font-family:'JetBrains Mono',monospace; }
+    #sp-topnav .sp-nav-btn { font-size:11px;color:#3E4E62;background:none;border:1px solid #1A2030;border-radius:3px;padding:5px 12px;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:color .15s,border-color .15s; }
+    #sp-topnav .sp-nav-btn:hover { color:#C8D0DB;border-color:#2A3848; }
+  </style>
+  <div id="sp-topnav">
+    <span class="sp-nav-user" id="sp-nav-user"></span>
+    <a href="/profile.html" class="sp-nav-btn">Mi perfil</a>
+    <button class="sp-nav-btn" onclick="signOutSP()">Salir</button>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     window.supabaseClient = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
@@ -19,17 +29,16 @@
       window.supabaseClient.auth.getSession().then(function(r) {
         if (!r.data.session) { window.location.replace('/landing.html'); resolve('user'); return; }
         if (new URLSearchParams(location.search).has('hub')) { resolve('admin'); return; }
-        window.supabaseClient.from('profiles').select('role').eq('id', r.data.session.user.id).single().then(function(res) {
+        window.supabaseClient.from('profiles').select('role,name').eq('id', r.data.session.user.id).single().then(function(res) {
           var role = res.data?.role || 'user';
+          var name = res.data?.name || r.data.session.user.email;
+          document.getElementById('sp-nav-user').textContent = name;
           if (role === 'admin') { window.location.replace('/hub.html'); }
           resolve(role);
         });
       });
     });
     async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('/landing.html'); }
-
-    document.getElementById('btn-signout').addEventListener('mouseenter',function(){this.style.color='#f2f2f6';this.style.borderColor='rgba(255,255,255,0.25)';});
-    document.getElementById('btn-signout').addEventListener('mouseleave',function(){this.style.color='#555';this.style.borderColor='rgba(255,255,255,0.1)';});
   </script>
   <script src="circuits.js"></script>
   <script src="state.js"></script>
