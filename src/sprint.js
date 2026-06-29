@@ -19,7 +19,7 @@ function _spInjectStyles(){
     .sp-topbar>*{-webkit-app-region:no-drag;}
     .sp-wdot{width:11px;height:11px;border-radius:50%;}
     .sp-session{font-size:12.5px;color:#444;font-family:sans-serif;position:fixed;left:0;right:0;text-align:center;pointer-events:none;}
-    .sp-clock{text-align:right;}
+    .sp-clock{text-align:right;margin-left:auto;}
     .sp-clock-val{font-size:27.5px;font-weight:500;color:#fff;font-family:monospace;letter-spacing:-1px;line-height:1;}
     .sp-clock-lbl{font-size:11.5px;color:#3a3b42;margin-top:1px;}
     .sp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;-webkit-app-region:no-drag;}
