@@ -59,6 +59,7 @@
     var user = r.data.session.user;
     _sb.from('profiles').select('role,name').eq('id', user.id).single().then(function(res) {
       var role = res.data?.role || 'user';
+      if (role !== 'admin') { window.location.replace('/index.html'); return; }
       var name = res.data?.name || user.email;
       document.getElementById('nav-user').textContent = name;
       renderCards(role);
