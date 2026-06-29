@@ -433,6 +433,29 @@
     <button class="btn-ghost" onclick="closeAll()">Cerrar</button>
   </div>
 
+  <!-- Activar cuenta (flujo de invitación) -->
+  <div id="modal-invite" class="modal" style="width:360px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">ACTIVAR CUENTA</span>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label>NOMBRE</label>
+        <input id="invite-name" type="text" placeholder="Tu nombre"/>
+      </div>
+      <div class="field">
+        <label>CONTRASEÑA</label>
+        <input id="invite-pw" type="password" placeholder="Mínimo 8 caracteres" onkeydown="if(event.key==='Enter')document.getElementById('invite-pw2').focus()"/>
+      </div>
+      <div class="field">
+        <label>CONFIRMAR CONTRASEÑA</label>
+        <input id="invite-pw2" type="password" placeholder="Repite la contraseña" onkeydown="if(event.key==='Enter')handleActivate()"/>
+      </div>
+      <div id="invite-err" style="font-size:12px;color:#c04444;min-height:16px;text-align:center"></div>
+      <button id="invite-btn" class="btn-submit" onclick="handleActivate()">Activar mi cuenta</button>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -486,7 +509,7 @@
   function openAcerca() { show('modal-acerca'); }
 
   function show(id) {
-    ['modal-que','modal-acerca','modal-login','modal-acceso','modal-success'].forEach(function(m) {
+    ['modal-que','modal-acerca','modal-login','modal-acceso','modal-success','modal-invite'].forEach(function(m) {
       document.getElementById(m).style.display = m === id ? 'block' : 'none';
     });
     document.getElementById('overlay').style.display = 'flex';
@@ -523,6 +546,82 @@
   function closeAll(e) {
     if (e && e.target !== document.getElementById('overlay')) return;
     document.getElementById('overlay').style.display = 'none';
+  }
+
+  var SUPA_URL = 'https://nyybrybnvflwbdwdqpwa.supabase.co';
+  var SUPA_KEY = 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H';
+  var _inviteToken = null;
+
+  (function detectInvite() {
+    var hash = window.location.hash.slice(1);
+    if (!hash) return;
+    var params = {};
+    hash.split('&').forEach(function(p) { var kv = p.split('='); params[kv[0]] = decodeURIComponent(kv[1] || ''); });
+    if (params.type !== 'invite' || !params.access_token) return;
+
+    _inviteToken = { access_token: params.access_token, refresh_token: params.refresh_token };
+    history.replaceState(null, '', window.location.pathname);
+
+    var jwtPayload = JSON.parse(atob(params.access_token.split('.')[1]));
+    fetch(SUPA_URL + '/rest/v1/profiles?select=name&id=eq.' + jwtPayload.sub, {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + params.access_token }
+    }).then(function(r) { return r.json(); }).then(function(rows) {
+      var name = rows && rows[0] && rows[0].name;
+      if (name) document.getElementById('invite-name').value = name;
+    }).catch(function() {});
+
+    show('modal-invite');
+  })();
+
+  async function handleActivate() {
+    var name  = (document.getElementById('invite-name').value || '').trim();
+    var pw    = document.getElementById('invite-pw').value || '';
+    var pw2   = document.getElementById('invite-pw2').value || '';
+    var errEl = document.getElementById('invite-err');
+    var btn   = document.getElementById('invite-btn');
+
+    if (!name)        { errEl.textContent = 'Introduce tu nombre'; return; }
+    if (pw.length < 8){ errEl.textContent = 'La contraseña debe tener al menos 8 caracteres'; return; }
+    if (pw !== pw2)   { errEl.textContent = 'Las contraseñas no coinciden'; return; }
+    if (!_inviteToken){ errEl.textContent = 'Enlace de invitación inválido'; return; }
+
+    errEl.textContent = '';
+    btn.disabled = true; btn.textContent = 'Activando…';
+
+    try {
+      var res = await fetch(SUPA_URL + '/auth/v1/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + _inviteToken.access_token },
+        body: JSON.stringify({ password: pw, data: { name: name } })
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Error al activar');
+
+      await fetch(SUPA_URL + '/rest/v1/profiles?id=eq.' + data.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + _inviteToken.access_token, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ name: name })
+      });
+
+      localStorage.setItem('sb-nyybrybnvflwbdwdqpwa-auth-token', JSON.stringify({
+        access_token:  _inviteToken.access_token,
+        refresh_token: _inviteToken.refresh_token,
+        expires_in:    3600,
+        expires_at:    Math.floor(Date.now() / 1000) + 3600,
+        token_type:    'bearer',
+        user:          data
+      }));
+
+      var profileRes = await fetch(SUPA_URL + '/rest/v1/profiles?select=role&id=eq.' + data.id, {
+        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + _inviteToken.access_token }
+      });
+      var profile = await profileRes.json();
+      var role = (profile[0] && profile[0].role) || 'user';
+      window.location.href = role === 'admin' ? '/hub.html' : '/index.html';
+    } catch(e) {
+      errEl.textContent = e.message || 'Error al activar la cuenta';
+      btn.disabled = false; btn.textContent = 'Activar mi cuenta';
+    }
   }
 
   var headlines = [
