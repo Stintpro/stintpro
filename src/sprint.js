@@ -8,6 +8,17 @@ let _spSimTimer   = null;
 let _spBarTimer   = null; // timer barra de progreso 100ms
 
 // ── Estilos ───────────────────────────────────────────────────────────────
+function _spInjectSetupBtn() {
+  const nav = document.getElementById('sp-topnav');
+  if (!nav || nav.querySelector('.sp-nav-setup')) return;
+  const btn = document.createElement('button');
+  btn.className = 'sp-nav-btn sp-nav-setup';
+  btn.style.cssText = 'color:#F5A623;border-color:#F5A623;';
+  btn.textContent = '← Setup';
+  btn.onclick = () => window._spGoBack();
+  nav.appendChild(btn);
+}
+
 function _spInjectStyles(){
   if(document.getElementById('sp-styles'))return;
   const s=document.createElement('style');
@@ -169,7 +180,6 @@ function _spRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
         ${cfg?.name||'Sprint'}
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
-      <button class="sp-back" onclick="window._spGoBack()">← Setup</button>
       <div class="sp-clock">
         <div class="sp-clock-val" id="sp-clk">${clk}</div>
         <div class="sp-clock-lbl" id="sp-clk-lbl">tiempo restante</div>
@@ -396,6 +406,7 @@ window.showSprintDashboard=function(cfg){
   const el=document.getElementById('screen-dash');
   el.classList.add('active');
   el.innerHTML=''; // Limpiar dashboard anterior
+  _spInjectSetupBtn();
 
   // Renderizar dashboard completo inmediatamente
   _spRender();
@@ -443,6 +454,7 @@ window.showSprintDashboard=function(cfg){
 };
 
 window._spGoBack=function(){
+  document.querySelector('.sp-nav-setup')?.remove();
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();
   if(window.ApexClock)window.ApexClock.reset();
   if(_spTimer)clearTimeout(_spTimer);

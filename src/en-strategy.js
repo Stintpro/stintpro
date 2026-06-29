@@ -874,6 +874,7 @@ window.showEnduranceDashboard=function(cfg){
   const el=document.getElementById('screen-dash');
   el.classList.add('active');
   el.innerHTML=''; // Limpiar dashboard anterior
+  _enInjectSetupBtn();
 
   // Renderizar dashboard completo inmediatamente (vacío pero navegable)
   _enRender();
@@ -1141,7 +1142,19 @@ window.showEnduranceDashboard=function(cfg){
   }
 };
 
+function _enInjectSetupBtn() {
+  const nav = document.getElementById('sp-topnav');
+  if (!nav || nav.querySelector('.sp-nav-setup')) return;
+  const btn = document.createElement('button');
+  btn.className = 'sp-nav-btn sp-nav-setup';
+  btn.style.cssText = 'color:#F5A623;border-color:#F5A623;';
+  btn.textContent = '← Setup';
+  btn.onclick = () => window._enGoBack();
+  nav.appendChild(btn);
+}
+
 window._enGoBack=function(){
+  document.querySelector('.sp-nav-setup')?.remove();
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();
   if(window.ApexClock)window.ApexClock.reset();
   if(_enTimer)clearTimeout(_enTimer);
