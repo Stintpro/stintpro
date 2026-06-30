@@ -23,6 +23,9 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    if (window.location.hash.includes('type=invite')) {
+      window.location.replace('/landing.html' + window.location.hash);
+    }
     window.supabaseClient = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
     window._spRolePromise = new Promise(function(resolve) {
       if (navigator.userAgent.includes('Electron')) { resolve('admin'); return; }
