@@ -54,6 +54,7 @@ module.exports = async function handler(req, res) {
       .from('access_requests')
       .select('id')
       .eq('email', email.toLowerCase())
+      .eq('status', 'pending')
       .gte('created_at', since)
       .limit(1);
 
