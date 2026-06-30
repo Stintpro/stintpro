@@ -467,3 +467,7 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   return `${label} (auto)\n${pilotLine}\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${fewDataNote}`;
 }
 
+if (typeof module !== 'undefined') {
+  module.exports = { _enAutoKartQuality, _enEffectiveQuality, EnSession, EnUi, _enPilotRatings };
+}
+

@@ -81,7 +81,7 @@ group('|*| without llp column', () => {
   test('records lap and fires onLap', () => {
     let lapFired = false;
     const p = createParser({
-      onLap: (dorsal, name, ms, lapN) => {
+      onLap: (dorsal, name, teamName, ms, lapN) => {
         lapFired = true;
         assert.equal(dorsal, '7');
         assert.equal(ms, 65000);
@@ -575,7 +575,7 @@ group('sesión realista (flujo |*| + llp)', () => {
 
   test('llp registra la vuelta (flujo normal)', () => {
     let lapCount = 0, lapDorsal = null, lapMs = null;
-    const p = buildRealParser((d, n, ms) => { lapCount++; lapDorsal = d; lapMs = ms; }, null);
+    const p = buildRealParser((d, n, tn, ms) => { lapCount++; lapDorsal = d; lapMs = ms; }, null);
     p.parse('r1|*|65000|');
     p.parse('r1c3|llp|1:05.000');
     assert.equal(lapCount, 1);
@@ -599,7 +599,7 @@ group('sesión realista (flujo |*| + llp)', () => {
 
   test('varias vueltas consecutivas de dos karts', () => {
     const laps = [];
-    const p = buildRealParser((d, n, ms, lapN) => laps.push({ d, ms, lapN }), null);
+    const p = buildRealParser((d, n, tn, ms, lapN) => laps.push({ d, ms, lapN }), null);
 
     // Vuelta 1 kart 7
     p.parse('r1|*|65000|');
