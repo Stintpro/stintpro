@@ -36,6 +36,17 @@ async function _enFetchPilotHistory(karts, slug) {
   _enPilotHistoryFetching = false;
 }
 
+// ── Historial de equipos desde el logger (modo logger) ───────────────────
+let _enTeamHistory = null;       // null = no cargado, {} = cargado
+let _enTeamHistoryFetching = false;
+
+async function _enFetchTeamHistory(slug) {
+  if (_enTeamHistoryFetching || !Logger?._serverUrl) return;
+  _enTeamHistoryFetching = true;
+  _enTeamHistory = await Logger.fetchTeamHistory(slug);
+  _enTeamHistoryFetching = false;
+}
+
 // ── Ratings de pilotos — score 0-1000 por circuito ───────────────────────
 // Cargado del logger si disponible, si no del caché localStorage (7 días)
 let _enPilotRatings = {};        // name → score (número o null)

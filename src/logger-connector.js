@@ -102,6 +102,22 @@ const Logger = {
     } catch(e) { return {}; }
   },
 
+  // Consulta histórico de equipos al logger (para T en el grid)
+  async fetchTeamHistory(slug) {
+    if (!this._serverUrl || !slug) return {};
+    try {
+      const url = `${this._serverUrl}/api/circuit/${slug}/teams`;
+      const headers = this._apiKey ? { 'X-API-Key': this._apiKey } : {};
+      const res = await fetch(url, { headers });
+      if (!res.ok) return {};
+      const list = await res.json();
+      // Convertir array a mapa por nombre de equipo
+      const map = {};
+      for (const t of list) map[t.name] = t;
+      return map;
+    } catch(e) { return {}; }
+  },
+
   // Verificar conexión al logger
   async test(url, apiKey) {
     return new Promise((resolve) => {

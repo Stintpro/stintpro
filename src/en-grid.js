@@ -42,6 +42,12 @@ function _enRender(){
     if(cfg?.slug) _enFetchPilotHistory(eq, cfg.slug);
   }
 
+  // Cargar historial de equipos desde el logger (solo primera vez por sesión)
+  if(_enTeamHistory===null && Logger?._serverUrl){
+    const cfg=window.AppState?.config;
+    if(cfg?.slug) _enFetchTeamHistory(cfg.slug);
+  }
+
   // Cargar ratings de pilotos (logger o caché localStorage)
   if(!Object.keys(_enPilotRatings).length){
     const cfg=window.AppState?.config;
@@ -353,7 +359,7 @@ function _enRenderRow(e, d){
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
       <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory('${(e.name||'').replace(/'/g,"\\'")}',event)" title="Ver historial">ℹ</span>`:''}</div>
-      <div class="sp-name" style="font-size:12px;color:#555">${(e.teamName&&e.teamName!==e.name)?e.teamName:'—'}</div>
+      <div class="sp-name" style="font-size:12px;color:#555">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;if(!tn)return'—';const tBtn=_enTeamHistory?.[tn]?`<span class="en-info-btn" onclick="_enShowTeamHistory('${tn.replace(/'/g,"\\'")}',event)" title="Ver historial del equipo" style="font-family:monospace;font-weight:700">T</span>`:'';return tn+tBtn;})()}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
@@ -563,6 +569,81 @@ function _enShowPilotHistory(name, evt) {
             <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Vlts</th>
           </tr></thead>
           <tbody>${sessRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#475569;font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ── Ficha de equipo (historial desde logger) ───────────────────────────
+function _enShowTeamHistory(teamName, evt) {
+  evt.stopPropagation();
+  const data = _enTeamHistory?.[teamName];
+  if (!data) return;
+
+  let existing = document.getElementById('en-team-history-overlay');
+  if (existing) existing.remove();
+
+  function fmtMs(ms) {
+    if (!ms) return '—';
+    const m = Math.floor(ms/60000);
+    const s = ((ms%60000)/1000).toFixed(3).padStart(6,'0');
+    return `${m}:${s}`;
+  }
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    return new Date(ts).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
+
+  const sessRows = (data.sessions||[]).map(s=>`
+    <tr>
+      <td style="padding:7px 12px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
+      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
+      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+      <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.laps}</td>
+      <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.pilot_count}</td>
+    </tr>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'en-team-history-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:998;';
+  overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(520px,92vw);overflow:hidden">
+      <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
+        <span style="font-family:monospace;font-weight:700;font-size:11px;color:#F5A623;background:#1a1500;border:1px solid #3a2800;border-radius:4px;padding:2px 7px">T</span>
+        <span style="font-size:15px;font-weight:700;color:#e2e8f0;flex:1">${teamName}</span>
+        <button onclick="document.getElementById('en-team-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:#64748b;padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1e2130;border-bottom:1px solid #1e2130">
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
+          <div style="font-size:18px;font-weight:700;color:#22c55e;font-family:monospace">${fmtMs(data.best_ms)}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
+          <div style="font-size:18px;font-weight:700;color:#5b8dee;font-family:monospace">${fmtMs(data.avg_ms)}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones</div>
+          <div style="font-size:18px;font-weight:700;color:#e2e8f0">${data.session_count}</div>
+        </div>
+        <div style="background:#0e0f11;padding:12px 16px">
+          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vueltas</div>
+          <div style="font-size:18px;font-weight:700;color:#64748b">${data.total_laps}</div>
+        </div>
+      </div>
+      <div style="padding:12px 0;max-height:220px;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#13141a">
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left">Sesión</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Mejor</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Media</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Vlts</th>
+            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Pilotos</th>
+          </tr></thead>
+          <tbody>${sessRows || '<tr><td colspan="5" style="padding:12px;text-align:center;color:#475569;font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
         </table>
       </div>
     </div>`;
