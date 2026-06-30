@@ -23,27 +23,49 @@ const EnSession = {
   lastTrackAvg:     null,   // último valor válido de media de pista (caché anti-parpadeo)
 };
 
-// ── Historial de pilotos desde el logger (modo logger) ───────────────────
+// ── Historial de pilotos (logger o URL configurada en modo Apex/Replay) ──
 let _enPilotHistory = null;      // null = no cargado, {} = cargado (puede estar vacío)
 let _enPilotHistoryFetching = false;
 
 async function _enFetchPilotHistory(karts, slug) {
-  if (_enPilotHistoryFetching || !Logger?._serverUrl) return;
+  if (_enPilotHistoryFetching) return;
+  const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
+  const _rKey = Logger?._apiKey    || window.AppState?.loggerApiKey || '';
+  if (!_rUrl) return;
   const names = karts.map(k => k.name).filter(n => n && n.length > 2);
   if (!names.length) return;
   _enPilotHistoryFetching = true;
-  _enPilotHistory = await Logger.fetchPilotHistory(slug, names);
+  try {
+    const encoded = names.map(n => encodeURIComponent(n)).join(',');
+    const res = await fetch(`${_rUrl}/api/circuit/${slug}/pilots/batch?names=${encoded}`, {
+      headers: _rKey ? { 'X-API-Key': _rKey } : {},
+    });
+    _enPilotHistory = res.ok ? await res.json() : {};
+  } catch(e) { _enPilotHistory = {}; }
   _enPilotHistoryFetching = false;
 }
 
-// ── Historial de equipos desde el logger (modo logger) ───────────────────
+// ── Historial de equipos (logger o URL configurada en modo Apex/Replay) ──
 let _enTeamHistory = null;       // null = no cargado, {} = cargado
 let _enTeamHistoryFetching = false;
 
 async function _enFetchTeamHistory(slug) {
-  if (_enTeamHistoryFetching || !Logger?._serverUrl) return;
+  if (_enTeamHistoryFetching) return;
+  const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
+  const _rKey = Logger?._apiKey    || window.AppState?.loggerApiKey || '';
+  if (!_rUrl) return;
   _enTeamHistoryFetching = true;
-  _enTeamHistory = await Logger.fetchTeamHistory(slug);
+  try {
+    const res = await fetch(`${_rUrl}/api/circuit/${slug}/teams`, {
+      headers: _rKey ? { 'X-API-Key': _rKey } : {},
+    });
+    if (res.ok) {
+      const list = await res.json();
+      const map = {};
+      for (const t of list) map[t.name] = t;
+      _enTeamHistory = map;
+    } else { _enTeamHistory = {}; }
+  } catch(e) { _enTeamHistory = {}; }
   _enTeamHistoryFetching = false;
 }
 
