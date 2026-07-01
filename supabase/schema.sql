@@ -11,16 +11,15 @@ create table if not exists profiles (
   created_at timestamptz default now()
 );
 
--- RLS: cualquier usuario autenticado puede leer todos los perfiles
--- (lista de usuarios para el panel admin). Solo el service role puede escribir.
+-- RLS: cada usuario solo puede leer su propio perfil.
+-- El panel admin usa service role vía Vercel Function → no necesita política de lectura amplia.
+-- INSERT/UPDATE/DELETE solo via service role (Vercel Function) → no hay política cliente.
 alter table profiles enable row level security;
 
-create policy "auth users can read profiles"
+create policy "users read own profile"
   on profiles for select
   to authenticated
-  using (true);
-
--- INSERT/UPDATE/DELETE solo via service role (Vercel Function) → no hay política cliente
+  using (id = auth.uid());
 
 
 -- ── TABLA: circuits ───────────────────────────────────────────────────────
