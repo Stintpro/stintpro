@@ -185,19 +185,19 @@ function _enInjectStyles(){
     .sp-pos{font-size:14.5px;font-weight:500;color:#bbb;text-align:center;}
     .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;cursor:pointer;position:relative;}
     .en-kart-q{position:absolute;top:-3px;right:-3px;font-size:8.5px;line-height:1;}
-    .sp-name{font-size:14.5px;color:#d0d2db;font-family:sans-serif;display:flex;align-items:center;gap:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .sp-name{font-size:14.5px;color:var(--text-1);font-family:sans-serif;display:flex;align-items:center;gap:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
     .en-info-btn{flex-shrink:0;font-size:11px;font-weight:700;color:#F5A623;background:#1a1500;border:1px solid #3a2800;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;font-style:normal;}
     .en-info-btn:hover{background:#1a2d4a;}
     .sp-pit-b{background:#ef4444;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-out-b{background:#f97316;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-fix-b{font-size:10.5px;color:#F5A623;border:0.5px solid #F5A623;padding:1px 5px;border-radius:3px;flex-shrink:0;}
-    .sp-vtas{font-size:13.5px;color:#8b8d97;text-align:right;font-family:monospace;}
+    .sp-vtas{font-size:13.5px;color:var(--text-2);text-align:right;font-family:monospace;}
     .sp-t{font-size:14.5px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums;}
-    .en-m5{font-size:13.5px;text-align:right;font-family:monospace;color:#6b7280;}
+    .en-m5{font-size:13.5px;text-align:right;font-family:monospace;color:var(--text-3);}
     .en-delta{font-size:12.5px;text-align:right;font-family:monospace;}
     .sp-cons{font-size:11.5px;text-align:center;}
-    .sp-gap{font-size:13.5px;text-align:right;font-family:monospace;color:#6b7280;}
-    .sp-pitc{font-size:13.5px;color:#8b8d97;text-align:right;font-family:monospace;}
+    .sp-gap{font-size:13.5px;text-align:right;font-family:monospace;color:var(--text-3);}
+    .sp-pitc{font-size:13.5px;color:var(--text-2);text-align:right;font-family:monospace;}
     .sp-au{color:#22c55e;font-size:11.5px;font-weight:700;margin-left:2px;}
     .sp-ad{color:#ef4444;font-size:11.5px;font-weight:700;margin-left:2px;}
     .sp-footer{padding:7px 14px;display:flex;gap:16px;border-top:0.5px solid #181920;flex-shrink:0;}
@@ -223,13 +223,13 @@ function _enInjectStyles(){
     .en-pilot-current{display:flex;align-items:center;gap:14px;margin-bottom:10px;}
     .en-pilot-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17.5px;font-weight:700;color:#fff;}
     .en-pilot-info{flex:1;}
-    .en-pilot-name{font-size:16.5px;font-weight:500;color:#d0d2db;font-family:sans-serif;}
+    .en-pilot-name{font-size:16.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;}
     .en-pilot-sub{font-size:12.5px;color:var(--text-3);font-family:sans-serif;margin-top:2px;}
     .en-change-btn{padding:8px 18px;border-radius:6px;border:none;font-size:13.5px;font-weight:600;cursor:pointer;font-family:sans-serif;transition:all .15s;}
     .en-queue-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid #111;}
     .en-queue-item:last-child{border-bottom:none;}
     .en-queue-num{width:20px;height:20px;border-radius:50%;background:#1e1f25;color:var(--text-3);font-size:11.5px;display:flex;align-items:center;justify-content:center;font-weight:600;}
-    .en-queue-name{font-size:14.5px;color:#9ca3af;font-family:sans-serif;flex:1;}
+    .en-queue-name{font-size:14.5px;color:var(--text-2);font-family:sans-serif;flex:1;}
     .en-queue-stat{font-size:11.5px;color:var(--text-3);font-family:monospace;}
     .en-stint-row{display:grid;grid-template-columns:24px 1fr 62px 46px 82px 82px 64px 48px;padding:6px 0;border-bottom:0.5px solid #111;align-items:center;font-size:13.5px;font-family:monospace;}
     .en-stint-row:last-child{border-bottom:none;}

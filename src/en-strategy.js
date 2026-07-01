@@ -8,7 +8,7 @@ function _enRenderStratConfig(){
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Box:</span>
-        <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;font-family:sans-serif">
+        <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;font-family:sans-serif">
           <option value="line" ${EnBox.config.type==='line'?'selected':''}>Línea</option>
           <option value="battery" ${EnBox.config.type==='battery'?'selected':''}>Batería</option>
           <option value="columns" ${EnBox.config.type==='columns'?'selected':''}>Columnas</option>
@@ -16,31 +16,31 @@ function _enRenderStratConfig(){
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Karts:</span>
-        <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
       </div>
       ${showCols?`<div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Cols:</span>
-        <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
       </div>`:''}
       <div style="border-left:0.5px solid #2a2b2e;height:20px"></div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Stint min:</span>
-        <input id="en-stint-min-input" type="number" value="${cfg.stintMin||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
-        <span style="font-size:15px;color:#bdc2cc">m</span>
+        <input id="en-stint-min-input" type="number" value="${cfg.stintMin||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
+        <span style="font-size:15px;color:var(--text-2)">m</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Stint max:</span>
-        <input id="en-stint-max-input" type="number" value="${cfg.stintMax||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
-        <span style="font-size:15px;color:#bdc2cc">m</span>
+        <input id="en-stint-max-input" type="number" value="${cfg.stintMax||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
+        <span style="font-size:15px;color:var(--text-2)">m</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Parada:</span>
-        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
-        <span style="font-size:15px;color:#bdc2cc">s</span>
+        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
+        <span style="font-size:15px;color:var(--text-2)">s</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Dorsal:</span>
-        <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
+        <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
       </div>
       <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
     </div>
@@ -170,23 +170,23 @@ function _enRenderStrategy(eq, trackAvg){
     <div class="en-strat-title">Probabilidad de kart bueno</div>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
       <div>
-        <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">Acceso</div>
-        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>${partialData?`<span style="font-size:11px;color:#fbbf24;background:#fbbf2418;border:0.5px solid #fbbf2444;border-radius:4px;padding:2px 5px;margin-left:6px;font-family:sans-serif;vertical-align:middle">⚠ datos parciales (${knownCount}/${EnBox.queue.length})</span>`:''}`}
+        <div style="font-size:15px;color:var(--text-2);font-family:sans-serif">Acceso</div>
+        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:var(--text-2);font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>${partialData?`<span style="font-size:11px;color:#fbbf24;background:#fbbf2418;border:0.5px solid #fbbf2444;border-radius:4px;padding:2px 5px;margin-left:6px;font-family:sans-serif;vertical-align:middle">⚠ datos parciales (${knownCount}/${EnBox.queue.length})</span>`:''}`}
       </div>
       <div title="% de karts buenos entre todos los que están físicamente en boxes ahora mismo (según cronometraje)">
-        <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">En pit ahora</div>
-        <span style="font-size:18px;font-weight:500;color:#bdc2cc;font-family:monospace">${probPresencia}%</span>
+        <div style="font-size:15px;color:var(--text-2);font-family:sans-serif">En pit ahora</div>
+        <span style="font-size:18px;font-weight:500;color:var(--text-2);font-family:monospace">${probPresencia}%</span>
       </div>
       <span style="font-size:15px;color:${probColor};font-family:sans-serif;margin-left:auto">${probLabel}</span>
     </div>
     <div class="en-prob-bar"><div class="en-prob-fill" style="width:${probAcceso}%;background:${probColor}"></div></div>
-    <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:4px">${probExplain}</div>
+    <div style="font-size:15px;color:var(--text-2);font-family:sans-serif;margin-top:4px">${probExplain}</div>
     <div style="display:flex;gap:8px;margin-top:6px">
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:15px;color:var(--text-2)">${goodInPit}</span></div>
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:15px;color:var(--text-2)">${neutralInPit}</span></div>
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:15px;color:var(--text-2)">${badInPit}</span></div>
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:15px;color:var(--text-2)">${unknownInPit}</span></div>
-      <span style="font-size:15px;color:#bdc2cc;margin-left:auto">${totalInPit} en pit · ${EnBox.queue.length} en cola</span>
+      <span style="font-size:15px;color:var(--text-2);margin-left:auto">${totalInPit} en pit · ${EnBox.queue.length} en cola</span>
     </div>
   </div>`;
 
@@ -258,7 +258,7 @@ function _enRenderStrategy(eq, trackAvg){
     const myD=(cfg?.myDorsal||'').toString().trim();
     const myQueueIdx=myD?EnBox.queue.findIndex(k=>k.dorsal?.toString()===myD):-1;
     html+=`<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:6px">
-      <span style="font-size:15px;color:#bdc2cc;margin-right:2px">ENTRA</span>`;
+      <span style="font-size:15px;color:var(--text-2);margin-right:2px">ENTRA</span>`;
     [...EnBox.queue].reverse().forEach((k,i)=>{
       let bg='#fbbf24';
       if(k.quality==='good')bg='#22c55e';
@@ -273,13 +273,13 @@ function _enRenderStrategy(eq, trackAvg){
       const textColor=isMe?'#fff':rivalTextColor;
       html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:11px;color:${textColor};font-weight:700" title="${title}">${label}</div>`;
     });
-    html+=`<span style="font-size:15px;color:#bdc2cc;margin-left:2px">SALE</span></div>`;
+    html+=`<span style="font-size:15px;color:var(--text-2);margin-left:2px">SALE</span></div>`;
     const qGood=EnBox.queue.filter(k=>k.quality==='good').length;
     const qBad=EnBox.queue.filter(k=>k.quality==='bad').length;
     const qNeutral=EnBox.queue.filter(k=>k.quality==='neutral').length;
     const qUnknown=EnBox.queue.filter(k=>k.quality==='unknown').length;
-    html+=`<div style="font-size:15px;color:#bdc2cc;font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
-    html+=`<div style="font-size:15px;color:#bdc2cc;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
+    html+=`<div style="font-size:15px;color:var(--text-2);font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
+    html+=`<div style="font-size:15px;color:var(--text-2);margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
     if(myQueueIdx>=0){
       const ahead=myQueueIdx;
       html+=`<div style="font-size:15px;color:#F5A623;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
@@ -294,7 +294,7 @@ function _enRenderStrategy(eq, trackAvg){
 
     if(qLen>0){
       html+=`<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid #1a1b22">`;
-      html+=`<div style="font-size:15px;color:#bdc2cc;margin-bottom:6px;letter-spacing:0.5px">DIAGRAMA DEL BOX (${qLen} karts)</div>`;
+      html+=`<div style="font-size:15px;color:var(--text-2);margin-bottom:6px;letter-spacing:0.5px">DIAGRAMA DEL BOX (${qLen} karts)</div>`;
 
       if(boxType==='battery'){
         // Batería: los primeros N en puestos (accesibles por sorteo), el resto en espera
@@ -306,14 +306,14 @@ function _enRenderStrategy(eq, trackAvg){
         });
         html+=`</div>`;
         if(waiting.length){
-          html+=`<div style="text-align:center;font-size:8px;color:#bdc2cc;margin-bottom:4px">— en espera (${waiting.length}) —</div>`;
+          html+=`<div style="text-align:center;font-size:8px;color:var(--text-2);margin-bottom:4px">— en espera (${waiting.length}) —</div>`;
           html+=`<div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;padding-bottom:6px">`;
           waiting.forEach(k=>{
             html+=`<div style="width:28px;height:22px;border-radius:4px;background:${qColor(k)};border:${qBorder(k,false)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;opacity:0.55" title="${qTitle(k)} (en espera)">${qLabel(k)}</div>`;
           });
           html+=`</div>`;
         }
-        html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Puestos: sorteo aleatorio · Espera: entran a puestos al vaciarse</div>`;
+        html+=`<div style="text-align:center;font-size:15px;color:var(--text-2)">Puestos: sorteo aleatorio · Espera: entran a puestos al vaciarse</div>`;
 
       } else if(boxType==='line'){
         // Línea: cola horizontal completa con wrap, solo el primero accesible
@@ -324,7 +324,7 @@ function _enRenderStrategy(eq, trackAvg){
           if(i<qLen-1)html+=`<span style="color:#2a2b2e;font-size:15px">→</span>`;
         });
         html+=`</div>`;
-        html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Solo el primero accesible · ${qLen} karts en cola</div>`;
+        html+=`<div style="text-align:center;font-size:15px;color:var(--text-2)">Solo el primero accesible · ${qLen} karts en cola</div>`;
 
       } else if(boxType==='columns'){
         // Columnas: TODAS las filas según la cola real
@@ -351,7 +351,7 @@ function _enRenderStrategy(eq, trackAvg){
         if(goodBlocked>0){
           html+=`<div style="text-align:center;font-size:15px;color:#fbbf24">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
         } else {
-          html+=`<div style="text-align:center;font-size:15px;color:#bdc2cc">Fila 1: sorteo aleatorio entre columnas · Fila 2+: bloqueada hasta que se vacíe fila 1 · ${nRows} fila${nRows>1?'s':''}</div>`;
+          html+=`<div style="text-align:center;font-size:15px;color:var(--text-2)">Fila 1: sorteo aleatorio entre columnas · Fila 2+: bloqueada hasta que se vacíe fila 1 · ${nRows} fila${nRows>1?'s':''}</div>`;
         }
       }
       html+=`</div>`;
@@ -374,9 +374,9 @@ function _enRenderStrategy(eq, trackAvg){
       const stateCol=e.pitState==='in'?'#ef4444':e.pitState==='out'?'#f97316':'#555';
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
         <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
-        <span style="font-size:15px;color:#bdc2cc;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
+        <span style="font-size:15px;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
         <span style="font-size:15px;color:${stateCol};font-weight:600">${stateLabel}</span>
-        <span style="font-size:15px;color:#bdc2cc;width:32px;text-align:right">${e.pitS?e.pitS+'s':''}</span>
+        <span style="font-size:15px;color:var(--text-2);width:32px;text-align:right">${e.pitS?e.pitS+'s':''}</span>
       </div>`;
     });
   }
@@ -455,7 +455,7 @@ function _enRenderStrategy(eq, trackAvg){
       const isNow=i===0;
       const probCol=t.prob>=50?'#22c55e':t.prob>=25?'#fbbf24':'#ef4444';
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 0;${!isNow?'border-top:0.5px solid #111':''}">
-        <span style="font-size:15px;color:#bdc2cc;font-family:sans-serif;width:55px;flex-shrink:0">${t.min}</span>
+        <span style="font-size:15px;color:var(--text-2);font-family:sans-serif;width:55px;flex-shrink:0">${t.min}</span>
         <span style="font-size:18px;font-weight:600;color:${probCol};font-family:monospace;width:50px">${t.prob}%</span>
         <div style="flex:1">
           <span style="font-size:15px;color:${t.evColor||'#555'};font-family:sans-serif">${t.event}</span>
@@ -588,7 +588,7 @@ function _enRenderStrategy(eq, trackAvg){
       <div style="padding:8px 12px;border-radius:6px;background:${tacticColor}11;border:0.5px solid ${tacticColor}33">
         <span style="font-size:15px;color:${tacticColor};font-family:sans-serif">${tacticIcon} ${tacticHtml}</span>
       </div>
-      <div style="font-size:15px;color:#bdc2cc;margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>
+      <div style="font-size:15px;color:var(--text-2);margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>
     </div>`;
   }
 
@@ -720,7 +720,7 @@ function _enShowEstimatedClassification(){
     const estGapStr=i===0?'—':'+'+e.estimatedGap.toFixed(1)+'s';
     const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapReal>0?'+'+e.gapReal.toFixed(1)+'s':'—';
     const posChange=e.pos-(i+1);
-    const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:#bdc2cc">=</span>';
+    const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:var(--text-2)">=</span>';
 
     rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px">
       <span style="font-size:15px;font-weight:600;color:#e4e6ed;text-align:center">${i+1}</span>
@@ -739,20 +739,20 @@ function _enShowEstimatedClassification(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Clasificación estimada</div>
-          <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource}) · Gap: ${hasApexGap?'Apex':'vueltas×ritmo'}</div>
+          <div style="font-size:15px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource}) · Gap: ${hasApexGap?'Apex':'vueltas×ritmo'}</div>
           ${!usingOfficial?'<div style="font-size:15px;color:#fbbf24;font-family:sans-serif;margin-top:2px">⚠ Conteo de paradas observado localmente — puede estar incompleto si conectaste a mitad de carrera</div>':''}
         </div>
-        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:#bdc2cc;font-size:18px;cursor:pointer;padding:4px">✕</button>
+        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;padding:4px 0;border-bottom:0.5px solid #2a2b2e;gap:8px;margin-bottom:4px">
-        <span style="font-size:15px;color:#bdc2cc;text-align:center">EST</span>
-        <span style="font-size:15px;color:#bdc2cc">KART</span>
-        <span style="font-size:15px;color:#bdc2cc">EQUIPO</span>
-        <span style="font-size:15px;color:#bdc2cc;text-align:center">PITS</span>
-        <span style="font-size:15px;color:#bdc2cc;text-align:right">GAP</span>
+        <span style="font-size:15px;color:var(--text-2);text-align:center">EST</span>
+        <span style="font-size:15px;color:var(--text-2)">KART</span>
+        <span style="font-size:15px;color:var(--text-2)">EQUIPO</span>
+        <span style="font-size:15px;color:var(--text-2);text-align:center">PITS</span>
+        <span style="font-size:15px;color:var(--text-2);text-align:right">GAP</span>
         <span style="font-size:15px;color:#F5A623;text-align:right">EST</span>
-        <span style="font-size:15px;color:#bdc2cc;text-align:right">PENALIZ.</span>
-        <span style="font-size:15px;color:#bdc2cc;text-align:center">Δ</span>
+        <span style="font-size:15px;color:var(--text-2);text-align:right">PENALIZ.</span>
+        <span style="font-size:15px;color:var(--text-2);text-align:center">Δ</span>
       </div>
       ${rows}
     </div>`;

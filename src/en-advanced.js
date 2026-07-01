@@ -2,8 +2,8 @@
 // ── Config estática de la pestaña Avanzado (solo se pinta una vez) ────────
 function _enRenderAdvConfig(){
   return `<div style="margin:14px 14px 0;background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
-    <span style="font-size:12px;color:#9ca3af;font-family:sans-serif">⏱ Duración de parada (marcada por organización):</span>
-    <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:#d0d2db;font-size:13px;text-align:center">
+    <span style="font-size:12px;color:var(--text-2);font-family:sans-serif">⏱ Duración de parada (marcada por organización):</span>
+    <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:var(--text-1);font-size:13px;text-align:center">
     <span style="font-size:12px;color:var(--text-3)">segundos</span>
   </div>`;
 }
@@ -30,18 +30,18 @@ function _enComputeTunnelProjections(eq, myDorsal, offset){
 function _enRenderTunnelShell(calibrated, calibCount, offset){
   if(!calibrated){
     return `<div style="padding:14px 14px 0"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:13px;font-weight:500;color:#d0d2db;font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:10px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:10px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
       <div style="font-size:12px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (${calibCount}/2)</div>
       <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">El sistema mide automáticamente el tiempo entre pit out y el primer pase por meta para calibrar la posición de salida en este circuito.</div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:13px;font-weight:500;color:#d0d2db;font-family:sans-serif;margin-bottom:10px">🏁 Orden de paso por meta</div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🏁 Orden de paso por meta</div>
       <div id="en-cross-rows"></div>
     </div></div>`;
   }
   return `<div style="padding:14px 14px 0">
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:13px;font-weight:500;color:#d0d2db;font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:10px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:10px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
       <div id="en-tunnel-nocfg" style="display:none;font-size:12px;color:var(--text-3);font-family:sans-serif">Configura tu dorsal en Estrategia para ver tu proyección de salida</div>
       <div id="en-tunnel-live" style="display:none">
         <div style="position:relative;height:70px;background:#0e0f11;border-radius:8px;margin:10px 0;overflow:hidden">
@@ -54,14 +54,14 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
         </div>
         <div style="display:flex;gap:14px;align-items:center;margin-top:8px">
           <span id="en-tunnel-semaforo" style="font-size:13px;font-family:sans-serif;font-weight:500"></span>
-          <span id="en-tunnel-hueco" style="font-size:11px;color:#9ca3af;font-family:sans-serif"></span>
+          <span id="en-tunnel-hueco" style="font-size:11px;color:var(--text-2);font-family:sans-serif"></span>
           <span id="en-tunnel-zona" style="font-size:11px;color:var(--text-3);font-family:sans-serif"></span>
         </div>
         <div style="font-size:9px;color:#3a3b42;font-family:sans-serif;margin-top:6px">Calibración: ✓ ${calibCount} paradas observadas · offset ${offset.toFixed(0)}s · Estimación con margen ±5s</div>
       </div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:13px;font-weight:500;color:#d0d2db;font-family:sans-serif;margin-bottom:10px">🏁 Orden de paso por meta</div>
+      <div style="font-size:13px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🏁 Orden de paso por meta</div>
       <div id="en-cross-rows"></div>
     </div>
   </div>`;
@@ -130,7 +130,7 @@ function _enAdvRafTick(){
         chip=document.createElement('div');
         chip.dataset.d=String(p.dorsal);
         chip.style.cssText='position:absolute;top:18px;text-align:center;transition:left 0.4s ease';
-        chip.innerHTML=`<div style="width:28px;height:20px;border-radius:4px;background:#1a1b22;color:#d0d2db;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;border:1.5px solid ${qc}" data-border>${p.dorsal}</div><div style="font-size:8px;color:var(--text-3);margin-top:2px" data-lbl></div>`;
+        chip.innerHTML=`<div style="width:28px;height:20px;border-radius:4px;background:#1a1b22;color:var(--text-1);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;border:1.5px solid ${qc}" data-border>${p.dorsal}</div><div style="font-size:8px;color:var(--text-3);margin-top:2px" data-lbl></div>`;
         chipsEl.appendChild(chip);
       }
       chip.style.left=`${pct}%`;
@@ -205,8 +205,8 @@ function _enAdvRafTick(){
         row.innerHTML=`
           <span data-ord style="font-size:10px;color:var(--text-3);font-family:monospace;width:22px;text-align:right;flex-shrink:0"></span>
           <span data-pos style="font-size:11px;font-family:monospace;width:26px;font-weight:600;flex-shrink:0"></span>
-          <span data-dor style="font-size:11px;color:#d0d2db;font-family:monospace;width:28px;flex-shrink:0"></span>
-          <span data-nm style="font-size:11px;color:#9ca3af;font-family:sans-serif;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"></span>
+          <span data-dor style="font-size:11px;color:var(--text-1);font-family:monospace;width:28px;flex-shrink:0"></span>
+          <span data-nm style="font-size:11px;color:var(--text-2);font-family:sans-serif;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"></span>
           <span data-lp></span>
           <div style="width:60px;height:4px;background:#1e1f25;border-radius:2px;flex-shrink:0;overflow:hidden">
             <div data-bar style="height:4px;border-radius:2px;transition:width 0.5s linear"></div>
@@ -280,11 +280,11 @@ function _enRenderAdvPlan(){
     else if(stintMinM>0&&avgStintAvail<stintMinM*1.25){planColor='#fbbf24';planIcon='🟡';planMsg='Plan ajustado — poco margen';}
 
     html+=`<div style="padding:0 14px 14px"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">`;
-    html+=`<div style="font-size:13px;font-weight:500;color:#d0d2db;font-family:sans-serif;margin-bottom:10px">📐 Plan de paradas restantes</div>`;
+    html+=`<div style="font-size:13px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">📐 Plan de paradas restantes</div>`;
     html+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">
       <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Paradas</div>
-        <div style="font-size:17px;font-weight:500;color:#d0d2db;font-family:monospace">${myStops}/${totalStops}</div>
+        <div style="font-size:17px;font-weight:500;color:var(--text-1);font-family:monospace">${myStops}/${totalStops}</div>
       </div>
       <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Faltan</div>
@@ -318,7 +318,7 @@ function _enRenderAdvPlan(){
         const critical=r.avgStint<stintMinM;
         html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;font-family:sans-serif">
           <span style="color:#fbbf24;font-family:monospace;width:24px">P${r.pos}</span>
-          <span style="color:#d0d2db;flex:1">#${r.dorsal} ${r.name}</span>
+          <span style="color:var(--text-1);flex:1">#${r.dorsal} ${r.name}</span>
           <span style="color:var(--text-3);font-family:monospace">${r.stops}/${totalStops} pits</span>
           <span style="color:${critical?'#ef4444':'#fbbf24'};font-family:monospace">${critical?'va a caer':'stints de '+r.avgStint.toFixed(0)+'m'}</span>
         </div>`;
@@ -368,7 +368,7 @@ function _enShowAvgFilter(){
 
   overlay.innerHTML=`
     <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:380px;width:90%;max-height:80vh;display:flex;flex-direction:column">
-      <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:4px;font-family:sans-serif">📊 Filtro media pista</div>
+      <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:4px;font-family:sans-serif">📊 Filtro media pista</div>
       <div style="font-size:11px;color:var(--text-3);margin-bottom:14px;font-family:sans-serif">Click para incluir/excluir del cálculo. Media actual: <span style="color:#60a5fa">${trackAvg?_enFmt(trackAvg):'—'}</span></div>
       <div style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px">
         ${rows}

@@ -121,9 +121,9 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
           <div data-replay-prog style="height:4px;background:#a78bfa;border-radius:2px;width:0%;transition:width 0.4s linear"></div>
         </div>
       </div>
-      <span data-replay-time style="font-size:10px;color:#6b7280;font-family:monospace;flex-shrink:0;-webkit-app-region:no-drag">0:00 / 0:00</span>
+      <span data-replay-time style="font-size:10px;color:var(--text-3);font-family:monospace;flex-shrink:0;-webkit-app-region:no-drag">0:00 / 0:00</span>
       <span style="font-size:10px;color:var(--text-3);flex-shrink:0;-webkit-app-region:no-drag">vel:</span>
-      ${[1,2,5,10].map(s=>`<span data-spd="${s}" onclick="window.ReplayConnector.setSpeed(${s})" style="-webkit-app-region:no-drag;font-size:10px;font-family:monospace;padding:2px 6px;border-radius:3px;cursor:pointer;border:0.5px solid #2a2b2e;color:#6b7280">${s}×</span>`).join('')}
+      ${[1,2,5,10].map(s=>`<span data-spd="${s}" onclick="window.ReplayConnector.setSpeed(${s})" style="-webkit-app-region:no-drag;font-size:10px;font-family:monospace;padding:2px 6px;border-radius:3px;cursor:pointer;border:0.5px solid #2a2b2e;color:var(--text-3)">${s}×</span>`).join('')}
     </div>
     ` : ''}
     <div class="sp-topbar">
@@ -440,8 +440,8 @@ function _enSetTab(tab){
         overlay.innerHTML=`
           <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:340px;width:90%;text-align:center">
             <div style="font-size:24px;margin-bottom:8px">⚙️</div>
-            <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:8px;font-family:sans-serif">Configura la estrategia</div>
-            <div style="font-size:12px;color:#9ca3af;margin-bottom:18px;font-family:sans-serif;line-height:1.5">Recuerda configurar el <b style="color:#fbbf24">stint mínimo y máximo</b> en la parte superior para que las previsiones y recomendaciones funcionen correctamente.</div>
+            <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:8px;font-family:sans-serif">Configura la estrategia</div>
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:18px;font-family:sans-serif;line-height:1.5">Recuerda configurar el <b style="color:#fbbf24">stint mínimo y máximo</b> en la parte superior para que las previsiones y recomendaciones funcionen correctamente.</div>
             <button onclick="EnBox.stratConfigured=true;_enDismissOverlay()" style="width:100%;padding:10px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:13px;cursor:pointer;font-family:sans-serif">Entendido</button>
           </div>`;
         document.body.appendChild(overlay);
@@ -473,14 +473,14 @@ function _enShowPilotSelect(auto){
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
   overlay.innerHTML=`
     <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:340px;width:90%;">
-      <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:4px;font-family:sans-serif">${auto?'🔄 Pit Out detectado':'🔄 Cambio de piloto'}</div>
+      <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:4px;font-family:sans-serif">${auto?'🔄 Pit Out detectado':'🔄 Cambio de piloto'}</div>
       <div style="font-size:11px;color:var(--text-3);margin-bottom:18px;font-family:sans-serif">¿Quién está rodando ahora?</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${pilotos.map((p,i)=>`
           <button onclick="_enSelectPilot(${i})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:0.5px solid ${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'};background:${i===EnSession.currentPilot?colors[i%colors.length]+'15':'#13141a'};cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='${colors[i%colors.length]}'" onmouseout="this.style.borderColor='${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'}'">
             <div style="width:28px;height:28px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${p.name.charAt(0)}</div>
             <div style="flex:1;text-align:left">
-              <div style="font-size:13px;color:#d0d2db;font-family:sans-serif">${p.name}</div>
+              <div style="font-size:13px;color:var(--text-1);font-family:sans-serif">${p.name}</div>
               <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">${i===EnSession.currentPilot?'En pista actualmente':'Disponible'}</div>
             </div>
           </button>
@@ -524,10 +524,10 @@ function _enShowPilotHistory(name, evt) {
 
   const sessRows = (data.sessions||[]).map(s=>`
     <tr>
-      <td style="padding:7px 12px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
+      <td style="padding:7px 12px;font-size:12px;color:var(--text-3)">${fmtDate(s.started_at)}</td>
       <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
       <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
-      <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.laps}</td>
+      <td style="padding:7px 12px;font-size:12px;color:var(--text-3);text-align:right">${s.laps}</td>
     </tr>`).join('');
 
   const overlay = document.createElement('div');
@@ -542,33 +542,33 @@ function _enShowPilotHistory(name, evt) {
   overlay.innerHTML = `
     <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(500px,92vw);overflow:hidden">
       <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
-        <span style="font-size:15px;font-weight:700;color:#e2e8f0;flex:1">${name}</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text-1);flex:1">${name}</span>
         ${score!=null?`<span style="font-size:20px;font-weight:700;color:${scoreColor};font-family:monospace">${score}</span><span style="font-size:11px;color:${scoreColor};opacity:.8">${scoreLabel}</span>`:''}
-        <button onclick="document.getElementById('en-pilot-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:#64748b;padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
+        <button onclick="document.getElementById('en-pilot-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:var(--text-3);padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#1e2130;border-bottom:1px solid #1e2130">
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
           <div style="font-size:20px;font-weight:700;color:#22c55e;font-family:monospace">${fmtMs(data.best_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
           <div style="font-size:20px;font-weight:700;color:#F5A623;font-family:monospace">${fmtMs(data.avg_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones · Vueltas</div>
-          <div style="font-size:20px;font-weight:700;color:#e2e8f0">${data.session_count} · <span style="color:#64748b;font-size:16px">${data.total_laps}</span></div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones · Vueltas</div>
+          <div style="font-size:20px;font-weight:700;color:var(--text-1)">${data.session_count} · <span style="color:var(--text-3);font-size:16px">${data.total_laps}</span></div>
         </div>
       </div>
       <div style="padding:12px 0;max-height:220px;overflow-y:auto">
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="background:#13141a">
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left">Sesión</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Mejor</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Media</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Vlts</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:left">Sesión</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Mejor</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Media</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Vlts</th>
           </tr></thead>
-          <tbody>${sessRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#475569;font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
+          <tbody>${sessRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--text-3);font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
         </table>
       </div>
     </div>`;
@@ -597,11 +597,11 @@ function _enShowTeamHistory(teamName, evt) {
 
   const sessRows = (data.sessions||[]).map(s=>`
     <tr>
-      <td style="padding:7px 12px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
+      <td style="padding:7px 12px;font-size:12px;color:var(--text-3)">${fmtDate(s.started_at)}</td>
       <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
       <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
-      <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.laps}</td>
-      <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.pilot_count}</td>
+      <td style="padding:7px 12px;font-size:12px;color:var(--text-3);text-align:right">${s.laps}</td>
+      <td style="padding:7px 12px;font-size:12px;color:var(--text-3);text-align:right">${s.pilot_count}</td>
     </tr>`).join('');
 
   const overlay = document.createElement('div');
@@ -613,37 +613,37 @@ function _enShowTeamHistory(teamName, evt) {
     <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(520px,92vw);overflow:hidden">
       <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
         <span style="font-family:monospace;font-weight:700;font-size:11px;color:#F5A623;background:#1a1500;border:1px solid #3a2800;border-radius:4px;padding:2px 7px">T</span>
-        <span style="font-size:15px;font-weight:700;color:#e2e8f0;flex:1">${teamName}</span>
-        <button onclick="document.getElementById('en-team-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:#64748b;padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
+        <span style="font-size:15px;font-weight:700;color:var(--text-1);flex:1">${teamName}</span>
+        <button onclick="document.getElementById('en-team-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:var(--text-3);padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1e2130;border-bottom:1px solid #1e2130">
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
           <div style="font-size:18px;font-weight:700;color:#22c55e;font-family:monospace">${fmtMs(data.best_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
           <div style="font-size:18px;font-weight:700;color:#F5A623;font-family:monospace">${fmtMs(data.avg_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones</div>
-          <div style="font-size:18px;font-weight:700;color:#e2e8f0">${data.session_count}</div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones</div>
+          <div style="font-size:18px;font-weight:700;color:var(--text-1)">${data.session_count}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vueltas</div>
-          <div style="font-size:18px;font-weight:700;color:#64748b">${data.total_laps}</div>
+          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vueltas</div>
+          <div style="font-size:18px;font-weight:700;color:var(--text-3)">${data.total_laps}</div>
         </div>
       </div>
       <div style="padding:12px 0;max-height:220px;overflow-y:auto">
         <table style="width:100%;border-collapse:collapse">
           <thead><tr style="background:#13141a">
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:left">Sesión</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Mejor</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Media</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Vlts</th>
-            <th style="padding:6px 12px;font-size:10px;color:#475569;text-transform:uppercase;text-align:right">Pilotos</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:left">Sesión</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Mejor</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Media</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Vlts</th>
+            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Pilotos</th>
           </tr></thead>
-          <tbody>${sessRows || '<tr><td colspan="5" style="padding:12px;text-align:center;color:#475569;font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
+          <tbody>${sessRows || '<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text-3);font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
         </table>
       </div>
     </div>`;

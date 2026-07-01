@@ -137,7 +137,7 @@ function _renderPinScreen() {
   <style>
     .pin-dot{width:12px;height:12px;border-radius:50%;background:#1e1f25;border:1.5px solid #2a2b30;transition:all .15s;}
     .pin-dot.filled{background:#F5A623;border-color:#F5A623;}
-    .pin-btn{background:#1a1b22;border:0.5px solid #252630;border-radius:10px;color:#d0d2db;font-size:20px;font-weight:500;padding:16px 0;cursor:pointer;font-family:monospace;transition:all .1s;}
+    .pin-btn{background:#1a1b22;border:0.5px solid #252630;border-radius:10px;color:var(--text-1);font-size:20px;font-weight:500;padding:16px 0;cursor:pointer;font-family:monospace;transition:all .1s;}
     .pin-btn:hover{background:#23242e;border-color:#3a3b45;}
     .pin-btn:active{transform:scale(0.94);background:#2a2b38;}
     .pin-btn-ghost{color:var(--text-2);font-size:16px;}

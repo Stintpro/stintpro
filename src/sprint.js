@@ -53,13 +53,13 @@ function _spInjectStyles(){
     .sp-dot{width:8px;height:8px;border-radius:50%;margin:auto;}
     .sp-pos{font-size:14.5px;font-weight:500;color:#bbb;text-align:center;}
     .sp-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;}
-    .sp-name{font-size:14.5px;color:#d0d2db;font-family:sans-serif;display:flex;align-items:center;gap:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .sp-name{font-size:14.5px;color:var(--text-1);font-family:sans-serif;display:flex;align-items:center;gap:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
     .sp-pit-b{background:#ef4444;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-out-b{background:#f97316;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-fix-b{font-size:10.5px;color:#F5A623;border:0.5px solid #F5A623;padding:1px 5px;border-radius:3px;flex-shrink:0;}
     .sp-vtas{font-size:13.5px;color:#3a3c48;text-align:right;font-family:monospace;}
     .sp-t{font-size:14.5px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums;}
-    .sp-gap{font-size:13.5px;text-align:right;font-family:monospace;color:#6b7280;}
+    .sp-gap{font-size:13.5px;text-align:right;font-family:monospace;color:var(--text-3);}
     .sp-sec{font-size:12.5px;color:#333;text-align:right;font-family:monospace;}
     .sp-cons{font-size:11.5px;text-align:center;}
     .sp-pitc{font-size:12.5px;color:#333;text-align:right;font-family:monospace;}

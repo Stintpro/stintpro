@@ -13,7 +13,7 @@ function renderLoginScreen() {
       </div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1e1f25;border-radius:16px;padding:32px 28px;width:100%;max-width:360px;">
-      <div style="font-size:13.5px;font-weight:500;color:#9090a0;margin-bottom:20px;text-align:center">Acceso a la plataforma</div>
+      <div style="font-size:13.5px;font-weight:500;color:var(--text-2);margin-bottom:20px;text-align:center">Acceso a la plataforma</div>
       <div style="display:flex;flex-direction:column;gap:12px;">
         <input id="sp-email" type="email" placeholder="Email" autocomplete="email"
           style="background:#0e0f11;border:0.5px solid #2a2b30;border-radius:10px;padding:12px 14px;font-size:14.5px;color:#f0f0f4;outline:none;font-family:var(--font-sans,sans-serif)"
