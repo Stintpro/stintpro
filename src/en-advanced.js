@@ -2,7 +2,7 @@
 // ── Config estática de la pestaña Avanzado (solo se pinta una vez) ────────
 function _enRenderAdvConfig(){
   return `<div style="margin:14px 14px 0;background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
-    <span style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">⏱ Duración de parada (marcada por organización):</span>
+    <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">⏱ Duración de parada (marcada por organización):</span>
     <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:var(--text-1);font-size:13.5px;text-align:center">
     <span style="font-size:11.5px;color:var(--text-3)">segundos</span>
   </div>`;
@@ -31,7 +31,7 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
   if(!calibrated){
     return `<div style="padding:14px 14px 0"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
-      <div style="font-size:11.5px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (${calibCount}/2)</div>
+      <div style="font-size:13.5px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (${calibCount}/2)</div>
       <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">El sistema mide automáticamente el tiempo entre pit out y el primer pase por meta para calibrar la posición de salida en este circuito.</div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
@@ -42,7 +42,7 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
   return `<div style="padding:14px 14px 0">
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
-      <div id="en-tunnel-nocfg" style="display:none;font-size:11.5px;color:var(--text-3);font-family:sans-serif">Configura tu dorsal en Estrategia para ver tu proyección de salida</div>
+      <div id="en-tunnel-nocfg" style="display:none;font-size:13.5px;color:var(--text-3);font-family:sans-serif">Configura tu dorsal en Estrategia para ver tu proyección de salida</div>
       <div id="en-tunnel-live" style="display:none">
         <div style="position:relative;height:70px;background:#0e0f11;border-radius:8px;margin:10px 0;overflow:hidden">
           <div style="position:absolute;top:32px;left:0;right:0;height:2px;background:#1e1f25"></div>
@@ -204,9 +204,9 @@ function _enAdvRafTick(){
         row.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid #1a1b22';
         row.innerHTML=`
           <span data-ord style="font-size:11.5px;color:var(--text-3);font-family:monospace;width:22px;text-align:right;flex-shrink:0"></span>
-          <span data-pos style="font-size:11.5px;font-family:monospace;width:26px;font-weight:600;flex-shrink:0"></span>
-          <span data-dor style="font-size:11.5px;color:var(--text-1);font-family:monospace;width:28px;flex-shrink:0"></span>
-          <span data-nm style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"></span>
+          <span data-pos style="font-size:13.5px;font-family:monospace;width:26px;font-weight:600;flex-shrink:0"></span>
+          <span data-dor style="font-size:13.5px;color:var(--text-1);font-family:monospace;width:28px;flex-shrink:0"></span>
+          <span data-nm style="font-size:13.5px;color:var(--text-2);font-family:sans-serif;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"></span>
           <span data-lp></span>
           <div style="width:60px;height:4px;background:#1e1f25;border-radius:2px;flex-shrink:0;overflow:hidden">
             <div data-bar style="height:4px;border-radius:2px;transition:width 0.5s linear"></div>
