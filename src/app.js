@@ -96,7 +96,7 @@ function _injectDemoBanner() {
   banner.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;background:rgba(245,166,35,0.12);border:1px solid rgba(245,166,35,0.35);border-radius:6px;padding:5px 14px;display:flex;align-items:center;gap:14px;font-family:monospace;font-size:11.5px;backdrop-filter:blur(8px);white-space:nowrap;';
   banner.innerHTML = `
     <span style="color:#F5A623;font-weight:700;letter-spacing:0.1em;">● DEMO</span>
-    <span style="color:#444;font-size:10px;">Reproducción en bucle · modo simulación</span>
+    <span style="color:var(--text-3);font-size:10px;">Reproducción en bucle · modo simulación</span>
     <button onclick="_exitDemo()" style="background:transparent;border:1px solid #252630;border-radius:4px;color:var(--text-3);font-size:10px;padding:2px 8px;cursor:pointer;font-family:monospace;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#ccc';this.style.borderColor='#555'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>`;
   document.body.appendChild(banner);
 }
@@ -117,7 +117,7 @@ function _renderPinScreen() {
       <div style="font-size:32px">🏁</div>
       <div>
         <div style="font-size:20px;font-weight:600;color:#fff;letter-spacing:-0.5px">StintPro</div>
-        <div style="font-size:12px;color:#444;margin-top:2px">Karting Strategy</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px">Karting Strategy</div>
       </div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1e1f25;border-radius:16px;padding:32px 28px;width:100%;max-width:320px;text-align:center;">

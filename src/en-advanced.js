@@ -57,7 +57,7 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
           <span id="en-tunnel-hueco" style="font-size:11px;color:var(--text-2);font-family:sans-serif"></span>
           <span id="en-tunnel-zona" style="font-size:11px;color:var(--text-3);font-family:sans-serif"></span>
         </div>
-        <div style="font-size:9px;color:#3a3b42;font-family:sans-serif;margin-top:6px">Calibración: ✓ ${calibCount} paradas observadas · offset ${offset.toFixed(0)}s · Estimación con margen ±5s</div>
+        <div style="font-size:9px;color:var(--text-3);font-family:sans-serif;margin-top:6px">Calibración: ✓ ${calibCount} paradas observadas · offset ${offset.toFixed(0)}s · Estimación con margen ±5s</div>
       </div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
@@ -313,7 +313,7 @@ function _enRenderAdvPlan(){
     }).filter(r=>r.stopsLeft>0&&stintMinM>0&&r.avgStint<stintMinM*1.3).sort((a,b)=>a.avgStint-b.avgStint);
 
     if(compromised.length){
-      html+=`<div style="font-size:10px;color:#3a3b42;text-transform:uppercase;letter-spacing:0.5px;margin-top:12px;padding-top:10px;border-top:0.5px solid #1a1b22;margin-bottom:6px">⚠ Rivales comprometidos (deuda de paradas)</div>`;
+      html+=`<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-top:12px;padding-top:10px;border-top:0.5px solid #1a1b22;margin-bottom:6px">⚠ Rivales comprometidos (deuda de paradas)</div>`;
       compromised.slice(0,5).forEach(r=>{
         const critical=r.avgStint<stintMinM;
         html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;font-family:sans-serif">
@@ -325,7 +325,7 @@ function _enRenderAdvPlan(){
       });
     }
     html+=`</div>`;
-    html+=`<div style="font-size:10px;color:#3a3b42;font-family:sans-serif;text-align:center;padding:4px 0 14px">Información orientativa — el pool del box prima sobre el tráfico de salida</div>`;
+    html+=`<div style="font-size:10px;color:var(--text-3);font-family:sans-serif;text-align:center;padding:4px 0 14px">Información orientativa — el pool del box prima sobre el tráfico de salida</div>`;
     html+=`</div>`;
   } else if(totalStops<=0){
     html=`<div style="padding:0 14px 14px"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:11px;color:var(--text-3);font-family:sans-serif">📐 Plan de paradas: configura las paradas obligatorias en Mi equipo para activar la proyección</div></div>`;

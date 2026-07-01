@@ -9,7 +9,7 @@ function renderLoginScreen() {
       <div style="font-size:32px">🏁</div>
       <div>
         <div style="font-size:20px;font-weight:600;color:#fff;letter-spacing:-0.5px">StintPro</div>
-        <div style="font-size:12px;color:#444;margin-top:2px">Karting Strategy</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px">Karting Strategy</div>
       </div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1e1f25;border-radius:16px;padding:32px 28px;width:100%;max-width:360px;">
@@ -147,7 +147,7 @@ async function _adminRenderCircuits() {
     Catálogo (${circuits.length})
   </div>
   ${circuits.length === 0
-    ? '<div style="color:#444;font-size:13px;padding:12px 0">Sin circuitos. Añade el primero.</div>'
+    ? '<div style="color:var(--text-3);font-size:13px;padding:12px 0">Sin circuitos. Añade el primero.</div>'
     : `<div style="display:flex;flex-direction:column;gap:4px">
         ${circuits.map(c => `
           <div style="display:flex;align-items:center;gap:10px;background:#0e0f11;border:0.5px solid #1e1f25;border-radius:8px;padding:10px 14px">
