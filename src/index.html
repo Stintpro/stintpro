@@ -15,12 +15,26 @@
     #sp-topnav .sp-nav-user { font-size:11px;color:#F5A623;font-family:'JetBrains Mono',monospace;letter-spacing:0.08em; }
     #sp-topnav .sp-nav-btn { font-size:11px;color:#8A9AAE;background:none;border:1px solid #2A3848;border-radius:3px;padding:5px 12px;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none;transition:color .15s,border-color .15s; }
     #sp-topnav .sp-nav-btn:hover { color:#EDF0F4;border-color:#4E5E72; }
+    #sp-topnav .sp-nav-hc { color:#F5A623;border-color:#F5A623; }
+    #sp-topnav .sp-nav-hc:hover { color:#fff;border-color:#fff; }
   </style>
   <div id="sp-topnav">
     <span class="sp-nav-user" id="sp-nav-user"></span>
     <a href="/profile.html" class="sp-nav-btn">Mi perfil</a>
     <button class="sp-nav-btn" onclick="signOutSP()">Salir</button>
+    <button class="sp-nav-btn" id="sp-hc-btn" onclick="_spToggleHC()">☀ Contraste</button>
   </div>
+  <script>
+    (function(){
+      var hc = localStorage.getItem('sp-hc') === '1';
+      if (hc) { document.body.classList.add('hc'); document.getElementById('sp-hc-btn').classList.add('sp-nav-hc'); }
+    })();
+    function _spToggleHC() {
+      var on = document.body.classList.toggle('hc');
+      localStorage.setItem('sp-hc', on ? '1' : '0');
+      document.getElementById('sp-hc-btn').classList.toggle('sp-nav-hc', on);
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     if (window.location.hash.includes('type=invite')) {

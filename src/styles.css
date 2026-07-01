@@ -27,6 +27,21 @@
   --gold:       #d4a843;
   --r-sm:4px; --r-md:10px; --r-lg:14px;
 }
+body.hc {
+  --bg:         #07090F;
+  --bg-card:    #111420;
+  --bg-raised:  #1A1E2E;
+  --bg-hover:   #222840;
+  --border:     #2A3040;
+  --border-md:  #3A4460;
+  --text-1:     #FFFFFF;
+  --text-2:     #E8EAF0;
+  --text-3:     #AAB0BE;
+  --green-txt:  #86EFAC;
+  --orange-txt: #FCD34D;
+  --red-txt:    #FCA5A5;
+  --blue-txt:   #93C5FD;
+}
 html,body { width:100%;height:100%;background:var(--bg);color:var(--text-1);font-family:var(--font-sans);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased;user-select:none; }
 .screen { display:none;width:100%;height:100%; }
 .screen.active { display:block; }
