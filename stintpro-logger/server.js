@@ -562,10 +562,19 @@ app.get('/stats', (req, res) => {
       `localStorage.getItem(LS_URL) || 'https://stintpro.duckdns.org'`,
       `localStorage.getItem(LS_URL) || location.origin`,
     );
-    // Cargar aunque no haya API key (la key es opcional si no está configurada)
+    // Inyectar API key y URL automáticamente — el usuario no necesita introducirlas
+    html = html.replace(
+      `let _url = '';`,
+      `let _url = location.origin;`,
+    );
+    html = html.replace(
+      `let _key = '';`,
+      `let _key = '${API_KEY}';`,
+    );
+    // Cargar aunque no haya API key guardada en localStorage
     html = html.replace(
       `if (savedUrl && savedKey) load();`,
-      `if (savedUrl) load(); else { document.getElementById('cfg-url').value = location.origin; load(); }`,
+      `load();`,
     );
     // Inyectar nav de vuelta al inicio
     html = html.replace(
