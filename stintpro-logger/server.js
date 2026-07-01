@@ -70,66 +70,101 @@ app.get('/', (req, res) => {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StintPro Logger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #08090a; color: #c9d1d9; font-family: 'DM Mono', 'Fira Mono', monospace; font-size: 13px; padding: 28px 24px; max-width: 720px; }
-  h1 { color: #5b8dee; font-size: 20px; font-weight: 500; margin-bottom: 2px; }
-  .subtitle { color: #444; font-size: 11px; margin-bottom: 32px; }
-  .nav { display: flex; gap: 10px; margin-bottom: 36px; flex-wrap: wrap; }
-  .nav a { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; transition: background .15s; }
-  .nav a.primary { background: #1e3a6e; color: #5b8dee; border: 1px solid #253f7a; }
-  .nav a.primary:hover { background: #253f7a; }
-  .nav a.secondary { background: #0e0f11; color: #888; border: 1px solid #1e2030; }
-  .nav a.secondary:hover { background: #13141a; color: #c9d1d9; }
-  .icon { font-size: 15px; }
-  h2 { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
-  .circuits { display: flex; flex-direction: column; gap: 8px; }
-  .card { background: #0e0f11; border: 1px solid #1e2030; border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-  .dot.red   { background: #ef4444; }
+  html, body { height: 100%; }
+  body { background: #07090F; color: #C8D0E0; font-family: 'Inter', sans-serif; font-size: 13px; display: flex; flex-direction: column; align-items: center; }
+  .wrap { width: 100%; max-width: 720px; padding: 32px 28px 0; display: flex; flex-direction: column; height: 100%; }
+  .logo { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .wordmark { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: #F5A623; letter-spacing: .04em; }
+  .badge { font-size: 10px; font-weight: 600; background: #1A1F2E; color: #4A6FA5; border: 1px solid #1E2A3E; border-radius: 4px; padding: 2px 7px; letter-spacing: .06em; text-transform: uppercase; }
+  .subtitle { font-size: 12px; color: #3A4050; font-family: 'JetBrains Mono', monospace; margin-bottom: 28px; }
+  .nav { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; }
+  .nav a { display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 500; border: 1px solid transparent; }
+  .nav a.primary { background: #1C1408; color: #F5A623; border-color: #2A1E08; }
+  .nav a.primary:hover { background: #231A0A; }
+  .nav a.secondary { background: #0D1018; color: #505670; border-color: #1A2030; }
+  .nav a.secondary:hover { background: #121520; color: #8890A8; }
+  h2 { font-size: 10px; font-weight: 600; color: #2E3448; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+  .circuits-wrap { flex: 1; overflow-y: auto; min-height: 0; padding-right: 4px; }
+  .circuits-wrap::-webkit-scrollbar { width: 4px; }
+  .circuits-wrap::-webkit-scrollbar-track { background: transparent; }
+  .circuits-wrap::-webkit-scrollbar-thumb { background: #1A2030; border-radius: 2px; }
+  .circuits { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; }
+  .card { background: #0D1018; border: 1px solid #1A2030; border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+  .card:hover { border-color: #252E44; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e66; }
+  .dot.red   { background: #2A3040; }
   .card-info { flex: 1; }
-  .card-name { color: #e6edf3; font-weight: 500; margin-bottom: 3px; }
-  .card-meta { color: #555; font-size: 11px; }
-  .card-stats { text-align: right; font-size: 11px; color: #666; line-height: 1.6; }
-  .tag { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 500; }
-  .tag-on  { background: #14532d; color: #22c55e; }
-  .tag-off { background: #1a1b1f; color: #333; }
-  .uptime { color: #333; font-size: 11px; margin-top: 36px; }
-  .btn-del { background: none; border: none; color: #333; cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
-  .btn-del:hover { color: #ef4444; background: #1a0a0a; }
-  .add-form { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .add-form input { background: #0e0f11; border: 1px solid #1e2030; border-radius: 4px; color: #c9d1d9; font-family: inherit; font-size: 12px; padding: 7px 10px; outline: none; }
-  .add-form input:focus { border-color: #5b8dee44; }
-  .add-form input::placeholder { color: #333; }
-  .btn-add { background: #1e3a6e; color: #5b8dee; border: 1px solid #253f7a; border-radius: 4px; font-family: inherit; font-size: 12px; font-weight: 500; padding: 7px 14px; cursor: pointer; }
-  .btn-add:hover { background: #253f7a; }
-  #add-msg { font-size: 11px; margin-top: 6px; min-height: 14px; }
+  .card-name { color: #C8D0E0; font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+  .card-meta { color: #2E3650; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .card-stats { text-align: right; font-size: 11px; color: #3A4258; line-height: 1.7; font-family: 'JetBrains Mono', monospace; }
+  .tag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+  .tag-on  { background: #1A0808; color: #ef4444; border: 1px solid #2A1010; }
+  .tag-off { background: #0D1018; color: #2A3040; border: 1px solid #151C2A; }
+  .btn-del { background: none; border: none; color: #1E2535; cursor: pointer; font-size: 16px; padding: 4px 6px; border-radius: 4px; line-height: 1; }
+  .btn-del:hover { color: #ef4444; background: #1A0808; }
+  .footer-panel { border-top: 1px solid #10131C; padding: 16px 0 20px; }
+  .add-card { background: #0D1018; border: 1px solid #1A2030; border-radius: 8px; padding: 16px; }
+  .add-card h3 { font-size: 10px; font-weight: 600; color: #2E3650; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; }
+  .add-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+  .add-field { display: flex; flex-direction: column; gap: 4px; }
+  .add-field label { font-size: 10px; color: #2E3650; font-family: 'JetBrains Mono', monospace; letter-spacing: .06em; text-transform: uppercase; }
+  .add-field input { background: #07090F; border: 1px solid #1A2030; border-radius: 5px; color: #8890A8; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 7px 10px; outline: none; }
+  .add-field input:focus { border-color: #F5A62344; color: #C8D0E0; }
+  .add-field input::placeholder { color: #252E40; }
+  .btn-add { background: #F5A623; color: #07090F; border: none; border-radius: 5px; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700; padding: 8px 16px; cursor: pointer; white-space: nowrap; align-self: flex-end; }
+  .btn-add:hover { background: #e09918; }
+  #add-msg { font-size: 11px; margin-top: 8px; min-height: 14px; font-family: 'JetBrains Mono', monospace; }
+  .uptime { color: #1E2535; font-size: 11px; font-family: 'JetBrains Mono', monospace; margin-top: 10px; }
 </style>
 </head>
 <body>
-<h1>StintPro Logger</h1>
-<div class="subtitle" id="host-line">Cargando...</div>
+<div class="wrap">
+  <div class="logo">
+    <span class="wordmark">STINTPRO</span>
+    <span class="badge">Logger</span>
+  </div>
+  <div class="subtitle" id="host-line">Cargando...</div>
 
-<nav class="nav">
-  <a class="primary" href="/stats"><span class="icon">📊</span> Stats</a>
-  <a class="primary" href="/recordings"><span class="icon">⏺</span> Grabaciones</a>
-  <a class="secondary" href="/api/status" target="_blank"><span class="icon">⚡</span> API Status</a>
-  <a class="secondary" href="/api/sessions" target="_blank"><span class="icon">📋</span> Sesiones</a>
-</nav>
+  <nav class="nav">
+    <a class="primary" href="/stats">📊 Stats</a>
+    <a class="primary" href="/recordings">⏺ Grabaciones</a>
+    <a class="secondary" href="/api/status" target="_blank">⚡ API Status</a>
+    <a class="secondary" href="/api/sessions" target="_blank">📋 Sesiones</a>
+  </nav>
 
-<h2>Circuitos</h2>
-<div class="circuits" id="circuits"></div>
+  <h2>Circuitos</h2>
+  <div class="circuits-wrap">
+    <div class="circuits" id="circuits"></div>
+  </div>
 
-<div class="add-form">
-  <input id="f-name" placeholder="Nombre" style="width:160px">
-  <input id="f-slug" placeholder="slug" style="width:120px">
-  <input id="f-port" placeholder="Puerto" type="number" style="width:80px">
-  <button class="btn-add" onclick="addCircuit()">+ Añadir</button>
+  <div class="footer-panel">
+    <div class="add-card">
+      <h3>Añadir circuito</h3>
+      <div class="add-form">
+        <div class="add-field" style="flex:2;min-width:130px">
+          <label>Nombre</label>
+          <input id="f-name" placeholder="Karting Madrid">
+        </div>
+        <div class="add-field" style="flex:1.5;min-width:110px">
+          <label>Slug</label>
+          <input id="f-slug" placeholder="karting-madrid">
+        </div>
+        <div class="add-field" style="width:90px">
+          <label>Puerto</label>
+          <input id="f-port" placeholder="9001" type="number">
+        </div>
+        <button class="btn-add" onclick="addCircuit()">+ Añadir</button>
+      </div>
+      <div id="add-msg"></div>
+    </div>
+    <div class="uptime" id="uptime"></div>
+  </div>
 </div>
-<div id="add-msg"></div>
-
-<div class="uptime" id="uptime"></div>
 
 <script>
 const API_KEY = '${API_KEY}';
@@ -150,12 +185,12 @@ async function load() {
         <div class="dot \${c.connected ? 'green' : 'red'}"></div>
         <div class="card-info">
           <div class="card-name">\${c.name}</div>
-          <div class="card-meta">\${c.slug} · puerto \${c.port}</div>
+          <div class="card-meta">\${c.slug} &nbsp;·&nbsp; :\${c.port}</div>
         </div>
         <div class="card-stats">
-          \${c.lapCount || 0} vueltas · \${c.kartCount || 0} karts<br>
+          \${c.lapCount || 0} vueltas &nbsp;·&nbsp; \${c.kartCount || 0} karts<br>
           \${c.subscribers || 0} clientes
-          <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}" style="margin-left:6px">\${c.rawLog ? '⏺ REC' : 'REC'}</span>
+          <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}">\${c.rawLog ? '⏺ REC' : 'REC'}</span>
         </div>
         <button class="btn-del" title="Eliminar circuito" onclick="delCircuit('\${c.slug}', '\${c.name}')">×</button>
       </div>
@@ -517,6 +552,11 @@ app.get('/stats', (req, res) => {
   try {
     let html = fs.readFileSync(path.join(__dirname, '../src/logger-stats.html'), 'utf8');
 
+    // Eliminar redirect a /landing.html (no existe en el VPS)
+    html = html.replace(
+      /\(function\(\)\{[\s\S]*?if\(!key\)window\.location\.replace\('\/landing\.html'\);[\s\S]*?\}\)\(\);/,
+      '',
+    );
     // Auto-conectar al propio servidor si no hay URL guardada en localStorage
     html = html.replace(
       `localStorage.getItem(LS_URL) || 'https://stintpro.duckdns.org'`,
