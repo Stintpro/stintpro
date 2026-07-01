@@ -203,8 +203,8 @@ function _enInjectStyles(){
     .sp-footer{padding:7px 14px;display:flex;gap:16px;border-top:0.5px solid #181920;flex-shrink:0;}
     .sp-fl{font-size:11.5px;color:#2d2f38;display:flex;align-items:center;gap:4px;}
     .sp-fldot{width:7px;height:7px;border-radius:50%;}
-    .sp-back{font-size:12.5px;padding:4px 12px;border-radius:6px;border:0.5px solid #2a2b2e;background:#1a1b22;color:#666;cursor:pointer;}
-    .sp-back:hover{color:#aaa;border-color:#444;}
+    .sp-back{font-size:12.5px;padding:4px 12px;border-radius:6px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;}
+    .sp-back:hover{color:var(--text-2);border-color:#444;}
     .sp-empty{color:#3a3b42;padding:60px;text-align:center;font-family:sans-serif;}
     .sp-sim-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.1);color:#22c55e;border:0.5px solid #22c55e;margin-left:6px;}
     .sp-lapbar{position:absolute;bottom:0;left:0;height:2px;background:rgba(245,166,35,0.4);transition:width 0.1s linear;pointer-events:none;}
@@ -214,7 +214,7 @@ function _enInjectStyles(){
     /* Pestañas */
     .en-tabs{display:flex;border-bottom:0.5px solid #1a1b20;flex-shrink:0;}
     .en-tab{flex:1;padding:8px 0;text-align:center;font-size:12.5px;color:#444;cursor:pointer;border-bottom:2px solid transparent;font-family:sans-serif;transition:all .15s;}
-    .en-tab:hover{color:#888;}
+    .en-tab:hover{color:var(--text-2);}
     .en-tab.active{color:#F5A623;border-bottom-color:#F5A623;}
     /* Vista equipo */
     .en-team{padding:14px 18px;overflow-y:auto;flex:1;}
@@ -224,13 +224,13 @@ function _enInjectStyles(){
     .en-pilot-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17.5px;font-weight:700;color:#fff;}
     .en-pilot-info{flex:1;}
     .en-pilot-name{font-size:16.5px;font-weight:500;color:#d0d2db;font-family:sans-serif;}
-    .en-pilot-sub{font-size:12.5px;color:#555;font-family:sans-serif;margin-top:2px;}
+    .en-pilot-sub{font-size:12.5px;color:var(--text-3);font-family:sans-serif;margin-top:2px;}
     .en-change-btn{padding:8px 18px;border-radius:6px;border:none;font-size:13.5px;font-weight:600;cursor:pointer;font-family:sans-serif;transition:all .15s;}
     .en-queue-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid #111;}
     .en-queue-item:last-child{border-bottom:none;}
-    .en-queue-num{width:20px;height:20px;border-radius:50%;background:#1e1f25;color:#555;font-size:11.5px;display:flex;align-items:center;justify-content:center;font-weight:600;}
+    .en-queue-num{width:20px;height:20px;border-radius:50%;background:#1e1f25;color:var(--text-3);font-size:11.5px;display:flex;align-items:center;justify-content:center;font-weight:600;}
     .en-queue-name{font-size:14.5px;color:#9ca3af;font-family:sans-serif;flex:1;}
-    .en-queue-stat{font-size:11.5px;color:#555;font-family:monospace;}
+    .en-queue-stat{font-size:11.5px;color:var(--text-3);font-family:monospace;}
     .en-stint-row{display:grid;grid-template-columns:24px 1fr 62px 46px 82px 82px 64px 48px;padding:6px 0;border-bottom:0.5px solid #111;align-items:center;font-size:13.5px;font-family:monospace;}
     .en-stint-row:last-child{border-bottom:none;}
     .en-stint-head{color:#333;font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;}

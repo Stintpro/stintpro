@@ -122,7 +122,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
         </div>
       </div>
       <span data-replay-time style="font-size:10px;color:#6b7280;font-family:monospace;flex-shrink:0;-webkit-app-region:no-drag">0:00 / 0:00</span>
-      <span style="font-size:10px;color:#555;flex-shrink:0;-webkit-app-region:no-drag">vel:</span>
+      <span style="font-size:10px;color:var(--text-3);flex-shrink:0;-webkit-app-region:no-drag">vel:</span>
       ${[1,2,5,10].map(s=>`<span data-spd="${s}" onclick="window.ReplayConnector.setSpeed(${s})" style="-webkit-app-region:no-drag;font-size:10px;font-family:monospace;padding:2px 6px;border-radius:3px;cursor:pointer;border:0.5px solid #2a2b2e;color:#6b7280">${s}×</span>`).join('')}
     </div>
     ` : ''}
@@ -359,7 +359,7 @@ function _enRenderRow(e, d){
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
       <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory('${(e.name||'').replace(/'/g,"\\'")}',event)" title="Ver historial">ℹ</span>`:''}</div>
-      <div class="sp-name" style="font-size:12px;color:#555">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;if(!tn)return'—';const tBtn=_enTeamHistory?.[tn]?`<span class="en-info-btn" onclick="_enShowTeamHistory('${tn.replace(/'/g,"\\'")}',event)" title="Ver historial del equipo" style="font-family:monospace;font-weight:700">T</span>`:'';return tn+tBtn;})()}</div>
+      <div class="sp-name" style="font-size:12px;color:var(--text-3)">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;if(!tn)return'—';const tBtn=_enTeamHistory?.[tn]?`<span class="en-info-btn" onclick="_enShowTeamHistory('${tn.replace(/'/g,"\\'")}',event)" title="Ver historial del equipo" style="font-family:monospace;font-weight:700">T</span>`:'';return tn+tBtn;})()}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
@@ -474,19 +474,19 @@ function _enShowPilotSelect(auto){
   overlay.innerHTML=`
     <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:340px;width:90%;">
       <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:4px;font-family:sans-serif">${auto?'🔄 Pit Out detectado':'🔄 Cambio de piloto'}</div>
-      <div style="font-size:11px;color:#555;margin-bottom:18px;font-family:sans-serif">¿Quién está rodando ahora?</div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:18px;font-family:sans-serif">¿Quién está rodando ahora?</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${pilotos.map((p,i)=>`
           <button onclick="_enSelectPilot(${i})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:0.5px solid ${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'};background:${i===EnSession.currentPilot?colors[i%colors.length]+'15':'#13141a'};cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='${colors[i%colors.length]}'" onmouseout="this.style.borderColor='${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'}'">
             <div style="width:28px;height:28px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${p.name.charAt(0)}</div>
             <div style="flex:1;text-align:left">
               <div style="font-size:13px;color:#d0d2db;font-family:sans-serif">${p.name}</div>
-              <div style="font-size:10px;color:#555;font-family:sans-serif">${i===EnSession.currentPilot?'En pista actualmente':'Disponible'}</div>
+              <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">${i===EnSession.currentPilot?'En pista actualmente':'Disponible'}</div>
             </div>
           </button>
         `).join('')}
       </div>
-      <button onclick="_enDismissOverlay()" style="width:100%;margin-top:12px;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
+      <button onclick="_enDismissOverlay()" style="width:100%;margin-top:12px;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
     </div>`;
   document.body.appendChild(overlay);
 }

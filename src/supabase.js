@@ -101,7 +101,7 @@ function renderAdminPanel(tab) {
     <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 24px 0;">
       <div style="font-size:15px;font-weight:600;color:#f0f0f4">Panel de administración</div>
       <button onclick="document.getElementById('sp-admin-overlay').style.display='none'"
-        style="background:none;border:none;color:#666;font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
+        style="background:none;border:none;color:var(--text-2);font-size:20px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <div style="display:flex;gap:4px;padding:14px 24px 0;">
       <button onclick="renderAdminPanel('circuits')"
@@ -125,7 +125,7 @@ function renderAdminPanel(tab) {
 async function _adminRenderCircuits() {
   const el = document.getElementById('admin-tab-content');
   if (!el) return;
-  el.innerHTML = '<div style="color:#666;font-size:13px">Cargando…</div>';
+  el.innerHTML = '<div style="color:var(--text-2);font-size:13px">Cargando…</div>';
 
   const { data: circuits, error } = await window.supabaseClient
     .from('circuits').select('*').order('name');
@@ -134,7 +134,7 @@ async function _adminRenderCircuits() {
 
   el.innerHTML = `
   <div style="margin-bottom:20px">
-    <div style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Añadir circuito</div>
+    <div style="font-size:12px;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Añadir circuito</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <input id="adm-c-name" placeholder="Nombre" style="${_adminInputStyle()};flex:2;min-width:140px">
       <input id="adm-c-slug" placeholder="Slug (ej: rkc)" style="${_adminInputStyle()};flex:1;min-width:80px">
@@ -143,7 +143,7 @@ async function _adminRenderCircuits() {
     </div>
     <div id="adm-c-err" style="font-size:12px;color:#e85555;margin-top:6px;min-height:16px"></div>
   </div>
-  <div style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
+  <div style="font-size:12px;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
     Catálogo (${circuits.length})
   </div>
   ${circuits.length === 0
@@ -153,7 +153,7 @@ async function _adminRenderCircuits() {
           <div style="display:flex;align-items:center;gap:10px;background:#0e0f11;border:0.5px solid #1e1f25;border-radius:8px;padding:10px 14px">
             <div style="flex:1;min-width:0">
               <div style="font-size:13.5px;color:#f0f0f4">${_esc(c.name)}</div>
-              <div style="font-size:11.5px;color:#555;font-family:monospace;margin-top:1px">${_esc(c.slug)} · :${c.port}</div>
+              <div style="font-size:11.5px;color:var(--text-3);font-family:monospace;margin-top:1px">${_esc(c.slug)} · :${c.port}</div>
             </div>
             <button onclick="_adminDeleteCircuit('${c.id}','${_esc(c.name)}')"
               style="${_adminBtnStyle('red')}">Borrar</button>
@@ -203,7 +203,7 @@ async function _adminDeleteCircuit(id, name) {
 async function _adminRenderUsers() {
   const el = document.getElementById('admin-tab-content');
   if (!el) return;
-  el.innerHTML = '<div style="color:#666;font-size:13px">Cargando…</div>';
+  el.innerHTML = '<div style="color:var(--text-2);font-size:13px">Cargando…</div>';
 
   const token = (await window.supabaseClient.auth.getSession()).data.session?.access_token;
   let users = [];
@@ -223,7 +223,7 @@ async function _adminRenderUsers() {
 
   el.innerHTML = `
   <div style="margin-bottom:20px">
-    <div style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Crear usuario</div>
+    <div style="font-size:12px;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Crear usuario</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <input id="adm-u-email" placeholder="Email" type="email" style="${_adminInputStyle()};flex:2;min-width:160px">
       <input id="adm-u-pw" placeholder="Contraseña" type="password" style="${_adminInputStyle()};flex:1;min-width:120px">
@@ -238,7 +238,7 @@ async function _adminRenderUsers() {
     </div>
     <div id="adm-u-err" style="font-size:12px;color:#e85555;margin-top:6px;min-height:16px"></div>
   </div>
-  <div style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
+  <div style="font-size:12px;color:var(--text-2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
     Usuarios (${users.length})
   </div>
   <div style="display:flex;flex-direction:column;gap:4px">
@@ -248,9 +248,9 @@ async function _adminRenderUsers() {
           <div style="display:flex;align-items:center;gap:8px">
             <div style="font-size:13.5px;color:#f0f0f4">${_esc(u.name || u.email)}</div>
             <span style="font-size:11px;padding:1px 7px;border-radius:20px;background:${u.role==='admin'?'rgba(245,166,35,0.2)':'rgba(255,255,255,0.05)'};color:${u.role==='admin'?'#F5A623':'#666'};border:0.5px solid ${u.role==='admin'?'#F5A623':'#333'}">${u.role}</span>
-            ${u.id === window._currentUser?.id ? '<span style="font-size:11px;color:#555">(tú)</span>' : ''}
+            ${u.id === window._currentUser?.id ? '<span style="font-size:11px;color:var(--text-3)">(tú)</span>' : ''}
           </div>
-          <div style="font-size:11.5px;color:#555;margin-top:1px">${_esc(u.email)}</div>
+          <div style="font-size:11.5px;color:var(--text-3);margin-top:1px">${_esc(u.email)}</div>
         </div>
         ${u.id !== window._currentUser?.id
           ? `<button onclick="_adminDeleteUser('${u.id}','${_esc(u.email)}')" style="${_adminBtnStyle('red')}">Borrar</button>`

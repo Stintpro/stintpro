@@ -7,7 +7,7 @@ function _enRenderStratConfig(){
     <div class="en-strat-title">Configuración de estrategia</div>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Box:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Box:</span>
         <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;font-family:sans-serif">
           <option value="line" ${EnBox.config.type==='line'?'selected':''}>Línea</option>
           <option value="battery" ${EnBox.config.type==='battery'?'selected':''}>Batería</option>
@@ -15,31 +15,31 @@ function _enRenderStratConfig(){
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Karts:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Karts:</span>
         <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
       </div>
       ${showCols?`<div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Cols:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Cols:</span>
         <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
       </div>`:''}
       <div style="border-left:0.5px solid #2a2b2e;height:20px"></div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Stint min:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Stint min:</span>
         <input id="en-stint-min-input" type="number" value="${cfg.stintMin||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
         <span style="font-size:15px;color:#bdc2cc">m</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Stint max:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Stint max:</span>
         <input id="en-stint-max-input" type="number" value="${cfg.stintMax||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
         <span style="font-size:15px;color:#bdc2cc">m</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Parada:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Parada:</span>
         <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
         <span style="font-size:15px;color:#bdc2cc">s</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:#666;font-family:sans-serif">Dorsal:</span>
+        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Dorsal:</span>
         <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
       </div>
       <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
@@ -182,10 +182,10 @@ function _enRenderStrategy(eq, trackAvg){
     <div class="en-prob-bar"><div class="en-prob-fill" style="width:${probAcceso}%;background:${probColor}"></div></div>
     <div style="font-size:15px;color:#bdc2cc;font-family:sans-serif;margin-top:4px">${probExplain}</div>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:15px;color:#888">${goodInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:15px;color:#888">${neutralInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:15px;color:#888">${badInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:15px;color:#888">${unknownInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:15px;color:var(--text-2)">${goodInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:15px;color:var(--text-2)">${neutralInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:15px;color:var(--text-2)">${badInPit}</span></div>
+      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:15px;color:var(--text-2)">${unknownInPit}</span></div>
       <span style="font-size:15px;color:#bdc2cc;margin-left:auto">${totalInPit} en pit · ${EnBox.queue.length} en cola</span>
     </div>
   </div>`;

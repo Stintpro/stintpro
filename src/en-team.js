@@ -14,7 +14,7 @@ function _enDeleteStint(idx){
       <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;font-family:sans-serif">${s.pilot} · ${_enFmtStint(s.durationMs)}</div>
       <div style="font-size:11px;color:#ef4444;margin-bottom:18px;font-family:sans-serif">Esta acción no se puede deshacer</div>
       <div style="display:flex;gap:8px">
-        <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:12px;cursor:pointer;font-family:sans-serif">Cancelar</button>
+        <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:12px;cursor:pointer;font-family:sans-serif">Cancelar</button>
         <button onclick="_enConfirmDeleteStint(${idx})" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #ef4444;background:#ef444418;color:#ef4444;font-size:12px;cursor:pointer;font-family:sans-serif">Borrar</button>
       </div>
     </div>`;
@@ -49,7 +49,7 @@ function _enStintDetail(idx){
     const isBest=l===best;
     const col=isBest?'#22c55e':avg&&l>avg+1?'#ef4444':avg&&l<avg-0.3?'#60a5fa':'#9ca3af';
     lapRows+=`<div style="display:flex;justify-content:space-between;padding:3px 8px;border-radius:4px;background:${isBest?'#22c55e11':'transparent'}">
-      <span style="font-size:11px;color:#555">${i+1}</span>
+      <span style="font-size:11px;color:var(--text-3)">${i+1}</span>
       <span style="font-size:12px;color:${col};font-family:monospace;font-weight:${isBest?'600':'400'}">${_enFmt(l)}${isBest?' ★':''}</span>
     </div>`;
   });
@@ -57,7 +57,7 @@ function _enStintDetail(idx){
   const posIn=s.posIn||'—';
   const posOut=s.posOut||'—';
   const posChange=s.posIn&&s.posOut?s.posIn-s.posOut:0;
-  const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:#555">=</span>';
+  const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:var(--text-3)">=</span>';
 
   overlay.innerHTML=`
     <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:400px;width:95%;max-height:85vh;overflow-y:auto">
@@ -66,35 +66,35 @@ function _enStintDetail(idx){
           <div style="font-size:16px;font-weight:600;color:#d0d2db;font-family:sans-serif">📊 Stint #${idx+1}</div>
           <div style="font-size:12px;color:#F5A623;font-family:sans-serif;margin-top:2px">${s.pilot}</div>
         </div>
-        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:4px">✕</button>
+        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-3);font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Duración</div>
+          <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Duración</div>
           <div style="font-size:16px;font-weight:500;color:#d0d2db;font-family:monospace">${_enFmtStint(s.durationMs)}</div>
         </div>
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Posición</div>
+          <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Posición</div>
           <div style="font-size:16px;font-weight:500;color:#d0d2db;font-family:monospace">P${posIn}→P${posOut} ${posStr}</div>
         </div>
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Vueltas</div>
+          <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Vueltas</div>
           <div style="font-size:16px;font-weight:500;color:#F5A623;font-family:monospace">${laps.length}</div>
         </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Mejor</div>
+          <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Mejor</div>
           <div style="font-size:16px;font-weight:500;color:#22c55e;font-family:monospace">${best?_enFmt(best):'—'}</div>
         </div>
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">M5v</div>
+          <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">M5v</div>
           <div style="font-size:16px;font-weight:500;color:#d0d2db;font-family:monospace">${avg5?_enFmt(avg5):'—'}</div>
         </div>
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
-          <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Consist.</div>
+          <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;margin-bottom:3px">Consist.</div>
           <div style="font-size:16px;font-weight:500;color:${cons&&cons<0.5?'#22c55e':cons&&cons<1?'#fbbf24':'#ef4444'};font-family:monospace">${cons?cons.toFixed(2)+'s':'—'}</div>
         </div>
       </div>
@@ -104,9 +104,9 @@ function _enStintDetail(idx){
       <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:1px">
         ${lapRows}
       </div>
-      `:'<div style="font-size:11px;color:#555;text-align:center;padding:12px">Sin datos de vueltas para este stint</div>'}
+      `:'<div style="font-size:11px;color:var(--text-3);text-align:center;padding:12px">Sin datos de vueltas para este stint</div>'}
 
-      ${s.pitTime?`<div style="font-size:11px;color:#555;text-align:center;margin-top:10px;padding-top:8px;border-top:0.5px solid #1a1b22">Parada: ${_enFmtStint(s.pitTime)}</div>`:''}
+      ${s.pitTime?`<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:10px;padding-top:8px;border-top:0.5px solid #1a1b22">Parada: ${_enFmtStint(s.pitTime)}</div>`:''}
     </div>`;
   document.body.appendChild(overlay);
 }
@@ -132,7 +132,7 @@ function _enEditStintPilot(stintIdx){
   overlay.innerHTML=`
     <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:360px;width:90%;">
       <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:14px;font-family:sans-serif">✏️ Editar stint #${stintIdx+1}</div>
-      <div style="font-size:11px;color:#666;margin-bottom:6px;font-family:sans-serif">Piloto</div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">Piloto</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
         ${pilotos.map((p,i)=>`
           <button id="en-edit-pilot-${i}" onclick="document.querySelectorAll('[id^=en-edit-pilot]').forEach(b=>b.style.borderColor='#2a2b2e');this.style.borderColor='${colors[i%colors.length]}';document.getElementById('en-edit-pidx').value=${i}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1.5px solid ${i===stint.pilotIdx?colors[i%colors.length]:'#2a2b2e'};background:#13141a;cursor:pointer;font-size:12px;color:#d0d2db;font-family:sans-serif">
@@ -144,27 +144,27 @@ function _enEditStintPilot(stintIdx){
       <input type="hidden" id="en-edit-pidx" value="${stint.pilotIdx}">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
         <div>
-          <div style="font-size:11px;color:#666;margin-bottom:4px;font-family:sans-serif">Duración stint</div>
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:4px;font-family:sans-serif">Duración stint</div>
           <div style="display:flex;gap:4px;align-items:center">
             <input type="number" id="en-edit-durmin" value="${durMin}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">m</span>
+            <span style="color:var(--text-3);font-size:11px">m</span>
             <input type="number" id="en-edit-dursec" value="${durSec}" min="0" max="59" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">s</span>
+            <span style="color:var(--text-3);font-size:11px">s</span>
           </div>
         </div>
         <div>
-          <div style="font-size:11px;color:#666;margin-bottom:4px;font-family:sans-serif">Parada pit</div>
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:4px;font-family:sans-serif">Parada pit</div>
           <div style="display:flex;gap:4px;align-items:center">
             <input type="number" id="en-edit-pitmin" value="${pitMin}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">m</span>
+            <span style="color:var(--text-3);font-size:11px">m</span>
             <input type="number" id="en-edit-pitsec" value="${pitSec}" min="0" max="59" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">s</span>
+            <span style="color:var(--text-3);font-size:11px">s</span>
           </div>
         </div>
       </div>
       <div style="display:flex;gap:8px">
         <button onclick="_enApplyStintEdit(${stintIdx})" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62322;color:#F5A623;font-size:11px;cursor:pointer;font-family:sans-serif">Guardar</button>
-        <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
+        <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -201,7 +201,7 @@ function _enAddStint(){
   overlay.innerHTML=`
     <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:360px;width:90%;">
       <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:14px;font-family:sans-serif">➕ Añadir stint manual</div>
-      <div style="font-size:11px;color:#666;margin-bottom:6px;font-family:sans-serif">Piloto</div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">Piloto</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
         ${pilotos.map((p,i)=>`
           <button id="en-add-pilot-${i}" onclick="document.querySelectorAll('[id^=en-add-pilot]').forEach(b=>b.style.borderColor='#2a2b2e');this.style.borderColor='${colors[i%colors.length]}';document.getElementById('en-add-pidx').value=${i}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1.5px solid ${i===0?colors[0]:'#2a2b2e'};background:#13141a;cursor:pointer;font-size:12px;color:#d0d2db;font-family:sans-serif">
@@ -213,27 +213,27 @@ function _enAddStint(){
       <input type="hidden" id="en-add-pidx" value="0">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
         <div>
-          <div style="font-size:11px;color:#666;margin-bottom:4px;font-family:sans-serif">Duración stint</div>
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:4px;font-family:sans-serif">Duración stint</div>
           <div style="display:flex;gap:4px;align-items:center">
             <input type="number" id="en-add-durmin" value="0" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">m</span>
+            <span style="color:var(--text-3);font-size:11px">m</span>
             <input type="number" id="en-add-dursec" value="0" min="0" max="59" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">s</span>
+            <span style="color:var(--text-3);font-size:11px">s</span>
           </div>
         </div>
         <div>
-          <div style="font-size:11px;color:#666;margin-bottom:4px;font-family:sans-serif">Parada pit</div>
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:4px;font-family:sans-serif">Parada pit</div>
           <div style="display:flex;gap:4px;align-items:center">
             <input type="number" id="en-add-pitmin" value="0" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">m</span>
+            <span style="color:var(--text-3);font-size:11px">m</span>
             <input type="number" id="en-add-pitsec" value="0" min="0" max="59" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:6px;border-radius:4px;font-size:12px;width:50px;font-family:monospace;text-align:right">
-            <span style="color:#555;font-size:11px">s</span>
+            <span style="color:var(--text-3);font-size:11px">s</span>
           </div>
         </div>
       </div>
       <div style="display:flex;gap:8px">
         <button onclick="_enApplyAddStint()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62322;color:#F5A623;font-size:11px;cursor:pointer;font-family:sans-serif">Añadir</button>
-        <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
+        <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -297,7 +297,7 @@ function _enShowLapHistory(dorsal, ev){
     const isBest=Math.abs(t-best)<0.001;
     const isWorst=Math.abs(t-worst)<0.001;
     lapsHtml+=`<div style="display:flex;justify-content:space-between;padding:3px 8px;border-radius:4px;${isBest?'background:#22c55e15;':''}${isWorst?'background:#ef444415;':''}">
-      <span style="color:#555;font-size:10px;font-family:sans-serif">${hist.length-i}</span>
+      <span style="color:var(--text-3);font-size:10px;font-family:sans-serif">${hist.length-i}</span>
       <span style="color:${col};font-family:monospace;font-size:13px;font-weight:${isBest||isWorst?'600':'400'}">${_enFmt(t)}</span>
     </div>`;
   });
@@ -312,7 +312,7 @@ function _enShowLapHistory(dorsal, ev){
         <div style="width:32px;height:32px;border-radius:6px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kc.border};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">${dorsal}</div>
         <div style="flex:1">
           <div style="font-size:14px;color:#d0d2db;font-family:sans-serif">${kart.name}</div>
-          <div style="font-size:10px;color:#555;font-family:sans-serif">${qBadge} ${cons?cons.label:'—'} · Rango: ${range.toFixed(3)}s</div>
+          <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">${qBadge} ${cons?cons.label:'—'} · Rango: ${range.toFixed(3)}s</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
@@ -333,7 +333,7 @@ function _enShowLapHistory(dorsal, ev){
       <div style="overflow-y:auto;flex:1;display:flex;flex-direction:column-reverse;gap:2px">
         ${lapsHtml}
       </div>
-      <button onclick="_enDismissOverlay()" style="width:100%;margin-top:12px;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Cerrar</button>
+      <button onclick="_enDismissOverlay()" style="width:100%;margin-top:12px;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11px;cursor:pointer;font-family:sans-serif">Cerrar</button>
     </div>`;
   document.body.appendChild(overlay);
 }
@@ -381,14 +381,14 @@ function _enRenderTeamConfig(){
   return `<div class="en-team-card" style="padding:10px 14px">
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Mínimo por piloto:</span>
+        <span style="font-size:12.5px;color:var(--text-2);font-family:sans-serif">Mínimo por piloto:</span>
         <input type="number" value="${EnBox.pilotMinTime}" min="0" placeholder="min" onchange="_enSetPilotMinTime(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:4px 8px;border-radius:4px;font-size:12.5px;width:60px;font-family:monospace;text-align:right">
-        <span style="font-size:10px;color:#555;font-family:sans-serif">min</span>
+        <span style="font-size:10px;color:var(--text-3);font-family:sans-serif">min</span>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:12.5px;color:#666;font-family:sans-serif">Paradas obligatorias:</span>
+        <span style="font-size:12.5px;color:var(--text-2);font-family:sans-serif">Paradas obligatorias:</span>
         <input type="number" value="${EnBox.totalStops}" min="0" placeholder="total" onchange="_enSetTotalStops(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#9ca3af;padding:4px 8px;border-radius:4px;font-size:12.5px;width:60px;font-family:monospace;text-align:right">
-        <span style="font-size:10px;color:#555;font-family:sans-serif">total carrera</span>
+        <span style="font-size:10px;color:var(--text-3);font-family:sans-serif">total carrera</span>
       </div>
     </div>
   </div>`;
@@ -447,7 +447,7 @@ function _enRenderTeam(myKart, trackAvg){
   html+=`<div class="en-team-card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div class="en-team-title">Historial de stints</div>
-      <button onclick="_enAddStint()" style="font-size:10px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:#666;cursor:pointer;font-family:sans-serif">➕ Añadir</button>
+      <button onclick="_enAddStint()" style="font-size:10px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">➕ Añadir</button>
     </div>`;
   if(EnSession.stintHistory.length===0){
     html+=`<div style="color:#333;font-size:12px;font-family:sans-serif;padding:8px 0">Sin stints completados todavía</div>`;
@@ -464,14 +464,14 @@ function _enRenderTeam(myKart, trackAvg){
         <span style="color:${col};font-weight:600">${i+1}</span>
         <span style="color:#9ca3af">${s.pilot}</span>
         <span style="color:#6b7280">${_enFmtStint(s.durationMs)}</span>
-        <span style="color:#555">${pitStr}</span>
+        <span style="color:var(--text-3)">${pitStr}</span>
         <span style="color:#6b7280">${s.avg?_enFmt(s.avg):'—'}</span>
         <span style="color:#22c55e">${s.best?_enFmt(s.best):'—'}</span>
         <span style="color:${posCol};font-size:10px">${posStr}</span>
         <span style="display:flex;gap:2px">
           <button onclick="_enStintDetail(${i})" style="font-size:9px;background:none;border:none;color:#60a5fa;cursor:pointer;padding:2px" title="Detalle del stint">📊</button>
           <button onclick="_enEditStintPilot(${i})" style="font-size:9px;background:none;border:none;color:#F5A623;cursor:pointer;padding:2px" title="Editar stint">✏️</button>
-          <button onclick="_enDeleteStint(${i})" style="font-size:9px;background:none;border:none;color:#555;cursor:pointer;padding:2px" title="Borrar stint">🗑</button>
+          <button onclick="_enDeleteStint(${i})" style="font-size:9px;background:none;border:none;color:var(--text-3);cursor:pointer;padding:2px" title="Borrar stint">🗑</button>
         </span>
       </div>`;
     });
@@ -508,21 +508,21 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-strat-title">Estrategia de paradas</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;text-align:center">
         <div>
-          <div style="font-size:10px;color:#555;font-family:sans-serif">Hechas</div>
+          <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">Hechas</div>
           <div style="font-size:22px;font-weight:600;color:#9ca3af;font-family:monospace">${stopsDone}/${EnBox.totalStops}</div>
         </div>
         <div>
-          <div style="font-size:10px;color:#555;font-family:sans-serif">Restantes</div>
+          <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">Restantes</div>
           <div style="font-size:22px;font-weight:600;color:#60a5fa;font-family:monospace">${stopsRemaining}</div>
         </div>
         <div>
-          <div style="font-size:10px;color:#555;font-family:sans-serif">Estratégicas</div>
+          <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">Estratégicas</div>
           <div style="font-size:22px;font-weight:600;color:${stratColor};font-family:monospace">${strategic}</div>
         </div>
         <div>
-          <div style="font-size:10px;color:#555;font-family:sans-serif">Stint medio</div>
+          <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">Stint medio</div>
           <div style="font-size:22px;font-weight:600;color:${avgColor};font-family:monospace">${avgStintNeeded}m</div>
-          <div style="font-size:9px;color:#555;font-family:sans-serif">máx ${stintMaxMin}m</div>
+          <div style="font-size:9px;color:var(--text-3);font-family:sans-serif">máx ${stintMaxMin}m</div>
         </div>
       </div>
       ${strategic>0?`<div style="margin-top:10px;padding:6px 10px;border-radius:6px;background:#22c55e11;border:0.5px solid #22c55e33">
@@ -579,7 +579,7 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14px">${p.name.charAt(0)}</div>
       <div style="flex:1;min-width:120px">
         <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${p.name}${isCurrent?' 🟢':''}</div>
-        <div style="font-size:12.5px;color:#555;font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
+        <div style="font-size:12.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
         ${_scoreRow}
       </div>
       <div style="text-align:right;min-width:90px">

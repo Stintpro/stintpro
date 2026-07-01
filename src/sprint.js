@@ -68,8 +68,8 @@ function _spInjectStyles(){
     .sp-footer{padding:7px 14px;display:flex;gap:16px;border-top:0.5px solid #181920;flex-shrink:0;}
     .sp-fl{font-size:11.5px;color:#2d2f38;display:flex;align-items:center;gap:4px;}
     .sp-fldot{width:7px;height:7px;border-radius:50%;}
-    .sp-back{font-size:12.5px;padding:4px 12px;border-radius:6px;border:0.5px solid #2a2b2e;background:#1a1b22;color:#666;cursor:pointer;}
-    .sp-back:hover{color:#aaa;border-color:#444;}
+    .sp-back{font-size:12.5px;padding:4px 12px;border-radius:6px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;}
+    .sp-back:hover{color:var(--text-2);border-color:#444;}
     .sp-empty{color:#3a3b42;padding:60px;text-align:center;font-family:sans-serif;}
     .sp-sim-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.1);color:#22c55e;border:0.5px solid #22c55e;margin-left:6px;}
     /* Barra de progreso de vuelta */

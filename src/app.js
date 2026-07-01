@@ -31,12 +31,12 @@ function _showDemoModal() {
     <div style="background:#13141a;border:0.5px solid #252630;border-radius:16px;padding:40px 36px;max-width:360px;width:90%;text-align:center;">
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#F5A623;letter-spacing:0.15em;margin-bottom:20px;">STINTPRO DEMO</div>
       <div style="font-size:22px;font-weight:600;color:#f2f2f6;margin-bottom:8px;line-height:1.3;">Simulación de carrera real</div>
-      <div style="font-size:13px;color:#555;margin-bottom:32px;line-height:1.6;">Reproducción en bucle de una carrera endurance grabada en vivo.</div>
-      <div style="font-size:13px;color:#666;margin-bottom:10px;">La demo comienza en</div>
+      <div style="font-size:13px;color:var(--text-3);margin-bottom:32px;line-height:1.6;">Reproducción en bucle de una carrera endurance grabada en vivo.</div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:10px;">La demo comienza en</div>
       <div id="demo-countdown" style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:700;color:#F5A623;margin-bottom:28px;line-height:1;">20</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         <button onclick="_startDemoNow()" style="background:#F5A623;border:none;border-radius:8px;color:#08090a;font-size:14px;font-weight:600;padding:13px 24px;cursor:pointer;font-family:sans-serif;transition:opacity .15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Comenzar ahora</button>
-        <button onclick="signOutSP()" style="background:transparent;border:1px solid #252630;border-radius:8px;color:#555;font-size:13px;padding:11px 24px;cursor:pointer;font-family:sans-serif;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#999';this.style.borderColor='#3a3b45'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>
+        <button onclick="signOutSP()" style="background:transparent;border:1px solid #252630;border-radius:8px;color:var(--text-3);font-size:13px;padding:11px 24px;cursor:pointer;font-family:sans-serif;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#999';this.style.borderColor='#3a3b45'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -97,7 +97,7 @@ function _injectDemoBanner() {
   banner.innerHTML = `
     <span style="color:#F5A623;font-weight:700;letter-spacing:0.1em;">● DEMO</span>
     <span style="color:#444;font-size:10px;">Reproducción en bucle · modo simulación</span>
-    <button onclick="_exitDemo()" style="background:transparent;border:1px solid #252630;border-radius:4px;color:#555;font-size:10px;padding:2px 8px;cursor:pointer;font-family:monospace;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#ccc';this.style.borderColor='#555'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>`;
+    <button onclick="_exitDemo()" style="background:transparent;border:1px solid #252630;border-radius:4px;color:var(--text-3);font-size:10px;padding:2px 8px;cursor:pointer;font-family:monospace;transition:color .15s,border-color .15s;" onmouseover="this.style.color='#ccc';this.style.borderColor='#555'" onmouseout="this.style.color='#555';this.style.borderColor='#252630'">Salir</button>`;
   document.body.appendChild(banner);
 }
 
@@ -121,7 +121,7 @@ function _renderPinScreen() {
       </div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1e1f25;border-radius:16px;padding:32px 28px;width:100%;max-width:320px;text-align:center;">
-      <div style="font-size:14px;color:#666;margin-bottom:24px;font-family:sans-serif">Introduce el PIN de acceso</div>
+      <div style="font-size:14px;color:var(--text-2);margin-bottom:24px;font-family:sans-serif">Introduce el PIN de acceso</div>
       <div id="pin-dots" style="display:flex;justify-content:center;gap:14px;margin-bottom:28px;">
         <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
       </div>
@@ -140,7 +140,7 @@ function _renderPinScreen() {
     .pin-btn{background:#1a1b22;border:0.5px solid #252630;border-radius:10px;color:#d0d2db;font-size:20px;font-weight:500;padding:16px 0;cursor:pointer;font-family:monospace;transition:all .1s;}
     .pin-btn:hover{background:#23242e;border-color:#3a3b45;}
     .pin-btn:active{transform:scale(0.94);background:#2a2b38;}
-    .pin-btn-ghost{color:#666;font-size:16px;}
+    .pin-btn-ghost{color:var(--text-2);font-size:16px;}
   </style>`;
 
   window._pinValue = '';
