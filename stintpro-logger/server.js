@@ -96,6 +96,15 @@ app.get('/', (req, res) => {
   .tag-on  { background: #14532d; color: #22c55e; }
   .tag-off { background: #1a1b1f; color: #333; }
   .uptime { color: #333; font-size: 11px; margin-top: 36px; }
+  .btn-del { background: none; border: none; color: #333; cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+  .btn-del:hover { color: #ef4444; background: #1a0a0a; }
+  .add-form { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .add-form input { background: #0e0f11; border: 1px solid #1e2030; border-radius: 4px; color: #c9d1d9; font-family: inherit; font-size: 12px; padding: 7px 10px; outline: none; }
+  .add-form input:focus { border-color: #5b8dee44; }
+  .add-form input::placeholder { color: #333; }
+  .btn-add { background: #1e3a6e; color: #5b8dee; border: 1px solid #253f7a; border-radius: 4px; font-family: inherit; font-size: 12px; font-weight: 500; padding: 7px 14px; cursor: pointer; }
+  .btn-add:hover { background: #253f7a; }
+  #add-msg { font-size: 11px; margin-top: 6px; min-height: 14px; }
 </style>
 </head>
 <body>
@@ -111,9 +120,21 @@ app.get('/', (req, res) => {
 
 <h2>Circuitos</h2>
 <div class="circuits" id="circuits"></div>
+
+<div class="add-form">
+  <input id="f-name" placeholder="Nombre" style="width:160px">
+  <input id="f-slug" placeholder="slug" style="width:120px">
+  <input id="f-port" placeholder="Puerto" type="number" style="width:80px">
+  <button class="btn-add" onclick="addCircuit()">+ Añadir</button>
+</div>
+<div id="add-msg"></div>
+
 <div class="uptime" id="uptime"></div>
 
 <script>
+const API_KEY = '${API_KEY}';
+const AUTH_HEADERS = { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-API-Key': API_KEY } : {}) };
+
 async function load() {
   try {
     const r = await fetch('/api/status');
@@ -136,12 +157,42 @@ async function load() {
           \${c.subscribers || 0} clientes
           <span class="tag \${c.rawLog ? 'tag-on' : 'tag-off'}" style="margin-left:6px">\${c.rawLog ? '⏺ REC' : 'REC'}</span>
         </div>
+        <button class="btn-del" title="Eliminar circuito" onclick="delCircuit('\${c.slug}', '\${c.name}')">×</button>
       </div>
     \`).join('');
   } catch(e) {
     document.getElementById('circuits').innerHTML = '<div style="color:#ef4444">Error conectando con el logger</div>';
   }
 }
+
+async function delCircuit(slug, name) {
+  if (!confirm('¿Eliminar el circuito "' + name + '"?\\nSe parará el monitor. Los datos históricos se conservan.')) return;
+  try {
+    const r = await fetch('/api/circuits/' + slug, { method: 'DELETE', headers: AUTH_HEADERS });
+    if (r.ok) load();
+    else { const e = await r.json(); alert('Error: ' + e.error); }
+  } catch(e) { alert('Error de red'); }
+}
+
+async function addCircuit() {
+  const name = document.getElementById('f-name').value.trim();
+  const slug = document.getElementById('f-slug').value.trim();
+  const port = parseInt(document.getElementById('f-port').value);
+  const msg  = document.getElementById('add-msg');
+  if (!name || !slug || !port) { msg.style.color = '#ef4444'; msg.textContent = 'Rellena todos los campos'; return; }
+  try {
+    const r = await fetch('/api/circuits', { method: 'POST', headers: AUTH_HEADERS, body: JSON.stringify({ name, slug, port }) });
+    const d = await r.json();
+    if (r.ok) {
+      msg.style.color = '#22c55e'; msg.textContent = 'Circuito añadido';
+      document.getElementById('f-name').value = '';
+      document.getElementById('f-slug').value = '';
+      document.getElementById('f-port').value = '';
+      load();
+    } else { msg.style.color = '#ef4444'; msg.textContent = d.error || 'Error'; }
+  } catch(e) { msg.style.color = '#ef4444'; msg.textContent = 'Error de red'; }
+}
+
 load();
 setInterval(load, 8000);
 </script>
@@ -177,14 +228,14 @@ app.get('/api/sessions/:slug', (req, res) => {
 // Vueltas de una sesión
 app.get('/api/laps/:sessionId', (req, res) => {
   const id = parseInt(req.params.sessionId);
-  if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
+  if (isNaN(id) || String(id) !== req.params.sessionId) return res.status(400).json({ error: 'id inválido' });
   res.json(db.getLapsBySession(id));
 });
 
 // Eventos de pit de una sesión
 app.get('/api/pits/:sessionId', (req, res) => {
   const id = parseInt(req.params.sessionId);
-  if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
+  if (isNaN(id) || String(id) !== req.params.sessionId) return res.status(400).json({ error: 'id inválido' });
   res.json(db.getPitEventsBySession(id));
 });
 
@@ -369,6 +420,46 @@ app.get('/api/circuit/:slug/pilots', (req, res) => {
   res.json(pilots);
 });
 
+// Equipos por circuito — historial agregado por equipo
+app.get('/api/circuit/:slug/teams', (req, res) => {
+  try {
+    const rows = db.getTeamSessionsByCircuit(req.params.slug);
+    const teamMap = {};
+    for (const r of rows) {
+      const key = r.team_name;
+      if (!teamMap[key]) teamMap[key] = { name: key, sessions: [] };
+      teamMap[key].sessions.push({
+        session_id: r.session_id,
+        started_at: r.started_at,
+        best_ms:    r.best_ms,
+        avg_ms:     r.avg_ms,
+        laps:       r.laps,
+        pilot_count: r.pilot_count,
+      });
+    }
+    const teams = Object.values(teamMap).map(t => ({
+      name:          t.name,
+      session_count: t.sessions.length,
+      best_ms:       Math.min(...t.sessions.map(s => s.best_ms)),
+      avg_ms:        Math.round(t.sessions.reduce((a, s) => a + s.avg_ms, 0) / t.sessions.length),
+      total_laps:    t.sessions.reduce((a, s) => a + s.laps, 0),
+      sessions:      t.sessions.sort((a, b) => b.started_at - a.started_at),
+    })).sort((a, b) => a.best_ms - b.best_ms);
+    res.json(teams);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Mejor vuelta histórica por equipo en un circuito
+app.get('/api/circuit/:slug/teams/best', (req, res) => {
+  try {
+    res.json(db.getBestLapsByTeam(req.params.slug));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Rating de pilotos por circuito (puntuación 0-1000)
 function _computePilotRatings(slug) {
   return computePilotRatings(db.getPilotSessionsByCircuit(slug));
@@ -387,6 +478,37 @@ app.get('/api/circuit/:slug/pilot-ratings', (req, res) => {
 app.post('/api/cleanup', httpAuth, (req, res) => {
   db.cleanupEmptySessions();
   res.json({ ok: true });
+});
+
+// Añadir circuito en caliente
+app.post('/api/circuits', httpAuth, (req, res) => {
+  const { name, slug, port } = req.body || {};
+  if (!name || !slug || !port) return res.status(400).json({ error: 'name, slug y port requeridos' });
+  const cleanSlug = slug.trim().toLowerCase();
+  const portNum   = parseInt(port);
+  if (isNaN(portNum) || portNum < 1 || portNum > 65535) return res.status(400).json({ error: 'port inválido' });
+  if (monitors.has(cleanSlug)) return res.status(409).json({ error: `Slug '${cleanSlug}' ya existe` });
+  if ((config.circuits || []).some(c => c.port === portNum)) return res.status(409).json({ error: `Puerto ${portNum} ya en uso` });
+  const cfg = { name: name.trim(), slug: cleanSlug, port: portNum };
+  const mon = new CircuitMonitor(cfg, _computePilotRatings);
+  monitors.set(cleanSlug, mon);
+  mon.start();
+  config.circuits = config.circuits || [];
+  config.circuits.push(cfg);
+  try { fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(config, null, 2)); } catch(e) {}
+  res.json({ ok: true, circuit: cfg });
+});
+
+// Eliminar circuito en caliente
+app.delete('/api/circuits/:slug', httpAuth, (req, res) => {
+  const slug = req.params.slug;
+  const mon  = monitors.get(slug);
+  if (!mon) return res.status(404).json({ error: 'Circuito no encontrado' });
+  try { mon.stop(); } catch(e) {}
+  monitors.delete(slug);
+  config.circuits = (config.circuits || []).filter(c => c.slug !== slug);
+  try { fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(config, null, 2)); } catch(e) {}
+  res.json({ ok: true, slug });
 });
 
 // ── Stats (logger-stats.html servido desde src/) ─────────────────────────
@@ -493,9 +615,22 @@ app.get('/recordings', (req, res) => {
 
 <script>
 const $ = id => document.getElementById(id);
-const API_KEY = '${API_KEY}';
-const AUTH_HEADERS = API_KEY ? { 'Content-Type': 'application/json', 'X-API-Key': API_KEY } : { 'Content-Type': 'application/json' };
+let _sessionKey = sessionStorage.getItem('sp_key') || '';
 document.getElementById('server-url').textContent = location.host;
+
+function getAuthHeaders() {
+  return _sessionKey
+    ? { 'Content-Type': 'application/json', 'X-API-Key': _sessionKey }
+    : { 'Content-Type': 'application/json' };
+}
+
+function askKey() {
+  const k = prompt('API Key requerida:');
+  if (!k) return false;
+  _sessionKey = k.trim();
+  sessionStorage.setItem('sp_key', _sessionKey);
+  return true;
+}
 
 function toast(msg, ok = true) {
   const t = $('toast');
@@ -537,11 +672,18 @@ async function loadCircuits() {
 }
 
 async function toggleRawLog(slug, enable) {
+  if (!_sessionKey && !askKey()) return;
   try {
     const r = await fetch(\`/api/circuit/\${slug}/raw-log\`, {
-      method: 'POST', headers: AUTH_HEADERS,
+      method: 'POST', headers: getAuthHeaders(),
       body: JSON.stringify({ enabled: enable }),
     });
+    if (r.status === 401) {
+      _sessionKey = '';
+      sessionStorage.removeItem('sp_key');
+      toast('API Key incorrecta', false);
+      return;
+    }
     if (r.ok) {
       toast(enable ? \`Grabando \${slug}\` : \`Grabación \${slug} detenida\`);
       await loadCircuits();
@@ -550,8 +692,15 @@ async function toggleRawLog(slug, enable) {
 }
 
 async function loadRecordings() {
+  if (!_sessionKey && !askKey()) return;
   try {
-    const r = await fetch('/api/recordings');
+    const r = await fetch('/api/recordings', { headers: getAuthHeaders() });
+    if (r.status === 401) {
+      _sessionKey = '';
+      sessionStorage.removeItem('sp_key');
+      $('recordings-body').innerHTML = '<tr><td colspan="5" class="empty">API Key incorrecta. Recarga la página.</td></tr>';
+      return;
+    }
     const files = await r.json();
     const tbody = $('recordings-body');
     if (!files.length) {
@@ -572,7 +721,7 @@ async function loadRecordings() {
         <td class="file-name">\${f.name}</td>
         <td class="size">\${kb}</td>
         <td>\${date}</td>
-        <td><a href="/api/recordings/\${f.name}" download class="btn btn-blue btn-sm">Descargar</a></td>
+        <td><a href="/api/recordings/\${f.name}?apikey=\${encodeURIComponent(_sessionKey)}" download class="btn btn-blue btn-sm">Descargar</a></td>
       </tr>\`;
     }).join('');
   } catch(e) {
@@ -592,7 +741,7 @@ setInterval(loadRecordings, 15000);
 // ── Raw log / recordings ──────────────────────────────────────────────────
 
 // Listar grabaciones
-app.get('/api/recordings', (req, res) => {
+app.get('/api/recordings', httpAuth, (req, res) => {
   const dir = path.join(__dirname, 'recordings');
   if (!fs.existsSync(dir)) return res.json([]);
   try {
@@ -608,7 +757,7 @@ app.get('/api/recordings', (req, res) => {
 });
 
 // Descargar una grabación
-app.get('/api/recordings/:file', (req, res) => {
+app.get('/api/recordings/:file', httpAuth, (req, res) => {
   const name = path.basename(req.params.file);
   if (!name.endsWith('.ndjson')) return res.status(400).json({ error: 'Tipo inválido' });
   const filePath = path.join(__dirname, 'recordings', name);
