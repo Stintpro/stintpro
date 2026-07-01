@@ -220,7 +220,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   return `
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Mi equipo · #${myDorsal||'—'}</div>
-    <div class="sp-kpi-val" style="color:#5b8dee">P${myPos} <span style="font-size:12px;color:${myTrend.color}">${myTrend.arrow}</span></div>
+    <div class="sp-kpi-val" style="color:#F5A623">P${myPos} <span style="font-size:12px;color:${myTrend.color}">${myTrend.arrow}</span></div>
     <div class="sp-kpi-sub">Últ: ${myLast} · M5v: ${myAvg5Str}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
   </div>
   <div class="sp-kpi">
@@ -389,8 +389,8 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
       if(!b5)return-1;
       return a5-b5;
     });
-    html+=`<div onclick="_enToggleSort()" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:6px;background:#5b8dee18;border-bottom:1px solid #5b8dee;cursor:pointer" title="Click para volver a la clasificación real">
-      <span style="font-size:11px;color:#5b8dee;font-weight:600;letter-spacing:1px;font-family:sans-serif">⚡ ORDENADO POR RITMO (M5v) — NO ES LA CLASIFICACIÓN REAL</span>
+    html+=`<div onclick="_enToggleSort()" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:6px;background:#F5A62318;border-bottom:1px solid #F5A623;cursor:pointer" title="Click para volver a la clasificación real">
+      <span style="font-size:11px;color:#F5A623;font-weight:600;letter-spacing:1px;font-family:sans-serif">⚡ ORDENADO POR RITMO (M5v) — NO ES LA CLASIFICACIÓN REAL</span>
     </div>`;
   }
 
@@ -442,7 +442,7 @@ function _enSetTab(tab){
             <div style="font-size:24px;margin-bottom:8px">⚙️</div>
             <div style="font-size:14px;font-weight:500;color:#d0d2db;margin-bottom:8px;font-family:sans-serif">Configura la estrategia</div>
             <div style="font-size:12px;color:#9ca3af;margin-bottom:18px;font-family:sans-serif;line-height:1.5">Recuerda configurar el <b style="color:#fbbf24">stint mínimo y máximo</b> en la parte superior para que las previsiones y recomendaciones funcionen correctamente.</div>
-            <button onclick="EnBox.stratConfigured=true;_enDismissOverlay()" style="width:100%;padding:10px;border-radius:6px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:13px;cursor:pointer;font-family:sans-serif">Entendido</button>
+            <button onclick="EnBox.stratConfigured=true;_enDismissOverlay()" style="width:100%;padding:10px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:13px;cursor:pointer;font-family:sans-serif">Entendido</button>
           </div>`;
         document.body.appendChild(overlay);
       },300);
@@ -463,7 +463,7 @@ function _enShowPilotSelect(auto){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
   if(!pilotos.length)return;
-  const colors=['#5b8dee','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
+  const colors=['#F5A623','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
 
   // Crear overlay
   let overlay=document.getElementById('en-pilot-overlay');
@@ -526,7 +526,7 @@ function _enShowPilotHistory(name, evt) {
     <tr>
       <td style="padding:7px 12px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
       <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
-      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
       <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.laps}</td>
     </tr>`).join('');
 
@@ -553,7 +553,7 @@ function _enShowPilotHistory(name, evt) {
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
           <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
-          <div style="font-size:20px;font-weight:700;color:#5b8dee;font-family:monospace">${fmtMs(data.avg_ms)}</div>
+          <div style="font-size:20px;font-weight:700;color:#F5A623;font-family:monospace">${fmtMs(data.avg_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
           <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones · Vueltas</div>
@@ -599,7 +599,7 @@ function _enShowTeamHistory(teamName, evt) {
     <tr>
       <td style="padding:7px 12px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
       <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
-      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
       <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.laps}</td>
       <td style="padding:7px 12px;font-size:12px;color:#475569;text-align:right">${s.pilot_count}</td>
     </tr>`).join('');
@@ -623,7 +623,7 @@ function _enShowTeamHistory(teamName, evt) {
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
           <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
-          <div style="font-size:18px;font-weight:700;color:#5b8dee;font-family:monospace">${fmtMs(data.avg_ms)}</div>
+          <div style="font-size:18px;font-weight:700;color:#F5A623;font-family:monospace">${fmtMs(data.avg_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
           <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones</div>
@@ -660,11 +660,11 @@ function _enToggleSort(){
 }
 
 function _enTheadHtml(){
-  return `<span></span><span style="cursor:pointer;color:${EnUi.sortMode==='pos'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${EnUi.sortMode==='pos'?' ▼':''}</span><span>Kart</span>
+  return `<span></span><span style="cursor:pointer;color:${EnUi.sortMode==='pos'?'#F5A623':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${EnUi.sortMode==='pos'?' ▼':''}</span><span>Kart</span>
     <span style="text-align:left">Piloto</span>
     <span style="text-align:left">Equipo</span>
     <span>Vtas</span><span>Última</span><span>Mejor</span>
-    <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#5b8dee':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
+    <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#F5A623':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
     <span>Δ Pista</span>
     <span>Gap</span>
     <span>Int</span>

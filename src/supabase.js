@@ -22,7 +22,7 @@ function renderLoginScreen() {
           style="background:#0e0f11;border:0.5px solid #2a2b30;border-radius:10px;padding:12px 14px;font-size:14.5px;color:#f0f0f4;outline:none;font-family:var(--font-sans,sans-serif)"
           onkeydown="if(event.key==='Enter')_spLogin()">
         <button id="sp-btn" onclick="_spLogin()"
-          style="background:#5b9cf6;border:none;border-radius:10px;padding:13px;font-size:14.5px;font-weight:500;color:#fff;cursor:pointer;margin-top:4px;font-family:var(--font-sans,sans-serif)">
+          style="background:#F5A623;border:none;border-radius:10px;padding:13px;font-size:14.5px;font-weight:500;color:#fff;cursor:pointer;margin-top:4px;font-family:var(--font-sans,sans-serif)">
           Acceder
         </button>
         <div id="sp-err" style="font-size:12.5px;color:#e85555;text-align:center;min-height:18px"></div>
@@ -105,11 +105,11 @@ function renderAdminPanel(tab) {
     </div>
     <div style="display:flex;gap:4px;padding:14px 24px 0;">
       <button onclick="renderAdminPanel('circuits')"
-        style="padding:7px 16px;border-radius:8px;border:0.5px solid ${tab==='circuits'?'#5b9cf6':'#1e1f25'};background:${tab==='circuits'?'rgba(91,156,246,0.14)':'transparent'};color:${tab==='circuits'?'#5b9cf6':'#666'};font-size:13.5px;cursor:pointer;font-family:var(--font-sans,sans-serif)">
+        style="padding:7px 16px;border-radius:8px;border:0.5px solid ${tab==='circuits'?'#F5A623':'#1e1f25'};background:${tab==='circuits'?'rgba(245,166,35,0.14)':'transparent'};color:${tab==='circuits'?'#F5A623':'#666'};font-size:13.5px;cursor:pointer;font-family:var(--font-sans,sans-serif)">
         Circuitos
       </button>
       <button onclick="renderAdminPanel('users')"
-        style="padding:7px 16px;border-radius:8px;border:0.5px solid ${tab==='users'?'#5b9cf6':'#1e1f25'};background:${tab==='users'?'rgba(91,156,246,0.14)':'transparent'};color:${tab==='users'?'#5b9cf6':'#666'};font-size:13.5px;cursor:pointer;font-family:var(--font-sans,sans-serif)">
+        style="padding:7px 16px;border-radius:8px;border:0.5px solid ${tab==='users'?'#F5A623':'#1e1f25'};background:${tab==='users'?'rgba(245,166,35,0.14)':'transparent'};color:${tab==='users'?'#F5A623':'#666'};font-size:13.5px;cursor:pointer;font-family:var(--font-sans,sans-serif)">
         Usuarios
       </button>
     </div>
@@ -247,7 +247,7 @@ async function _adminRenderUsers() {
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px">
             <div style="font-size:13.5px;color:#f0f0f4">${_esc(u.name || u.email)}</div>
-            <span style="font-size:11px;padding:1px 7px;border-radius:20px;background:${u.role==='admin'?'rgba(91,156,246,0.2)':'rgba(255,255,255,0.05)'};color:${u.role==='admin'?'#5b9cf6':'#666'};border:0.5px solid ${u.role==='admin'?'#5b9cf6':'#333'}">${u.role}</span>
+            <span style="font-size:11px;padding:1px 7px;border-radius:20px;background:${u.role==='admin'?'rgba(245,166,35,0.2)':'rgba(255,255,255,0.05)'};color:${u.role==='admin'?'#F5A623':'#666'};border:0.5px solid ${u.role==='admin'?'#F5A623':'#333'}">${u.role}</span>
             ${u.id === window._currentUser?.id ? '<span style="font-size:11px;color:#555">(tú)</span>' : ''}
           </div>
           <div style="font-size:11.5px;color:#555;margin-top:1px">${_esc(u.email)}</div>
@@ -313,7 +313,7 @@ function _adminInputStyle() {
 
 function _adminBtnStyle(color) {
   const colors = {
-    blue: { bg: 'rgba(91,156,246,0.15)', border: '#5b9cf6', text: '#5b9cf6' },
+    blue: { bg: 'rgba(245,166,35,0.15)', border: '#F5A623', text: '#F5A623' },
     red:  { bg: 'rgba(232,85,85,0.12)',  border: '#c04444', text: '#e85555' }
   };
   const c = colors[color] || colors.blue;

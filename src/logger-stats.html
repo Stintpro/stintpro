@@ -388,7 +388,7 @@ function renderSessionsTab() {
           <td>${s.lap_count||0}</td>
           <td><span class="badge ${s.is_active?'active':'ended'}">${s.is_active?'EN VIVO':'Finalizada'}</span></td>
           <td style="display:flex;gap:6px;align-items:center">
-            <span style="color:#5b8dee;font-size:12px">Ver →</span>
+            <span style="color:#F5A623;font-size:12px">Ver →</span>
             <span onclick="deleteSession(event,${s.id},'${esc(fmtDate(s.started_at))}')"
               style="color:#ef4444;font-size:13px;cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid #2a2d3a"
               title="Borrar sesión">🗑</span>
@@ -413,14 +413,14 @@ function renderPilotsTab() {
   let html = `
   <div id="sel-bar" class="sel-bar">
     <span class="sel-count" id="sel-count">0 seleccionados</span>
-    <button class="btn sm" style="background:#5b8dee" onclick="openMergeDialog()">Unificar</button>
+    <button class="btn sm" style="background:#F5A623" onclick="openMergeDialog()">Unificar</button>
     <button class="btn sm" style="background:#ef4444" onclick="deleteSelected()">Borrar</button>
   </div>
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
     <input id="pilot-search" placeholder="Buscar piloto…"
       style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:5px 10px;font-size:12px;outline:none;width:200px"
-      oninput="filterPilots()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+      oninput="filterPilots()" onfocus="this.style.borderColor='#F5A623'" onblur="this.style.borderColor='#2a2d3a'">
     <div style="margin-left:auto">
       ${_editMode
         ? `<button class="btn ghost sm" onclick="exitEditMode()">Cancelar edición</button>`
@@ -460,7 +460,7 @@ function renderPilotsTab() {
         <td>${fmtDate(s.started_at)}</td>
         <td style="text-align:center"><span class="pos-badge ${posClass}">P${s.position}/${s.total}</span></td>
         <td style="font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
-        <td style="font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+        <td style="font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
         <td style="text-align:right;color:#64748b">${s.laps}</td>
       </tr>`;
     }).join('');
@@ -574,7 +574,7 @@ function openMergeDialog() {
       <div style="padding:14px 18px">${options}</div>
       <div style="padding:12px 18px;border-top:1px solid #1e2130;display:flex;justify-content:flex-end;gap:8px">
         <button class="btn ghost sm" onclick="document.getElementById('merge-popup').remove()">Cancelar</button>
-        <button class="btn sm" style="background:#5b8dee" onclick='confirmMerge(${JSON.stringify(names)})'>Unificar</button>
+        <button class="btn sm" style="background:#F5A623" onclick='confirmMerge(${JSON.stringify(names)})'>Unificar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -702,7 +702,7 @@ function renderSessionModal(laps) {
       <div class="section-title" style="margin:0">Ranking · ${teams.length} equipos/pilotos</div>
       <input id="modal-search" placeholder="Buscar…"
         style="background:#1a1b1e;border:1px solid #2a2d3a;border-radius:6px;color:#e2e8f0;padding:4px 8px;font-size:12px;outline:none;width:130px"
-        oninput="filterModalTable()" onfocus="this.style.borderColor='#5b8dee'" onblur="this.style.borderColor='#2a2d3a'">
+        oninput="filterModalTable()" onfocus="this.style.borderColor='#F5A623'" onblur="this.style.borderColor='#2a2d3a'">
     </div>
     <div id="modal-ranking">
       ${teams.slice(0,50).map((t,i)=>`
@@ -939,7 +939,7 @@ function renderRecordingsView(recordings, circuits) {
         <td style="font-family:monospace;font-size:12px;color:#64748b">${esc(f.name)}</td>
         <td style="color:#475569">${kb}</td>
         <td>${date}</td>
-        <td><a href="${href}" download class="btn sm" style="background:#1e3a6e;color:#5b8dee;text-decoration:none">↓ Descargar</a></td>
+        <td><a href="${href}" download class="btn sm" style="background:#3a2800;color:#F5A623;text-decoration:none">↓ Descargar</a></td>
       </tr>`;
     });
     html += '</tbody></table></div>';
@@ -1019,14 +1019,14 @@ function renderGlobalSearchResults(results, q) {
 
   for (const circ of results) {
     html += `<div style="margin-bottom:20px">
-      <div style="font-size:12px;font-weight:600;color:#5b8dee;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${esc(circ.circuit_name||circ.slug)}</div>
+      <div style="font-size:12px;font-weight:600;color:#F5A623;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${esc(circ.circuit_name||circ.slug)}</div>
       <div class="table-wrap"><table class="tbl">
         <thead><tr><th>Equipo / Piloto</th><th>Mejor vuelta</th><th>Ritmo medio</th><th>Sesiones</th><th>Vueltas</th></tr></thead>
         <tbody>${circ.pilots.map(p=>`
           <tr>
             <td>${esc(p.name)}</td>
             <td style="font-family:monospace;color:#22c55e">${fmtMs(p.best_ms)}</td>
-            <td style="font-family:monospace;color:#5b8dee">${fmtMs(p.avg_ms)}</td>
+            <td style="font-family:monospace;color:#F5A623">${fmtMs(p.avg_ms)}</td>
             <td style="color:#475569">${p.session_count}</td>
             <td style="color:#475569">${p.total_laps}</td>
           </tr>`).join('')}
@@ -1051,7 +1051,7 @@ function showPilotPopup(name) {
       <td style="padding:7px 14px;font-size:12px;color:#64748b">${fmtDate(s.started_at)}</td>
       <td style="padding:7px 14px;text-align:center"><span class="pos-badge ${posClass}">P${s.position}/${s.total}</span></td>
       <td style="padding:7px 14px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
-      <td style="padding:7px 14px;font-family:monospace;color:#5b8dee;text-align:right">${fmtMs(s.avg_ms)}</td>
+      <td style="padding:7px 14px;font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
       <td style="padding:7px 14px;color:#475569;text-align:right">${s.laps}</td>
     </tr>`;
   }).join('');
@@ -1073,7 +1073,7 @@ function showPilotPopup(name) {
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
           <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
-          <div style="font-size:20px;font-weight:700;color:#5b8dee;font-family:monospace">${fmtMs(p.avg_ms)}</div>
+          <div style="font-size:20px;font-weight:700;color:#F5A623;font-family:monospace">${fmtMs(p.avg_ms)}</div>
         </div>
         <div style="background:#0e0f11;padding:12px 16px">
           <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones · Vueltas</div>

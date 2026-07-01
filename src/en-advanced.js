@@ -47,8 +47,8 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
         <div style="position:relative;height:70px;background:#0e0f11;border-radius:8px;margin:10px 0;overflow:hidden">
           <div style="position:absolute;top:32px;left:0;right:0;height:2px;background:#1e1f25"></div>
           <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);text-align:center;z-index:2">
-            <div style="width:34px;height:24px;border-radius:5px;background:#5b8dee;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff">TÚ</div>
-            <div style="font-size:8px;color:#5b8dee;margin-top:2px">sales aquí</div>
+            <div style="width:34px;height:24px;border-radius:5px;background:#F5A623;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff">TÚ</div>
+            <div style="font-size:8px;color:#F5A623;margin-top:2px">sales aquí</div>
           </div>
           <div id="en-tunnel-chips"></div>
         </div>
@@ -288,7 +288,7 @@ function _enRenderAdvPlan(){
       </div>
       <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Faltan</div>
-        <div style="font-size:17px;font-weight:500;color:${stopsLeft>3?'#fbbf24':'#5b8dee'};font-family:monospace">${stopsLeft}</div>
+        <div style="font-size:17px;font-weight:500;color:${stopsLeft>3?'#fbbf24':'#F5A623'};font-family:monospace">${stopsLeft}</div>
       </div>
       <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Stint medio disp.</div>
@@ -362,7 +362,7 @@ function _enShowAvgFilter(){
       <div style="width:24px;height:18px;border-radius:4px;background:${kc.bg};color:${kc.text};border:1px solid ${kc.border};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${e.dorsal}</div>
       <div style="flex:1;font-size:11px;color:${excluded?'#333':'#9ca3af'};font-family:sans-serif">${e.name}</div>
       <div style="font-size:12px;color:${excluded?'#333':lapCol};font-family:monospace">${_enFmt(e.lastLap)}</div>
-      <div style="width:18px;height:18px;border-radius:3px;border:1.5px solid ${excluded?'#333':'#5b8dee'};background:${excluded?'transparent':'#5b8dee'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">${excluded?'':'✓'}</div>
+      <div style="width:18px;height:18px;border-radius:3px;border:1.5px solid ${excluded?'#333':'#F5A623'};background:${excluded?'transparent':'#F5A623'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">${excluded?'':'✓'}</div>
     </div>`;
   });
 
@@ -375,7 +375,7 @@ function _enShowAvgFilter(){
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button onclick="_enResetAvgFilter()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Reset (incluir todos)</button>
-        <button onclick="_enDismissOverlay();_enRender()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #5b8dee;background:#5b8dee22;color:#5b8dee;font-size:11px;cursor:pointer;font-family:sans-serif">Cerrar</button>
+        <button onclick="_enDismissOverlay();_enRender()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62322;color:#F5A623;font-size:11px;cursor:pointer;font-family:sans-serif">Cerrar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);

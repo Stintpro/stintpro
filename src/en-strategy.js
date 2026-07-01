@@ -42,7 +42,7 @@ function _enRenderStratConfig(){
         <span style="font-size:13.5px;color:#666;font-family:sans-serif">Dorsal:</span>
         <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:#bdc2cc;padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
       </div>
-      <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
+      <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:15px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
     </div>
   </div>`;
 }
@@ -282,7 +282,7 @@ function _enRenderStrategy(eq, trackAvg){
     html+=`<div style="font-size:15px;color:#bdc2cc;margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
     if(myQueueIdx>=0){
       const ahead=myQueueIdx;
-      html+=`<div style="font-size:15px;color:#5b8dee;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
+      html+=`<div style="font-size:15px;color:#F5A623;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
     }
 
     // ── Diagrama visual del box ──
@@ -594,7 +594,7 @@ function _enRenderStrategy(eq, trackAvg){
 
   // ── Botón clasificación estimada ──
   html+=`<div style="text-align:center;margin:10px 0">
-    <button onclick="_enShowEstimatedClassification()" style="padding:10px 24px;border-radius:8px;border:0.5px solid #5b8dee;background:#5b8dee18;color:#5b8dee;font-size:15px;font-weight:500;cursor:pointer;font-family:sans-serif;transition:all .15s">📊 Clasificación estimada</button>
+    <button onclick="_enShowEstimatedClassification()" style="padding:10px 24px;border-radius:8px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:15px;font-weight:500;cursor:pointer;font-family:sans-serif;transition:all .15s">📊 Clasificación estimada</button>
   </div>`;
 
 
@@ -728,7 +728,7 @@ function _enShowEstimatedClassification(){
       <span style="font-size:15px;color:#e4e6ed;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
       <span style="font-size:15px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}</span>
       <span style="font-size:15px;color:${e.lapsBehind>0?'#ef4444':e.gapReal>0?'#9ca3af':'#555'};font-family:monospace;text-align:right">${realGapStr}</span>
-      <span style="font-size:15px;color:#5b8dee;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
+      <span style="font-size:15px;color:#F5A623;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
       <span style="font-size:13px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
       <span style="font-size:15px;text-align:center">${posStr}</span>
     </div>`;
@@ -750,7 +750,7 @@ function _enShowEstimatedClassification(){
         <span style="font-size:15px;color:#bdc2cc">EQUIPO</span>
         <span style="font-size:15px;color:#bdc2cc;text-align:center">PITS</span>
         <span style="font-size:15px;color:#bdc2cc;text-align:right">GAP</span>
-        <span style="font-size:15px;color:#5b8dee;text-align:right">EST</span>
+        <span style="font-size:15px;color:#F5A623;text-align:right">EST</span>
         <span style="font-size:15px;color:#bdc2cc;text-align:right">PENALIZ.</span>
         <span style="font-size:15px;color:#bdc2cc;text-align:center">Δ</span>
       </div>
@@ -775,7 +775,7 @@ function _enConfirmStint(){
     btn.style.background='#22c55e18';
     setTimeout(()=>{
       const b=document.getElementById('en-stint-confirm-btn');
-      if(b){b.textContent='Confirmar';b.style.color='#5b8dee';b.style.borderColor='#5b8dee';b.style.background='#5b8dee18';}
+      if(b){b.textContent='Confirmar';b.style.color='#F5A623';b.style.borderColor='#F5A623';b.style.background='#F5A62318';}
     },2000);
   }
 }

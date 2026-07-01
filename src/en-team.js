@@ -64,7 +64,7 @@ function _enStintDetail(idx){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:16px;font-weight:600;color:#d0d2db;font-family:sans-serif">📊 Stint #${idx+1}</div>
-          <div style="font-size:12px;color:#5b8dee;font-family:sans-serif;margin-top:2px">${s.pilot}</div>
+          <div style="font-size:12px;color:#F5A623;font-family:sans-serif;margin-top:2px">${s.pilot}</div>
         </div>
         <button onclick="_enDismissOverlay()" style="background:none;border:none;color:#555;font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
@@ -80,7 +80,7 @@ function _enStintDetail(idx){
         </div>
         <div style="background:#0e0f11;border-radius:8px;padding:10px;text-align:center">
           <div style="font-size:9px;color:#555;text-transform:uppercase;margin-bottom:3px">Vueltas</div>
-          <div style="font-size:16px;font-weight:500;color:#5b8dee;font-family:monospace">${laps.length}</div>
+          <div style="font-size:16px;font-weight:500;color:#F5A623;font-family:monospace">${laps.length}</div>
         </div>
       </div>
 
@@ -115,7 +115,7 @@ function _enEditStintPilot(stintIdx){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
   if(!pilotos.length)return;
-  const colors=['#5b8dee','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
+  const colors=['#F5A623','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
   const stint=EnSession.stintHistory[stintIdx];
   if(!stint)return;
 
@@ -163,7 +163,7 @@ function _enEditStintPilot(stintIdx){
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <button onclick="_enApplyStintEdit(${stintIdx})" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #5b8dee;background:#5b8dee22;color:#5b8dee;font-size:11px;cursor:pointer;font-family:sans-serif">Guardar</button>
+        <button onclick="_enApplyStintEdit(${stintIdx})" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62322;color:#F5A623;font-size:11px;cursor:pointer;font-family:sans-serif">Guardar</button>
         <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
       </div>
     </div>`;
@@ -191,7 +191,7 @@ function _enAddStint(){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
   if(!pilotos.length)return;
-  const colors=['#5b8dee','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
+  const colors=['#F5A623','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
 
   let overlay=document.getElementById('en-pilot-overlay');
   if(overlay)overlay.remove();
@@ -232,7 +232,7 @@ function _enAddStint(){
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <button onclick="_enApplyAddStint()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #5b8dee;background:#5b8dee22;color:#5b8dee;font-size:11px;cursor:pointer;font-family:sans-serif">Añadir</button>
+        <button onclick="_enApplyAddStint()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62322;color:#F5A623;font-size:11px;cursor:pointer;font-family:sans-serif">Añadir</button>
         <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:#555;font-size:11px;cursor:pointer;font-family:sans-serif">Cancelar</button>
       </div>
     </div>`;
@@ -403,7 +403,7 @@ function _enRenderTeam(myKart, trackAvg){
   const currentPilot=pilotos[EnSession.currentPilot]||{name:'Sin definir'};
   const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
   const stintLaps=_enStintLaps(myKart);
-  const colors=['#5b8dee','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
+  const colors=['#F5A623','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
 
   let html='';
 
@@ -416,7 +416,7 @@ function _enRenderTeam(myKart, trackAvg){
         <div class="en-pilot-name">${currentPilot.name}</div>
         <div class="en-pilot-sub">Stint: ${_enFmtStint(stintMs)}${myKart?' · P'+myKart.pos:''}${EnSession.posIn?' (entró P'+EnSession.posIn+')':''}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
       </div>
-      <button class="en-change-btn" style="background:#5b8dee;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button>
+      <button class="en-change-btn" style="background:#F5A623;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button>
     </div>
   </div>`;
 
@@ -435,7 +435,7 @@ function _enRenderTeam(myKart, trackAvg){
       const totalMs=stints.reduce((a,s)=>a+s.durationMs,0);
       const totalLaps=stints.reduce((a,s)=>a+s.laps,0);
       html+=`<div class="en-queue-item">
-        <div class="en-queue-num" style="${i===0?'background:#5b8dee;color:#fff':''}">${i+1}</div>
+        <div class="en-queue-num" style="${i===0?'background:#F5A623;color:#fff':''}">${i+1}</div>
         <div class="en-queue-name" style="${i===0?'color:#d0d2db;font-weight:500':''}">${p.name}${i===0?' ← siguiente':''}</div>
         <div class="en-queue-stat">${stints.length}st · ${totalLaps}v · ${_enFmtStint(totalMs)}</div>
       </div>`;
@@ -470,7 +470,7 @@ function _enRenderTeam(myKart, trackAvg){
         <span style="color:${posCol};font-size:10px">${posStr}</span>
         <span style="display:flex;gap:2px">
           <button onclick="_enStintDetail(${i})" style="font-size:9px;background:none;border:none;color:#60a5fa;cursor:pointer;padding:2px" title="Detalle del stint">📊</button>
-          <button onclick="_enEditStintPilot(${i})" style="font-size:9px;background:none;border:none;color:#5b8dee;cursor:pointer;padding:2px" title="Editar stint">✏️</button>
+          <button onclick="_enEditStintPilot(${i})" style="font-size:9px;background:none;border:none;color:#F5A623;cursor:pointer;padding:2px" title="Editar stint">✏️</button>
           <button onclick="_enDeleteStint(${i})" style="font-size:9px;background:none;border:none;color:#555;cursor:pointer;padding:2px" title="Borrar stint">🗑</button>
         </span>
       </div>`;
@@ -588,7 +588,7 @@ function _enRenderTeam(myKart, trackAvg){
       </div>
       ${minMs>0?`<div style="width:100%;margin-top:4px">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="flex:1;height:5px;border-radius:2px;background:#1e1f25;margin-right:8px"><div style="height:100%;border-radius:2px;background:${pct>=100?'#22c55e':'#5b8dee'};width:${pct}%"></div></div>
+          <div style="flex:1;height:5px;border-radius:2px;background:#1e1f25;margin-right:8px"><div style="height:100%;border-radius:2px;background:${pct>=100?'#22c55e':'#F5A623'};width:${pct}%"></div></div>
           <span style="font-size:11.5px;color:${remainCol};font-family:sans-serif;white-space:nowrap">${remainStr}</span>
         </div>
       </div>`:''}
