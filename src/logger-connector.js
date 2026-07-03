@@ -24,7 +24,7 @@ const Logger = {
       return;
     }
     this._serverUrl = loggerUrl.replace(/\/$/, '');
-    this._apiKey = window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || 'dbbbf9772c9f69fdfc6f56cf7b41085aa2091b95f9ae28a63069c90ae7a0c34f';
+    this._apiKey = window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || 'f7e8e3709a3d49c9e21b35cb15bacfb71a0664adb647adc60a1deca976ef50a2';
     this._doConnect();
   },
 

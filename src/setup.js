@@ -7,7 +7,7 @@ let _connMode    = 'apex'; // 'apex', 'logger' o 'replay'
 let _replayFile  = null;  // File cargado en modo replay
 let _replaySpeed = 1;     // velocidad de reproducción
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
-const _loggerApiKey = (()=>{const a=[100,98,98,98,102,57,55,55,50,99,57,102,54,57,102,100,102,99,54,102,53,54,99,102,55,98,52,49,48,56,53,97,97,50,48,57,49,98,57,53,102,57,97,101,50,56,97,54,51,48,54,57,99,57,48,97,101,55,97,48,99,51,52,102];return a.map(c=>String.fromCharCode(c)).join('');})();
+const _loggerApiKey = (()=>{const a=[102,55,101,56,101,51,55,48,57,97,51,100,52,57,99,57,101,50,49,98,51,53,99,98,49,53,98,97,99,102,98,55,49,97,48,54,54,52,97,100,98,54,52,55,97,100,99,54,48,97,49,100,101,99,97,57,55,54,101,102,53,48,97,50];return a.map(c=>String.fromCharCode(c)).join('');})();
 const _origApex  = window.ApexConnector; // guardar conector original
 
 function renderSetup() {
@@ -157,7 +157,7 @@ function renderSprintSetup() {
         </div>
       </div>
       <div class="conn-row">
-        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span></div>
+        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span><span id="circuit-offset-badge" style="display:none;margin-left:8px;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span></div>
         <button class="btn" onclick="testConn()">Verificar</button>
       </div>
     </div>
@@ -286,7 +286,7 @@ function renderEnduranceSetup() {
         </div>
       </div>
       <div class="conn-row">
-        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span></div>
+        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span><span id="circuit-offset-badge" style="display:none;margin-left:8px;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span></div>
         <button class="btn" onclick="testConn()">Verificar</button>
       </div>
     </div>
@@ -344,6 +344,12 @@ function onCircuitSelect() {
   const dot=document.getElementById('cdot'), lbl=document.getElementById('cLabel');
   if(circ){dot.className='cdot ok';lbl.textContent=circ.name+' — listo';}
   else {dot.className='cdot';lbl.textContent='Sin verificar';}
+  const badge=document.getElementById('circuit-offset-badge');
+  if(badge){
+    const saved=circ?localStorage.getItem('stintpro_pitoffset_'+circ.slug):null;
+    if(saved){badge.textContent='✓ offset '+parseFloat(saved).toFixed(0)+'s';badge.style.display='';}
+    else{badge.style.display='none';}
+  }
   _updateDeleteBtn();
   if (_raceType==='sprint') sprintUpd();
   else setupUpd();
@@ -480,13 +486,19 @@ function getPilotosConfig() {
 }
 
 function startEndurance() {
+  const slug=_connMode==='replay'?'replay':getCircuitSlug();
   const cfg={
     name:'Endurance', raceType:'endurance', simMode:false,
     stintMin:0, stintMax:999, stops:0, pitMinTime:3,
     myDorsal:_myDorsal||'20', nKarts:4, pitLayout:'libre',
-    slug:_connMode==='replay'?'replay':getCircuitSlug(), port:getCircuitPort(),
+    slug, port:getCircuitPort(),
     pilotos:getPilotosConfig()
   };
   window.AppState.config=cfg;
+  // Pre-poblar calibración si hay offset guardado para este circuito
+  const savedOffset=slug&&slug!=='replay'?parseFloat(localStorage.getItem('stintpro_pitoffset_'+slug)):NaN;
+  if(!isNaN(savedOffset)&&savedOffset>3&&savedOffset<300){
+    EnSession.pitOutCalibration=[savedOffset, savedOffset];
+  }
   window.showEnduranceDashboard(cfg);
 }

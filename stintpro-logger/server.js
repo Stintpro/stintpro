@@ -167,8 +167,21 @@ app.get('/', (req, res) => {
 </div>
 
 <script>
-const API_KEY = '${API_KEY}';
-const AUTH_HEADERS = { 'Content-Type': 'application/json', ...(API_KEY ? { 'X-API-Key': API_KEY } : {}) };
+// La API key NO se inyecta en el HTML (esta página se sirve sin auth).
+// Se pide con prompt() solo al hacer una acción de escritura y se guarda en sessionStorage.
+let _sessionKey = sessionStorage.getItem('sp_key') || '';
+function getAuthHeaders() {
+  return _sessionKey
+    ? { 'Content-Type': 'application/json', 'X-API-Key': _sessionKey }
+    : { 'Content-Type': 'application/json' };
+}
+function askKey() {
+  const k = prompt('API Key requerida:');
+  if (!k) return false;
+  _sessionKey = k.trim();
+  sessionStorage.setItem('sp_key', _sessionKey);
+  return true;
+}
 
 async function load() {
   try {
@@ -202,8 +215,10 @@ async function load() {
 
 async function delCircuit(slug, name) {
   if (!confirm('¿Eliminar el circuito "' + name + '"?\\nSe parará el monitor. Los datos históricos se conservan.')) return;
+  if (!_sessionKey && !askKey()) return;
   try {
-    const r = await fetch('/api/circuits/' + slug, { method: 'DELETE', headers: AUTH_HEADERS });
+    const r = await fetch('/api/circuits/' + slug, { method: 'DELETE', headers: getAuthHeaders() });
+    if (r.status === 401) { _sessionKey = ''; sessionStorage.removeItem('sp_key'); alert('API Key incorrecta'); return; }
     if (r.ok) load();
     else { const e = await r.json(); alert('Error: ' + e.error); }
   } catch(e) { alert('Error de red'); }
@@ -215,8 +230,10 @@ async function addCircuit() {
   const port = parseInt(document.getElementById('f-port').value);
   const msg  = document.getElementById('add-msg');
   if (!name || !slug || !port) { msg.style.color = '#ef4444'; msg.textContent = 'Rellena todos los campos'; return; }
+  if (!_sessionKey && !askKey()) return;
   try {
-    const r = await fetch('/api/circuits', { method: 'POST', headers: AUTH_HEADERS, body: JSON.stringify({ name, slug, port }) });
+    const r = await fetch('/api/circuits', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ name, slug, port }) });
+    if (r.status === 401) { _sessionKey = ''; sessionStorage.removeItem('sp_key'); msg.style.color = '#ef4444'; msg.textContent = 'API Key incorrecta'; return; }
     const d = await r.json();
     if (r.ok) {
       msg.style.color = '#22c55e'; msg.textContent = 'Circuito añadido';
@@ -567,10 +584,9 @@ app.get('/stats', (req, res) => {
       `let _url = '';`,
       `let _url = location.origin;`,
     );
-    html = html.replace(
-      `let _key = '';`,
-      `let _key = '${API_KEY}';`,
-    );
+    // NOTA: la API key NO se inyecta en el HTML (se servía públicamente sin auth).
+    // El usuario la introduce en el campo cfg-key para acciones de escritura;
+    // las lecturas usan endpoints públicos y no la necesitan.
     // Cargar aunque no haya API key guardada en localStorage
     html = html.replace(
       `if (savedUrl && savedKey) load();`,
