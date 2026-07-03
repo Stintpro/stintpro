@@ -11,7 +11,7 @@ function _enDeleteStint(idx){
   overlay.innerHTML=`
     <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:320px;width:90%;text-align:center">
       <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:8px;font-family:sans-serif">🗑 Borrar stint #${idx+1}</div>
-      <div style="font-size:11.5px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">${s.pilot} · ${_enFmtStint(s.durationMs)}</div>
+      <div style="font-size:11.5px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">${_esc(s.pilot)} · ${_enFmtStint(s.durationMs)}</div>
       <div style="font-size:11.5px;color:#ef4444;margin-bottom:18px;font-family:sans-serif">Esta acción no se puede deshacer</div>
       <div style="display:flex;gap:8px">
         <button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11.5px;cursor:pointer;font-family:sans-serif">Cancelar</button>
@@ -64,7 +64,7 @@ function _enStintDetail(idx){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:14.5px;font-weight:600;color:var(--text-1);font-family:sans-serif">📊 Stint #${idx+1}</div>
-          <div style="font-size:11.5px;color:#F5A623;font-family:sans-serif;margin-top:2px">${s.pilot}</div>
+          <div style="font-size:11.5px;color:#F5A623;font-family:sans-serif;margin-top:2px">${_esc(s.pilot)}</div>
         </div>
         <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-3);font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
@@ -136,8 +136,8 @@ function _enEditStintPilot(stintIdx){
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
         ${pilotos.map((p,i)=>`
           <button id="en-edit-pilot-${i}" onclick="document.querySelectorAll('[id^=en-edit-pilot]').forEach(b=>b.style.borderColor='#2a2b2e');this.style.borderColor='${colors[i%colors.length]}';document.getElementById('en-edit-pidx').value=${i}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1.5px solid ${i===stint.pilotIdx?colors[i%colors.length]:'#2a2b2e'};background:#13141a;cursor:pointer;font-size:11.5px;color:var(--text-1);font-family:sans-serif">
-            <div style="width:20px;height:20px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff">${p.name.charAt(0)}</div>
-            ${p.name}
+            <div style="width:20px;height:20px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff">${_esc(p.name.charAt(0))}</div>
+            ${_esc(p.name)}
           </button>
         `).join('')}
       </div>
@@ -205,8 +205,8 @@ function _enAddStint(){
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
         ${pilotos.map((p,i)=>`
           <button id="en-add-pilot-${i}" onclick="document.querySelectorAll('[id^=en-add-pilot]').forEach(b=>b.style.borderColor='#2a2b2e');this.style.borderColor='${colors[i%colors.length]}';document.getElementById('en-add-pidx').value=${i}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1.5px solid ${i===0?colors[0]:'#2a2b2e'};background:#13141a;cursor:pointer;font-size:11.5px;color:var(--text-1);font-family:sans-serif">
-            <div style="width:20px;height:20px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff">${p.name.charAt(0)}</div>
-            ${p.name}
+            <div style="width:20px;height:20px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:#fff">${_esc(p.name.charAt(0))}</div>
+            ${_esc(p.name)}
           </button>
         `).join('')}
       </div>
@@ -311,7 +311,7 @@ function _enShowLapHistory(dorsal, ev){
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <div style="width:32px;height:32px;border-radius:6px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kc.border};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14.5px">${dorsal}</div>
         <div style="flex:1">
-          <div style="font-size:14.5px;color:var(--text-1);font-family:sans-serif">${kart.name}</div>
+          <div style="font-size:14.5px;color:var(--text-1);font-family:sans-serif">${_esc(kart.name)}</div>
           <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${qBadge} ${cons?cons.label:'—'} · Rango: ${range.toFixed(3)}s</div>
         </div>
       </div>
@@ -411,9 +411,9 @@ function _enRenderTeam(myKart, trackAvg){
   html+=`<div class="en-team-card">
     <div class="en-team-title">Piloto en pista</div>
     <div class="en-pilot-current">
-      <div class="en-pilot-avatar" style="background:${colors[EnSession.currentPilot%colors.length]}">${currentPilot.name.charAt(0)}</div>
+      <div class="en-pilot-avatar" style="background:${colors[EnSession.currentPilot%colors.length]}">${_esc(currentPilot.name.charAt(0))}</div>
       <div class="en-pilot-info">
-        <div class="en-pilot-name">${currentPilot.name}</div>
+        <div class="en-pilot-name">${_esc(currentPilot.name)}</div>
         <div class="en-pilot-sub">Stint: ${_enFmtStint(stintMs)}${myKart?' · P'+myKart.pos:''}${EnSession.posIn?' (entró P'+EnSession.posIn+')':''}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
       </div>
       <button class="en-change-btn" style="background:#F5A623;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button>
@@ -436,7 +436,7 @@ function _enRenderTeam(myKart, trackAvg){
       const totalLaps=stints.reduce((a,s)=>a+s.laps,0);
       html+=`<div class="en-queue-item">
         <div class="en-queue-num" style="${i===0?'background:#F5A623;color:#fff':''}">${i+1}</div>
-        <div class="en-queue-name" style="${i===0?'color:var(--text-1);font-weight:500':''}">${p.name}${i===0?' ← siguiente':''}</div>
+        <div class="en-queue-name" style="${i===0?'color:var(--text-1);font-weight:500':''}">${_esc(p.name)}${i===0?' ← siguiente':''}</div>
         <div class="en-queue-stat">${stints.length}st · ${totalLaps}v · ${_enFmtStint(totalMs)}</div>
       </div>`;
     });
@@ -462,7 +462,7 @@ function _enRenderTeam(myKart, trackAvg){
       const pitStr=s.pitStopMs?_enFmtStint(s.pitStopMs):'—';
       html+=`<div class="en-stint-row">
         <span style="color:${col};font-weight:600">${i+1}</span>
-        <span style="color:var(--text-2)">${s.pilot}</span>
+        <span style="color:var(--text-2)">${_esc(s.pilot)}</span>
         <span style="color:var(--text-3)">${_enFmtStint(s.durationMs)}</span>
         <span style="color:var(--text-3)">${pitStr}</span>
         <span style="color:var(--text-3)">${s.avg?_enFmt(s.avg):'—'}</span>
@@ -576,9 +576,9 @@ function _enRenderTeam(myKart, trackAvg){
     };
     const _scoreRow=_prObj?`<div style="display:flex;gap:8px;margin-top:2px">${_scoreBadge(_prObj.pace_score,500,'Pace')}${_scoreBadge(_prObj.position_score,300,'Pos')}${_scoreBadge(_prObj.consistency_score,200,'Con')}</div>`:'';
     html+=`<div class="en-queue-item" style="flex-wrap:wrap">
-      <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14.5px">${p.name.charAt(0)}</div>
+      <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14.5px">${_esc(p.name.charAt(0))}</div>
       <div style="flex:1;min-width:120px">
-        <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${p.name}${isCurrent?' 🟢':''}</div>
+        <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${_esc(p.name)}${isCurrent?' 🟢':''}</div>
         <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
         ${_scoreRow}
       </div>

@@ -177,7 +177,7 @@ function _spRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
       <div style="display:flex;gap:5px">
       </div>
       <span class="sp-session">
-        ${cfg?.name||'Sprint'}
+        ${_esc(cfg?.name||'Sprint')}
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
       <div class="sp-clock">
@@ -211,7 +211,7 @@ function _spKpisHtml(leader, trackAvg, bestSess, inPit){
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Vuelta líder</div>
     <div class="sp-kpi-val" style="color:#fff">${_spData.leaderLap||'—'}</div>
-    <div class="sp-kpi-sub">${leader?`${leader.name} · kart ${leader.dorsal}`:''}</div>
+    <div class="sp-kpi-sub">${leader?`${_esc(leader.name)} · kart ${leader.dorsal}`:''}</div>
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Media pista</div>
@@ -221,7 +221,7 @@ function _spKpisHtml(leader, trackAvg, bestSess, inPit){
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Mejor sesión</div>
     <div class="sp-kpi-val" style="color:#c084fc">${bestSess?_spFmt(bestSess):'—'}</div>
-    <div class="sp-kpi-sub">${bestSess&&leader?leader.name:''}</div>
+    <div class="sp-kpi-sub">${bestSess&&leader?_esc(leader.name):''}</div>
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">En boxes</div>
@@ -289,7 +289,7 @@ function _spRenderRows(eq, trackAvg, bestSess, leader){
         <div class="sp-dot" style="background:${dotColor}"></div>
         <div class="sp-pos">${e.pos===99?'—':e.pos}${arrow}</div>
         <div><div class="sp-kart" style="background:${kc.bg};color:${kc.text};border:0.5px solid ${kc.border}">${e.dorsal}</div></div>
-        <div class="sp-name">${chkBadge}${e.name}${pitBadge}${fixBadge}</div>
+        <div class="sp-name">${chkBadge}${_esc(e.name)}${pitBadge}${fixBadge}</div>
         <div class="sp-vtas">${e.tours}</div>
         <div class="sp-t" style="color:${e.lastLap?lastCol:'#2d2f38'}">${_spFmt(e.lastLap)}</div>
         <div class="sp-t" style="color:${e.bestLap?bestCol:'#2d2f38'}">${_spFmt(e.bestLap)}</div>

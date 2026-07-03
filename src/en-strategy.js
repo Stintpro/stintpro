@@ -203,7 +203,7 @@ function _enRenderStrategy(eq, trackAvg){
     else if(quality==='bad')kartBorder='#ef4444';
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
       <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kartBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
-      <div style="flex:1;font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</div>
+      <div style="flex:1;font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</div>
       <span style="font-size:13.5px;color:${minCol};font-family:monospace;flex-shrink:0">${minStr}</span>
     </div>`;
   };
@@ -269,7 +269,7 @@ function _enRenderStrategy(eq, trackAvg){
       const border=isMe?'3px solid #fff':isFirst?'2px solid #aaa':'1px solid transparent';
       const rivalTextColor=k.quality==='good'?'#bbf7d0':k.quality==='bad'?'#fecaca':k.quality==='neutral'?'#fef08a':'#888';
       const label=isMe?(k.dorsal||'YO'):(k.dorsal&&k.dorsal!=='?'?k.dorsal:(k.quality==='unknown'?'?':''));
-      const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':(k.name||'#'+k.dorsal));
+      const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':_esc(k.name||'#'+k.dorsal));
       const textColor=isMe?'#fff':rivalTextColor;
       html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:11px;color:${textColor};font-weight:700" title="${title}">${label}</div>`;
     });
@@ -374,7 +374,7 @@ function _enRenderStrategy(eq, trackAvg){
       const stateCol=e.pitState==='in'?'#ef4444':e.pitState==='out'?'#f97316':'#555';
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
         <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
-        <span style="font-size:11.5px;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</span>
+        <span style="font-size:11.5px;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
         <span style="font-size:13.5px;color:${stateCol};font-weight:600">${stateLabel}</span>
         <span style="font-size:11.5px;color:var(--text-2);width:32px;text-align:right">${e.pitS?e.pitS+'s':''}</span>
       </div>`;
@@ -444,7 +444,7 @@ function _enRenderStrategy(eq, trackAvg){
       timeline.push({
         min:`~${p.minLeft} min`,
         prob:futureProb,
-        event:`${p.name} (${p.quality==='good'?'bueno':p.quality==='bad'?'malo':'neutro'})`,
+        event:`${_esc(p.name)} (${p.quality==='good'?'bueno':p.quality==='bad'?'malo':'neutro'})`,
         dorsal:p.dorsal,
         delta, arrow, evColor
       });

@@ -319,7 +319,7 @@ function _enRenderAdvPlan(){
         const critical=r.avgStint<stintMinM;
         html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11.5px;font-family:sans-serif">
           <span style="color:#fbbf24;font-family:monospace;width:24px">P${r.pos}</span>
-          <span style="color:var(--text-1);flex:1">#${r.dorsal} ${r.name}</span>
+          <span style="color:var(--text-1);flex:1">#${r.dorsal} ${_esc(r.name)}</span>
           <span style="color:var(--text-3);font-family:monospace">${r.stops}/${totalStops} pits</span>
           <span style="color:${critical?'#ef4444':'#fbbf24'};font-family:monospace">${critical?'va a caer':'stints de '+r.avgStint.toFixed(0)+'m'}</span>
         </div>`;
@@ -361,7 +361,7 @@ function _enShowAvgFilter(){
     }
     rows+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:0.5px solid ${excluded?'#1a1b20':'#1e1f25'};background:${excluded?'#0e0f11':'#13141a'};cursor:pointer;opacity:${excluded?'0.4':'1'}" onclick="_enToggleAvgExclude('${e.dorsal}')">
       <div style="width:24px;height:18px;border-radius:4px;background:${kc.bg};color:${kc.text};border:1px solid ${kc.border};display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700">${e.dorsal}</div>
-      <div style="flex:1;font-size:11.5px;color:${excluded?'#333':'#9ca3af'};font-family:sans-serif">${e.name}</div>
+      <div style="flex:1;font-size:11.5px;color:${excluded?'#333':'#9ca3af'};font-family:sans-serif">${_esc(e.name)}</div>
       <div style="font-size:11.5px;color:${excluded?'#333':lapCol};font-family:monospace">${_enFmt(e.lastLap)}</div>
       <div style="width:18px;height:18px;border-radius:3px;border:1.5px solid ${excluded?'#333':'#F5A623'};background:${excluded?'transparent':'#F5A623'};display:flex;align-items:center;justify-content:center;font-size:11.5px;color:#fff">${excluded?'':'✓'}</div>
     </div>`;

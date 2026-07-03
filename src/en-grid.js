@@ -130,7 +130,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
       <div style="display:flex;gap:5px">
       </div>
       <span class="sp-session">
-        ${cfg?.name||'Endurance'}
+        ${_esc(cfg?.name||'Endurance')}
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
       <div class="sp-clock">
@@ -236,7 +236,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Mejor sesión</div>
     <div class="sp-kpi-val" style="color:#c084fc">${bestSess?_enFmt(bestSess):'—'}</div>
-    <div class="sp-kpi-sub">${bestKart?bestKart.name:''}</div>
+    <div class="sp-kpi-sub">${bestKart?_esc(bestKart.name):''}</div>
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">En boxes</div>
@@ -358,8 +358,8 @@ function _enRenderRow(e, d){
       <div class="sp-dot" style="background:${d.dotColor}"></div>
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
-      <div class="sp-name">${d.chkBadge}${e.name}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory('${(e.name||'').replace(/'/g,"\\'")}',event)" title="Ver historial">ℹ</span>`:''}</div>
-      <div class="sp-name" style="font-size:12px;color:var(--text-3)">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;if(!tn)return'—';const tBtn=_enTeamHistory?.[tn]?`<span class="en-info-btn" onclick="_enShowTeamHistory('${tn.replace(/'/g,"\\'")}',event)" title="Ver historial del equipo" style="font-family:monospace;font-weight:700">T</span>`:'';return tn+tBtn;})()}</div>
+      <div class="sp-name">${d.chkBadge}${_esc(e.name)}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory(${_esc(JSON.stringify(e.name||''))},event)" title="Ver historial">ℹ</span>`:''}</div>
+      <div class="sp-name" style="font-size:12px;color:var(--text-3)">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;if(!tn)return'—';const tBtn=_enTeamHistory?.[tn]?`<span class="en-info-btn" onclick="_enShowTeamHistory(${_esc(JSON.stringify(tn))},event)" title="Ver historial del equipo" style="font-family:monospace;font-weight:700">T</span>`:'';return _esc(tn)+tBtn;})()}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
@@ -478,9 +478,9 @@ function _enShowPilotSelect(auto){
       <div style="display:flex;flex-direction:column;gap:8px">
         ${pilotos.map((p,i)=>`
           <button onclick="_enSelectPilot(${i})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:0.5px solid ${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'};background:${i===EnSession.currentPilot?colors[i%colors.length]+'15':'#13141a'};cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='${colors[i%colors.length]}'" onmouseout="this.style.borderColor='${i===EnSession.currentPilot?colors[i%colors.length]:'#2a2b2e'}'">
-            <div style="width:28px;height:28px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${p.name.charAt(0)}</div>
+            <div style="width:28px;height:28px;border-radius:50%;background:${colors[i%colors.length]};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${_esc(p.name.charAt(0))}</div>
             <div style="flex:1;text-align:left">
-              <div style="font-size:13px;color:var(--text-1);font-family:sans-serif">${p.name}</div>
+              <div style="font-size:13px;color:var(--text-1);font-family:sans-serif">${_esc(p.name)}</div>
               <div style="font-size:10px;color:var(--text-3);font-family:sans-serif">${i===EnSession.currentPilot?'En pista actualmente':'Disponible'}</div>
             </div>
           </button>

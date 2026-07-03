@@ -92,3 +92,16 @@ window.H = {
     return{prob1,prob2,buenos,neutrales,malos,sinDatos,total};
   }
 };
+
+// Escape HTML para interpolar datos no confiables (nombres/equipos de Apex) en innerHTML.
+// Cubre contenido y atributos (comillas simples y dobles). Para pasar un valor por un
+// atributo onclick usar _esc(JSON.stringify(valor)) — seguro en la doble capa HTML+JS.
+function _esc(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+window._esc = _esc;
