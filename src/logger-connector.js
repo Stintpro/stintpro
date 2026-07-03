@@ -53,7 +53,18 @@ const Logger = {
             this.onData(msg.data);
           }
 
+          // Reloj de sesión (countdown) reenviado por el logger — sincroniza ApexClock
+          // igual que el conector directo a Apex, para que el cronómetro funcione vía logger.
+          if (msg.type === 'clock' && window.ApexClock) {
+            if (msg.mode === 'stop' || msg.ms == null) ApexClock.stop();
+            else ApexClock.sync(msg.ms, msg.mode);
+          }
+
           if (msg.type === 'history' && msg.snapshot && this.onData) {
+            // Reloj reconstruido en el snapshot (ajustado por el logger) al conectar a mitad
+            if (msg.snapshot.clock && window.ApexClock) {
+              ApexClock.sync(msg.snapshot.clock.ms, msg.snapshot.clock.mode);
+            }
             // Marcar como snapshot histórico para que el cliente reconstruya estado derivado
             this.onData({ ...msg.snapshot, _isHistory: true });
           }

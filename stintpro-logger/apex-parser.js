@@ -5,12 +5,14 @@ const { parse: parseHTML }          = require('node-html-parser');
 const { createParser, parseTime }   = require('./apex-protocol');
 
 class ApexParser {
-  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession } = {}) {
+  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle } = {}) {
     this._proto = createParser({
       onLap,
       onPit,
       onSessionEnd,
       onNewSession,
+      onCountdown,
+      onTitle,
       onGrid:    (html)  => this._parseGrid(html),
       onChange:  (state) => { if (onState) onState(state); },
     });

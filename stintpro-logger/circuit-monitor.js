@@ -44,7 +44,12 @@ class CircuitMonitor {
       onSessionEnd: this._onSessionEnd.bind(this),
       onNewSession: this._onNewSession.bind(this),
       onTitle:      this._onTitle.bind(this),
+      onCountdown:  this._onCountdown.bind(this),
     });
+
+    // Último countdown recibido de Apex ({ms, mode, at}) — para reenviar a subscriptores
+    // y reconstruir el reloj en el snapshot al conectar a mitad de sesión.
+    this._lastClock = null;
   }
 
   start() {
@@ -223,6 +228,7 @@ class CircuitMonitor {
     this.sessionId = null;
     this.pitEvents = [];
     this._lapCount = 0;
+    this._lastClock = null;
     if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
   }
 
@@ -230,6 +236,16 @@ class CircuitMonitor {
     if (!this.sessionId) return;
     db.updateSessionTitle(this.sessionId, title);
     console.log(`[${this.slug}] Título de sesión actualizado: "${title}"`);
+  }
+
+  _onCountdown(ms, mode) {
+    // mode: 'countdown' | 'count' (ascendente) | 'stop'
+    if (mode === 'stop' || ms == null) {
+      this._lastClock = { ms: null, mode: 'stop', at: Date.now() };
+    } else {
+      this._lastClock = { ms, mode, at: Date.now() };
+    }
+    this._broadcast({ type: 'clock', ms: this._lastClock.ms, mode: this._lastClock.mode });
   }
 
   // ── Subscriptores WebSocket ───────────────────────────────────────────
@@ -294,6 +310,15 @@ class CircuitMonitor {
     const snapshot = { ...state, pitEvents: [...this.pitEvents] };
     if (this._computeRatings) {
       try { snapshot.pilotRatings = this._computeRatings(this.slug); } catch(e) {}
+    }
+    // Reloj: reconstruir el countdown ajustado por el tiempo transcurrido desde
+    // el último valor recibido, para que al conectar tarde el reloj ya esté sincronizado.
+    if (this._lastClock && this._lastClock.mode !== 'stop' && this._lastClock.ms != null) {
+      const elapsed = Date.now() - this._lastClock.at;
+      const adj = this._lastClock.mode === 'count'
+        ? this._lastClock.ms + elapsed
+        : this._lastClock.ms - elapsed;
+      snapshot.clock = { ms: adj, mode: this._lastClock.mode };
     }
     try { ws.send(JSON.stringify({ type: 'history', snapshot })); } catch(e) {}
   }
