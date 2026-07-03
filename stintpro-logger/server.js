@@ -953,8 +953,11 @@ wss.on('connection', (ws) => {
   try {
     await db.init();
     startMonitors();
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`[Logger] Escuchando en :${PORT}`);
+    // Bind a localhost: el logger NO se expone a internet directamente.
+    // El acceso público va SOLO por nginx (443/TLS) → proxy a 127.0.0.1:3000.
+    const BIND = process.env.STINTPRO_BIND || '127.0.0.1';
+    server.listen(PORT, BIND, () => {
+      console.log(`[Logger] Escuchando en ${BIND}:${PORT}`);
       console.log(`[Logger] API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : '(ninguna)'}`);
     });
   } catch(e) {
