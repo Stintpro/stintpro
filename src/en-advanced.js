@@ -31,7 +31,7 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
   if(!calibrated){
     return `<div style="padding:14px 14px 0"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
-      <div style="font-size:13.5px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (${calibCount}/2)</div>
+      <div style="font-size:13.5px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (<span id="en-calib-count">${calibCount}/2</span>)</div>
       <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">El sistema mide automáticamente el tiempo entre pit out y el primer pase por meta para calibrar la posición de salida en este circuito.</div>
     </div>
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
@@ -69,98 +69,99 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
 
 // RAF loop — solo mueve chips de posición, no reconstruye DOM
 function _enAdvRafTick(){
-  const tunnelLive=document.getElementById('en-tunnel-live');
-  const tunnelNoCfg=document.getElementById('en-tunnel-nocfg');
-  if(!tunnelLive){_enAdvRafId=null;return;}
+  const advTunnel=document.getElementById('en-adv-tunnel');
+  if(!advTunnel){_enAdvRafId=null;return;}
 
   const eq=EnSession.data.equipos||[];
   const cfg=window.AppState?.config;
   const myDorsal=cfg?.myDorsal;
+  const now=Date.now();
+  const trackAvg=_enTrackAvgLive(eq);
   const calibrated=EnSession.pitOutCalibration.length>=2;
+  const offset=calibrated?EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length:0;
+
   // Si acaba de calibrarse, regenerar el shell para mostrar el túnel live
-  const advTunnel=document.getElementById('en-adv-tunnel');
-  if(advTunnel&&calibrated&&!document.getElementById('en-tunnel-live')){
-    const offset2=EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length;
-    advTunnel.innerHTML=_enRenderTunnelShell(true, EnSession.pitOutCalibration.length, offset2);
+  if(calibrated&&!document.getElementById('en-tunnel-live')){
+    advTunnel.innerHTML=_enRenderTunnelShell(true, EnSession.pitOutCalibration.length, offset);
+  } else if(!calibrated){
+    const cc=document.getElementById('en-calib-count');
+    if(cc)cc.textContent=`${EnSession.pitOutCalibration.length}/2`;
   }
-  if(!calibrated){_enAdvRafId=requestAnimationFrame(_enAdvRafTick);return;}
 
-  const offset=EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length;
-
-  if(!myDorsal||!eq.find(e=>e.dorsal===myDorsal)){
+  // ── Túnel de salida: requiere calibración y dorsal propio ──
+  const tunnelLive=document.getElementById('en-tunnel-live');
+  const tunnelNoCfg=document.getElementById('en-tunnel-nocfg');
+  if(tunnelLive&&(!myDorsal||!eq.find(e=>e.dorsal===myDorsal))){
     tunnelLive.style.display='none';
     if(tunnelNoCfg)tunnelNoCfg.style.display='';
-    _enAdvRafId=requestAnimationFrame(_enAdvRafTick);
-    return;
-  }
-  tunnelLive.style.display='';
-  if(tunnelNoCfg)tunnelNoCfg.style.display='none';
+  } else if(tunnelLive){
+    tunnelLive.style.display='';
+    if(tunnelNoCfg)tunnelNoCfg.style.display='none';
 
-  const now=Date.now();
-  const myExitTime=now+(EnBox.pitDuration+offset)*1000;
-  const trackAvg=_enTrackAvgLive(eq);
+    const myExitTime=now+(EnBox.pitDuration+offset)*1000;
 
-  const projections=[];
-  eq.forEach(e=>{
-    if(e.dorsal===myDorsal||e.pit)return;
-    const lastPass=EnSession.linePasses[e.dorsal];
-    const avg5=_enAvg5(e.lapHistory);
-    if(!lastPass||!avg5)return;
-    const elapsed=(myExitTime-lastPass)/1000;
-    const fraction=(elapsed/avg5)-Math.floor(elapsed/avg5);
-    let delta=fraction*avg5;
-    if(delta>avg5/2)delta=delta-avg5;
-    const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
-    projections.push({dorsal:e.dorsal, delta, quality});
-  });
-  projections.sort((a,b)=>a.delta-b.delta);
-
-  // Actualizar chips individualmente sin reconstruir el contenedor
-  const chipsEl=document.getElementById('en-tunnel-chips');
-  if(chipsEl){
-    const visible=projections.filter(p=>Math.abs(p.delta)<=20).slice(0,8);
-    const seen=new Set();
-    visible.forEach(p=>{
-      seen.add(String(p.dorsal));
-      const pct=50+(p.delta/20)*45;
-      if(pct<2||pct>98)return;
-      const qc=p.quality==='good'?'#22c55e':p.quality==='bad'?'#ef4444':p.quality==='neutral'?'#fbbf24':'#555';
-      let chip=chipsEl.querySelector(`[data-d="${p.dorsal}"]`);
-      if(!chip){
-        chip=document.createElement('div');
-        chip.dataset.d=String(p.dorsal);
-        chip.style.cssText='position:absolute;top:18px;text-align:center;transition:left 0.4s ease';
-        chip.innerHTML=`<div style="width:28px;height:20px;border-radius:4px;background:#1a1b22;color:var(--text-1);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;border:1.5px solid ${qc}" data-border>${p.dorsal}</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px" data-lbl></div>`;
-        chipsEl.appendChild(chip);
-      }
-      chip.style.left=`${pct}%`;
-      chip.style.transform='translateX(-50%)';
-      const border=chip.querySelector('[data-border]');
-      if(border)border.style.borderColor=qc;
-      const lbl=chip.querySelector('[data-lbl]');
-      if(lbl)lbl.textContent=`${p.delta>0?'+':''}${p.delta.toFixed(0)}s`;
+    const projections=[];
+    eq.forEach(e=>{
+      if(e.dorsal===myDorsal||e.pit)return;
+      const lastPass=EnSession.linePasses[e.dorsal];
+      const avg5=_enAvg5(e.lapHistory);
+      if(!lastPass||!avg5)return;
+      const elapsed=(myExitTime-lastPass)/1000;
+      const fraction=(elapsed/avg5)-Math.floor(elapsed/avg5);
+      let delta=fraction*avg5;
+      if(delta>avg5/2)delta=delta-avg5;
+      const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
+      projections.push({dorsal:e.dorsal, delta, quality});
     });
-    // Eliminar chips que ya no están en rango
-    chipsEl.querySelectorAll('[data-d]').forEach(el=>{
-      if(!seen.has(el.dataset.d))el.remove();
-    });
+    projections.sort((a,b)=>a.delta-b.delta);
+
+    // Actualizar chips individualmente sin reconstruir el contenedor
+    const chipsEl=document.getElementById('en-tunnel-chips');
+    if(chipsEl){
+      const visible=projections.filter(p=>Math.abs(p.delta)<=20).slice(0,8);
+      const seen=new Set();
+      visible.forEach(p=>{
+        seen.add(String(p.dorsal));
+        const pct=50+(p.delta/20)*45;
+        if(pct<2||pct>98)return;
+        const qc=p.quality==='good'?'#22c55e':p.quality==='bad'?'#ef4444':p.quality==='neutral'?'#fbbf24':'#555';
+        let chip=chipsEl.querySelector(`[data-d="${p.dorsal}"]`);
+        if(!chip){
+          chip=document.createElement('div');
+          chip.dataset.d=String(p.dorsal);
+          chip.style.cssText='position:absolute;top:18px;text-align:center;transition:left 0.4s ease';
+          chip.innerHTML=`<div style="width:28px;height:20px;border-radius:4px;background:#1a1b22;color:var(--text-1);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;border:1.5px solid ${qc}" data-border>${p.dorsal}</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px" data-lbl></div>`;
+          chipsEl.appendChild(chip);
+        }
+        chip.style.left=`${pct}%`;
+        chip.style.transform='translateX(-50%)';
+        const border=chip.querySelector('[data-border]');
+        if(border)border.style.borderColor=qc;
+        const lbl=chip.querySelector('[data-lbl]');
+        if(lbl)lbl.textContent=`${p.delta>0?'+':''}${p.delta.toFixed(0)}s`;
+      });
+      // Eliminar chips que ya no están en rango
+      chipsEl.querySelectorAll('[data-d]').forEach(el=>{
+        if(!seen.has(el.dataset.d))el.remove();
+      });
+    }
+
+    // Actualizar semáforo y resumen
+    const inZone=projections.filter(p=>Math.abs(p.delta)<=15);
+    let trafficIcon='🟢', trafficLabel='Aire limpio', trafficColor='#22c55e';
+    if(inZone.length>=3){trafficIcon='🔴';trafficLabel='Tráfico denso';trafficColor='#ef4444';}
+    else if(inZone.length>=1){trafficIcon='🟡';trafficLabel='Tráfico moderado';trafficColor='#fbbf24';}
+    const sem=document.getElementById('en-tunnel-semaforo');
+    if(sem){sem.style.color=trafficColor;sem.textContent=`${trafficIcon} ${trafficLabel}`;}
+    const nearestAhead=projections.filter(p=>p.delta>0)[0];
+    const nearestBehind=projections.filter(p=>p.delta<0).slice(-1)[0];
+    const huecoEl=document.getElementById('en-tunnel-hueco');
+    if(huecoEl)huecoEl.textContent=`Hueco: ${nearestAhead?nearestAhead.delta.toFixed(0)+'s':'∞'} delante · ${nearestBehind?Math.abs(nearestBehind.delta).toFixed(0)+'s':'∞'} detrás`;
+    const zonaEl=document.getElementById('en-tunnel-zona');
+    if(zonaEl)zonaEl.textContent=`${inZone.length} kart${inZone.length!==1?'s':''} en zona ±15s`;
   }
 
-  // Actualizar semáforo y resumen
-  const inZone=projections.filter(p=>Math.abs(p.delta)<=15);
-  let trafficIcon='🟢', trafficLabel='Aire limpio', trafficColor='#22c55e';
-  if(inZone.length>=3){trafficIcon='🔴';trafficLabel='Tráfico denso';trafficColor='#ef4444';}
-  else if(inZone.length>=1){trafficIcon='🟡';trafficLabel='Tráfico moderado';trafficColor='#fbbf24';}
-  const sem=document.getElementById('en-tunnel-semaforo');
-  if(sem){sem.style.color=trafficColor;sem.textContent=`${trafficIcon} ${trafficLabel}`;}
-  const nearestAhead=projections.filter(p=>p.delta>0)[0];
-  const nearestBehind=projections.filter(p=>p.delta<0).slice(-1)[0];
-  const huecoEl=document.getElementById('en-tunnel-hueco');
-  if(huecoEl)huecoEl.textContent=`Hueco: ${nearestAhead?nearestAhead.delta.toFixed(0)+'s':'∞'} delante · ${nearestBehind?Math.abs(nearestBehind.delta).toFixed(0)+'s':'∞'} detrás`;
-  const zonaEl=document.getElementById('en-tunnel-zona');
-  if(zonaEl)zonaEl.textContent=`${inZone.length} kart${inZone.length!==1?'s':''} en zona ±15s`;
-
-  // ── Orden de paso por meta ──
+  // ── Orden de paso por meta (no depende de calibración ni dorsal propio) ──
   const crossEl=document.getElementById('en-cross-rows');
   if(crossEl){
     const leader=eq.find(e=>e.pos===1);

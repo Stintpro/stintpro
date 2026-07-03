@@ -84,6 +84,10 @@ async function _startDemoNow() {
   window.AppState.config = cfg;
   window.AppState.loggerUrl    = _loggerUrl;
   window.AppState.loggerApiKey = _loggerApiKey;
+  const _demoOffset = parseFloat(localStorage.getItem('stintpro_pitoffset_karting-lossantos'));
+  if(!isNaN(_demoOffset) && _demoOffset>3 && _demoOffset<300){
+    EnSession.pitOutCalibration = [_demoOffset, _demoOffset];
+  }
   window.showEnduranceDashboard(cfg);
 
   setTimeout(_injectDemoBanner, 400);

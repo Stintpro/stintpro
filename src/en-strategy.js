@@ -643,14 +643,17 @@ function _enShowEstimatedClassification(){
   const trackAvg=_enTrackAvgLive(eq);
   if(!eq.length)return;
 
-  // Coste medio de parada
+  // Coste medio de parada (neto). El coste medido es meta→meta a través del pit
+  // e incluye una vuelta acreditada, así que se resta el ritmo de pista para
+  // obtener la pérdida real de gap frente a quien no para.
   let allCosts=[];
   Object.values(EnSession.pitCosts).forEach(arr=>allCosts=allCosts.concat(arr));
   const validCosts=allCosts.filter(c=>c>=EnBox.pitDuration*0.8);
+  const refLap=trackAvg||67;
   const avgPitCost=validCosts.length>0
-    ?validCosts.reduce((a,b)=>a+b,0)/validCosts.length
+    ?Math.max(EnBox.pitDuration*0.8, validCosts.reduce((a,b)=>a+b,0)/validCosts.length-refLap)
     :EnBox.pitDuration*1.1;
-  const costSource=validCosts.length>0?`medido (${validCosts.length} paradas)`:'estimado por duración oficial';
+  const costSource=validCosts.length>0?`medido neto (${validCosts.length} paradas)`:'estimado por duración oficial';
 
   // Paradas por equipo
   const getStops=(e)=>e.standsCount>0?e.standsCount:(EnSession.pitCounts[e.dorsal]||0);
@@ -683,9 +686,11 @@ function _enShowEstimatedClassification(){
     const avg5=_enAvg5(e.lapHistory);
     const lapTime=avg5||trackAvg||67;
 
-    // Coste individual del equipo si está medido; sino media del circuito
+    // Coste individual del equipo si está medido (neto, restando su ritmo); sino media del circuito
     const teamCosts=(EnSession.pitCosts[e.dorsal]||[]).filter(c=>c>=EnBox.pitDuration*0.8);
-    const teamAvgCost=teamCosts.length?teamCosts.reduce((a,b)=>a+b,0)/teamCosts.length:avgPitCost;
+    const teamAvgCost=teamCosts.length
+      ?Math.max(EnBox.pitDuration*0.8, teamCosts.reduce((a,b)=>a+b,0)/teamCosts.length-lapTime)
+      :avgPitCost;
     const penalty=diff*teamAvgCost;
 
     // Gap real actual al líder
@@ -1049,6 +1054,11 @@ window.showEnduranceDashboard=function(cfg){
               const offset=(now-EnSession.pitOutPending[e.dorsal])/1000;
               if(offset>3&&offset<300)EnSession.pitOutCalibration.push(offset);
               if(EnSession.pitOutCalibration.length>20)EnSession.pitOutCalibration.shift();
+              if(EnSession.pitOutCalibration.length>=2){
+                const avg=EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length;
+                const slug=window.AppState?.config?.slug;
+                if(slug)localStorage.setItem('stintpro_pitoffset_'+slug,avg.toFixed(2));
+              }
               delete EnSession.pitOutPending[e.dorsal];
               // Coste real = tiempo desde último |*| antes del pit in hasta este |*| post pit out
               if(EnSession.pitInLastPass[e.dorsal]){
