@@ -131,7 +131,7 @@ app.get('/', (req, res) => {
   <div class="subtitle" id="host-line">Cargando...</div>
 
   <nav class="nav">
-    <a class="primary" href="/stats">📊 Stats</a>
+    <a class="primary" href="/stats?v=2">📊 Stats</a>
     <a class="primary" href="/recordings">⏺ Grabaciones</a>
     <a class="secondary" href="/api/status" target="_blank">⚡ API Status</a>
     <a class="secondary" href="/api/sessions" target="_blank">📋 Sesiones</a>
@@ -660,7 +660,7 @@ app.get('/recordings', (req, res) => {
 <body>
 <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
   <a href="/" style="color:#555;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e2030;border-radius:4px">← Inicio</a>
-  <a href="/stats" style="color:#5b8dee;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e3a6e;border-radius:4px">📊 Stats</a>
+  <a href="/stats?v=2" style="color:#5b8dee;text-decoration:none;font-size:12px;padding:5px 10px;border:1px solid #1e3a6e;border-radius:4px">📊 Stats</a>
 </div>
 <h1>StintPro Logger</h1>
 <div class="subtitle">Panel de grabaciones raw — <span id="server-url"></span></div>
