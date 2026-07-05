@@ -3,6 +3,7 @@
 const {
   _enFmt, _enFmtGap, _enFmtDelta, _enFmtStint,
   _enDeltaColor, _enCleanLaps, _enCons, _enAvg5, _enTrend,
+  _enPaceStd, _enDensityTiers, _enResolveGap,
 } = require('../src/analysis');
 
 const assert = require('assert');
@@ -180,6 +181,74 @@ group('_enTrend (tendencia de ritmo)', () => {
     // 8 vueltas pero 3 de pit → solo 5 limpias
     const r = _enTrend([50, 50, 200, 50, 200, 50, 200, 50]);
     assert.equal(r.arrow, '');
+  });
+});
+
+// ── _enPaceStd ────────────────────────────────────────────────────────────────
+
+group('_enPaceStd (ruido de ritmo)', () => {
+  const arr=(n,base,jit)=>Array.from({length:n},(_,i)=>base+(i%2?jit:-jit));
+  test('sin datos → 0.4 por defecto', () => assert.equal(_enPaceStd([]), 0.4));
+  test('pocas vueltas → 0.4 por defecto', () => assert.equal(_enPaceStd([44,44]), 0.4));
+  test('ritmo muy regular → std pequeña', () => {
+    const s=_enPaceStd([44.0,44.05,43.98,44.02,44.01,43.99]);
+    assert.ok(s<0.1, `esperaba <0.1, fue ${s}`);
+  });
+  test('ritmo errático → std mayor', () => {
+    const regular=_enPaceStd(arr(8,44,0.05));
+    const erratico=_enPaceStd(arr(8,44,0.8));
+    assert.ok(erratico>regular, 'errático debe tener más ruido que regular');
+  });
+});
+
+// ── _enDensityTiers ─────────────────────────────────────────────────────────────
+
+group('_enDensityTiers (agrupación por confianza)', () => {
+  const reg=Array.from({length:8},(_,i)=>44+(i%2?0.4:-0.4)); // ritmo realista σ≈0.4
+  const mk=(gap)=>({estimatedGap:gap, lapHistory:reg});
+
+  test('a falta de 0 vueltas, todo se separa (tiers distintos)', () => {
+    const t=_enDensityTiers([mk(0),mk(2),mk(5)], 0);
+    assert.deepEqual(t, [0,1,2]);
+  });
+  test('muchas vueltas restantes → huecos pequeños colapsan en un tier', () => {
+    const t=_enDensityTiers([mk(0),mk(1),mk(2)], 100);
+    assert.equal(t[0], t[1], 'juntos con 100 vueltas por delante = mismo tier');
+    assert.equal(t[1], t[2]);
+  });
+  test('un hueco grande separa tiers aunque queden vueltas', () => {
+    const t=_enDensityTiers([mk(0),mk(0.5),mk(40)], 20);
+    assert.equal(t[0], t[1], 'los dos primeros van juntos');
+    assert.ok(t[2]>t[1], 'el tercero (a 40s) queda en otro tier');
+  });
+  test('el swing se estrecha al acabar la carrera (mismo hueco, menos vueltas)', () => {
+    const gaps=[mk(0),mk(3)];
+    const pronto=_enDensityTiers(gaps, 60); // muchas vueltas
+    const tarde=_enDensityTiers(gaps, 2);   // casi acabando
+    assert.equal(pronto[0], pronto[1], 'pronto: 3s es indistinguible');
+    assert.ok(tarde[1]>tarde[0], 'tarde: 3s ya es separable');
+  });
+});
+
+// ── _enResolveGap (saneo del gap en paradas) ────────────────────────────────
+
+group('_enResolveGap (gap saneado del artefacto de pit)', () => {
+  test('normal: prefiere el gap de Apex (más fino) con suelo en vueltas', () => {
+    assert.equal(_enResolveGap({apexGap:12, lapsGap:8, pitCost:150}), 12);
+  });
+  test('en boxes: ignora Apex, usa gap por vueltas', () => {
+    assert.equal(_enResolveGap({apexGap:152, lapsGap:2, inPit:true, pitCost:150}), 2);
+  });
+  test('spike de rejoin tras parada: usa gap por vueltas', () => {
+    // apexGap +152 (ciclo de pit) muy por encima de la posición por vueltas (~1s)
+    assert.equal(_enResolveGap({apexGap:152, lapsGap:1, inPit:false, pitCost:150}), 1);
+  });
+  test('gap grande pero legítimo (doblado) NO se sanea', () => {
+    // 2 vueltas abajo: apexGap≈88 y lapsGap≈88 → coherentes → se mantiene Apex
+    assert.equal(_enResolveGap({apexGap:90, lapsGap:88, pitCost:150}), 90);
+  });
+  test('sin gap de Apex (0): devuelve el de vueltas', () => {
+    assert.equal(_enResolveGap({apexGap:0, lapsGap:44, pitCost:150}), 44);
   });
 });
 

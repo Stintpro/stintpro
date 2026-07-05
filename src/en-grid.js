@@ -36,6 +36,14 @@ function _enRender(){
     catch(err){console.error('[StintPro] Error KPIs:',err);}
   }
 
+  // Fase de sesión (clasificación/carrera) desde el p/r de Apex (init|p| / init|r|)
+  const _phEl=el.querySelector('#sp-phase');
+  if(_phEl){
+    const m=EnSession.data.sessionMode;
+    const lbl=m==='p'?'CLASIFICACIÓN':m==='r'?'CARRERA':'';
+    if(_phEl.textContent!==lbl){_phEl.textContent=lbl;_phEl.style.display=lbl?'':'none';}
+  }
+
   // Cargar historial de pilotos desde el logger (solo primera vez por sesión)
   if(_enPilotHistory===null && Logger?._serverUrl && eq.length){
     const cfg=window.AppState?.config;
@@ -131,6 +139,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
       </div>
       <span class="sp-session">
         ${_esc(cfg?.name||'Endurance')}
+        <span id="sp-phase" class="sp-phase-badge" style="display:none"></span>
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
       <div class="sp-clock">

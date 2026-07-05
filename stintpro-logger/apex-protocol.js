@@ -64,6 +64,7 @@
     let _lastLapTime     = 0;
     let _title1          = '';
     let _title2          = '';
+    let _sessionMode     = '';   // 'p' = practice/clasificación · 'r' = carrera (letra del init|X|)
 
     function _kart(rowId) {
       if (!_karts[rowId]) _karts[rowId] = {
@@ -75,6 +76,18 @@
         _pilotName: undefined, // solo se actualiza con nombres que llevan [X:XX] (carreras por equipos)
       };
       return _karts[rowId];
+    }
+
+    // Señal principal de nueva sesión: cambio del título de sesión de Apex
+    // (title1/title2), que llega ANTES del grid en el init. Al cambiar el título
+    // con una sesión ya activa y karts en estado, limpiamos todo para no acumular
+    // vueltas de la sesión anterior. El guard de karts>0 evita disparar dos veces
+    // en el mismo init (title1 y title2 juntos) y en la primera conexión.
+    function _maybeNewSessionByTitle() {
+      if (_sessionActive && Object.keys(_karts).length > 0) {
+        _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0;
+        if (callbacks.onNewSession) callbacks.onNewSession();
+      }
     }
 
     function _applyCell(k, col, type, val) {
@@ -256,6 +269,15 @@
     }
 
     function _parseLine(line) {
+      // ── TIPO DE SESIÓN: init|p| (clasi) / init|r| (carrera) ───────────
+      // Apex manda esta línea de primera en cada init, antes del grid. La
+      // letra p/r discrimina la fase sin depender de la elección manual.
+      if (line.startsWith('init|')) {
+        _sessionMode = line.split('|')[1] || '';
+        if (callbacks.onMode) callbacks.onMode(_sessionMode);
+        return true;
+      }
+
       // ── VUELTA COMPLETA: r1|*|67234|24403 ────────────────────────────
       const lapM = line.match(/^(r\d+)\|\*\|(\d+)\|(\d*)$/);
       if (lapM) {
@@ -339,7 +361,7 @@
       // ── TEXTO DYN1 ────────────────────────────────────────────────────
       if (line.startsWith('dyn1|text|')) {
         const txt = line.substring(10).trim();
-        const lm  = txt.match(/Lap\s+(\d+)\/(\d+)/i);
+        const lm  = txt.match(/(?:Lap|Vuelta)\s+(\d+)\/(\d+)/i);
         if (lm) _leaderLap = parseInt(lm[1]);
         if (!txt && callbacks.onCountdown) callbacks.onCountdown(null, 'stop');
         return true;
@@ -356,6 +378,7 @@
       if (line.startsWith('title1|')) {
         const v = line.split('|')[2] || '';
         if (v && v !== _title1) {
+          _maybeNewSessionByTitle();
           _title1 = v;
           const t = [_title1, _title2].filter(Boolean).join(' · ');
           if (callbacks.onTitle) callbacks.onTitle(t);
@@ -365,6 +388,7 @@
       if (line.startsWith('title2|')) {
         const v = line.split('|')[2] || '';
         if (v && v !== _title2) {
+          _maybeNewSessionByTitle();
           _title2 = v;
           const t = [_title1, _title2].filter(Boolean).join(' · ');
           if (callbacks.onTitle) callbacks.onTitle(t);
@@ -407,7 +431,7 @@
             pitS: k._pitTimerActive ? k.pitS : (k.pit && k._pitInTime ? Math.round((now - k._pitInTime) / 1000) : k.pitS || 0),
             pitDuration: k.pitDuration || 0,
             state: k.state || 'sr', s1: k.s1, s2: k.s2, s3: k.s3,
-            tours: k.tours || 0, standsCount: k.standsCount || 0, stops: k.stops || 0,
+            tours: Math.max(k.tours || 0, (k.lapHistory || []).length), standsCount: k.standsCount || 0, stops: k.stops || 0,
             checkered: !!k.checkered, gapMs: k.gapMs || 0,
             lapFlash: !!(k._lapFlash && (now - k._lapFlash) < 2000),
             posChange: k._posChange && (now - k._posChange.time) < 5000 ? k._posChange : null,
@@ -418,7 +442,7 @@
           ? parseInt(a.dorsal) - parseInt(b.dorsal)
           : a.pos - b.pos);
       return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap,
-               title1: _title1, title2: _title2 };
+               title1: _title1, title2: _title2, sessionMode: _sessionMode };
     }
 
     return {
@@ -437,6 +461,23 @@
       setGrid({ colMap, colByNum, karts: gridKarts } = {}) {
         _colMap   = colMap   || {};
         _colByNum = colByNum || {};
+
+        // Detección de nueva sesión por cambio de parrilla: si el grid entrante comparte
+        // pocos dorsales con el estado actual, es una parrilla nueva y hay que limpiar el
+        // estado para no acumular vueltas de la sesión anterior (grids repetidos sin
+        // bandera a cuadros previa). Exige ≥3 karts a cada lado para evitar falsos positivos.
+        const _newDorsals = new Set((gridKarts || []).map(kg => kg.dorsal).filter(Boolean));
+        if (_newDorsals.size >= 3) {
+          const _curDorsals = Object.values(_karts).map(k => k.dorsal).filter(Boolean);
+          if (_curDorsals.length >= 3) {
+            const _overlap = _curDorsals.filter(d => _newDorsals.has(d)).length;
+            if (_overlap < _curDorsals.length * 0.4) {
+              _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0;
+              if (callbacks.onNewSession) callbacks.onNewSession();
+            }
+          }
+        }
+
         for (const kg of (gridKarts || [])) {
           const k = _kart(kg.rowId);
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
@@ -463,12 +504,13 @@
       reset() {
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
-        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = '';
+        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = '';
       },
 
       get colMap()          { return _colMap; },
       get sessionFinished() { return _sessionFinished; },
       get leaderLap()       { return _leaderLap; },
+      get sessionMode()     { return _sessionMode; },
       get kartCount()       { return Object.values(_karts).filter(k => k.dorsal).length; },
 
       // Listado de rowId → dorsal para fetch HTTP externo

@@ -693,12 +693,15 @@ function _enShowEstimatedClassification(){
       :avgPitCost;
     const penalty=diff*teamAvgCost;
 
-    // Gap real actual al líder
+    // Gap real actual al líder — saneado del artefacto de las paradas
     const lapsBehind=Math.max(0,leaderTours-(e.tours||0));
     const gapFromLaps=lapsBehind*lapTime;
     const gapFromApex=_enParseGap(e.gap, lapTime);
-    // Preferimos el gap de Apex si está disponible en segundos (más preciso que laps*ritmo)
-    const gapReal=hasApexGap?Math.max(gapFromApex, gapFromLaps):gapFromLaps;
+    // Un equipo recién parado muestra un gap de Apex inflado (ciclo de pit) que no
+    // refleja su posición real → _enResolveGap usa el gap por vueltas en esos casos.
+    const gapReal=hasApexGap
+      ?_enResolveGap({apexGap:gapFromApex, lapsGap:gapFromLaps, inPit:e.pit, pitCost:avgPitCost})
+      :gapFromLaps;
 
     const estimatedGap=gapReal+penalty;
     const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
@@ -948,6 +951,7 @@ window.showEnduranceDashboard=function(cfg){
         });
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
+        EnSession.data.sessionMode=data.sessionMode||'';
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
         if(data.countdown!=null&&window.ApexClock){

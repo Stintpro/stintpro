@@ -364,6 +364,59 @@ group('countdown messages', () => {
   });
 });
 
+// ── Contador de vuelta líder (Lap / Vuelta) ───────────────────────────────────
+
+group('leaderLap desde dyn1|text| (multiidioma)', () => {
+  test('inglés: "Lap 11/15" fija leaderLap = 11', () => {
+    const p = createParser({});
+    p.parse('dyn1|text|Lap 11/15');
+    assert.equal(p.getState().leaderLap, 11);
+  });
+
+  test('español: "Vuelta 11/15" fija leaderLap = 11', () => {
+    const p = createParser({});
+    p.parse('dyn1|text|Vuelta 11/15');
+    assert.equal(p.getState().leaderLap, 11, 'debe reconocer "Vuelta", no solo "Lap"');
+  });
+
+  test('getter leaderLap coincide con "Vuelta 7/15"', () => {
+    const p = createParser({});
+    p.parse('dyn1|text|Vuelta 7/15');
+    assert.equal(p.leaderLap, 7);
+  });
+});
+
+// ── Tipo de sesión desde init|p| / init|r| ────────────────────────────────────
+
+group('sessionMode desde init|X|', () => {
+  test('init|p| → sessionMode = "p" (clasificación)', () => {
+    const p = createParser({});
+    p.parse('init|p|');
+    assert.equal(p.getState().sessionMode, 'p');
+    assert.equal(p.sessionMode, 'p');
+  });
+
+  test('init|r| → sessionMode = "r" (carrera)', () => {
+    const p = createParser({});
+    p.parse('init|r|');
+    assert.equal(p.getState().sessionMode, 'r');
+  });
+
+  test('init dispara callback onMode con la letra', () => {
+    let seen = null;
+    const p = createParser({ onMode: (m) => { seen = m; } });
+    p.parse('init|r|');
+    assert.equal(seen, 'r');
+  });
+
+  test('reset() limpia sessionMode', () => {
+    const p = createParser({});
+    p.parse('init|r|');
+    p.reset();
+    assert.equal(p.sessionMode, '');
+  });
+});
+
 // ── Position direct message ───────────────────────────────────────────────────
 
 group('r1|#|N position message', () => {
@@ -762,6 +815,39 @@ group('dr column — pilot name regression', () => {
     });
     p.parse('r1c2|ti|Javier Coy [0:10]');
     assert.ok('teamName' in p.getState().equipos[0], 'teamName debe estar en getState()');
+  });
+});
+
+// ── Reconciliación de vueltas (tours vs lapHistory) ───────────────────────────
+
+group('tours reconciliado con lapHistory.length', () => {
+  test('sin columna de vueltas: tours cae a lapHistory.length', () => {
+    // colMap SIN tlp/lc y SIN llp → |*| es la fuente de vueltas
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1', dr: 'c2' }, colByNum: { c1: 'no', c2: 'dr' },
+                karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
+    // 3 vueltas con tiempos distintos (anti-dedup)
+    p.parse('r1|*|44000|');
+    p.parse('r1|*|44100|');
+    p.parse('r1|*|44200|');
+    const e = p.getState().equipos[0];
+    assert.equal(e.tours, 3, 'sin columna, tours = nº de pases por meta registrados');
+  });
+
+  test('con columna de vueltas mayor: se prefiere la oficial (max)', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1', dr: 'c2', tlp: 'c3' }, colByNum: { c1: 'no', c2: 'dr', c3: 'tlp' },
+                karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
+    p.parse('r1|*|44000|');           // 1 en lapHistory
+    p.parse('r1c3||10');              // columna oficial dice 10 vueltas
+    assert.equal(p.getState().equipos[0].tours, 10, 'con columna oficial > historial, gana la columna');
+  });
+
+  test('sin vueltas ni columna: tours = 0', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },
+                karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
+    assert.equal(p.getState().equipos[0].tours, 0);
   });
 });
 

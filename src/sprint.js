@@ -72,6 +72,7 @@ function _spInjectStyles(){
     .sp-back:hover{color:var(--text-2);border-color:var(--text-3);}
     .sp-empty{color:var(--text-3);padding:60px;text-align:center;font-family:sans-serif;}
     .sp-sim-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.1);color:#22c55e;border:0.5px solid #22c55e;margin-left:6px;}
+    .sp-phase-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(91,141,238,0.12);color:#5b8dee;border:0.5px solid #5b8dee;margin-left:6px;letter-spacing:0.5px;}
     /* Barra de progreso de vuelta */
     .sp-lapbar{position:absolute;bottom:0;left:0;height:2px;background:rgba(245,166,35,0.4);transition:width 0.1s linear;pointer-events:none;}
     .sp-lapbar.fast{background:rgba(34,197,94,0.5);}
@@ -163,6 +164,14 @@ function _spRender(){
     _spUpdateKpis(el, leader, trackAvg, bestSess, inPit);
   }
 
+  // Fase de sesión (clasificación/carrera) desde el p/r de Apex (init|p| / init|r|)
+  const _phEl=el.querySelector('#sp-phase');
+  if(_phEl){
+    const m=_spData.sessionMode;
+    const lbl=m==='p'?'CLASIFICACIÓN':m==='r'?'CARRERA':'';
+    if(_phEl.textContent!==lbl){_phEl.textContent=lbl;_phEl.style.display=lbl?'':'none';}
+  }
+
   // Actualizar solo el contenido del body — preserva scrollTop automáticamente
   const body=el.querySelector('.sp-body');
   if(!body)return;
@@ -178,6 +187,7 @@ function _spRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
       </div>
       <span class="sp-session">
         ${_esc(cfg?.name||'Sprint')}
+        <span id="sp-phase" class="sp-phase-badge" style="display:none"></span>
         ${isSimMode?'<span class="sp-sim-badge">SIMULACIÓN</span>':''}
       </span>
       <div class="sp-clock">
@@ -443,6 +453,7 @@ window.showSprintDashboard=function(cfg){
         });
         _spData.equipos=data.equipos||[];
         _spData.leaderLap=data.leaderLap||0;
+        _spData.sessionMode=data.sessionMode||'';
         if(_spTimer)clearTimeout(_spTimer);
         _spTimer=setTimeout(_spRender,80);
       },

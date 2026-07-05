@@ -207,6 +207,7 @@ function _enInjectStyles(){
     .sp-back:hover{color:var(--text-2);border-color:var(--text-3);}
     .sp-empty{color:var(--text-3);padding:60px;text-align:center;font-family:sans-serif;}
     .sp-sim-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.1);color:#22c55e;border:0.5px solid #22c55e;margin-left:6px;}
+    .sp-phase-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(91,141,238,0.12);color:#5b8dee;border:0.5px solid #5b8dee;margin-left:6px;letter-spacing:0.5px;}
     .sp-lapbar{position:absolute;bottom:0;left:0;height:2px;background:rgba(245,166,35,0.4);transition:width 0.1s linear;pointer-events:none;}
     .sp-lapbar.fast{background:rgba(34,197,94,0.5);}
     .sp-lapbar.slow{background:rgba(239,68,68,0.4);}

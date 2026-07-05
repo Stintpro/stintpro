@@ -90,4 +90,67 @@ function _enTrend(hist){
   return{arrow:'→',color:'#555'};                    // estable
 }
 
-if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend};
+// ── Ruido de ritmo (desviación típica de las últimas vueltas limpias) ─────
+// Cuánto oscila un equipo de vuelta a vuelta. Es el "yardstick" de la
+// incertidumbre: si dos equipos están más juntos que este ruido, no se
+// pueden separar con honestidad.
+function _enPaceStd(hist){
+  const DEFAULT_STD=0.4; // s — oscilación típica de un kart si no hay datos
+  const clean=_enCleanLaps(hist).slice(-10);
+  if(clean.length<3)return DEFAULT_STD;
+  const m=clean.reduce((a,b)=>a+b,0)/clean.length;
+  const v=clean.reduce((a,b)=>a+(b-m)*(b-m),0)/clean.length;
+  return Math.max(0.05, Math.sqrt(v));
+}
+
+// ── Densidad / confianza de la clasificación estimada ─────────────────────
+// Agrupa equipos consecutivos cuya diferencia de gap estimado es menor que el
+// "swing" plausible sobre las vueltas restantes. Modelo: el hueco entre dos
+// karts de ritmo similar hace un paseo aleatorio con paso = ruido combinado,
+// así que su deriva tras R vueltas ≈ ruido·√R. Si la diferencia real cabe
+// dentro de ese swing, las posiciones son intercambiables → mismo tier.
+//
+// Propiedad buscada: al principio (R grande) casi todo es un tier (no se puede
+// precisar, honesto); al final (R→0) el swing→0 y todo se separa.
+//
+// entries: [{estimatedGap:Number, lapHistory:[...]}] ORDENADOS por estimatedGap asc.
+// remainingLaps: vueltas que faltan (0 = fin).
+// k: sensibilidad (1 = un swing de 1σ; menor = más estricto).
+// Devuelve array de tier-id (mismo id en consecutivos = grupo "en juego").
+function _enDensityTiers(entries, remainingLaps, k){
+  if(k===undefined)k=1.0;
+  const R=Math.max(0, remainingLaps||0);
+  const tiers=new Array(entries.length).fill(0);
+  for(let i=1;i<entries.length;i++){
+    const d=entries[i].estimatedGap-entries[i-1].estimatedGap;
+    const sA=_enPaceStd(entries[i].lapHistory);
+    const sB=_enPaceStd(entries[i-1].lapHistory);
+    const swing=Math.sqrt(sA*sA+sB*sB)*Math.sqrt(R);
+    tiers[i]= d < k*swing ? tiers[i-1] : tiers[i-1]+1;
+  }
+  return tiers;
+}
+
+// ── Saneo del gap al líder (artefacto de las paradas) ─────────────────────
+// El gap de Apex es la distancia EN PISTA ahora mismo. Cuando un equipo acaba
+// de parar, se dispara ~un ciclo de pit (p.ej. +152s) sin reflejar su posición
+// real de carrera → el estimador lo hunde injustamente. En esos momentos el
+// gap por POSICIÓN DE VUELTAS (vueltas de diferencia × ritmo) es más estable.
+//
+// Regla:
+//  - En boxes (inPit) → el gap de Apex no vale → usar gap por vueltas.
+//  - Pico de pit: si el gap de Apex supera al de vueltas por más de medio coste
+//    de parada, es un artefacto de rejoin → usar gap por vueltas.
+//  - Normal → preferir el gap de Apex (segundos, más fino), con suelo en vueltas.
+// Requiere que lapsGap sea fiable (depende del fix de vueltas por lapHistory).
+function _enResolveGap(opts){
+  const apexGap=opts.apexGap||0;
+  const lapsGap=opts.lapsGap||0;
+  const inPit=!!opts.inPit;
+  const pitCost=opts.pitCost||120;
+  if(inPit) return lapsGap;
+  if(apexGap > lapsGap + pitCost*0.5) return lapsGap; // spike de rejoin tras parada
+  return Math.max(apexGap, lapsGap);
+}
+
+if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap};
