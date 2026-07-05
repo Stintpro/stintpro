@@ -709,9 +709,23 @@ function _enShowEstimatedClassification(){
     return {
       dorsal:e.dorsal, name:e.name, pos:e.pos, stops, tours:e.tours||0,
       gapReal, penalty, estimatedGap, avg5, quality, diff, lapsBehind,
-      gapFromApex, gapFromLaps,
+      gapFromApex, gapFromLaps, lapHistory:e.lapHistory,
     };
   }).sort((a,b)=>a.estimatedGap-b.estimatedGap);
+
+  // ── Tiers de densidad ("posiciones en juego") ────────────────────────────
+  // Agrupa posiciones consecutivas cuya diferencia estimada cabe dentro del
+  // swing plausible (ruido de ritmo · √vueltas restantes): al principio de la
+  // carrera casi todo es un grupo (no se puede precisar); al final se separa.
+  // Requiere reloj en cuenta atrás sincronizado para conocer las vueltas que faltan.
+  const remainMs=window.ApexClock&&!window.ApexClock.isCountUp()?window.ApexClock.remainingMs():null;
+  const remainingLaps=(remainMs!=null&&refLap>0)?remainMs/1000/refLap:null;
+  let tiers=null; const tierSizes={};
+  if(remainingLaps!=null&&remainingLaps>0&&estimated.length>1){
+    tiers=_enDensityTiers(estimated, remainingLaps, 1.0);
+    tiers.forEach(t=>{tierSizes[t]=(tierSizes[t]||0)+1;});
+  }
+  const anyTier=tiers?Object.values(tierSizes).some(n=>n>1):false;
 
   // Render popup
   let overlay=document.getElementById('en-pilot-overlay');
@@ -725,12 +739,13 @@ function _enShowEstimatedClassification(){
     const kc=_enKartColor(e.dorsal);
     const qBorder=e.quality==='good'?'#22c55e':e.quality==='bad'?'#ef4444':e.quality==='neutral'?'#fbbf24':kc.border;
     const penaltyStr=e.diff>0?`<span style="color:#ef4444">+${e.diff}pit (${e.penalty.toFixed(0)}s)</span>`:'';
-    const estGapStr=i===0?'—':'+'+e.estimatedGap.toFixed(1)+'s';
+    const inTier=tiers?tierSizes[tiers[i]]>1:false;
+    const estGapStr=i===0?'—':(inTier?'≈':'+')+e.estimatedGap.toFixed(1)+'s';
     const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapReal>0?'+'+e.gapReal.toFixed(1)+'s':'—';
     const posChange=e.pos-(i+1);
     const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:var(--text-2)">=</span>';
 
-    rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px">
+    rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px;${inTier?'box-shadow:inset 3px 0 0 #F5A623;':''}">
       <span style="font-size:13.5px;font-weight:600;color:var(--text-1);text-align:center">${i+1}</span>
       <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${_esc(e.dorsal)}${e.diff>0?'':' ★'}</div>
       <span style="font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
@@ -749,6 +764,7 @@ function _enShowEstimatedClassification(){
           <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Clasificación estimada</div>
           <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource}) · Gap: ${hasApexGap?'Apex':'vueltas×ritmo'}</div>
           ${!usingOfficial?'<div style="font-size:11.5px;color:#fbbf24;font-family:sans-serif;margin-top:2px">⚠ Conteo de paradas observado localmente — puede estar incompleto si conectaste a mitad de carrera</div>':''}
+          ${anyTier?'<div style="font-size:11.5px;color:#F5A623;font-family:sans-serif;margin-top:2px">≈ y barra ámbar: posiciones en juego — la diferencia estimada cabe dentro del ruido de ritmo sobre las vueltas restantes</div>':''}
         </div>
         <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
