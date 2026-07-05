@@ -11,9 +11,19 @@ const db             = require('./db');
 const CircuitMonitor = require('./circuit-monitor');
 const { computePilotRatings } = require('./scoring');
 
-const config  = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-const API_KEY = (process.env.STINTPRO_API_KEY || config.apiKey || '').trim();
-const PORT    = parseInt(process.env.PORT || config.port || config.server?.httpPort || 3000);
+// ── Factoría del servidor ───────────────────────────────────────────────────
+// Construye la app Express + WebSocketServer SIN llamar a listen(). El arranque
+// real (listen, monitores, conexión a Apex) vive en start() / require.main.
+// Inyectables para tests: apiKey, monitors (stub), config, recordingsDir, configPath.
+
+function createServer({
+  apiKey        = '',
+  monitors      = new Map(),      // slug → CircuitMonitor (o stub en tests)
+  config        = { circuits: [] },
+  recordingsDir = path.join(__dirname, 'recordings'),
+  configPath    = path.join(__dirname, 'config.json'),
+} = {}) {
+  const API_KEY = (apiKey || '').trim();
 
 // ── App Express ───────────────────────────────────────────────────────────
 
@@ -47,18 +57,8 @@ function httpAuth(req, res, next) {
 }
 
 // ── Monitores por circuito ────────────────────────────────────────────────
-
-const monitors = new Map(); // slug → CircuitMonitor
-
-function startMonitors() {
-  for (const cfg of (config.circuits || [])) {
-    if (!cfg.slug) continue;
-    const mon = new CircuitMonitor(cfg, _computePilotRatings);
-    monitors.set(cfg.slug, mon);
-    mon.start();
-  }
-  console.log(`[Logger] ${monitors.size} circuitos monitorizados`);
-}
+// `monitors` se recibe como parámetro (poblado por start() en producción,
+// o inyectado como stub en tests). Aquí solo se consulta/muta desde las rutas.
 
 // ── Página principal ─────────────────────────────────────────────────────
 
@@ -323,7 +323,7 @@ app.post('/api/circuit/:slug/recording', httpAuth, (req, res) => {
   const idx = config.circuits.findIndex(c => c.slug === req.params.slug);
   if (idx >= 0) {
     config.circuits[idx].recording = enabled;
-    try { fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(config, null, 2)); } catch(e) {}
+    try { fs.writeFileSync(configPath, JSON.stringify(config, null, 2)); } catch(e) {}
   }
   res.json({ ok: true, slug: req.params.slug, recording: enabled });
 });
@@ -547,7 +547,7 @@ app.post('/api/circuits', httpAuth, (req, res) => {
   mon.start();
   config.circuits = config.circuits || [];
   config.circuits.push(cfg);
-  try { fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(config, null, 2)); } catch(e) {}
+  try { fs.writeFileSync(configPath, JSON.stringify(config, null, 2)); } catch(e) {}
   res.json({ ok: true, circuit: cfg });
 });
 
@@ -559,7 +559,7 @@ app.delete('/api/circuits/:slug', httpAuth, (req, res) => {
   try { mon.stop(); } catch(e) {}
   monitors.delete(slug);
   config.circuits = (config.circuits || []).filter(c => c.slug !== slug);
-  try { fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(config, null, 2)); } catch(e) {}
+  try { fs.writeFileSync(configPath, JSON.stringify(config, null, 2)); } catch(e) {}
   res.json({ ok: true, slug });
 });
 
@@ -807,7 +807,7 @@ setInterval(loadRecordings, 15000);
 
 // Listar grabaciones
 app.get('/api/recordings', httpAuth, (req, res) => {
-  const dir = path.join(__dirname, 'recordings');
+  const dir = recordingsDir;
   if (!fs.existsSync(dir)) return res.json([]);
   try {
     const files = fs.readdirSync(dir)
@@ -825,7 +825,7 @@ app.get('/api/recordings', httpAuth, (req, res) => {
 app.get('/api/recordings/:file', httpAuth, (req, res) => {
   const name = path.basename(req.params.file);
   if (!name.endsWith('.ndjson')) return res.status(400).json({ error: 'Tipo inválido' });
-  const filePath = path.join(__dirname, 'recordings', name);
+  const filePath = path.join(recordingsDir, name);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'No encontrado' });
   res.download(filePath);
 });
@@ -947,21 +947,49 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────
+  return { app, server, wss, monitors, config, computePilotRatings: _computePilotRatings };
+}
 
-(async () => {
-  try {
-    await db.init();
-    startMonitors();
-    // Bind a localhost: el logger NO se expone a internet directamente.
-    // El acceso público va SOLO por nginx (443/TLS) → proxy a 127.0.0.1:3000.
-    const BIND = process.env.STINTPRO_BIND || '127.0.0.1';
-    server.listen(PORT, BIND, () => {
-      console.log(`[Logger] Escuchando en ${BIND}:${PORT}`);
-      console.log(`[Logger] API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : '(ninguna)'}`);
-    });
-  } catch(e) {
+// ── Arranque real ───────────────────────────────────────────────────────────
+// Solo cuando se ejecuta directamente (`node server.js` / systemd). Al importarse
+// como módulo (tests) NO se llama a listen() ni se conecta a ningún circuito.
+
+async function start() {
+  const config  = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
+  const API_KEY = (process.env.STINTPRO_API_KEY || config.apiKey || '').trim();
+  const PORT    = parseInt(process.env.PORT || config.port || config.server?.httpPort || 3000);
+
+  await db.init();
+
+  const monitors = new Map(); // slug → CircuitMonitor
+  const { server, computePilotRatings } = createServer({ apiKey: API_KEY, monitors, config });
+
+  // Conexión real a cada circuito (Apex). Fuera de createServer para que los
+  // tests puedan construir la app sin abrir sockets a circuitos reales.
+  for (const cfg of (config.circuits || [])) {
+    if (!cfg.slug) continue;
+    const mon = new CircuitMonitor(cfg, computePilotRatings);
+    monitors.set(cfg.slug, mon);
+    mon.start();
+  }
+  console.log(`[Logger] ${monitors.size} circuitos monitorizados`);
+
+  // Bind a localhost: el logger NO se expone a internet directamente.
+  // El acceso público va SOLO por nginx (443/TLS) → proxy a 127.0.0.1:3000.
+  const BIND = process.env.STINTPRO_BIND || '127.0.0.1';
+  server.listen(PORT, BIND, () => {
+    console.log(`[Logger] Escuchando en ${BIND}:${PORT}`);
+    console.log(`[Logger] API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : '(ninguna)'}`);
+  });
+
+  return server;
+}
+
+module.exports = { createServer, start };
+
+if (require.main === module) {
+  start().catch(e => {
     console.error('[Logger] Error de arranque:', e);
     process.exit(1);
-  }
-})();
+  });
+}

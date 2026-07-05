@@ -221,12 +221,15 @@ describe('inputs malformados', () => {
     expect(status).toBe(400);
   });
 
-  test('POST merge con slug inexistente → 404', async () => {
+  // merge opera sobre datos históricos de la BD por slug, no sobre un monitor
+  // vivo (igual que DELETE/GET .../pilots), así que un slug sin monitor no da
+  // 404: es un no-op idempotente que devuelve 200.
+  test('POST merge con slug sin monitor → 200 (no-op sobre histórico)', async () => {
     const { status } = await req('POST', '/api/circuit/circuito-fantasma/pilots/merge', {
       headers: authHeaders(),
       body: { names: ['A', 'B'], target: 'A' },
     });
-    expect(status).toBe(404);
+    expect(status).toBe(200);
   });
 
   test('GET /api/pilots/search con q de 1 char → array vacío (no error)', async () => {
