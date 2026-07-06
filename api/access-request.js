@@ -1,5 +1,16 @@
 const { createClient } = require('@supabase/supabase-js');
 
+// Escapa HTML para evitar inyección en el email de notificación al admin.
+// name/email/reason vienen del formulario público sin autenticar.
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── Rate limiting por IP (en memoria) ────────────────────────────────────────
 // Máx 3 peticiones por IP en una ventana de 1 hora.
 // Se resetea en cold start, pero frena ataques de burst dentro de la misma instancia.
@@ -84,7 +95,7 @@ module.exports = async function handler(req, res) {
         from: 'StintPro <onboarding@resend.dev>',
         to:   'coyjavier@gmail.com',
         subject: 'Nueva solicitud de acceso — ' + name,
-        html: `<p><strong>Nombre:</strong> ${name}</p><p><strong>Email:</strong> ${email}</p><p><strong>Motivo:</strong> ${reason || '(no especificado)'}</p>`,
+        html: `<p><strong>Nombre:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Motivo:</strong> ${reason ? escapeHtml(reason) : '(no especificado)'}</p>`,
       })
     }).catch(() => {});
   }

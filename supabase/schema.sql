@@ -46,6 +46,26 @@ create policy "admin can write circuits"
   with check( (select role from profiles where id = auth.uid()) = 'admin' );
 
 
+-- ── TABLA: access_requests ────────────────────────────────────────────────
+-- Solicitudes de acceso del formulario público (landing). Contiene PII
+-- (nombre, email, motivo). Se escribe/lee SOLO vía Vercel Functions (service
+-- role): api/access-request.js (insert público) y api/admin.js (listar/invitar).
+create table if not exists access_requests (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  email      text not null,
+  reason     text,
+  status     text not null default 'pending' check (status in ('pending', 'invited', 'dismissed')),
+  created_at timestamptz default now(),
+  invited_at timestamptz
+);
+
+-- RLS: SIN políticas de cliente. La publishable/anon key es pública (va en el
+-- JS del cliente); solo el service role (Vercel Functions) accede a esta tabla.
+-- Con RLS activada y sin policies, cualquier acceso con anon key devuelve vacío.
+alter table access_requests enable row level security;
+
+
 -- ── PRIMER ADMIN ─────────────────────────────────────────────────────────
 -- 1. Crea el usuario en Supabase Dashboard → Authentication → Users → Add user
 -- 2. Copia su UUID y ejecuta:
