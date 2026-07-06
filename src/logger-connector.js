@@ -24,7 +24,9 @@ const Logger = {
       return;
     }
     this._serverUrl = loggerUrl.replace(/\/$/, '');
-    this._apiKey = window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || 'f7e8e3709a3d49c9e21b35cb15bacfb71a0664adb647adc60a1deca976ef50a2';
+    // Auth: se prefiere el JWT de Supabase (por usuario). La API key solo si el
+    // admin la configura explícitamente; ya NO se incrusta ninguna key por defecto.
+    this._apiKey = window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || '';
     this._doConnect();
   },
 
@@ -34,9 +36,12 @@ const Logger = {
       if (this.onStatus) this.onStatus('connecting', '● Conectando al logger...');
       this.ws = new WebSocket(wsUrl);
 
-      this.ws.onopen = () => {
-        // Auth como primer mensaje (sin key en URL)
-        if (this._apiKey) {
+      this.ws.onopen = async () => {
+        // Auth como primer mensaje: JWT de Supabase preferente; API key de reserva.
+        const token = await this._getToken();
+        if (token) {
+          this.ws.send(JSON.stringify({ type: 'auth', token }));
+        } else if (this._apiKey) {
           this.ws.send(JSON.stringify({ type: 'auth', apikey: this._apiKey }));
         }
         // Suscribirse al circuito
@@ -100,13 +105,29 @@ const Logger = {
     this.connected = false;
   },
 
+  // Token de sesión de Supabase (para autenticar lecturas y WS por usuario)
+  async _getToken() {
+    try {
+      const s = await window.supabaseClient?.auth?.getSession();
+      return s?.data?.session?.access_token || '';
+    } catch(e) { return ''; }
+  },
+
+  // Cabeceras de auth para las lecturas: JWT preferente, API key de reserva
+  async _authHeaders() {
+    const token = await this._getToken();
+    if (token) return { 'Authorization': 'Bearer ' + token };
+    if (this._apiKey) return { 'X-API-Key': this._apiKey };
+    return {};
+  },
+
   // Consulta histórico de pilotos al logger (para ℹ en el grid)
   async fetchPilotHistory(slug, names) {
     if (!this._serverUrl || !names.length) return {};
     try {
       const encoded = names.map(n => encodeURIComponent(n)).join(',');
       const url = `${this._serverUrl}/api/circuit/${slug}/pilots/batch?names=${encoded}`;
-      const headers = this._apiKey ? { 'X-API-Key': this._apiKey } : {};
+      const headers = await this._authHeaders();
       const res = await fetch(url, { headers });
       if (!res.ok) return {};
       return await res.json();
@@ -118,7 +139,7 @@ const Logger = {
     if (!this._serverUrl || !slug) return {};
     try {
       const url = `${this._serverUrl}/api/circuit/${slug}/teams`;
-      const headers = this._apiKey ? { 'X-API-Key': this._apiKey } : {};
+      const headers = await this._authHeaders();
       const res = await fetch(url, { headers });
       if (!res.ok) return {};
       const list = await res.json();
@@ -136,8 +157,10 @@ const Logger = {
         const wsBase = url.replace('http://', 'ws://').replace('https://', 'wss://');
         const ws = new WebSocket(wsBase);
         const timer = setTimeout(() => { ws.close(); resolve(false); }, 5000);
-        ws.onopen = () => {
-          if (apiKey) ws.send(JSON.stringify({ type: 'auth', apikey: apiKey }));
+        ws.onopen = async () => {
+          const token = await Logger._getToken();
+          if (token) ws.send(JSON.stringify({ type: 'auth', token }));
+          else if (apiKey) ws.send(JSON.stringify({ type: 'auth', apikey: apiKey }));
           ws.send(JSON.stringify({ type: 'list' }));
         };
         ws.onmessage = (evt) => {

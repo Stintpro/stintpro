@@ -7,9 +7,73 @@ const http           = require('http');
 const { WebSocketServer, WebSocket } = require('ws');
 const fs             = require('fs');
 const path           = require('path');
+const crypto         = require('crypto');
+const https          = require('https');
 const db             = require('./db');
 const CircuitMonitor = require('./circuit-monitor');
 const { computePilotRatings } = require('./scoring');
+
+// ── Verificación de JWT de Supabase (ES256, clave pública vía JWKS) ──────────
+// Sin secretos: descarga la clave PÚBLICA de Supabase y verifica firma + exp.
+// Usado por readAuth para autenticar lecturas desde la app (además de la API key).
+const SUPABASE_PROJECT_URL = (process.env.SUPABASE_URL || 'https://nyybrybnvflwbdwdqpwa.supabase.co').replace(/\/$/, '');
+const _JWKS_URL = SUPABASE_PROJECT_URL + '/auth/v1/.well-known/jwks.json';
+let _jwksCache = { keys: [], at: 0 };
+
+function _fetchJwks() {
+  return new Promise((resolve) => {
+    const req = https.get(_JWKS_URL, (r) => {
+      let d = '';
+      r.on('data', c => d += c);
+      r.on('end', () => { try { resolve(JSON.parse(d).keys || []); } catch { resolve([]); } });
+    });
+    req.on('error', () => resolve([]));
+    req.setTimeout(5000, () => { req.destroy(); resolve([]); });
+  });
+}
+
+async function _getJwk(kid) {
+  const fresh = Date.now() - _jwksCache.at < 3600e3; // cache 1h
+  if (!fresh || !_jwksCache.keys.length) {
+    const keys = await _fetchJwks();
+    if (keys.length) _jwksCache = { keys, at: Date.now() };
+  }
+  return _jwksCache.keys.find(k => k.kid === kid) || null;
+}
+
+function _b64urlToJson(s) {
+  return JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
+}
+
+// Inyecta claves en la caché JWKS (solo para tests: evita la red).
+function _injectJwksForTest(keys) { _jwksCache = { keys: keys || [], at: Date.now() }; }
+
+// Devuelve el payload si el token es válido (firma ES256 + no caducado); si no, null.
+// Nunca lanza: pensado para usarse con `await` sin try/catch en el llamante.
+async function verifySupabaseJwt(token) {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3) return null;
+    const [h, p, s] = parts;
+    const header = _b64urlToJson(h);
+    if (header.alg !== 'ES256') return null;            // pin de algoritmo (evita alg:none / confusión de tipo)
+    const jwk = await _getJwk(header.kid);
+    if (!jwk) return null;
+    const pubKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+    const ok = crypto.verify(
+      'sha256',
+      Buffer.from(h + '.' + p),
+      { key: pubKey, dsaEncoding: 'ieee-p1363' },        // ECDSA JOSE = firma cruda R||S, no DER
+      Buffer.from(s, 'base64url'),
+    );
+    if (!ok) return null;
+    const payload = _b64urlToJson(p);
+    if (payload.exp && Math.floor(Date.now() / 1000) >= payload.exp) return null;
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
 
 // ── Factoría del servidor ───────────────────────────────────────────────────
 // Construye la app Express + WebSocketServer SIN llamar a listen(). El arranque
@@ -44,7 +108,7 @@ app.use((req, res, next) => {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
@@ -53,6 +117,29 @@ function httpAuth(req, res, next) {
   if (!API_KEY) return next();
   const key = req.headers['x-api-key'] || req.query.apikey;
   if (key !== API_KEY) return res.status(401).json({ error: 'No autorizado' });
+  next();
+}
+
+// Autenticación de LECTURAS de datos. Acepta:
+//   (a) API key  → usada por los paneles propios del logger (/stats, /recordings)
+//   (b) JWT de Supabase (Authorization: Bearer …) → usado por la app web/Electron
+// Rollout: si ENFORCE_READ_AUTH !== 'true', deja pasar SIN credencial pero lo
+// registra ([read-noauth]) — fase de observación, cero rotura. Al poner el flag
+// a 'true' en el .env, las lecturas sin credencial válida devuelven 401.
+const ENFORCE_READ_AUTH = process.env.ENFORCE_READ_AUTH === 'true';
+
+async function readAuth(req, res, next) {
+  const key = req.headers['x-api-key'] || req.query.apikey;
+  if (API_KEY && key === API_KEY) return next();
+
+  const auth  = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (token && await verifySupabaseJwt(token)) return next();
+
+  if (ENFORCE_READ_AUTH) return res.status(401).json({ error: 'Autenticación requerida' });
+
+  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '?').split(',')[0].trim();
+  console.warn(`[read-noauth] ${req.method} ${req.originalUrl.split('?')[0]} ip=${ip}${token ? ' token-invalido' : ' sin-token'}`);
   next();
 }
 
@@ -268,39 +355,39 @@ app.get('/api/status', (req, res) => {
 });
 
 // Todas las sesiones
-app.get('/api/sessions', (req, res) => {
+app.get('/api/sessions', readAuth, (req, res) => {
   res.json(db.getAllSessions());
 });
 
 // Sesiones de un circuito
-app.get('/api/sessions/:slug', (req, res) => {
+app.get('/api/sessions/:slug', readAuth, (req, res) => {
   res.json(db.getCircuitSessions(req.params.slug));
 });
 
 // Vueltas de una sesión
-app.get('/api/laps/:sessionId', (req, res) => {
+app.get('/api/laps/:sessionId', readAuth, (req, res) => {
   const id = parseInt(req.params.sessionId);
   if (isNaN(id) || String(id) !== req.params.sessionId) return res.status(400).json({ error: 'id inválido' });
   res.json(db.getLapsBySession(id));
 });
 
 // Eventos de pit de una sesión
-app.get('/api/pits/:sessionId', (req, res) => {
+app.get('/api/pits/:sessionId', readAuth, (req, res) => {
   const id = parseInt(req.params.sessionId);
   if (isNaN(id) || String(id) !== req.params.sessionId) return res.status(400).json({ error: 'id inválido' });
   res.json(db.getPitEventsBySession(id));
 });
 
 // Mejores vueltas históricas por circuito
-app.get('/api/best/:slug', (req, res) => {
+app.get('/api/best/:slug', readAuth, (req, res) => {
   res.json(db.getBestLapsByCircuit(req.params.slug));
 });
 
 // Alias rutas usadas por el dashboard
-app.get('/api/circuit/:slug/history', (req, res) => {
+app.get('/api/circuit/:slug/history', readAuth, (req, res) => {
   res.json(db.getBestLapsByCircuit(req.params.slug));
 });
-app.get('/api/session/:sessionId/laps', (req, res) => {
+app.get('/api/session/:sessionId/laps', readAuth, (req, res) => {
   const id = parseInt(req.params.sessionId);
   if (isNaN(id)) return res.status(400).json({ error: 'id inválido' });
   res.json(db.getLapsBySession(id));
@@ -329,7 +416,7 @@ app.post('/api/circuit/:slug/recording', httpAuth, (req, res) => {
 });
 
 // Búsqueda global de pilotos entre todos los circuitos
-app.get('/api/pilots/search', (req, res) => {
+app.get('/api/pilots/search', readAuth, (req, res) => {
   const q = (req.query.q || '').trim();
   if (q.length < 2) return res.json([]);
   const rows = db.searchPilotsGlobal(q);
@@ -360,7 +447,7 @@ app.post('/api/circuit/:slug/pilots/merge', httpAuth, (req, res) => {
 });
 
 // Consulta batch de pilotos para la app (normaliza nombres antes de comparar)
-app.get('/api/circuit/:slug/pilots/batch', (req, res) => {
+app.get('/api/circuit/:slug/pilots/batch', readAuth, (req, res) => {
   const rawNames = (req.query.names || '').split(',').map(n => n.trim()).filter(Boolean);
   if (!rawNames.length) return res.json({});
 
@@ -414,7 +501,7 @@ app.get('/api/circuit/:slug/pilots/batch', (req, res) => {
 });
 
 // Fichas de pilotos por circuito
-app.get('/api/circuit/:slug/pilots', (req, res) => {
+app.get('/api/circuit/:slug/pilots', readAuth, (req, res) => {
   const rows = db.getPilotSessionsByCircuit(req.params.slug);
 
   // Agrupar por sesión para calcular posiciones
@@ -473,7 +560,7 @@ app.get('/api/circuit/:slug/pilots', (req, res) => {
 });
 
 // Equipos por circuito — historial agregado por equipo
-app.get('/api/circuit/:slug/teams', (req, res) => {
+app.get('/api/circuit/:slug/teams', readAuth, (req, res) => {
   try {
     const rows = db.getTeamSessionsByCircuit(req.params.slug);
     const teamMap = {};
@@ -504,7 +591,7 @@ app.get('/api/circuit/:slug/teams', (req, res) => {
 });
 
 // Mejor vuelta histórica por equipo en un circuito
-app.get('/api/circuit/:slug/teams/best', (req, res) => {
+app.get('/api/circuit/:slug/teams/best', readAuth, (req, res) => {
   try {
     res.json(db.getBestLapsByTeam(req.params.slug));
   } catch(e) {
@@ -517,7 +604,7 @@ function _computePilotRatings(slug) {
   return computePilotRatings(db.getPilotSessionsByCircuit(slug));
 }
 
-app.get('/api/circuit/:slug/pilot-ratings', (req, res) => {
+app.get('/api/circuit/:slug/pilot-ratings', readAuth, (req, res) => {
   try {
     res.json(_computePilotRatings(req.params.slug));
   } catch(e) {
@@ -857,14 +944,17 @@ wss.on('connection', (ws) => {
       }, 10000)
     : null;
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); }
     catch(e) { ws.send(JSON.stringify({ type: 'error', msg: 'json_invalido' })); return; }
 
-    // auth — primer mensaje obligatorio cuando hay API_KEY
+    // auth — primer mensaje obligatorio cuando hay API_KEY.
+    // Acepta la API key (paneles/admin) O un JWT de Supabase (app con sesión).
     if (msg.type === 'auth') {
-      if (!API_KEY || msg.apikey === API_KEY) {
+      const okKey = !API_KEY || msg.apikey === API_KEY;
+      const okJwt = msg.token ? !!(await verifySupabaseJwt(msg.token)) : false;
+      if (okKey || okJwt) {
         ws._authed = true;
         if (authTimeout) clearTimeout(authTimeout);
         ws.send(JSON.stringify({ type: 'auth_ok' }));
@@ -985,7 +1075,7 @@ async function start() {
   return server;
 }
 
-module.exports = { createServer, start };
+module.exports = { createServer, start, verifySupabaseJwt, _injectJwksForTest };
 
 if (require.main === module) {
   start().catch(e => {
