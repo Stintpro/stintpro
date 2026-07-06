@@ -115,7 +115,7 @@ app.use((req, res, next) => {
 
 function httpAuth(req, res, next) {
   if (!API_KEY) return next();
-  const key = req.headers['x-api-key'] || req.query.apikey;
+  const key = req.headers['x-api-key']; // solo cabecera — la key NO viaja en la URL (evita logs/Referer)
   if (key !== API_KEY) return res.status(401).json({ error: 'No autorizado' });
   next();
 }
@@ -129,7 +129,7 @@ function httpAuth(req, res, next) {
 const ENFORCE_READ_AUTH = process.env.ENFORCE_READ_AUTH === 'true';
 
 async function readAuth(req, res, next) {
-  const key = req.headers['x-api-key'] || req.query.apikey;
+  const key = req.headers['x-api-key']; // solo cabecera — la key NO viaja en la URL (evita logs/Referer)
   if (API_KEY && key === API_KEY) return next();
 
   const auth  = req.headers.authorization || '';
@@ -843,6 +843,21 @@ async function toggleRawLog(slug, enable) {
   } catch(e) { toast('Error', false); }
 }
 
+async function downloadRecording(name) {
+  if (!_sessionKey && !askKey()) return;
+  try {
+    const r = await fetch('/api/recordings/' + encodeURIComponent(name), { headers: { 'X-API-Key': _sessionKey } });
+    if (r.status === 401) { _sessionKey = ''; sessionStorage.removeItem('sp_key'); toast('API Key incorrecta', false); return; }
+    if (!r.ok) { toast('Error descargando', false); return; }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  } catch(e) { toast('Error de red', false); }
+}
+
 async function loadRecordings() {
   if (!_sessionKey && !askKey()) return;
   try {
@@ -873,7 +888,7 @@ async function loadRecordings() {
         <td class="file-name">\${f.name}</td>
         <td class="size">\${kb}</td>
         <td>\${date}</td>
-        <td><a href="/api/recordings/\${f.name}?apikey=\${encodeURIComponent(_sessionKey)}" download class="btn btn-blue btn-sm">Descargar</a></td>
+        <td><button class="btn btn-blue btn-sm" data-f="\${f.name}" onclick="downloadRecording(this.dataset.f)">Descargar</button></td>
       </tr>\`;
     }).join('');
   } catch(e) {

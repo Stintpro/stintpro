@@ -476,14 +476,24 @@ describe('concurrencia', () => {
   });
 });
 
-// ── 9. API KEY por query param (fallback) ─────────────────────────────────────
+// ── 9. API key en query param — YA NO se acepta (solo cabecera; evita fugas en URL/logs) ──
 
-describe('API key vía query param', () => {
-  test('DELETE con ?apikey válida en URL → 200', async () => {
+describe('API key vía query param (rechazada — solo cabecera)', () => {
+  test('DELETE con ?apikey válida en URL → 401 (la key en URL ya no autentica)', async () => {
     const sid = db.createSession('queryparam-test', 'Query Param');
     db.insertLap(sid, '7', 'PILOTO', null, 64000, 1, Date.now());
 
     const { status } = await req('DELETE', `/api/sessions/${sid}?apikey=${VALID_KEY}`);
+    expect(status).toBe(401);
+    // Limpieza con la cabecera correcta (que sí autentica)
+    await req('DELETE', `/api/sessions/${sid}`, { headers: authHeaders() });
+  });
+
+  test('DELETE con la key en CABECERA X-API-Key → 200', async () => {
+    const sid = db.createSession('header-test', 'Header');
+    db.insertLap(sid, '7', 'PILOTO', null, 64000, 1, Date.now());
+
+    const { status } = await req('DELETE', `/api/sessions/${sid}`, { headers: authHeaders() });
     expect(status).toBe(200);
   });
 

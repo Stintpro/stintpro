@@ -240,6 +240,20 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+// Descarga con la key en CABECERA (no en la URL): fetch → blob → guardar.
+async function downloadRecording(name) {
+  try {
+    const r = await fetch(`${_url}/api/recordings/${encodeURIComponent(name)}`, { headers: _authHeaders() });
+    if (!r.ok) { alert(r.status === 401 ? 'API Key incorrecta' : 'Error descargando'); return; }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  } catch(e) { alert('Error de red'); }
+}
+
 // ── Load ──────────────────────────────────────────────────────────────────
 
 async function load() {
@@ -932,14 +946,12 @@ function renderRecordingsView(recordings, circuits) {
       const date = new Date(f.mtime).toLocaleString('es-ES', {
         day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
       });
-      const sep = _key ? '?' : '';
-      const href = `${_url}/api/recordings/${encodeURIComponent(f.name)}${sep}apikey=${_key}`;
       html += `<tr>
         <td><b style="color:#e2e8f0">${esc(slug)}</b></td>
         <td style="font-family:monospace;font-size:12px;color:#64748b">${esc(f.name)}</td>
         <td style="color:#475569">${kb}</td>
         <td>${date}</td>
-        <td><a href="${href}" download class="btn sm" style="background:#3a2800;color:#F5A623;text-decoration:none">↓ Descargar</a></td>
+        <td><button class="btn sm" style="background:#3a2800;color:#F5A623" data-f="${esc(f.name)}" onclick="downloadRecording(this.dataset.f)">↓ Descargar</button></td>
       </tr>`;
     });
     html += '</tbody></table></div>';
