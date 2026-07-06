@@ -502,3 +502,21 @@ describe('API key vía query param (rechazada — solo cabecera)', () => {
     expect(status).toBe(401);
   });
 });
+
+// ── 10. Validación de slug al crear circuito ──────────────────────────────────
+
+describe('POST /api/circuits — validación de slug', () => {
+  test.each([
+    ['../evil'],
+    ['foo bar'],
+    ['Foo_Bar'],
+    ['slug/con/barras'],
+    ['punto.punto'],
+  ])('slug inválido "%s" → 400 (antes de crear monitor)', async (slug) => {
+    const { status } = await req('POST', '/api/circuits', {
+      headers: authHeaders(),
+      body: { name: 'X', slug, port: 12345 },
+    });
+    expect(status).toBe(400);
+  });
+});

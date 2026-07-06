@@ -48,6 +48,14 @@ function _b64urlToJson(s) {
 // Inyecta claves en la caché JWKS (solo para tests: evita la red).
 function _injectJwksForTest(keys) { _jwksCache = { keys: keys || [], at: Date.now() }; }
 
+// Comparación de API key en tiempo constante (evita timing attacks sobre la key).
+function keyEqual(a, b) {
+  const ba = Buffer.from(String(a == null ? '' : a));
+  const bb = Buffer.from(String(b == null ? '' : b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
 // Devuelve el payload si el token es válido (firma ES256 + no caducado); si no, null.
 // Nunca lanza: pensado para usarse con `await` sin try/catch en el llamante.
 async function verifySupabaseJwt(token) {
@@ -116,7 +124,7 @@ app.use((req, res, next) => {
 function httpAuth(req, res, next) {
   if (!API_KEY) return next();
   const key = req.headers['x-api-key']; // solo cabecera — la key NO viaja en la URL (evita logs/Referer)
-  if (key !== API_KEY) return res.status(401).json({ error: 'No autorizado' });
+  if (!keyEqual(key, API_KEY)) return res.status(401).json({ error: 'No autorizado' });
   next();
 }
 
@@ -130,7 +138,7 @@ const ENFORCE_READ_AUTH = process.env.ENFORCE_READ_AUTH === 'true';
 
 async function readAuth(req, res, next) {
   const key = req.headers['x-api-key']; // solo cabecera — la key NO viaja en la URL (evita logs/Referer)
-  if (API_KEY && key === API_KEY) return next();
+  if (API_KEY && keyEqual(key, API_KEY)) return next();
 
   const auth  = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
@@ -624,6 +632,7 @@ app.post('/api/circuits', httpAuth, (req, res) => {
   const { name, slug, port } = req.body || {};
   if (!name || !slug || !port) return res.status(400).json({ error: 'name, slug y port requeridos' });
   const cleanSlug = slug.trim().toLowerCase();
+  if (!/^[a-z0-9-]{1,64}$/.test(cleanSlug)) return res.status(400).json({ error: 'slug inválido: solo minúsculas, números y guiones' });
   const portNum   = parseInt(port);
   if (isNaN(portNum) || portNum < 1 || portNum > 65535) return res.status(400).json({ error: 'port inválido' });
   if (monitors.has(cleanSlug)) return res.status(409).json({ error: `Slug '${cleanSlug}' ya existe` });
@@ -967,7 +976,7 @@ wss.on('connection', (ws) => {
     // auth — primer mensaje obligatorio cuando hay API_KEY.
     // Acepta la API key (paneles/admin) O un JWT de Supabase (app con sesión).
     if (msg.type === 'auth') {
-      const okKey = !API_KEY || msg.apikey === API_KEY;
+      const okKey = !API_KEY || keyEqual(msg.apikey, API_KEY);
       const okJwt = msg.token ? !!(await verifySupabaseJwt(msg.token)) : false;
       if (okKey || okJwt) {
         ws._authed = true;
@@ -1063,6 +1072,14 @@ async function start() {
   const config  = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
   const API_KEY = (process.env.STINTPRO_API_KEY || config.apiKey || '').trim();
   const PORT    = parseInt(process.env.PORT || config.port || config.server?.httpPort || 3000);
+
+  // Fail-closed: si no hay API key (p.ej. el .env no cargó), NO arrancar abierto
+  // a internet. Escape para dev local: STINTPRO_ALLOW_NO_KEY=true.
+  if (!API_KEY && process.env.STINTPRO_ALLOW_NO_KEY !== 'true') {
+    console.error('[SEGURIDAD] STINTPRO_API_KEY no configurada → el logger NO arranca (evita quedar abierto).');
+    console.error('  Define STINTPRO_API_KEY en el .env, o STINTPRO_ALLOW_NO_KEY=true para forzar (solo dev local).');
+    process.exit(1);
+  }
 
   await db.init();
 
