@@ -7,7 +7,9 @@ let _connMode    = 'apex'; // 'apex', 'logger' o 'replay'
 let _replayFile  = null;  // File cargado en modo replay
 let _replaySpeed = 1;     // velocidad de reproducción
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
-const _loggerApiKey = (()=>{const a=[102,55,101,56,101,51,55,48,57,97,51,100,52,57,99,57,101,50,49,98,51,53,99,98,49,53,98,97,99,102,98,55,49,97,48,54,54,52,97,100,98,54,52,55,97,100,99,54,48,97,49,100,101,99,97,57,55,54,101,102,53,48,97,50];return a.map(c=>String.fromCharCode(c)).join('');})();
+// La API key ya NO se incrusta en el cliente: la app autentica el logger con el
+// JWT de Supabase (ver logger-connector._authHeaders). Vacío a propósito.
+const _loggerApiKey = '';
 const _origApex  = window.ApexConnector; // guardar conector original
 
 function renderSetup() {
