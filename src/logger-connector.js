@@ -113,11 +113,14 @@ const Logger = {
     } catch(e) { return ''; }
   },
 
-  // Cabeceras de auth para las lecturas: JWT preferente, API key de reserva
+  // Cabeceras de auth para las lecturas: JWT de Supabase preferente; API key de
+  // reserva solo si el admin la configuró (AppState/localStorage). Autónomo:
+  // usable desde cualquier módulo (p.ej. en-state.js) sin depender del estado.
   async _authHeaders() {
     const token = await this._getToken();
     if (token) return { 'Authorization': 'Bearer ' + token };
-    if (this._apiKey) return { 'X-API-Key': this._apiKey };
+    const key = this._apiKey || window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || '';
+    if (key) return { 'X-API-Key': key };
     return {};
   },
 

@@ -30,7 +30,6 @@ let _enPilotHistoryFetching = false;
 async function _enFetchPilotHistory(karts, slug) {
   if (_enPilotHistoryFetching) return;
   const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
-  const _rKey = Logger?._apiKey    || window.AppState?.loggerApiKey || '';
   if (!_rUrl) return;
   const names = karts.map(k => k.name).filter(n => n && n.length > 2);
   if (!names.length) return;
@@ -38,7 +37,7 @@ async function _enFetchPilotHistory(karts, slug) {
   try {
     const encoded = names.map(n => encodeURIComponent(n)).join(',');
     const res = await fetch(`${_rUrl}/api/circuit/${slug}/pilots/batch?names=${encoded}`, {
-      headers: _rKey ? { 'X-API-Key': _rKey } : {},
+      headers: await Logger._authHeaders(),
     });
     _enPilotHistory = res.ok ? await res.json() : {};
   } catch(e) { _enPilotHistory = {}; }
@@ -52,12 +51,11 @@ let _enTeamHistoryFetching = false;
 async function _enFetchTeamHistory(slug) {
   if (_enTeamHistoryFetching) return;
   const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
-  const _rKey = Logger?._apiKey    || window.AppState?.loggerApiKey || '';
   if (!_rUrl) return;
   _enTeamHistoryFetching = true;
   try {
     const res = await fetch(`${_rUrl}/api/circuit/${slug}/teams`, {
-      headers: _rKey ? { 'X-API-Key': _rKey } : {},
+      headers: await Logger._authHeaders(),
     });
     if (res.ok) {
       const list = await res.json();
@@ -80,12 +78,11 @@ async function _enFetchPilotRatings(slug) {
 
   // Intentar del logger si está disponible (o URL configurada en AppState para modo Apex/Replay)
   const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
-  const _rKey = Logger?._apiKey    || window.AppState?.loggerApiKey || '';
   if (_rUrl) {
     try {
       _enPilotRatingsFetching = true;
       const res = await fetch(`${_rUrl}/api/circuit/${slug}/pilot-ratings`, {
-        headers: _rKey ? { 'X-API-Key': _rKey } : {},
+        headers: await Logger._authHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
