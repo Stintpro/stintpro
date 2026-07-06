@@ -673,7 +673,7 @@ function _enTheadHtml(){
     <span style="text-align:left">Piloto</span>
     <span style="text-align:left">Equipo</span>
     <span>Vtas</span><span>Última</span><span>Mejor</span>
-    <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#F5A623':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
+    <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#F5A623':'rgba(245,166,35,0.55)'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
     <span>Δ Pista</span>
     <span>Gap</span>
     <span>Int</span>
