@@ -918,6 +918,13 @@ window.showEnduranceDashboard=function(cfg){
         if(rem!==null&&rem<=0)EnSession.stintFrozen=Date.now()-EnSession.stintStart;
       }
     }
+    // Red de seguridad: guarda el estado de carrera cada ~20s aunque no haya
+    // eventos de pit — fuera del `if(cv&&ApexClock)` para que no deje de
+    // guardar cuando el reloj no está sincronizado (justo tras reconectar).
+    if(!EnSession._lastPersist||Date.now()-EnSession._lastPersist>20000){
+      EnSession._lastPersist=Date.now();
+      _enSaveRaceState();
+    }
     // Actualizar stint en KPIs cada segundo
     _enUpdateKpis(document.getElementById('screen-dash'),
       EnSession.data.equipos.find(e=>e.pos===1),
@@ -968,6 +975,7 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
         EnSession.data.sessionMode=data.sessionMode||'';
+        if(data.sessionFinished)EnSession._finished=true;
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
         if(data.countdown!=null&&window.ApexClock){
@@ -1102,6 +1110,7 @@ window.showEnduranceDashboard=function(cfg){
         // Detectar pit IN → guardar stint actual
         const myD=cfg.myDorsal;
         const myK=EnSession.data.equipos.find(e=>e.dorsal===myD);
+        _enCheckReconcile(myK);
         if(myK&&myK.pitState==='in'&&!EnSession.data._myWasIn){
           EnSession.data._myWasIn=true;
 
@@ -1126,6 +1135,7 @@ window.showEnduranceDashboard=function(cfg){
           }
           // Congelar stint
           EnSession.stintFrozen=EnSession.stintStart?(Date.now()-EnSession.stintStart):0;
+          _enSaveRaceState();
         }
         if(myK&&!myK.pit)EnSession.data._myWasIn=false;
 
@@ -1139,6 +1149,7 @@ window.showEnduranceDashboard=function(cfg){
           EnSession.stintBestLap=null;
           EnSession.stintLapTimes=[];
           EnSession.data._lastMyLap=null;
+          _enSaveRaceState();
           setTimeout(()=>_enShowPilotSelect(true),500);
         }
         if(myK&&myK.pitState!=='out')EnSession.data._myWasOut=false;
@@ -1185,6 +1196,8 @@ function _enInjectSetupBtn() {
 
 window._enGoBack=function(){
   document.querySelector('.sp-nav-setup')?.remove();
+  _enClearRaceState();
+  document.getElementById('en-reconcile-banner')?.remove();
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();
   if(window.ApexClock)window.ApexClock.reset();
   if(_enTimer)clearTimeout(_enTimer);
@@ -1220,6 +1233,9 @@ window._enGoBack=function(){
   EnSession.pitOutCalibration=[];
   EnSession.pitOutPending={};
   EnSession.pitInLastPass={};
+  EnSession._finished=false;
+  EnSession._reconcilePending=false;
+  EnSession._lastPersist=null;
   document.getElementById('screen-dash').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();

@@ -27,6 +27,7 @@ function _enConfirmDeleteStint(idx){
   }
   _enDismissOverlay();
   _enRender();
+  _enSaveRaceState();
 }
 
 function _enStintDetail(idx){
@@ -185,6 +186,7 @@ function _enApplyStintEdit(stintIdx){
   s.pitStopMs=(pitMin*60+pitSec)*1000;
   _enDismissOverlay();
   _enRender();
+  _enSaveRaceState();
 }
 
 function _enAddStint(){
@@ -262,6 +264,7 @@ function _enApplyAddStint(){
   });
   _enDismissOverlay();
   _enRender();
+  _enSaveRaceState();
 }
 
 // ── Historial de vueltas (click en consistencia) ─────────────────────────
@@ -372,6 +375,7 @@ function _enChangePilot(){
   EnSession.stintBestLap=null;
   EnSession.stintLapTimes=[];
   EnSession.data._lastMyLap=null;
+  _enSaveRaceState();
 
   _enShowPilotSelect(false);
 }

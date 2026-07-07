@@ -6,6 +6,7 @@ let _simMode     = false; // desactivado permanentemente
 let _connMode    = 'apex'; // 'apex', 'logger' o 'replay'
 let _replayFile  = null;  // File cargado en modo replay
 let _replaySpeed = 1;     // velocidad de reproducción
+let _slugFetchTimer = null; // debounce del fetch de auto-detección de puerto
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
 // La API key ya NO se incrusta en el cliente: la app autentica el logger con el
 // JWT de Supabase (ver logger-connector._authHeaders). Vacío a propósito.
@@ -13,6 +14,13 @@ const _loggerApiKey = '';
 const _origApex  = window.ApexConnector; // guardar conector original
 
 function renderSetup() {
+  if(!window._enRaceResumeDismissed){
+    const _savedRace=(typeof _enLoadRaceState==='function')?_enLoadRaceState():null;
+    if(_savedRace&&!_savedRace.finished){
+      _renderResumeBanner(_savedRace);
+      return;
+    }
+  }
   document.getElementById('screen-setup').innerHTML = `
   <div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;position:relative;">
     <div class="titlebar-drag" style="position:absolute;top:0;left:0;right:0;height:28px"></div>
@@ -83,6 +91,41 @@ function renderSetup() {
   </div>`;
 }
 
+function _renderResumeBanner(snap) {
+  const mins = Math.round((Date.now() - snap.ts) / 60000);
+  const pilotName = snap.cfg.pilotos?.[snap.en.currentPilot]?.name || '—';
+  const circuitName = window.CircuitDB?.list?.find(c => c.slug === snap.cfg.slug)?.name || snap.cfg.slug || '—';
+  const n = snap.en.stintHistory.length;
+  document.getElementById('screen-setup').innerHTML = `
+  <div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;position:relative;">
+    <div class="titlebar-drag" style="position:absolute;top:0;left:0;right:0;height:28px"></div>
+    <div style="width:100%;max-width:420px;background:#13141a;border:1px solid rgba(245,166,35,0.35);border-radius:12px;padding:28px 24px;text-align:center;">
+      <div style="font-size:28px;margin-bottom:10px;">⚠</div>
+      <div style="font-size:15px;font-weight:600;color:var(--text-1);margin-bottom:6px;font-family:sans-serif">Carrera en curso detectada</div>
+      <div style="font-size:12.5px;color:var(--text-3);margin-bottom:18px;line-height:1.6;font-family:sans-serif">
+        ${_esc(circuitName)} · piloto actual ${_esc(pilotName)}<br>
+        ${n} stint${n===1?'':'s'} registrado${n===1?'':'s'} · hace ${mins} min
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="_enResumeRace()" style="flex:1;padding:11px;border-radius:6px;border:none;background:#F5A623;color:#08090a;font-weight:600;font-size:13px;cursor:pointer;font-family:sans-serif">Reanudar carrera</button>
+        <button onclick="_enDiscardRaceState()" style="flex:1;padding:11px;border-radius:6px;border:0.5px solid var(--border);background:transparent;color:var(--text-3);font-size:13px;cursor:pointer;font-family:sans-serif">Descartar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _enResumeRace() {
+  const snap = _enLoadRaceState();
+  if (!snap) { renderSetup(); return; }
+  _enApplyRaceState(snap);
+}
+
+function _enDiscardRaceState() {
+  _enClearRaceState();
+  window._enRaceResumeDismissed = true;
+  renderSetup();
+}
+
 function _onReplayFileChange(input) {
   const file = input.files[0];
   if (!file) return;
@@ -151,10 +194,16 @@ function renderSprintSetup() {
       <div id="circuitManualSection" style="padding:8px 14px;display:none">
         <div style="display:flex;flex-direction:column;gap:8px">
           <input class="url-in" id="apexSlug" type="text" placeholder="URL del livetiming (ej: https://live.apex-timing.com/rkc/)" oninput="onSlug()" style="width:100%">
-          <div style="display:flex;gap:8px;align-items:center">
-            <input class="url-in" id="apexPort" type="number" placeholder="Puerto (ej: 7913)" oninput="onSlug()" style="width:120px">
-            <input class="url-in" id="apexCircuitName" type="text" placeholder="Nombre del circuito" style="flex:1">
-            <button class="btn" onclick="saveCircuit()" style="flex-shrink:0">💾 Guardar</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="apexPortBadge" style="display:none;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span>
+            <span id="apexAdvToggle" onclick="toggleApexAdvanced()" style="font-size:11px;color:var(--text-3);cursor:pointer;user-select:none">▸ Opciones avanzadas</span>
+          </div>
+          <div id="apexAdvancedSection" style="display:none;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <input class="url-in" id="apexPort" type="number" placeholder="Puerto (ej: 7913)" oninput="onSlug()" style="width:120px">
+              <input class="url-in" id="apexCircuitName" type="text" placeholder="Nombre del circuito" style="flex:1">
+              <button class="btn" onclick="saveCircuit()" style="flex-shrink:0">💾 Guardar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -280,10 +329,16 @@ function renderEnduranceSetup() {
       <div id="circuitManualSection" style="padding:8px 14px;display:none">
         <div style="display:flex;flex-direction:column;gap:8px">
           <input class="url-in" id="apexSlug" type="text" placeholder="URL del livetiming (ej: https://live.apex-timing.com/rkc/)" oninput="onSlug()" style="width:100%">
-          <div style="display:flex;gap:8px;align-items:center">
-            <input class="url-in" id="apexPort" type="number" placeholder="Puerto (ej: 7913)" oninput="onSlug()" style="width:120px">
-            <input class="url-in" id="apexCircuitName" type="text" placeholder="Nombre del circuito" style="flex:1">
-            <button class="btn" onclick="saveCircuit()" style="flex-shrink:0">💾 Guardar</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="apexPortBadge" style="display:none;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span>
+            <span id="apexAdvToggle" onclick="toggleApexAdvanced()" style="font-size:11px;color:var(--text-3);cursor:pointer;user-select:none">▸ Opciones avanzadas</span>
+          </div>
+          <div id="apexAdvancedSection" style="display:none;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <input class="url-in" id="apexPort" type="number" placeholder="Puerto (ej: 7913)" oninput="onSlug()" style="width:120px">
+              <input class="url-in" id="apexCircuitName" type="text" placeholder="Nombre del circuito" style="flex:1">
+              <button class="btn" onclick="saveCircuit()" style="flex-shrink:0">💾 Guardar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -361,6 +416,40 @@ function onSlug() {
   document.getElementById('cdot').className='cdot';
   document.getElementById('cLabel').textContent='Sin verificar';
   if (_raceType==='sprint') sprintUpd();
+  clearTimeout(_slugFetchTimer);
+  const badge=document.getElementById('apexPortBadge');
+  if (badge) badge.style.display='none';
+  const slug=getCircuitSlug();
+  if (!slug) return;
+  _slugFetchTimer=setTimeout(()=>_autoDetectPort(slug), 500);
+}
+
+async function _autoDetectPort(slug) {
+  const portInput=document.getElementById('apexPort');
+  const badge=document.getElementById('apexPortBadge');
+  if (!portInput) return;
+  try {
+    const res=await fetch(`https://live.apex-timing.com/${slug}/javascript/config.js`,
+      { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
+    const text=await res.text();
+    const m=text.match(/var configPort\s*=\s*(\d+)/);
+    if (m && getCircuitSlug()===slug) {
+      portInput.value=m[1];
+      if (badge) { badge.textContent='✓ puerto detectado: '+m[1]; badge.style.display=''; }
+      return;
+    }
+  } catch(e) {}
+  // No se pudo autodetectar el puerto: despliega opciones avanzadas para introducirlo a mano
+  if (getCircuitSlug()===slug) toggleApexAdvanced(true);
+}
+
+function toggleApexAdvanced(forceOpen) {
+  const sec=document.getElementById('apexAdvancedSection');
+  const toggle=document.getElementById('apexAdvToggle');
+  if (!sec) return;
+  const open = typeof forceOpen==='boolean' ? forceOpen : sec.style.display==='none';
+  sec.style.display = open ? 'flex' : 'none';
+  if (toggle) toggle.textContent = open ? '▾ Opciones avanzadas' : '▸ Opciones avanzadas';
 }
 
 async function testLogger() {

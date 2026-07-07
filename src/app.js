@@ -75,7 +75,7 @@ async function _startDemoNow() {
   window.ApexConnector = window.ReplayConnector;
 
   const cfg = {
-    name: 'Demo · Endurance en vivo', raceType: 'endurance', simMode: false,
+    name: 'Demo · Endurance en vivo', raceType: 'endurance', simMode: false, _noPersist: true,
     stintMin: 0, stintMax: 999, stops: 0, pitMinTime: 3,
     myDorsal: '1', nKarts: 4, pitLayout: 'libre',
     slug: 'karting-lossantos', port: 8093,
