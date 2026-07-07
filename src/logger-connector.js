@@ -167,17 +167,22 @@ const Logger = {
           ws.send(JSON.stringify({ type: 'list' }));
         };
         ws.onmessage = (evt) => {
-          clearTimeout(timer);
           try {
             const msg = JSON.parse(evt.data);
+            if (msg.type === 'error') {
+              clearTimeout(timer);
+              ws.close();
+              resolve(false);
+              return;
+            }
             if (msg.type === 'circuits') {
+              clearTimeout(timer);
               ws.close();
               resolve(msg.circuits);
-            } else {
-              ws.close();
-              resolve(true);
+              return;
             }
-          } catch(e) { ws.close(); resolve(true); }
+            // auth_ok u otro mensaje intermedio: seguir esperando la respuesta real a 'list'
+          } catch(e) { clearTimeout(timer); ws.close(); resolve(true); }
         };
         ws.onerror = () => { clearTimeout(timer); try { ws.close(); } catch(e) {} resolve(false); };
       } catch(e) { resolve(false); }
