@@ -175,6 +175,17 @@ function _enInjectStyles(){
     .en-row{display:grid;grid-template-columns:20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:7px 14px;border-bottom:0.5px solid #111213;align-items:center;cursor:pointer;position:relative;}
     .en-row:nth-child(odd){background:rgba(255,255,255,0.01);}
     .en-row:hover{background:#15161d!important;}
+    /* Pantallas estrechas (iPad y similares, no afecta a Electron/desktop ≥1100px):
+       columnas y fuentes del grid de clasificación reducidas para que las 13
+       quepan sin solaparse ni cortarse fuera de la pantalla. */
+    @media (max-width:900px){
+      .en-thead,.en-row{grid-template-columns:16px 30px 34px 1fr minmax(0,60px) 30px 62px 62px 56px 44px 46px 44px 48px 30px;column-gap:4px;padding-left:8px;padding-right:8px;}
+      .en-thead span{font-size:10px;}
+      .sp-pos{font-size:12.5px;}
+      .en-kart{width:26px;height:20px;font-size:12px;}
+      .sp-name{font-size:12.5px;gap:4px;}
+      .sp-vtas,.sp-t,.en-m5,.en-delta,.sp-gap,.sp-pitc{font-size:12px;}
+    }
     @keyframes spFlash{0%{background:rgba(251,146,60,0.2);}100%{background:transparent;}}
     .sp-flash{animation:spFlash 2s ease-out forwards;}
     .sp-pinned{border-left:2px solid #F5A623!important;background:#1a1500!important;}
