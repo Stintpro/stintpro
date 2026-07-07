@@ -77,6 +77,7 @@ window.CircuitDB = {
 // que sobreviva a loadFromSupabase() (que reemplaza `list` pero no toca esto).
 window.CircuitDB.knownOffsets = {
   'karting-lossantos': 8.2, // N=11, sesión 2026-06-27 (3H Resistencia)
+  'ariza-racing-circuit': 38.7, // N=21, sesión 2026-07-03 (2H Amateur Final)
 };
 
 // Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
