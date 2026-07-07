@@ -1085,7 +1085,18 @@ window.showEnduranceDashboard=function(cfg){
               if(EnSession.pitOutCalibration.length>=2){
                 const avg=EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length;
                 const slug=window.AppState?.config?.slug;
-                if(slug)localStorage.setItem('stintpro_pitoffset_'+slug,avg.toFixed(2));
+                if(slug){
+                  const key='stintpro_pitoffset_'+slug;
+                  const prev=parseFloat(localStorage.getItem(key));
+                  const n=EnSession.pitOutCalibration.length;
+                  // Guarda de sanidad: si ya había un offset guardado y el nuevo promedio
+                  // se desvía mucho con pocas muestras, no lo pisamos todavía — puede ser
+                  // una salida de pit atípica (tráfico, contaminación de una demo/prueba).
+                  // Con suficientes observaciones nuevas (n>=5) sí se acepta el cambio,
+                  // por si el circuito realmente cambió.
+                  const divergeMuch=!isNaN(prev)&&Math.abs(avg-prev)>Math.max(3,prev*0.5);
+                  if(!divergeMuch||n>=5)localStorage.setItem(key,avg.toFixed(2));
+                }
               }
               delete EnSession.pitOutPending[e.dorsal];
               // Coste real = tiempo desde último |*| antes del pit in hasta este |*| post pit out
