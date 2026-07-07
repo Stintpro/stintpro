@@ -69,6 +69,16 @@ window.CircuitDB = {
   }
 };
 
+// Offsets pit exit→meta ya medidos en sesiones reales — listos desde la selección
+// del circuito en CUALQUIER dispositivo/navegador, sin depender del localStorage
+// local (que solo se rellena tras calibrar 2 paradas en ESE dispositivo). Se usan
+// solo como fallback: si el dispositivo ya tiene su propia calibración guardada
+// (más reciente/afinada), esa tiene prioridad. Propiedad separada de `list` para
+// que sobreviva a loadFromSupabase() (que reemplaza `list` pero no toca esto).
+window.CircuitDB.knownOffsets = {
+  'karting-lossantos': 8.2, // N=11, sesión 2026-06-27 (3H Resistencia)
+};
+
 // Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
 window.CircuitDB.loadFromSupabase = async function() {
   if (!window.supabaseClient) return;

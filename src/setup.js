@@ -403,7 +403,9 @@ function onCircuitSelect() {
   else {dot.className='cdot';lbl.textContent='Sin verificar';}
   const badge=document.getElementById('circuit-offset-badge');
   if(badge){
-    const saved=circ?localStorage.getItem('stintpro_pitoffset_'+circ.slug):null;
+    // Prioridad: calibración propia de este dispositivo (más reciente/afinada) >
+    // offset conocido de fábrica (listo en cualquier dispositivo nuevo).
+    const saved=circ?(localStorage.getItem('stintpro_pitoffset_'+circ.slug) ?? window.CircuitDB.knownOffsets?.[circ.slug]):null;
     if(saved){badge.textContent='✓ offset '+parseFloat(saved).toFixed(0)+'s';badge.style.display='';}
     else{badge.style.display='none';}
   }
@@ -586,9 +588,13 @@ function startEndurance() {
     pilotos:getPilotosConfig()
   };
   window.AppState.config=cfg;
-  // Pre-poblar calibración si hay offset guardado para este circuito
-  const savedOffset=slug&&slug!=='replay'?parseFloat(localStorage.getItem('stintpro_pitoffset_'+slug)):NaN;
-  if(!isNaN(savedOffset)&&savedOffset>3&&savedOffset<300){
+  // Pre-poblar calibración: prioriza el offset propio de este dispositivo
+  // (localStorage, más reciente/afinado); si no hay, usa el conocido de fábrica
+  // para ese circuito (window.CircuitDB.knownOffsets) — así queda listo desde
+  // la vuelta 1 aunque sea la primera vez en este dispositivo/navegador.
+  const localOffset=slug&&slug!=='replay'?parseFloat(localStorage.getItem('stintpro_pitoffset_'+slug)):NaN;
+  const savedOffset=!isNaN(localOffset)?localOffset:(slug&&slug!=='replay'?window.CircuitDB.knownOffsets?.[slug]:undefined);
+  if(savedOffset!=null&&savedOffset>3&&savedOffset<300){
     EnSession.pitOutCalibration=[savedOffset, savedOffset];
   }
   window.showEnduranceDashboard(cfg);
