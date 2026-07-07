@@ -1086,7 +1086,7 @@ window.showEnduranceDashboard=function(cfg){
                 const avg=EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length;
                 const slug=window.AppState?.config?.slug;
                 if(slug){
-                  const key='stintpro_pitoffset_'+slug;
+                  const key=window.CircuitDB.pitOffsetKey(slug,window.AppState?.config?.trackDirection);
                   const prev=parseFloat(localStorage.getItem(key));
                   const n=EnSession.pitOutCalibration.length;
                   // Guarda de sanidad: si ya había un offset guardado y el nuevo promedio

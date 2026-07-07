@@ -7,6 +7,7 @@ let _connMode    = 'apex'; // 'apex', 'logger' o 'replay'
 let _replayFile  = null;  // File cargado en modo replay
 let _replaySpeed = 1;     // velocidad de reproducción
 let _slugFetchTimer = null; // debounce del fetch de auto-detección de puerto
+let _trackDirection = 'normal'; // 'normal' o 'inverso' — solo relevante en circuitos con CircuitDB.hasDirectionVariants
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
 // La API key ya NO se incrusta en el cliente: la app autentica el logger con el
 // JWT de Supabase (ver logger-connector._authHeaders). Vacío a propósito.
@@ -325,6 +326,11 @@ function renderEnduranceSetup() {
           </select>
           <button class="btn" id="btnDeleteCircuit" onclick="deleteCircuit()" style="display:none;color:var(--red,#f55);flex-shrink:0" title="Borrar circuito">🗑</button>
         </div>
+        <div id="trackDirectionRow" style="display:none;margin-top:8px;gap:6px;align-items:center">
+          <span style="font-size:11px;color:var(--text-3);flex-shrink:0">Sentido:</span>
+          <div id="trackDir-normal" onclick="setTrackDirection('normal')" style="flex:1;padding:6px;border-radius:3px;border:1px solid ${_trackDirection==='normal'?'#F5A623':'var(--border)'};background:${_trackDirection==='normal'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;font-size:11.5px;color:${_trackDirection==='normal'?'#F5A623':'var(--text-3)'}">Normal</div>
+          <div id="trackDir-inverso" onclick="setTrackDirection('inverso')" style="flex:1;padding:6px;border-radius:3px;border:1px solid ${_trackDirection==='inverso'?'#F5A623':'var(--border)'};background:${_trackDirection==='inverso'?'rgba(245,166,35,0.08)':'transparent'};cursor:pointer;text-align:center;font-size:11.5px;color:${_trackDirection==='inverso'?'#F5A623':'var(--text-3)'}">Inverso</div>
+        </div>
       </div>
       <div id="circuitManualSection" style="padding:8px 14px;display:none">
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -401,17 +407,43 @@ function onCircuitSelect() {
   const dot=document.getElementById('cdot'), lbl=document.getElementById('cLabel');
   if(circ){dot.className='cdot ok';lbl.textContent=circ.name+' — listo';}
   else {dot.className='cdot';lbl.textContent='Sin verificar';}
-  const badge=document.getElementById('circuit-offset-badge');
-  if(badge){
-    // Prioridad: calibración propia de este dispositivo (más reciente/afinada) >
-    // offset conocido de fábrica (listo en cualquier dispositivo nuevo).
-    const saved=circ?(localStorage.getItem('stintpro_pitoffset_'+circ.slug) ?? window.CircuitDB.knownOffsets?.[circ.slug]):null;
-    if(saved){badge.textContent='✓ offset '+parseFloat(saved).toFixed(0)+'s';badge.style.display='';}
-    else{badge.style.display='none';}
-  }
+  _trackDirection='normal'; // circuito nuevo → resetea el sentido al por defecto
+  const dirRow=document.getElementById('trackDirectionRow');
+  if(dirRow)dirRow.style.display=(circ&&window.CircuitDB.hasDirectionVariants(circ.slug))?'flex':'none';
+  _updateOffsetBadge(circ);
   _updateDeleteBtn();
   if (_raceType==='sprint') sprintUpd();
   else setupUpd();
+}
+
+// Prioridad: calibración propia de este dispositivo (más reciente/afinada) >
+// offset conocido de fábrica para el circuito+sentido (listo en cualquier
+// dispositivo nuevo, incluido uno que nunca ha calibrado nada).
+function _updateOffsetBadge(circ) {
+  const badge=document.getElementById('circuit-offset-badge');
+  if(!badge)return;
+  if(!circ){badge.style.display='none';return;}
+  const key=window.CircuitDB.pitOffsetKey(circ.slug,_trackDirection);
+  const saved=localStorage.getItem(key) ?? window.CircuitDB.getKnownOffset(circ.slug,_trackDirection);
+  if(saved){badge.textContent='✓ offset '+parseFloat(saved).toFixed(0)+'s';badge.style.display='';}
+  else{badge.style.display='none';}
+}
+
+function setTrackDirection(dir) {
+  _trackDirection=dir;
+  // Actualiza solo el toggle + badge (sin re-render completo, para no perder
+  // lo ya rellenado en el resto del formulario: pilotos, dorsal, etc.)
+  ['normal','inverso'].forEach(d=>{
+    const el=document.getElementById('trackDir-'+d);
+    if(!el)return;
+    const active=d===_trackDirection;
+    el.style.borderColor=active?'#F5A623':'var(--border)';
+    el.style.background=active?'rgba(245,166,35,0.08)':'transparent';
+    el.style.color=active?'#F5A623':'var(--text-3)';
+  });
+  const id=document.getElementById('circuitSelect')?.value;
+  const circ=window.CircuitDB.list.find(x=>x.id===id);
+  _updateOffsetBadge(circ);
 }
 
 function onSlug() {
@@ -580,20 +612,23 @@ function getPilotosConfig() {
 
 function startEndurance() {
   const slug=_connMode==='replay'?'replay':getCircuitSlug();
+  const trackDirection=window.CircuitDB.hasDirectionVariants(slug)?_trackDirection:null;
   const cfg={
     name:'Endurance', raceType:'endurance', simMode:false,
     stintMin:0, stintMax:999, stops:0, pitMinTime:3,
     myDorsal:_myDorsal||'20', nKarts:4, pitLayout:'libre',
-    slug, port:getCircuitPort(),
+    slug, port:getCircuitPort(), trackDirection,
     pilotos:getPilotosConfig()
   };
   window.AppState.config=cfg;
   // Pre-poblar calibración: prioriza el offset propio de este dispositivo
-  // (localStorage, más reciente/afinado); si no hay, usa el conocido de fábrica
-  // para ese circuito (window.CircuitDB.knownOffsets) — así queda listo desde
-  // la vuelta 1 aunque sea la primera vez en este dispositivo/navegador.
-  const localOffset=slug&&slug!=='replay'?parseFloat(localStorage.getItem('stintpro_pitoffset_'+slug)):NaN;
-  const savedOffset=!isNaN(localOffset)?localOffset:(slug&&slug!=='replay'?window.CircuitDB.knownOffsets?.[slug]:undefined);
+  // (localStorage, más reciente/afinado, guardado por sentido si el circuito
+  // corre en ambos); si no hay, usa el conocido de fábrica para ese circuito
+  // y sentido — así queda listo desde la vuelta 1 aunque sea la primera vez
+  // en este dispositivo/navegador.
+  const offsetKey=slug&&slug!=='replay'?window.CircuitDB.pitOffsetKey(slug,trackDirection):null;
+  const localOffset=offsetKey?parseFloat(localStorage.getItem(offsetKey)):NaN;
+  const savedOffset=!isNaN(localOffset)?localOffset:(slug&&slug!=='replay'?window.CircuitDB.getKnownOffset(slug,trackDirection):undefined);
   if(savedOffset!=null&&savedOffset>3&&savedOffset<300){
     EnSession.pitOutCalibration=[savedOffset, savedOffset];
   }

@@ -75,9 +75,34 @@ window.CircuitDB = {
 // solo como fallback: si el dispositivo ya tiene su propia calibración guardada
 // (más reciente/afinada), esa tiene prioridad. Propiedad separada de `list` para
 // que sobreviva a loadFromSupabase() (que reemplaza `list` pero no toca esto).
+// Valor: número (un solo sentido conocido) u objeto {normal, inverso} para
+// circuitos que corren en ambos sentidos según el evento — el offset pit
+// exit→meta cambia radicalmente según el sentido (Apex no lo indica en el
+// feed, así que hay que seleccionarlo a mano en el setup).
 window.CircuitDB.knownOffsets = {
   'karting-lossantos': 8.2, // N=11, sesión 2026-06-27 (3H Resistencia)
-  'ariza-racing-circuit': 38.7, // N=21, sesión 2026-07-03 (2H Amateur Final)
+  'ariza-racing-circuit': { inverso: 38.7 }, // N=21, sesión 2026-07-03 (2H Amateur Final) — sentido normal aún sin medir
+};
+
+// ¿Este circuito tiene offsets distintos según el sentido de la pista?
+window.CircuitDB.hasDirectionVariants = function(slug) {
+  return typeof this.knownOffsets[slug] === 'object' && this.knownOffsets[slug] !== null;
+};
+
+// Offset conocido de fábrica para un circuito (y sentido, si aplica).
+window.CircuitDB.getKnownOffset = function(slug, direction) {
+  const entry = this.knownOffsets[slug];
+  if (entry == null) return undefined;
+  if (typeof entry === 'number') return entry;
+  return entry[direction || 'normal'];
+};
+
+// Clave de localStorage para el offset calibrado en ESTE dispositivo —
+// separada por sentido solo para circuitos con hasDirectionVariants.
+window.CircuitDB.pitOffsetKey = function(slug, direction) {
+  return this.hasDirectionVariants(slug)
+    ? 'stintpro_pitoffset_' + slug + '_' + (direction || 'normal')
+    : 'stintpro_pitoffset_' + slug;
 };
 
 // Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
