@@ -109,8 +109,24 @@ function _enRender(){
           advPlan._lastRender=now;
         }
       }
+      // Ingeniero de pista IA: repinta el panel cada 5s (el disparo del boletín
+      // en sí ya se comprueba más arriba, independiente de la pestaña activa)
+      const advAi=advBody.querySelector('#en-adv-ai-engineer');
+      if(advAi){
+        const now=Date.now();
+        if(!advAi._lastRender||now-advAi._lastRender>5000){
+          advAi.innerHTML=_enRenderAiEngineerPanel(true);
+          advAi._lastRender=now;
+        }
+      }
     }
   }catch(err){console.error('[StintPro] Error avanzado:',err);}
+
+  // Boletín de la IA "ingeniero de pista": se comprueba en cada tick pero solo
+  // construye snapshot y llama a la API cada BULLETIN_INTERVAL_MS (independiente
+  // de qué pestaña esté activa, para que siga generándose aunque no se esté
+  // mirando "Avanzado")
+  try{ _enMaybeFetchBulletin(); }catch(err){console.error('[StintPro] Error ingeniero de pista:',err);}
 }
 
 function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit, myKart, myDorsal){
@@ -171,6 +187,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div id="en-adv-config"></div>
     <div id="en-adv-tunnel"></div>
     <div id="en-adv-plan"></div>
+    <div id="en-adv-ai-engineer"></div>
   </div>
   <div class="sp-footer">
     <div class="sp-fl"><div class="sp-fldot" style="background:#22c55e"></div>En pista</div>

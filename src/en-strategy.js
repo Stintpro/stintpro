@@ -638,10 +638,12 @@ function _enParseGap(gapStr, lapTime){
   return isNaN(t)?0:t;
 }
 
-function _enShowEstimatedClassification(){
+// Cálculo puro de la clasificación estimada (sin DOM) — usado por el popup
+// _enShowEstimatedClassification() y por el snapshot de la IA "ingeniero de pista".
+function _enComputeEstimatedClassification(){
   const eq=EnSession.data.equipos||[];
   const trackAvg=_enTrackAvgLive(eq);
-  if(!eq.length)return;
+  if(!eq.length)return null;
 
   // Coste medio de parada (neto). El coste medido es meta→meta a través del pit
   // e incluye una vuelta acreditada, así que se resta el ritmo de pista para
@@ -726,6 +728,14 @@ function _enShowEstimatedClassification(){
     tiers.forEach(t=>{tierSizes[t]=(tierSizes[t]||0)+1;});
   }
   const anyTier=tiers?Object.values(tierSizes).some(n=>n>1):false;
+
+  return {estimated, tiers, tierSizes, anyTier, avgPitCost, costSource, maxStops, usingOfficial, hasApexGap, trackAvg};
+}
+
+function _enShowEstimatedClassification(){
+  const computed=_enComputeEstimatedClassification();
+  if(!computed)return;
+  const {estimated, tiers, tierSizes, anyTier, maxStops, avgPitCost, costSource, usingOfficial, hasApexGap}=computed;
 
   // Render popup
   let overlay=document.getElementById('en-pilot-overlay');
@@ -1247,6 +1257,10 @@ window._enGoBack=function(){
   EnSession._finished=false;
   EnSession._reconcilePending=false;
   EnSession._lastPersist=null;
+  _enAiEngineer.lastBulletin=null;
+  _enAiEngineer.lastBulletinAt=null;
+  _enAiEngineer.fetching=false;
+  _enAiEngineer.lastError=null;
   document.getElementById('screen-dash').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();

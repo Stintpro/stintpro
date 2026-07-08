@@ -1,5 +1,8 @@
 {
   "outputDirectory": "src",
+  "functions": {
+    "api/ai-engineer.js": { "maxDuration": 30 }
+  },
   "headers": [
     {
       "source": "/(.*)",

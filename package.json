@@ -4,6 +4,7 @@
   "main": "main.js",
   "scripts": { "start": "electron ." },
   "dependencies": {
+    "@anthropic-ai/sdk": "latest",
     "@supabase/supabase-js": "^2.49.0"
   },
   "devDependencies": { "electron": "latest" }
