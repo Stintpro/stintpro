@@ -757,7 +757,7 @@ function _enShowEstimatedClassification(){
 
     rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px;${inTier?'box-shadow:inset 3px 0 0 #F5A623;':''}">
       <span style="font-size:13.5px;font-weight:600;color:var(--text-1);text-align:center">${i+1}</span>
-      <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${_esc(e.dorsal)}${e.diff>0?'':' ★'}</div>
+      <div style="position:relative;width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${_esc(e.dorsal)}${e.diff>0?'':'<span style="position:absolute;top:-4px;right:-4px;font-size:9px;line-height:1">★</span>'}</div>
       <span style="font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
       <span style="font-size:13.5px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}</span>
       <span style="font-size:13.5px;color:${e.lapsBehind>0?'#ef4444':e.gapReal>0?'#9ca3af':'#555'};font-family:monospace;text-align:right">${realGapStr}</span>
