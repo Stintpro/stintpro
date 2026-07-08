@@ -489,6 +489,8 @@ function _enShowPilotSelect(auto){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
   if(!pilotos.length)return;
+  // Endurance individual (1 solo piloto): no hay nada que confirmar, el stint se registra igual
+  if(auto&&pilotos.length===1)return;
   const colors=['#F5A623','#22c55e','#f97316','#c084fc','#f87171','#fbbf24'];
 
   // Crear overlay
