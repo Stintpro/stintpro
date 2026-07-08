@@ -55,6 +55,7 @@ function _enBuildAiSnapshot(){
       .slice(0,5)
       .map(e=>({
         pos:          e.pos,
+        realGap:      Math.round(e.gapReal*10)/10,
         estimatedGap: Math.round(e.estimatedGap*10)/10,
         stopsLeft:    e.diff,
         quality:      e.quality,

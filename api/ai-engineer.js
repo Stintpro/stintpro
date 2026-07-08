@@ -9,25 +9,38 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 // Config por tipo consolidada en un único objeto — evita que un tipo nuevo
 // se quede sin entrada en uno de varios mapas paralelos por descuido.
+// Nota sobre los gaps de "rivals" en el snapshot: `realGap` es la diferencia
+// real en pista ahora mismo; `estimatedGap` ya SUMA la penalización de las
+// paradas pendientes de ese rival (proyección de "si todos hicieran las
+// paradas que les faltan"). Son números distintos — el prompt de cada tipo
+// lo deja explícito para que no se mezclen al redactar.
+const GAP_NOTE = `Sobre los gaps de "rivals": "realGap" es la diferencia real en pista ahora mismo; "estimatedGap" ya incluye la penalización de las paradas pendientes de ese rival (proyección a futuro, no el hueco actual). Son números distintos — si mencionas "estimatedGap", dilo explícitamente como proyección ("con sus paradas pendientes, el hueco equivalente sería de ~Xs"), nunca como si fuera la diferencia real ahora mismo en pista.`;
+
 const AI_TYPES = {
   alert: {
     model: 'claude-haiku-4-5',
-    maxTokens: 300,
+    maxTokens: 400,
     systemPrompt: `Eres el ingeniero de pista de un equipo de karting endurance. Recibes un snapshot JSON del estado de la carrera justo después de detectarse un cambio relevante (rival recortando, ventana de parada favorable, deuda de paradas crítica de un rival, etc.).
+
+${GAP_NOTE}
 
 Responde en 1-2 frases cortas, directas, estilo aviso de radio de carrera. Interpreta el cambio, no repitas los números crudos. No inventes datos que no estén en el JSON. Si el cambio no requiere ninguna acción del equipo, dilo brevemente igualmente.`,
   },
   bulletin: {
     model: 'claude-sonnet-5',
-    maxTokens: 700,
-    systemPrompt: `Eres el ingeniero de pista de un equipo de karting endurance. Recibes un snapshot JSON periódico con: posición y estado del plan de paradas de tu equipo (semáforo de viabilidad, si está en boxes ahora mismo), probabilidad de conseguir un kart bueno en boxes, nivel de tráfico en la reentrada, y los rivales más cercanos (gap estimado ya corregido por paradas pendientes, ritmo reciente, calidad de kart, paradas que le faltan).
+    maxTokens: 1024,
+    systemPrompt: `Eres el ingeniero de pista de un equipo de karting endurance. Recibes un snapshot JSON periódico con: posición y estado del plan de paradas de tu equipo (semáforo de viabilidad, si está en boxes ahora mismo), probabilidad de conseguir un kart bueno en boxes, nivel de tráfico en la reentrada, y los rivales más cercanos (gap real y gap estimado corregido por paradas pendientes, ritmo reciente, calidad de kart, paradas que le faltan).
 
-Da un boletín breve estilo radio de carreras, 3-5 frases: posición y gap actual, estado del plan de paradas, quién es la amenaza real (no necesariamente el más cercano en la clasificación bruta — mira ritmo y paradas pendientes), y una recomendación concreta si aplica. Directo, sin tecnicismos de más. No inventes nada que no esté en el JSON.`,
+${GAP_NOTE}
+
+Da un boletín breve estilo radio de carreras, 3-5 frases: posición y gap real actual, estado del plan de paradas, quién es la amenaza real (no necesariamente el más cercano en la clasificación bruta — mira ritmo y paradas pendientes), y una recomendación concreta si aplica. Directo, sin tecnicismos de más. No inventes nada que no esté en el JSON.`,
   },
   query: {
     model: 'claude-sonnet-5',
-    maxTokens: 700,
+    maxTokens: 1024,
     systemPrompt: `Eres el ingeniero de pista de un equipo de karting endurance. El equipo te hace una pregunta concreta durante la carrera (p.ej. "¿apuro este stint o paro ya?"). Tienes el snapshot JSON con el estado actual de la carrera.
+
+${GAP_NOTE}
 
 Responde a la pregunta de forma directa y concreta, con una recomendación clara si la pregunta la pide. Basa la respuesta solo en los datos del snapshot — si falta un dato necesario para responder con seguridad, dilo en vez de inventarlo.`,
   },
@@ -81,6 +94,12 @@ module.exports = async (req, res) => {
     const response = await anthropic.messages.create({
       model: typeConfig.model,
       max_tokens: typeConfig.maxTokens,
+      // Sonnet 5 corre "thinking" adaptativo por defecto si no se especifica, y
+      // max_tokens cuenta razonamiento + texto juntos — sin desactivarlo, el
+      // boletín se cortaba a mitad de frase porque el pensamiento interno se
+      // comía casi todo el presupuesto. Esta tarea es interpretación directa
+      // de datos ya calculados, no necesita razonamiento multi-paso.
+      thinking: { type: 'disabled' },
       system: typeConfig.systemPrompt,
       messages: [{ role: 'user', content: userContent }],
     });
