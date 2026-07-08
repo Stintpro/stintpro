@@ -41,7 +41,7 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
   }
   return `<div style="padding:14px 14px 0">
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
-      <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
+      <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span data-tunnel-label style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
       <div id="en-tunnel-nocfg" style="display:none;font-size:13.5px;color:var(--text-3);font-family:sans-serif">Configura tu dorsal en Estrategia para ver tu proyección de salida</div>
       <div id="en-tunnel-live" style="display:none">
         <div style="position:relative;height:70px;background:#0e0f11;border-radius:8px;margin:10px 0;overflow:hidden">
@@ -98,7 +98,15 @@ function _enAdvRafTick(){
     tunnelLive.style.display='';
     if(tunnelNoCfg)tunnelNoCfg.style.display='none';
 
-    const myExitTime=now+(EnBox.pitDuration+offset)*1000;
+    const myK=eq.find(e=>e.dorsal===myDorsal);
+    const inPitNow=!!(myK&&myK.pit)&&!!EnSession.myPitInAt;
+    // En boxes: ancla al pit-in real (situación real, cuenta atrás fija).
+    // Aún en pista: proyección hipotética "si parara ahora" (se desliza con el reloj).
+    const myExitTime=inPitNow
+      ? EnSession.myPitInAt+(EnBox.pitDuration+offset)*1000
+      : now+(EnBox.pitDuration+offset)*1000;
+    const labelEl=document.querySelector('#en-adv-tunnel [data-tunnel-label]');
+    if(labelEl)labelEl.textContent=inPitNow?'(ya en boxes)':'(si paras ahora)';
 
     const projections=[];
     eq.forEach(e=>{

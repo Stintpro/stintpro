@@ -899,6 +899,7 @@ window.showEnduranceDashboard=function(cfg){
   EnUi.pinned=null;
   EnSession.stintStart=null; // Stint empieza cuando arranca el countdown
   EnSession.stintFrozen=null;
+  EnSession.myPitInAt=null;
 
   if(window.ApexClock&&!window.ApexClock.fmt){
     window.ApexClock.fmt=function(){return this.fmtMs(this.remainingMs());};
@@ -1076,10 +1077,13 @@ window.showEnduranceDashboard=function(cfg){
             // Guardar timestamp del último pase por meta antes del pit in
             if(EnSession.linePasses[e.dorsal])
               EnSession.pitInLastPass[e.dorsal]=EnSession.linePasses[e.dorsal];
+            // Ancla del túnel de salida: mi pit-in real (deja de proyectar "si parara ahora")
+            if(window.AppState?.config?.myDorsal===e.dorsal)EnSession.myPitInAt=now;
           }
           // Pit OUT: el equipo se lleva el PRIMERO de la cola → la cola DECRECE
           if(e.pitState==='out'&&prev!=='out'){
             if(EnBox.queue.length>0)EnBox.queue.shift();
+            if(window.AppState?.config?.myDorsal===e.dorsal)EnSession.myPitInAt=null;
           }
           // Pit OUT: iniciar calibración de offset pit exit → meta
           if(e.pitState==='out'&&prev!=='out'){
