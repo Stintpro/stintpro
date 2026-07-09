@@ -227,8 +227,8 @@ window.ApexConnector = {
             lines.filter(l => l.includes(`D${id}.L`)));
           console.log('[StintPro DEBUG request.php] líneas .P (posible historial de pits):',
             lines.filter(l => l.includes(`D${id}.P#`)));
-          console.log('[StintPro DEBUG request.php] líneas .B (posible mejor vuelta oficial):',
-            lines.filter(l => l.includes(`D${id}.B#`)));
+          console.log('[StintPro DEBUG request.php] líneas .BL (mejor vuelta oficial — confirmado, no .B):',
+            lines.filter(l => l.includes(`D${id}.BL#`)));
           console.log('[StintPro DEBUG request.php] líneas .INF (posible info kart/piloto):',
             lines.filter(l => l.includes(`D${id}.INF`)));
         }
