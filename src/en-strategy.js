@@ -1275,6 +1275,15 @@ window._enGoBack=function(){
   _enAiEngineer.lastBulletinAt=null;
   _enAiEngineer.fetching=false;
   _enAiEngineer.lastError=null;
+  // Cachés de historial/ratings están keyeadas al slug del circuito actual y solo se
+  // recargan cuando están en null/vacías (ver en-grid.js) — sin resetear aquí, la
+  // siguiente carrera (circuito distinto) hereda los datos del circuito anterior.
+  _enPilotHistory=null;
+  _enPilotHistoryFetching=false;
+  _enTeamHistory=null;
+  _enTeamHistoryFetching=false;
+  _enPilotRatings={};
+  _enPilotRatingsFetching=false;
   document.getElementById('screen-dash').classList.remove('active');
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();
