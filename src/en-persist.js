@@ -26,6 +26,16 @@ function _enSaveRaceState() {
         stintLapTimes: EnSession.stintLapTimes,
         stintStartTours: EnSession.data?._stintStartTours || 0,
       },
+      // Reglas de la organización configuradas a mano — el feed de Apex/Logger no las
+      // manda, así que no hay forma de reconstruirlas al reconectar (a diferencia de la
+      // cola de box o la calidad de karts, que sí se repueblan solas).
+      box: {
+        config: EnBox.config,
+        pitDuration: EnBox.pitDuration,
+        totalStops: EnBox.totalStops,
+        pilotMinTime: EnBox.pilotMinTime,
+        stratConfigured: EnBox.stratConfigured,
+      },
     };
     localStorage.setItem(_EN_PERSIST_KEY, JSON.stringify(snapshot));
   } catch (e) { console.warn('[StintPro] No se pudo guardar el estado de carrera:', e); }
@@ -75,6 +85,16 @@ function _enApplyRaceState(snap) {
   EnSession.stintBestLap = snap.en.stintBestLap || null;
   EnSession.stintLapTimes = snap.en.stintLapTimes || [];
   EnSession.data._stintStartTours = snap.en.stintStartTours || 0;
+  // showEnduranceDashboard() ya reseteó EnBox a sus valores por defecto — restauramos
+  // encima solo si el snapshot trae `box` (snapshots guardados antes de este fix no lo
+  // tienen; en ese caso se quedan los valores por defecto, no un crash).
+  if (snap.box) {
+    EnBox.config = snap.box.config || EnBox.config;
+    EnBox.pitDuration = snap.box.pitDuration ?? EnBox.pitDuration;
+    EnBox.totalStops = snap.box.totalStops ?? EnBox.totalStops;
+    EnBox.pilotMinTime = snap.box.pilotMinTime ?? EnBox.pilotMinTime;
+    EnBox.stratConfigured = snap.box.stratConfigured ?? EnBox.stratConfigured;
+  }
   // No confiar en el snapshot a ciegas: verificar contra standsCount de Apex (fuente
   // oficial de paradas) en cuanto llegue el primer dato en vivo de nuestro kart.
   EnSession._reconcilePending = true;
