@@ -180,21 +180,24 @@
       if (dtype === 'llp') {
         const t = parseTime(v);
         if (t && t >= 20 && t < 300) {
-          const flashAge = k._lapFromFlashTs ? Date.now() - k._lapFromFlashTs : Infinity;
-          if (k._lapFromFlash !== undefined && flashAge < 5000 && k.lapHistory.length) {
-            // Refinamiento: llp llegó poco después de |*| (misma vuelta)
-            k.lapHistory[k.lapHistory.length - 1] = t;
-            k.lastLap = t;
-            if (!k.bestLap || t < k.bestLap) k.bestLap = t;
-          } else {
-            // Vuelta nueva (sin |*| previo, o llp tardío)
-            k.lastLap = t;
-            k.lapHistory.push(t);
-            if (k.lapHistory.length > 1500) k.lapHistory.shift();
-            if (!k.bestLap || t < k.bestLap) k.bestLap = t;
-            if (callbacks.onLap && k.dorsal)
-              callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now());
+          if (!k._lapInvalid) {
+            const flashAge = k._lapFromFlashTs ? Date.now() - k._lapFromFlashTs : Infinity;
+            if (k._lapFromFlash !== undefined && flashAge < 5000 && k.lapHistory.length) {
+              // Refinamiento: llp llegó poco después de |*| (misma vuelta)
+              k.lapHistory[k.lapHistory.length - 1] = t;
+              k.lastLap = t;
+              if (!k.bestLap || t < k.bestLap) k.bestLap = t;
+            } else {
+              // Vuelta nueva (sin |*| previo, o llp tardío)
+              k.lastLap = t;
+              k.lapHistory.push(t);
+              if (k.lapHistory.length > 1500) k.lapHistory.shift();
+              if (!k.bestLap || t < k.bestLap) k.bestLap = t;
+              if (callbacks.onLap && k.dorsal)
+                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now());
+            }
           }
+          k._lapInvalid = false;
           k._lapFromFlash  = undefined;
           k._lapFromFlashTs = 0;
         }
