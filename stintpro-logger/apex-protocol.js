@@ -74,6 +74,7 @@
         _lapFlash: 0, _pitInTime: null, _pitTimerActive: false,
         _lapFromFlash: undefined, _lapFromFlashTs: 0,
         _pilotName: undefined, // solo se actualiza con nombres que llevan [X:XX] (carreras por equipos)
+        _pendingPitEvent: undefined, // si/so llegó antes que el dorsal — se dispara al fijarlo
       };
       return _karts[rowId];
     }
@@ -107,11 +108,20 @@
         }
         if (type === 'si') {
           k.pit = true; k.pitState = 'in'; k._pitInTime = Date.now(); k._lapInvalid = true;
-          if (callbacks.onPit && k.dorsal) callbacks.onPit(k.dorsal, 'in', k.standsCount, Date.now());
+          if (callbacks.onPit) {
+            // La celda de estado puede llegar antes que la del dorsal en el mismo lote de
+            // diffs (orden por número de columna) — sin dorsal aún no hay a quién avisar,
+            // así que se pospone el evento en vez de perderlo (se dispara al fijar 'no').
+            if (k.dorsal) callbacks.onPit(k.dorsal, 'in', k.standsCount, Date.now());
+            else k._pendingPitEvent = { type: 'in', standsCount: k.standsCount, time: Date.now() };
+          }
         } else if (type === 'so') {
           k.pit = true; k.pitState = 'out'; k.pitS = 0; k._pitTimerActive = false; k._pitInTime = null;
           k._lapInvalid = true;
-          if (callbacks.onPit && k.dorsal) callbacks.onPit(k.dorsal, 'out', k.standsCount, Date.now());
+          if (callbacks.onPit) {
+            if (k.dorsal) callbacks.onPit(k.dorsal, 'out', k.standsCount, Date.now());
+            else k._pendingPitEvent = { type: 'out', standsCount: k.standsCount, time: Date.now() };
+          }
         } else if (type === 'sr' || type === 'su') {
           if (!k._pitTimerActive) k.pit = false;
           k.pitState = null; k._pitInTime = null;
@@ -133,7 +143,14 @@
       // ── Dorsal ────────────────────────────────────────────────────────
       if (dtype === 'no') {
         const d = (v || '').trim();
-        if (d && !isNaN(parseInt(d))) k.dorsal = d;
+        if (d && !isNaN(parseInt(d))) {
+          k.dorsal = d;
+          if (k._pendingPitEvent && callbacks.onPit) {
+            const pe = k._pendingPitEvent;
+            callbacks.onPit(k.dorsal, pe.type, pe.standsCount, pe.time);
+          }
+          k._pendingPitEvent = undefined;
+        }
         return;
       }
 
