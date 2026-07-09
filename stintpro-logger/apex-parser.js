@@ -21,6 +21,7 @@ class ApexParser {
   reset()        { this._proto.reset(); }
   parse(raw)     { this._proto.parse(raw); }
   getState()     { return this._proto.getState(); }
+  getKartIds()   { return this._proto.getKartIds(); }
 
   // Propiedades accedidas por circuit-monitor
   get sessionFinished() { return this._proto.sessionFinished; }

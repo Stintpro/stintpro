@@ -4,8 +4,11 @@ const fs         = require('fs');
 const path       = require('path');
 const ApexParser = require('./apex-parser');
 const db         = require('./db');
+const apexHttpSampler = require('./apex-http-sampler');
 
-const BROADCAST_INTERVAL_MS = 200; // throttle live updates a 5 fps
+const BROADCAST_INTERVAL_MS   = 200; // throttle live updates a 5 fps
+const APEX_SAMPLE_INTERVAL_MS = 5 * 60 * 1000; // frecuencia del muestreo .P (investigación)
+const APEX_SAMPLE_FIRST_MS    = 30 * 1000;     // primera muestra a los 30s de arrancar
 
 class CircuitMonitor {
   constructor(cfg, computeRatings) {
@@ -37,6 +40,11 @@ class CircuitMonitor {
     this._rawLog        = null;
     this._rawLogEnabled = cfg.rawLog || !!process.env.STINTPRO_RAW_LOG;
 
+    // Muestreo del canal HTTP request.php (investigación .P — ver apex-http-sampler.js)
+    this._apexSampleEnabled = cfg.apexHttpSample || !!process.env.STINTPRO_APEX_HTTP_SAMPLE;
+    this._apexSampleTimer   = null;
+    this._apexHttpPort      = null;
+
     this.parser = new ApexParser({
       onLap:        this._onLap.bind(this),
       onPit:        this._onPit.bind(this),
@@ -55,15 +63,34 @@ class CircuitMonitor {
   start() {
     console.log(`[${this.slug}] Iniciando monitor (${this.name}, port ${this.port})`);
     if (this._rawLogEnabled) this._openRawLog();
+    if (this._apexSampleEnabled) this._startApexSampler();
     this._connect();
   }
 
   stop() {
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
+    if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
     if (this._rawLog)         { try { this._rawLog.end(); } catch(e) {} this._rawLog = null;      }
     this.connected = false;
+  }
+
+  // ── Muestreo HTTP de request.php (investigación .P) ────────────────────
+  _startApexSampler() {
+    setTimeout(() => this._sampleApexHttp(), APEX_SAMPLE_FIRST_MS);
+    this._apexSampleTimer = setInterval(() => this._sampleApexHttp(), APEX_SAMPLE_INTERVAL_MS);
+  }
+
+  async _sampleApexHttp() {
+    if (!this.sessionId) return; // sin sesión activa, nada que muestrear
+    try {
+      if (!this._apexHttpPort) this._apexHttpPort = await apexHttpSampler.fetchConfigPort(this.slug);
+      if (!this._apexHttpPort) return;
+      const kartIds = this.parser.getKartIds();
+      if (!kartIds.length) return;
+      await apexHttpSampler.sampleCircuit(this.slug, this._apexHttpPort, kartIds);
+    } catch(e) {}
   }
 
   // ── Conexión Apex ─────────────────────────────────────────────────────
