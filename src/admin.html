@@ -406,12 +406,12 @@ function renderUsers() {
   }
   el.innerHTML = _users.map(u => `
     <div class="table-row">
-      <span>${u.email}</span>
-      <span style="color:var(--text-2)">${u.name || '—'}</span>
+      <span>${escapeHtml(u.email)}</span>
+      <span style="color:var(--text-2)">${escapeHtml(u.name) || '—'}</span>
       <span><span class="role-badge role-${u.role}">${u.role}</span></span>
       <span style="color:var(--text-3)">${fmtDate(u.created_at)}</span>
       <div class="col-actions">
-        <button class="btn btn-d btn-sm" onclick="deleteUser('${u.id}','${escAttr(u.email)}')">Eliminar</button>
+        <button class="btn btn-d btn-sm" onclick="deleteUser('${u.id}')">Eliminar</button>
       </div>
     </div>`).join('');
 }
@@ -447,8 +447,9 @@ async function createUser() {
   loadUsers();
 }
 
-async function deleteUser(id, email) {
-  if (!confirm(`¿Eliminar el usuario ${email}? Esta acción no se puede deshacer.`)) return;
+async function deleteUser(id) {
+  const u = _users.find(x => x.id === id);
+  if (!confirm(`¿Eliminar el usuario ${u?.email || id}? Esta acción no se puede deshacer.`)) return;
   const res = await adminAPI('delete-user', { userId: id });
   if (res.error) { toast(res.error, 'err'); return; }
   toast('Usuario eliminado');
@@ -479,11 +480,11 @@ function renderCircuits() {
   }
   el.innerHTML = _circuits.map(c => `
     <div class="table-row">
-      <span>${c.name}</span>
-      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${c.slug}</span>
+      <span>${escapeHtml(c.name)}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-2)">${escapeHtml(c.slug)}</span>
       <span style="font-family:'DM Mono',monospace;color:var(--text-3)">${c.port}</span>
       <div class="col-actions">
-        <button class="btn btn-d btn-sm" onclick="deleteCircuit('${c.id}','${escAttr(c.name)}')">Eliminar</button>
+        <button class="btn btn-d btn-sm" onclick="deleteCircuit('${c.id}')">Eliminar</button>
       </div>
     </div>`).join('');
 }
@@ -533,8 +534,9 @@ async function createCircuit() {
   loadCircuits();
 }
 
-async function deleteCircuit(id, name) {
-  if (!confirm(`¿Eliminar el circuito "${name}"?`)) return;
+async function deleteCircuit(id) {
+  const c = _circuits.find(x => x.id === id);
+  if (!confirm(`¿Eliminar el circuito "${c?.name || id}"?`)) return;
   const { error } = await _sb.from('circuits').delete().eq('id', id);
   if (error) { toast(error.message, 'err'); return; }
   toast('Circuito eliminado');
@@ -573,14 +575,14 @@ function renderRequests() {
       </div>
       ${_requests.map(r => `
       <div class="table-row" onclick="openRequestModal('${r.id}')" style="cursor:pointer">
-        <span style="font-weight:500;color:var(--text-1)">${r.name}</span>
-        <span style="color:var(--text-2)">${r.email}</span>
-        <span style="color:var(--text-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason || '—'}</span>
+        <span style="font-weight:500;color:var(--text-1)">${escapeHtml(r.name)}</span>
+        <span style="color:var(--text-2)">${escapeHtml(r.email)}</span>
+        <span style="color:var(--text-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.reason) || '—'}</span>
         <span style="color:var(--text-3)">${fmtDate(r.created_at)}</span>
         <span><span class="req-status req-${r.status}">${r.status === 'pending' ? 'Pendiente' : r.status === 'invited' ? 'Invitado' : 'Descartado'}</span></span>
         <div class="col-actions" onclick="event.stopPropagation()">
           ${r.status === 'pending' ? `
-            <button class="btn btn-p btn-sm" onclick="inviteRequest('${r.id}','${escAttr(r.email)}','${escAttr(r.name)}')">Invitar</button>
+            <button class="btn btn-p btn-sm" onclick="inviteRequest('${r.id}')">Invitar</button>
             <button class="btn btn-g btn-sm" onclick="dismissRequest('${r.id}')">Descartar</button>
           ` : ''}
         </div>
@@ -599,16 +601,18 @@ function openRequestModal(id) {
   actions.innerHTML = r.status === 'pending' ? `
     <button class="btn btn-g" onclick="closeModal('modalRequest')">Cerrar</button>
     <button class="btn btn-d" onclick="closeModal('modalRequest');dismissRequest('${r.id}')">Descartar</button>
-    <button class="btn btn-p" onclick="closeModal('modalRequest');inviteRequest('${r.id}','${escAttr(r.email)}','${escAttr(r.name)}')">Enviar invitación</button>
+    <button class="btn btn-p" onclick="closeModal('modalRequest');inviteRequest('${r.id}')">Enviar invitación</button>
   ` : `<button class="btn btn-g" onclick="closeModal('modalRequest')">Cerrar</button>`;
   openModal('modalRequest');
 }
 
-async function inviteRequest(id, email, name) {
-  if (!confirm(`¿Enviar invitación a ${email}?`)) return;
-  const res = await adminAPI('invite-user', { requestId: id, email, name });
+async function inviteRequest(id) {
+  const r = _requests.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`¿Enviar invitación a ${r.email}?`)) return;
+  const res = await adminAPI('invite-user', { requestId: id, email: r.email, name: r.name });
   if (res.error) { toast(res.error, 'err'); return; }
-  toast('Invitación enviada a ' + email);
+  toast('Invitación enviada a ' + r.email);
   loadRequests();
 }
 
@@ -668,8 +672,10 @@ function fmtDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'2-digit' });
 }
-function escAttr(s) {
-  return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 </script>
 </body>
