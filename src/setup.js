@@ -463,10 +463,15 @@ async function _autoDetectPort(slug) {
   const badge=document.getElementById('apexPortBadge');
   if (!portInput) return;
   try {
-    const res=await fetch(`https://live.apex-timing.com/${slug}/javascript/config.js`,
-      { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
-    const text=await res.text();
-    const m=text.match(/var configPort\s*=\s*(\d+)/);
+    // apex-timing.com no manda CORS → se pasa por nuestro proxy (api/apex-proxy.js)
+    const res=await fetch('https://stintpro.vercel.app/api/apex-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'config', slug }),
+      signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
+    });
+    const { text }=await res.json();
+    const m=(text||'').match(/var configPort\s*=\s*(\d+)/);
     if (m && getCircuitSlug()===slug) {
       portInput.value=m[1];
       if (badge) { badge.textContent='✓ puerto detectado: '+m[1]; badge.style.display=''; }

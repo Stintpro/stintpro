@@ -2,6 +2,10 @@
 // Wrapper browser sobre ApexProtocol (src/apex-protocol.js).
 // Responsabilidades: WebSocket, grid HTML (DOMParser), ApexClock, comentarios.
 
+// URL absoluta a propósito: la usan tanto la web (stintpro.vercel.app) como
+// la app Electron (origen file://), que no puede resolver rutas relativas.
+const APEX_PROXY_URL = 'https://stintpro.vercel.app/api/apex-proxy';
+
 window.ApexConnector = {
   ws: null, slug: null, port: 7913, connected: false,
   onData: null, onStatus: null, onComment: null, onTitle: null,
@@ -163,10 +167,17 @@ window.ApexConnector = {
   async _fetchHttpPort() {
     if (!this.slug) return;
     try {
-      const res  = await fetch(`https://live.apex-timing.com/${this.slug}/javascript/config.js`,
-        { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined });
-      const text = await res.text();
-      const m    = text.match(/var configPort\s*=\s*(\d+)/);
+      // apex-timing.com no manda Access-Control-Allow-Origin → el navegador bloquea
+      // la lectura de la respuesta si se pide directamente. Se pasa por nuestro
+      // proxy (api/apex-proxy.js), que hace el fetch servidor-a-servidor.
+      const res  = await fetch(APEX_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'config', slug: this.slug }),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
+      });
+      const { text } = await res.json();
+      const m = (text || '').match(/var configPort\s*=\s*(\d+)/);
       if (m) this._httpPort = parseInt(m[1]);
     } catch(e) {}
   },
@@ -178,7 +189,6 @@ window.ApexConnector = {
     this._historyFetched = true;
     if (this.onStatus) this.onStatus('connected', '● Cargando historial...');
 
-    const BASE = 'https://live-data.apex-timing.com/live-timing/commonv2/functions/request.php';
     const port = this._httpPort;
 
     // TEMPORAL — investigar qué traen .P/.B/.INF (hoy solo se parsea .L, el resto se
@@ -192,14 +202,17 @@ window.ApexConnector = {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 8000);
         const req = `D%23-100%23D${id}.L%23-999%23D${id}.P%232%23D${id}.B%231%23D${id}.INF`;
-        const res = await fetch(BASE, {
+        // Mismo motivo que _fetchHttpPort: apex-timing.com no manda CORS, se pasa
+        // por nuestro proxy en vez de pedirlo directamente.
+        const res = await fetch(APEX_PROXY_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-          body: `port=${port}&request=${req}`,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'history', port, request: req }),
           signal: controller.signal,
         });
         clearTimeout(timer);
-        const text = (await res.text()).trim();
+        const { text: rawText } = await res.json();
+        const text = (rawText || '').trim();
         if (!text || text === 'error') return;
 
         if (!_debugLogged) {

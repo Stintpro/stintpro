@@ -1,7 +1,8 @@
 {
   "outputDirectory": "src",
   "functions": {
-    "api/ai-engineer.js": { "maxDuration": 30 }
+    "api/ai-engineer.js": { "maxDuration": 30 },
+    "api/apex-proxy.js": { "maxDuration": 15 }
   },
   "headers": [
     {
