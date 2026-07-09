@@ -501,9 +501,13 @@ function _enRenderStrategy(eq, trackAvg){
 
   // ── Recomendación táctica ─────────────────────────────────
   {
-    const stopsDone=EnSession.stintHistory.length;
-    const stopsRemaining=EnBox.totalStops>0?Math.max(0,EnBox.totalStops-stopsDone):0;
     const cfg2=window.AppState?.config;
+    const myDorsal=cfg2?.myDorsal;
+    const myKart=eq.find(e=>e.dorsal===myDorsal);
+    // standsCount de Apex es la fuente de verdad (correcto aunque conectes tarde);
+    // stintHistory local solo sirve de fallback si aún no hay señal oficial.
+    const stopsDone=myKart&&myKart.standsCount>0?myKart.standsCount:(EnSession.stintHistory.length||0);
+    const stopsRemaining=EnBox.totalStops>0?Math.max(0,EnBox.totalStops-stopsDone):0;
     const stintMaxMin2=(cfg2?.stintMax||999);
     const stintMaxMs2=stintMaxMin2*60*1000;
     let raceRemMs=0;
@@ -513,8 +517,6 @@ function _enRenderStrategy(eq, trackAvg){
     const strategic=EnBox.totalStops>0?Math.max(0,stopsRemaining-minNec):0;
 
     // Calidad kart actual de mi equipo
-    const myDorsal=cfg2?.myDorsal;
-    const myKart=eq.find(e=>e.dorsal===myDorsal);
     const myQuality=myKart?_enEffectiveQuality(myDorsal, myKart, trackAvg):null;
 
     // Progreso del stint actual
