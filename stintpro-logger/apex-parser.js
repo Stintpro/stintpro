@@ -72,11 +72,11 @@ class ApexParser {
           const c = cell(colMap.dr);
           if (c) {
             const n = c.text.trim();
-            if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) {
-              const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
-              if (pm) { kg.name = pm[1].trim(); kg.pilotName = pm[1].trim(); }
-              else { kg.teamName = n; kg.name = n; } // fallback para carreras individuales (sin brackets nunca)
-            }
+            // Nombre en crudo, sin interpretar [X:XX] aquí — eso lo hace en exclusiva
+            // setGrid() en apex-protocol.js (fuente de verdad única). Pre-parsearlo aquí
+            // hacía un doble strip: al llegar ya sin brackets, setGrid no reconocía al
+            // piloto y volcaba su nombre en teamName.
+            if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) kg.name = n;
           }
         }
 
