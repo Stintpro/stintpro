@@ -181,6 +181,11 @@ window.ApexConnector = {
     const BASE = 'https://live-data.apex-timing.com/live-timing/commonv2/functions/request.php';
     const port = this._httpPort;
 
+    // TEMPORAL — investigar qué traen .P/.B/.INF (hoy solo se parsea .L, el resto se
+    // descarta). Loguear solo el primer kart para no inundar la consola. Quitar este
+    // bloque en cuanto se haya inspeccionado una respuesta real.
+    let _debugLogged = false;
+
     await Promise.allSettled(kartIds.slice(0, 30).map(async ({ rowId }) => {
       const id = rowId.replace('r', '');
       try {
@@ -196,6 +201,19 @@ window.ApexConnector = {
         clearTimeout(timer);
         const text = (await res.text()).trim();
         if (!text || text === 'error') return;
+
+        if (!_debugLogged) {
+          _debugLogged = true;
+          const lines = text.split('\n');
+          console.log(`[StintPro DEBUG request.php] kart r${id} — respuesta completa (${lines.length} líneas):`);
+          console.log(text);
+          console.log('[StintPro DEBUG request.php] líneas .P (posible historial de pits):',
+            lines.filter(l => l.includes(`D${id}.P#`)));
+          console.log('[StintPro DEBUG request.php] líneas .B (posible mejor vuelta oficial):',
+            lines.filter(l => l.includes(`D${id}.B#`)));
+          console.log('[StintPro DEBUG request.php] líneas .INF (posible info kart/piloto):',
+            lines.filter(l => l.includes(`D${id}.INF`)));
+        }
 
         const laps = [];
         text.split('\n').forEach(line => {
