@@ -215,11 +215,16 @@ window.ApexConnector = {
         const text = (rawText || '').trim();
         if (!text || text === 'error') return;
 
-        if (!_debugLogged) {
+        // Solo interesa como muestra un kart con vueltas reales (no un hueco vacío
+        // del grid, dorsal "0" sin historial) — si no tiene .L, seguir buscando.
+        const lines = text.split('\n');
+        const hasLapLine = lines.some(l => l.includes(`D${id}.L`));
+        if (!_debugLogged && hasLapLine) {
           _debugLogged = true;
-          const lines = text.split('\n');
           console.log(`[StintPro DEBUG request.php] kart r${id} — respuesta completa (${lines.length} líneas):`);
           console.log(text);
+          console.log('[StintPro DEBUG request.php] líneas .L (vueltas):',
+            lines.filter(l => l.includes(`D${id}.L`)));
           console.log('[StintPro DEBUG request.php] líneas .P (posible historial de pits):',
             lines.filter(l => l.includes(`D${id}.P#`)));
           console.log('[StintPro DEBUG request.php] líneas .B (posible mejor vuelta oficial):',
