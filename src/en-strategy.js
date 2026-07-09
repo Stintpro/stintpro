@@ -488,12 +488,20 @@ function _enRenderStrategy(eq, trackAvg){
   let worstFutureMin='';
   if(predictions.length>0){
     let simG2=G;
+    let simN2=N;
+    let simQueue2=[...EnBox.queue];
     predictions.forEach(p=>{
       if(boxType==='battery'){
         if(p.quality==='good'){simG2=simG2+(N-simG2)/N;}
         else if(p.quality==='bad'){simG2=simG2-simG2/N;}
+      } else {
+        // Línea/columnas: el nuevo kart va al final, sale el primero de la cola simulada
+        simQueue2.push({quality:p.quality});
+        simQueue2.shift();
+        simG2=simQueue2.filter(k=>k.quality==='good').length;
+        simN2=simQueue2.length;
       }
-      const fp=N>0?Math.round(Math.min(100,Math.max(0,(simG2/N)*100))):0;
+      const fp=simN2>0?Math.round(Math.min(100,Math.max(0,(simG2/simN2)*100))):0;
       if(fp>bestFutureProb){bestFutureProb=fp; bestFutureMin=`~${p.minLeft} min`;}
       if(fp<worstFutureProb){worstFutureProb=fp; worstFutureMin=`~${p.minLeft} min`;}
     });
