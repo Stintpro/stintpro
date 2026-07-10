@@ -101,9 +101,9 @@ const EnBox = {
   config:         { type:'line', positions:4, columns:2 },
   queue:          [],    // [{quality, dorsal, time}]
   queueInited:    false,
-  pitDuration:    120,   // duración de parada en segundos (marca la organización)
+  pitDuration:    180,   // duración de parada en segundos (marca la organización)
   pilotMinTime:   0,     // minutos mínimos por piloto
-  totalStops:     0,     // paradas obligatorias totales de la carrera
+  totalStops:     3,     // paradas obligatorias totales de la carrera
   stratConfigured:false, // si el usuario ya configuró stint min/max
 };
 

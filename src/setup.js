@@ -620,7 +620,7 @@ function startEndurance() {
   const trackDirection=window.CircuitDB.hasDirectionVariants(slug)?_trackDirection:null;
   const cfg={
     name:'Endurance', raceType:'endurance', simMode:false,
-    stintMin:0, stintMax:999, stops:0, pitMinTime:3,
+    stintMin:10, stintMax:45, stops:0, pitMinTime:3,
     myDorsal:_myDorsal||'20', nKarts:4, pitLayout:'libre',
     slug, port:getCircuitPort(), trackDirection,
     pilotos:getPilotosConfig()
