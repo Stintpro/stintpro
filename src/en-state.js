@@ -150,7 +150,7 @@ function _enInjectStyles(){
     .en-thead span:nth-child(1),.en-thead span:nth-child(2){text-align:center;}
     .sp-body{overflow-y:auto;flex:1;}
     .sp-rowwrap{position:relative;}
-    .en-row{display:grid;grid-template-columns:20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:7px 14px;border-bottom:0.5px solid #111213;align-items:center;cursor:pointer;position:relative;}
+    .en-row{display:grid;grid-template-columns:20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:4px 14px;border-bottom:0.5px solid #111213;align-items:center;cursor:pointer;position:relative;}
     .en-row:nth-child(odd){background:rgba(255,255,255,0.01);}
     .en-row:hover{background:#15161d!important;}
     /* Pantallas estrechas (iPad y similares, no afecta a Electron/desktop ≥1100px):
