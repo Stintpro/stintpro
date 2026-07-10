@@ -50,17 +50,17 @@ function _enRender(){
     if(cfg?.slug) _enFetchPilotHistory(eq, cfg.slug);
   }
 
-  // Cargar historial de equipos desde el logger (solo primera vez por sesión)
-  if(_enTeamHistory===null && Logger?._serverUrl){
-    const cfg=window.AppState?.config;
-    if(cfg?.slug) _enFetchTeamHistory(cfg.slug);
-  }
-
   // Cargar ratings de pilotos (logger o caché localStorage)
   if(!Object.keys(_enPilotRatings).length){
     const cfg=window.AppState?.config;
     if(cfg?.slug) _enFetchPilotRatings(cfg.slug);
   }
+
+  // Alertas por evento del ingeniero de pista: se comprueban en cada tick,
+  // independiente de la pestaña activa, para avisar aunque no se esté
+  // mirando "Avanzado" (parpadeo de la pestaña, ver en-ai-alerts.js)
+  try{ if(typeof _enCheckAlerts==='function')_enCheckAlerts(eq, trackAvg); }
+  catch(err){console.error('[StintPro] Error alertas IA:',err);}
 
   try{
     const body=el.querySelector('#en-grid-body');
@@ -109,24 +109,18 @@ function _enRender(){
           advPlan._lastRender=now;
         }
       }
-      // Ingeniero de pista IA: repinta el panel cada 5s (el disparo del boletín
-      // en sí ya se comprueba más arriba, independiente de la pestaña activa)
+      // Ingeniero de pista IA: repinta el panel cada 5s (solo refresca el "hace X min";
+      // el boletín en sí es 100% manual, botón "Boletín" — nunca se dispara solo)
       const advAi=advBody.querySelector('#en-adv-ai-engineer');
       if(advAi){
         const now=Date.now();
         if(!advAi._lastRender||now-advAi._lastRender>5000){
-          advAi.innerHTML=_enRenderAiEngineerPanel(true);
+          advAi.innerHTML=_enRenderAiEngineerPanel();
           advAi._lastRender=now;
         }
       }
     }
   }catch(err){console.error('[StintPro] Error avanzado:',err);}
-
-  // Boletín de la IA "ingeniero de pista": se comprueba en cada tick pero solo
-  // construye snapshot y llama a la API cada BULLETIN_INTERVAL_MS (independiente
-  // de qué pestaña esté activa, para que siga generándose aunque no se esté
-  // mirando "Avanzado")
-  try{ _enMaybeFetchBulletin(); }catch(err){console.error('[StintPro] Error ingeniero de pista:',err);}
 }
 
 function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit, myKart, myDorsal){
@@ -171,7 +165,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div class="en-tab ${EnUi.tab==='grid'?'active':''}" onclick="_enSetTab('grid')">📊 Clasificación</div>
     <div class="en-tab ${EnUi.tab==='team'?'active':''}" onclick="_enSetTab('team')">👥 Mi equipo</div>
     <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
-    <div class="en-tab ${EnUi.tab==='adv'?'active':''}" onclick="_enSetTab('adv')">🔬 Avanzado</div>
+    <div class="en-tab ${EnUi.tab==='adv'?'active':''}" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
   </div>
   <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
   <div class="sp-body" id="en-grid-body" style="${EnUi.tab==='grid'?'':'display:none'}"></div>
@@ -385,7 +379,7 @@ function _enRenderRow(e, d){
       <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
       <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
       <div class="sp-name">${d.chkBadge}${_esc(e.name)}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory(${_esc(JSON.stringify(e.name||''))},event)" title="Ver historial">ℹ</span>`:''}</div>
-      <div class="sp-name" style="font-size:12px;color:var(--text-3)">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;if(!tn)return'—';const tBtn=_enTeamHistory?.[tn]?`<span class="en-info-btn" onclick="_enShowTeamHistory(${_esc(JSON.stringify(tn))},event)" title="Ver historial del equipo" style="font-family:monospace;font-weight:700">T</span>`:'';return _esc(tn)+tBtn;})()}</div>
+      <div class="sp-name" style="font-size:12px;color:var(--text-3)">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;return tn?_esc(tn):'—';})()}</div>
       <div class="sp-vtas">${e.tours}</div>
       <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
       <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
@@ -450,6 +444,8 @@ function _enSetTab(tab){
   if(strat)strat.style.display=tab==='strat'?'':'none';
   if(adv)adv.style.display=tab==='adv'?'':'none';
   if(tab!=='adv')_enStopAdvRaf(); else _enStartAdvRaf();
+  // Entrar en Avanzado apaga el parpadeo de alertas del ingeniero de pista
+  if(tab==='adv'&&typeof _enClearAlertBlink==='function')_enClearAlertBlink();
   // Reset config cuando se entra a estrategia
   if(tab==='strat'){
     const cfgDiv=document.getElementById('en-strat-config');
@@ -597,81 +593,6 @@ function _enShowPilotHistory(name, evt) {
             <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Vlts</th>
           </tr></thead>
           <tbody>${sessRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--text-3);font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
-        </table>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-// ── Ficha de equipo (historial desde logger) ───────────────────────────
-function _enShowTeamHistory(teamName, evt) {
-  evt.stopPropagation();
-  const data = _enTeamHistory?.[teamName];
-  if (!data) return;
-
-  let existing = document.getElementById('en-team-history-overlay');
-  if (existing) existing.remove();
-
-  function fmtMs(ms) {
-    if (!ms) return '—';
-    const m = Math.floor(ms/60000);
-    const s = ((ms%60000)/1000).toFixed(3).padStart(6,'0');
-    return `${m}:${s}`;
-  }
-  function fmtDate(ts) {
-    if (!ts) return '—';
-    return new Date(ts).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  }
-
-  const sessRows = (data.sessions||[]).map(s=>`
-    <tr>
-      <td style="padding:7px 12px;font-size:12px;color:var(--text-3)">${fmtDate(s.started_at)}</td>
-      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#22c55e;text-align:right">${fmtMs(s.best_ms)}</td>
-      <td style="padding:7px 12px;font-size:12px;font-family:monospace;color:#F5A623;text-align:right">${fmtMs(s.avg_ms)}</td>
-      <td style="padding:7px 12px;font-size:12px;color:var(--text-3);text-align:right">${s.laps}</td>
-      <td style="padding:7px 12px;font-size:12px;color:var(--text-3);text-align:right">${s.pilot_count}</td>
-    </tr>`).join('');
-
-  const overlay = document.createElement('div');
-  overlay.id = 'en-team-history-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:998;';
-  overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
-
-  overlay.innerHTML = `
-    <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(520px,92vw);overflow:hidden">
-      <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
-        <span style="font-family:monospace;font-weight:700;font-size:11px;color:#F5A623;background:#1a1500;border:1px solid #3a2800;border-radius:4px;padding:2px 7px">T</span>
-        <span style="font-size:15px;font-weight:700;color:var(--text-1);flex:1">${teamName}</span>
-        <button onclick="document.getElementById('en-team-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:var(--text-3);padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#1e2130;border-bottom:1px solid #1e2130">
-        <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Mejor vuelta</div>
-          <div style="font-size:18px;font-weight:700;color:#22c55e;font-family:monospace">${fmtMs(data.best_ms)}</div>
-        </div>
-        <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Ritmo medio</div>
-          <div style="font-size:18px;font-weight:700;color:#F5A623;font-family:monospace">${fmtMs(data.avg_ms)}</div>
-        </div>
-        <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Sesiones</div>
-          <div style="font-size:18px;font-weight:700;color:var(--text-1)">${data.session_count}</div>
-        </div>
-        <div style="background:#0e0f11;padding:12px 16px">
-          <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Vueltas</div>
-          <div style="font-size:18px;font-weight:700;color:var(--text-3)">${data.total_laps}</div>
-        </div>
-      </div>
-      <div style="padding:12px 0;max-height:220px;overflow-y:auto">
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr style="background:#13141a">
-            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:left">Sesión</th>
-            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Mejor</th>
-            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Media</th>
-            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Vlts</th>
-            <th style="padding:6px 12px;font-size:10px;color:var(--text-3);text-transform:uppercase;text-align:right">Pilotos</th>
-          </tr></thead>
-          <tbody>${sessRows || '<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text-3);font-size:12px">Sin sesiones anteriores</td></tr>'}</tbody>
         </table>
       </div>
     </div>`;

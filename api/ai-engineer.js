@@ -20,11 +20,11 @@ const AI_TYPES = {
   alert: {
     model: 'claude-haiku-4-5',
     maxTokens: 400,
-    systemPrompt: `Eres el ingeniero de pista de un equipo de karting endurance. Recibes un snapshot JSON del estado de la carrera justo después de detectarse un cambio relevante (rival recortando, ventana de parada favorable, deuda de paradas crítica de un rival, etc.).
+    systemPrompt: `Eres el ingeniero de pista de un equipo de karting endurance. Recibes un snapshot JSON del estado de la carrera justo después de detectarse un cambio relevante. El campo "triggerEvent" del snapshot identifica exactamente qué se detectó y con qué números ("rain" = subida colectiva de ritmo, "trapped" = un rival no puede cumplir su stint mínimo por deuda de paradas, "closing" = un rival con kart bueno recorta gap de forma sostenida, "window" = ventana de parada favorable ahora mismo). Basa tu interpretación en ese campo, no reinterpretes el resto del snapshot desde cero.
 
 ${GAP_NOTE}
 
-Responde en 1-2 frases cortas, directas, estilo aviso de radio de carrera. Interpreta el cambio, no repitas los números crudos. No inventes datos que no estén en el JSON. Si el cambio no requiere ninguna acción del equipo, dilo brevemente igualmente.`,
+Responde en 1-2 frases cortas, directas, estilo aviso de radio de carrera. Interpreta el cambio (por qué importa, si requiere acción), no repitas los números crudos del JSON. No inventes datos que no estén en el snapshot. Si el cambio no requiere ninguna acción del equipo, dilo brevemente igualmente.`,
   },
   bulletin: {
     model: 'claude-sonnet-5',

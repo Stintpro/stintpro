@@ -1,16 +1,33 @@
 // ── en-ai-engineer.js — fragmento de endurance.js ──
 // IA "ingeniero de pista": snapshot compacto del estado de carrera + llamada
 // al endpoint serverless /api/ai-engineer (Claude vía Vercel Function) para
-// generar un boletín periódico. Alertas por evento y consulta bajo demanda
-// se añaden en una siguiente iteración reusando _enBuildAiSnapshot/_enFetchAiEngineer.
+// generar un boletín BAJO DEMANDA (botón "Boletín", nunca automático — evita
+// gastar llamadas a la API sin que nadie esté mirando la pestaña Avanzado),
+// responder una consulta libre del usuario, y (en en-ai-alerts.js) disparar
+// alertas por evento reusando _enBuildAiSnapshot/_enFetchAiEngineer.
 
 const _enAiEngineer = {
-  lastBulletin:         null,  // texto del último boletín generado
-  lastBulletinAt:       null,  // timestamp del último boletín recibido
-  fetching:             false,
-  lastError:            null,
-  BULLETIN_INTERVAL_MS: 12 * 60 * 1000, // cada 12 minutos
+  lastBulletin:   null,  // texto del último boletín generado
+  lastBulletinAt: null,  // timestamp del último boletín recibido
+  fetching:       false,
+  lastError:      null,
+  lastAnswer:     null,  // respuesta a la última consulta libre
+  queryFetching:  false,
+  queryError:     null,
 };
+
+// Repinta el panel del ingeniero de pista preservando lo que el usuario esté
+// escribiendo en el cuadro de consulta — sin esto, el repintado periódico
+// (cada 5s en en-grid.js) o el de un boletín/alerta en curso borraría la
+// pregunta a mitad de escribirla.
+function _enRepaintAiPanel(container){
+  if(!container)return;
+  const qEl=container.querySelector('#en-adv-ai-question');
+  const qVal=qEl?qEl.value:'';
+  container.innerHTML=_enRenderAiEngineerPanel();
+  const newQEl=container.querySelector('#en-adv-ai-question');
+  if(newQEl&&qVal)newQEl.value=qVal;
+}
 
 // ── Snapshot compacto para la IA (≈1-2 KB) ───────────────────────────────
 // Reusa exactamente las mismas lecturas que _enRenderAdvPlan (plan de paradas)
@@ -91,7 +108,7 @@ async function _enFetchAiEngineer(type, snapshot, question){
   if(!token)throw new Error('Sin sesión de Supabase');
   // Timeout explícito: sin esto, una red inestable en boxes puede dejar el fetch
   // colgado indefinidamente y con él _enAiEngineer.fetching=true para siempre
-  // (bloquea el disparo automático y el botón "Actualizar" el resto de la carrera).
+  // (bloquea el botón "Boletín" el resto de la carrera).
   const controller=new AbortController();
   const timeoutId=setTimeout(()=>controller.abort(), 20000);
   try {
@@ -112,18 +129,14 @@ async function _enFetchAiEngineer(type, snapshot, question){
   }
 }
 
-// ── Boletín periódico ─────────────────────────────────────────────────────
-// Se invoca en cada tick de _enRender() (independiente de la pestaña activa)
-// pero solo construye snapshot y llama a la API cada BULLETIN_INTERVAL_MS.
-function _enMaybeFetchBulletin(){
+// ── Boletín — 100% manual (botón "Boletín"), nunca se dispara solo ────────
+function _enFetchBulletinNow(){
   if(_enAiEngineer.fetching)return;
-  const now=Date.now();
-  if(_enAiEngineer.lastBulletinAt&&now-_enAiEngineer.lastBulletinAt<_enAiEngineer.BULLETIN_INTERVAL_MS)return;
-
   const snapshot=_enBuildAiSnapshot();
   if(!snapshot)return;
 
   _enAiEngineer.fetching=true;
+  _enRepaintAiPanel(document.getElementById('en-adv-ai-engineer'));
   _enFetchAiEngineer('bulletin', snapshot)
     .then(msg=>{
       _enAiEngineer.lastBulletin=msg;
@@ -133,25 +146,36 @@ function _enMaybeFetchBulletin(){
     .catch(err=>{ _enAiEngineer.lastError=err.message; })
     .finally(()=>{
       _enAiEngineer.fetching=false;
-      const el=document.getElementById('en-adv-ai-engineer');
-      if(el)el.innerHTML=_enRenderAiEngineerPanel(true);
+      _enRepaintAiPanel(document.getElementById('en-adv-ai-engineer'));
     });
 }
 
-// Botón "Actualizar" — fuerza un boletín nuevo ignorando el intervalo
-function _enForceBulletinNow(){
-  _enAiEngineer.lastBulletinAt=null;
-  _enMaybeFetchBulletin();
-  const el=document.getElementById('en-adv-ai-engineer');
-  if(el)el.innerHTML=_enRenderAiEngineerPanel(true);
+// ── Consulta bajo demanda — pregunta libre del usuario ("¿apuro este stint o paro ya?") ──
+function _enFetchQuery(){
+  if(_enAiEngineer.queryFetching)return;
+  const input=document.getElementById('en-adv-ai-question');
+  const question=input?.value?.trim();
+  if(!question)return;
+  const snapshot=_enBuildAiSnapshot();
+  if(!snapshot)return;
+
+  _enAiEngineer.queryFetching=true;
+  _enAiEngineer.queryError=null;
+  _enRepaintAiPanel(document.getElementById('en-adv-ai-engineer'));
+  _enFetchAiEngineer('query', snapshot, question)
+    .then(msg=>{
+      _enAiEngineer.lastAnswer=msg;
+      _enAiEngineer.queryError=null;
+    })
+    .catch(err=>{ _enAiEngineer.queryError=err.message; })
+    .finally(()=>{
+      _enAiEngineer.queryFetching=false;
+      _enRepaintAiPanel(document.getElementById('en-adv-ai-engineer'));
+    });
 }
 
 // ── Panel HTML (pestaña Avanzado) ────────────────────────────────────────
-// skipTrigger=true cuando el disparo ya lo hizo _enRender() globalmente
-// (evita duplicar el chequeo de intervalo en cada pintado del panel).
-function _enRenderAiEngineerPanel(skipTrigger){
-  if(!skipTrigger)_enMaybeFetchBulletin();
-
+function _enRenderAiEngineerPanel(){
   const ago=_enAiEngineer.lastBulletinAt
     ?Math.round((Date.now()-_enAiEngineer.lastBulletinAt)/60000)
     :null;
@@ -165,16 +189,35 @@ function _enRenderAiEngineerPanel(skipTrigger){
   } else if(_enAiEngineer.lastError){
     body=`<div style="font-size:12.5px;color:#ef4444;font-family:sans-serif">Error: ${_esc(_enAiEngineer.lastError)}</div>`;
   } else {
-    body=`<div style="font-size:12.5px;color:var(--text-3);font-family:sans-serif">Esperando datos de carrera…</div>`;
+    body=`<div style="font-size:12.5px;color:var(--text-3);font-family:sans-serif">Pulsa «Boletín» para generar un resumen de la carrera.</div>`;
+  }
+
+  // Consulta bajo demanda
+  let queryBody;
+  if(_enAiEngineer.queryFetching){
+    queryBody=`<div style="font-size:12.5px;color:var(--text-3);font-family:sans-serif;margin-top:8px">Pensando…</div>`;
+  } else if(_enAiEngineer.queryError){
+    queryBody=`<div style="font-size:12.5px;color:#ef4444;font-family:sans-serif;margin-top:8px">Error: ${_esc(_enAiEngineer.queryError)}</div>`;
+  } else if(_enAiEngineer.lastAnswer){
+    queryBody=`<div style="font-size:13.5px;color:var(--text-1);font-family:sans-serif;line-height:1.5;margin-top:8px">${_esc(_enAiEngineer.lastAnswer)}</div>`;
+  } else {
+    queryBody='';
   }
 
   return `<div style="padding:0 14px 14px"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif">🎙️ Ingeniero de pista</div>
-      <button onclick="_enForceBulletinNow()" style="font-size:11px;color:#F5A623;border:0.5px solid #F5A623;background:#F5A62318;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:sans-serif">Actualizar</button>
+      <button onclick="_enFetchBulletinNow()" style="font-size:11px;color:#F5A623;border:0.5px solid #F5A623;background:#F5A62318;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:sans-serif">Boletín</button>
     </div>
     ${body}
-  </div></div>`;
+    <div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:0.5px solid #1a1b22">
+      <input id="en-adv-ai-question" type="text" placeholder="¿Apuro este stint o paro ya?" onkeydown="if(event.key==='Enter')_enFetchQuery()" style="flex:1;background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-1);padding:6px 10px;border-radius:5px;font-size:12.5px;font-family:sans-serif">
+      <button onclick="_enFetchQuery()" style="font-size:11px;color:#F5A623;border:0.5px solid #F5A623;background:#F5A62318;border-radius:5px;padding:3px 10px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Preguntar</button>
+    </div>
+    ${queryBody}
+  </div>
+  ${typeof _enRenderAlertsLog==='function'?_enRenderAlertsLog():''}
+  </div>`;
 }
 
 if (typeof module !== 'undefined') {

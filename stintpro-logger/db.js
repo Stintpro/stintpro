@@ -305,36 +305,6 @@ function getBestLapsByCircuit(slug) {
   `, [slug]);
 }
 
-function getTeamSessionsByCircuit(slug) {
-  return _query(`
-    SELECT l.team_name, l.session_id, s.started_at,
-           MIN(l.lap_time_ms) as best_ms,
-           CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
-           COUNT(*) as laps,
-           COUNT(DISTINCT l.name) as pilot_count
-    FROM laps l JOIN sessions s ON s.id=l.session_id
-    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
-      AND l.team_name IS NOT NULL
-    GROUP BY l.team_name, l.session_id
-    ORDER BY s.started_at DESC
-  `, [slug]);
-}
-
-function getBestLapsByTeam(slug) {
-  return _query(`
-    SELECT l.team_name,
-           MIN(l.lap_time_ms) as best_ms,
-           CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
-           COUNT(*) as total_laps,
-           COUNT(DISTINCT l.name) as pilot_count,
-           COUNT(DISTINCT l.session_id) as session_count
-    FROM laps l JOIN sessions s ON s.id=l.session_id
-    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
-      AND l.team_name IS NOT NULL
-    GROUP BY l.team_name ORDER BY best_ms ASC LIMIT 100
-  `, [slug]);
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 function _rows(result) {
@@ -361,6 +331,5 @@ module.exports = {
   insertPitEvent, getPitEventsBySession,
   saveSnapshot,
   getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit,
-  getTeamSessionsByCircuit, getBestLapsByTeam,
   deletePilotFromCircuit, mergePilotsInCircuit, getTotalLapsByCircuit, searchPilotsGlobal,
 };

@@ -45,29 +45,6 @@ async function _enFetchPilotHistory(karts, slug) {
   _enPilotHistoryFetching = false;
 }
 
-// ── Historial de equipos (logger o URL configurada en modo Apex/Replay) ──
-let _enTeamHistory = null;       // null = no cargado, {} = cargado
-let _enTeamHistoryFetching = false;
-
-async function _enFetchTeamHistory(slug) {
-  if (_enTeamHistoryFetching) return;
-  const _rUrl = Logger?._serverUrl || (window.AppState?.loggerUrl || '').replace(/\/$/, '');
-  if (!_rUrl) return;
-  _enTeamHistoryFetching = true;
-  try {
-    const res = await fetch(`${_rUrl}/api/circuit/${slug}/teams`, {
-      headers: await Logger._authHeaders(),
-    });
-    if (res.ok) {
-      const list = await res.json();
-      const map = {};
-      for (const t of list) map[t.name] = t;
-      _enTeamHistory = map;
-    } else { _enTeamHistory = {}; }
-  } catch(e) { _enTeamHistory = {}; }
-  _enTeamHistoryFetching = false;
-}
-
 // ── Ratings de pilotos — score 0-1000 por circuito ───────────────────────
 // Cargado del logger si disponible, si no del caché localStorage (7 días)
 let _enPilotRatings = {};        // name → score (número o null)

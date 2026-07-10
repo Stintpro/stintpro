@@ -155,7 +155,10 @@ function _enRenderStrategy(eq, trackAvg){
       const debtLimited=capMs<stintMaxMs*0.97; // su techo real es menor que el máximo
       const remaining=(elapsed!==null&&stintMaxMs<999*60*1000)?Math.max(0,capMs-elapsed):Infinity;
       const minLeft=remaining<Infinity?Math.ceil(remaining/60000):null;
-      return {...e, _stintRemaining:remaining, _minLeft:minLeft, _debtLimited:debtLimited};
+      // Ventana de parada — borde inferior: ¿ya cumplió el stint mínimo?
+      const canPitNow=(elapsed!==null&&stintMinMs>0)?elapsed>=stintMinMs:null;
+      const minUntilCanPit=(canPitNow===false)?Math.ceil((stintMinMs-elapsed)/60000):null;
+      return {...e, _stintRemaining:remaining, _minLeft:minLeft, _debtLimited:debtLimited, _canPitNow:canPitNow, _minUntilCanPit:minUntilCanPit};
     })
     .sort((a,b)=>a._stintRemaining-b._stintRemaining);
 
@@ -194,7 +197,7 @@ function _enRenderStrategy(eq, trackAvg){
   html+=`<div style="display:grid;grid-template-columns:3fr 2fr;gap:10px;margin-bottom:10px">`;
 
   // Helper para renderizar kart como en dashboard
-  const kartRow=(e,minStr,minCol)=>{
+  const kartRow=(e,minStr,minCol,minTitle)=>{
     const kc=_enKartColor(e.dorsal);
     const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
     let kartBorder=kc.border;
@@ -204,8 +207,23 @@ function _enRenderStrategy(eq, trackAvg){
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
       <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kartBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
       <div style="flex:1;font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</div>
-      <span style="font-size:13.5px;color:${minCol};font-family:monospace;flex-shrink:0">${minStr}</span>
+      <span style="font-size:13.5px;color:${minCol};font-family:monospace;flex-shrink:0"${minTitle?` title="${_esc(minTitle)}"`:''}>${minStr}</span>
     </div>`;
+  };
+
+  // Ventana de parada de un rival: "✓ Xm" (ya puede, techo en X) · "Xm→Ym" (puede en X, techo en Y) · "Xm" (sin mínimo configurado)
+  // Caso atrapado: la deuda de paradas obliga a salir ANTES de cumplir el stint mínimo — ventana imposible, se marca aparte.
+  const stintWindowInfo=(e)=>{
+    if(e._minLeft===null)return {label:'', color:null, title:''};
+    const upper=e._minLeft+'m'+(e._debtLimited?'⚠':'');
+    if(e._canPitNow===false&&e._minUntilCanPit>0){
+      if(e._minLeft<=e._minUntilCanPit){
+        return {label:`🔴 ${e._minLeft}m!`, color:'#ef4444', title:`Atrapado por deuda de paradas: la organización exige esperar ${e._minUntilCanPit} min más para cumplir el stint mínimo, pero la deuda de paradas le obliga a salir en ${e._minLeft} min`};
+      }
+      return {label:`${e._minUntilCanPit}m→${upper}`, color:null, title:''};
+    }
+    if(e._canPitNow===true)return {label:`✓ ${upper}`, color:null, title:''};
+    return {label:upper, color:null, title:''};
   };
 
   // ── Karts en pista (3 sub-columnas) ──
@@ -218,9 +236,9 @@ function _enRenderStrategy(eq, trackAvg){
     <div style="font-size:13.5px;color:#22c55e;margin-bottom:6px;font-weight:500">Buenos (${goodOnTrack.length})</div>`;
   if(goodOnTrack.length===0)html+=`<div style="font-size:13.5px;color:var(--text-3)">—</div>`;
   goodOnTrack.slice(0,8).forEach(e=>{
-    const minCol=e._minLeft!==null?(e._minLeft<=2?'#22c55e':e._minLeft<=5?'#fbbf24':'#555'):'#555';
-    const minStr=e._minLeft!==null?e._minLeft+'m'+(e._debtLimited?'⚠':''):'';
-    html+=kartRow(e, minStr, minCol);
+    const info=stintWindowInfo(e);
+    const minCol=info.color||(e._minLeft!==null?(e._minLeft<=2?'#22c55e':e._minLeft<=5?'#fbbf24':'#555'):'#555');
+    html+=kartRow(e, info.label, minCol, info.title);
   });
   html+=`</div>`;
 
@@ -229,8 +247,8 @@ function _enRenderStrategy(eq, trackAvg){
     <div style="font-size:13.5px;color:#fbbf24;margin-bottom:6px;font-weight:500">Neutros (${neutralOnTrack.length})</div>`;
   if(neutralOnTrack.length===0)html+=`<div style="font-size:13.5px;color:var(--text-3)">—</div>`;
   neutralOnTrack.slice(0,8).forEach(e=>{
-    const minStr=e._minLeft!==null?e._minLeft+'m'+(e._debtLimited?'⚠':''):'';
-    html+=kartRow(e, minStr, '#555');
+    const info=stintWindowInfo(e);
+    html+=kartRow(e, info.label, info.color||'#555', info.title);
   });
   html+=`</div>`;
 
@@ -239,8 +257,8 @@ function _enRenderStrategy(eq, trackAvg){
     <div style="font-size:13.5px;color:#ef4444;margin-bottom:6px;font-weight:500">Malos (${badOnTrack.length})</div>`;
   if(badOnTrack.length===0)html+=`<div style="font-size:13.5px;color:var(--text-3)">—</div>`;
   badOnTrack.slice(0,8).forEach(e=>{
-    const minStr=e._minLeft!==null?e._minLeft+'m'+(e._debtLimited?'⚠':''):'';
-    html+=kartRow(e, minStr, '#555');
+    const info=stintWindowInfo(e);
+    html+=kartRow(e, info.label, info.color||'#555', info.title);
   });
   html+=`</div>`;
 
@@ -1275,13 +1293,22 @@ window._enGoBack=function(){
   _enAiEngineer.lastBulletinAt=null;
   _enAiEngineer.fetching=false;
   _enAiEngineer.lastError=null;
+  _enAiEngineer.lastAnswer=null;
+  _enAiEngineer.queryFetching=false;
+  _enAiEngineer.queryError=null;
+  if(typeof _enAiAlerts!=='undefined'){
+    _enAiAlerts.log=[];
+    _enAiAlerts.fetching=false;
+    _enAiAlerts.cooldowns={};
+    _enAiAlerts.trackAvgHistory=[];
+    _enAiAlerts.gapHistory={};
+    _enClearAlertBlink();
+  }
   // Cachés de historial/ratings están keyeadas al slug del circuito actual y solo se
   // recargan cuando están en null/vacías (ver en-grid.js) — sin resetear aquí, la
   // siguiente carrera (circuito distinto) hereda los datos del circuito anterior.
   _enPilotHistory=null;
   _enPilotHistoryFetching=false;
-  _enTeamHistory=null;
-  _enTeamHistoryFetching=false;
   _enPilotRatings={};
   _enPilotRatingsFetching=false;
   document.getElementById('screen-dash').classList.remove('active');

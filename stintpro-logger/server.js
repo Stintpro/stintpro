@@ -567,46 +567,6 @@ app.get('/api/circuit/:slug/pilots', readAuth, (req, res) => {
   res.json(pilots);
 });
 
-// Equipos por circuito — historial agregado por equipo
-app.get('/api/circuit/:slug/teams', readAuth, (req, res) => {
-  try {
-    const rows = db.getTeamSessionsByCircuit(req.params.slug);
-    const teamMap = {};
-    for (const r of rows) {
-      const key = r.team_name;
-      if (!teamMap[key]) teamMap[key] = { name: key, sessions: [] };
-      teamMap[key].sessions.push({
-        session_id: r.session_id,
-        started_at: r.started_at,
-        best_ms:    r.best_ms,
-        avg_ms:     r.avg_ms,
-        laps:       r.laps,
-        pilot_count: r.pilot_count,
-      });
-    }
-    const teams = Object.values(teamMap).map(t => ({
-      name:          t.name,
-      session_count: t.sessions.length,
-      best_ms:       Math.min(...t.sessions.map(s => s.best_ms)),
-      avg_ms:        Math.round(t.sessions.reduce((a, s) => a + s.avg_ms, 0) / t.sessions.length),
-      total_laps:    t.sessions.reduce((a, s) => a + s.laps, 0),
-      sessions:      t.sessions.sort((a, b) => b.started_at - a.started_at),
-    })).sort((a, b) => a.best_ms - b.best_ms);
-    res.json(teams);
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Mejor vuelta histórica por equipo en un circuito
-app.get('/api/circuit/:slug/teams/best', readAuth, (req, res) => {
-  try {
-    res.json(db.getBestLapsByTeam(req.params.slug));
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // Rating de pilotos por circuito (puntuación 0-1000)
 function _computePilotRatings(slug) {
   return computePilotRatings(db.getPilotSessionsByCircuit(slug));
