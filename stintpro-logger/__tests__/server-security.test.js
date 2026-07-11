@@ -403,6 +403,56 @@ describe('WebSocket auth', () => {
     ws.close();
   });
 
+  test('team_msg válido → team_msg_sent', async () => {
+    const ws = await wsConnect();
+    ws.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));
+    await wsReceive(ws);
+
+    ws.send(JSON.stringify({ type: 'team_msg', slug: 'test-slug', dorsal: '7', text: 'Box box' }));
+    const msg = await wsReceive(ws);
+    expect(msg.type).toBe('team_msg_sent');
+    ws.close();
+  });
+
+  test('team_msg con text >500 chars → error (límite de forma)', async () => {
+    const ws = await wsConnect();
+    ws.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));
+    await wsReceive(ws);
+
+    ws.send(JSON.stringify({ type: 'team_msg', slug: 'test-slug', dorsal: '7', text: 'X'.repeat(501) }));
+    const msg = await wsReceive(ws);
+    expect(msg.type).toBe('error');
+    ws.close();
+  });
+
+  test('team_msg con dorsal >16 chars → error (límite de forma)', async () => {
+    const ws = await wsConnect();
+    ws.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));
+    await wsReceive(ws);
+
+    ws.send(JSON.stringify({ type: 'team_msg', slug: 'test-slug', dorsal: '1'.repeat(17), text: 'hola' }));
+    const msg = await wsReceive(ws);
+    expect(msg.type).toBe('error');
+    ws.close();
+  });
+
+  test('team_msg: rate limit por conexión (>10 en 10s → error)', async () => {
+    const ws = await wsConnect();
+    ws.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));
+    await wsReceive(ws);
+
+    // Las 10 primeras pasan; la 11ª es rechazada por el rate limit.
+    let last;
+    for (let i = 0; i < 11; i++) {
+      ws.send(JSON.stringify({ type: 'team_msg', slug: 'test-slug', dorsal: '7', text: 'msg ' + i }));
+      last = await wsReceive(ws);
+      if (i < 10) expect(last.type).toBe('team_msg_sent');
+    }
+    expect(last.type).toBe('error');
+    expect(last.msg).toMatch(/demasiados/i);
+    ws.close();
+  });
+
   test('mensaje WS vacío → error sin crash', async () => {
     const ws = await wsConnect();
     ws.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));

@@ -1000,12 +1000,31 @@ wss.on('connection', (ws) => {
     if (msg.type === 'team_msg') {
       const slug   = (msg.slug   || '').trim();
       const dorsal = (msg.dorsal || '').toString().trim();
-      const text   = (msg.text   || '').trim();
+      const text   = (msg.text   || '').toString().trim();
       const mon    = monitors.get(slug);
       if (!mon || !dorsal || !text) {
         ws.send(JSON.stringify({ type: 'error', msg: 'slug, dorsal y text requeridos' }));
         return;
       }
+      // Límites de forma (defensa en profundidad — el pilot app muestra el texto).
+      if (dorsal.length > 16 || text.length > 500) {
+        ws.send(JSON.stringify({ type: 'error', msg: 'dorsal (≤16) o text (≤500) demasiado largos' }));
+        return;
+      }
+      // Rate limit por conexión (máx 10 mensajes / 10 s): no hay control de
+      // pertenencia dorsal↔usuario, así que al menos se acota el volumen para
+      // que un usuario válido no pueda inundar al piloto de otro equipo.
+      // TODO(pertenencia): al abrir registro público, atar cada dorsal a su
+      // equipo/usuario y rechazar team_msg a dorsales ajenos. Con la base de
+      // usuarios por invitación actual el riesgo residual es aceptable.
+      const nowTs = Date.now();
+      ws._teamMsgTimes = (ws._teamMsgTimes || []).filter(t => nowTs - t < 10000);
+      if (ws._teamMsgTimes.length >= 10) {
+        ws.send(JSON.stringify({ type: 'error', msg: 'demasiados mensajes, espera unos segundos' }));
+        return;
+      }
+      ws._teamMsgTimes.push(nowTs);
+
       const clients = mon.pilotSubscribers.get(dorsal);
       if (clients) {
         const payload = JSON.stringify({ type: 'team_msg', text });
@@ -1059,9 +1078,18 @@ async function start() {
   // Bind a localhost: el logger NO se expone a internet directamente.
   // El acceso público va SOLO por nginx (443/TLS) → proxy a 127.0.0.1:3000.
   const BIND = process.env.STINTPRO_BIND || '127.0.0.1';
+  // Read-auth es fail-open por diseño (los paneles públicos /stats y /recordings
+  // leen sin credencial). El riesgo es que un .env sin el flag deje las lecturas
+  // abiertas SIN que nadie se entere → lo hacemos ruidoso en el arranque.
+  const enforceReadAuth = process.env.ENFORCE_READ_AUTH === 'true';
   server.listen(PORT, BIND, () => {
     console.log(`[Logger] Escuchando en ${BIND}:${PORT}`);
     console.log(`[Logger] API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : '(ninguna)'}`);
+    if (enforceReadAuth) {
+      console.log('[Logger] Read-auth: ENFORZADO (las lecturas exigen API key o JWT de Supabase)');
+    } else {
+      console.warn('[SEGURIDAD] Read-auth NO enforzado (ENFORCE_READ_AUTH!=="true") → las lecturas de datos se sirven SIN credencial. Define ENFORCE_READ_AUTH=true en el .env para cerrarlas.');
+    }
   });
 
   return server;
