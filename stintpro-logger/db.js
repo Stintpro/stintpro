@@ -118,9 +118,17 @@ function _save() {
   setImmediate(() => {
     try {
       const data = db.export();
-      fs.writeFile(DB_PATH, Buffer.from(data), err => {
-        _saving = false;
-        if (err) console.error('[DB] Error guardando:', err.message);
+      // Escritura atómica: volcar a un fichero temporal y renombrar. rename(2)
+      // es atómico dentro del mismo filesystem, así que DB_PATH SIEMPRE apunta a
+      // un fichero completo — un corte de luz o crash a mitad de escritura deja
+      // el .tmp a medias (que se descarta), nunca la BD principal corrupta.
+      const tmp = DB_PATH + '.tmp';
+      fs.writeFile(tmp, Buffer.from(data), err => {
+        if (err) { _saving = false; console.error('[DB] Error guardando:', err.message); return; }
+        fs.rename(tmp, DB_PATH, err2 => {
+          _saving = false;
+          if (err2) console.error('[DB] Error renombrando BD:', err2.message);
+        });
       });
     } catch(e) { _saving = false; console.error('[DB] Error exportando:', e.message); }
   });
