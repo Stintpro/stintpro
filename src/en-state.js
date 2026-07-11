@@ -197,7 +197,8 @@ function _enInjectStyles(){
     .sp-lapbar{position:absolute;bottom:0;left:0;height:2px;background:rgba(245,166,35,0.4);transition:width 0.1s linear;pointer-events:none;}
     .sp-lapbar.fast{background:rgba(34,197,94,0.5);}
     .sp-lapbar.slow{background:rgba(239,68,68,0.4);}
-    .en-myrow{background:rgba(245,166,35,0.05)!important;border-left:2px solid #F5A623;}
+    .en-myrow{background:linear-gradient(90deg,rgba(245,166,35,0.28),rgba(245,166,35,0.07) 55%,transparent)!important;box-shadow:inset 4px 0 0 0 #F5A623;}
+    .en-myrow:nth-child(odd){background:linear-gradient(90deg,rgba(245,166,35,0.32),rgba(245,166,35,0.08) 55%,transparent)!important;}
     /* Pestañas */
     .en-tabs{display:flex;border-bottom:0.5px solid #1a1b20;flex-shrink:0;}
     .en-tab{flex:1;padding:8px 0;text-align:center;font-size:12.5px;color:var(--text-3);cursor:pointer;border-bottom:2px solid transparent;font-family:sans-serif;transition:all .15s;}
