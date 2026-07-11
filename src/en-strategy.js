@@ -1004,12 +1004,23 @@ window.showEnduranceDashboard=function(cfg){
           else if(prev)e._lapStart=prev._lapStart;
           else e._lapStart=now;
           // En live updates el servidor envía solo las últimas 10 vueltas —
-          // preservar el historial completo que ya teníamos y añadir nuevas.
-          if(!data._isHistory&&prev&&(prev.lapHistory||[]).length>(e.lapHistory||[]).length){
-            const prevH=prev.lapHistory;
-            const newLaps=(e.lapHistory||[]).filter(t=>!prevH.some(h=>Math.abs(h-t)<0.05));
-            e.lapHistory=newLaps.length>0?[...prevH,...newLaps]:prevH;
+          // preservar el historial completo que ya teníamos y añadir SOLO las
+          // nuevas. Merge por contador (lapHistoryTotal): ver _enMergeLapHistory.
+          if(!data._isHistory&&prev){
+            const merged=_enMergeLapHistory(prev.lapHistory, prev._lapHistoryTotal, e.lapHistory, e.lapHistoryTotal);
+            if(merged!==null){
+              e.lapHistory=merged;
+            } else if((prev.lapHistory||[]).length>(e.lapHistory||[]).length){
+              // Fallback para un logger antiguo sin lapHistoryTotal: dedup por
+              // valor (impreciso — descarta vueltas nuevas con tiempo repetido).
+              const prevH=prev.lapHistory;
+              const newLaps=(e.lapHistory||[]).filter(t=>!prevH.some(h=>Math.abs(h-t)<0.05));
+              e.lapHistory=newLaps.length>0?[...prevH,...newLaps]:prevH;
+            }
           }
+          // Contador del servidor ya procesado — base del próximo merge
+          if(e.lapHistoryTotal!=null)e._lapHistoryTotal=e.lapHistoryTotal;
+          else if(prev)e._lapHistoryTotal=prev._lapHistoryTotal;
         });
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;

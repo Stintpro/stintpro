@@ -153,4 +153,27 @@ function _enResolveGap(opts){
   return Math.max(apexGap, lapsGap);
 }
 
-if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap};
+// ── Merge del historial de vueltas (modo logger) ──────────────────────────
+// Los updates live del logger llevan solo las últimas N vueltas (ventana) más
+// el contador total del parser (lapHistoryTotal). Se añaden al historial
+// acumulado exactamente las vueltas nuevas según la diferencia de contadores.
+// NUNCA dedup por valor: los tiempos de vuelta se repiten (±0.05s) y ese
+// criterio descartaba vueltas reales, congelando el historial en carreras largas.
+//
+// prevHist: historial acumulado en el cliente · prevTotal: contador ya procesado
+// window: ventana recibida (últimas N) · total: contador actual del servidor
+// Devuelve el historial fusionado, o null si falta algún contador (el llamante
+// decide el fallback para servidores antiguos sin lapHistoryTotal).
+function _enMergeLapHistory(prevHist, prevTotal, window, total){
+  if(total==null||prevTotal==null)return null;
+  prevHist=prevHist||[]; window=window||[];
+  const newCount=total-prevTotal;
+  // Sin vueltas nuevas — o contador hacia atrás (reinicio del servidor a mitad
+  // de sesión): conservar lo acumulado, el contador se resincroniza fuera.
+  if(newCount<=0)return prevHist;
+  const tail=window.slice(-Math.min(newCount,window.length));
+  const merged=[...prevHist,...tail];
+  return merged.length>1500?merged.slice(-1500):merged;
+}
+
+if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap,_enMergeLapHistory};

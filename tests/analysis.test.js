@@ -3,7 +3,7 @@
 const {
   _enFmt, _enFmtGap, _enFmtDelta, _enFmtStint,
   _enDeltaColor, _enCleanLaps, _enCons, _enAvg5, _enTrend,
-  _enPaceStd, _enDensityTiers, _enResolveGap,
+  _enPaceStd, _enDensityTiers, _enResolveGap, _enMergeLapHistory,
 } = require('../src/analysis');
 
 const assert = require('assert');
@@ -249,6 +249,54 @@ group('_enResolveGap (gap saneado del artefacto de pit)', () => {
   });
   test('sin gap de Apex (0): devuelve el de vueltas', () => {
     assert.equal(_enResolveGap({apexGap:0, lapsGap:44, pitCost:150}), 44);
+  });
+});
+
+// ── _enMergeLapHistory (merge por contador, modo logger) ────────────────────
+
+group('_enMergeLapHistory (historial acumulado + ventana live)', () => {
+  test('sin contadores → null (el llamante aplica el fallback)', () => {
+    assert.equal(_enMergeLapHistory([60,61], undefined, [61,62], undefined), null);
+    assert.equal(_enMergeLapHistory([60,61], 2, [61,62], undefined), null);
+    assert.equal(_enMergeLapHistory([60,61], undefined, [61,62], 3), null);
+  });
+  test('una vuelta nueva: añade la última de la ventana', () => {
+    const merged=_enMergeLapHistory([60,61,62], 3, [61,62,63], 4);
+    assert.deepEqual(merged, [60,61,62,63]);
+  });
+  test('CASO DEL BUG: vuelta nueva con tiempo repetido NO se descarta', () => {
+    // El kart repite exactamente 67.0 (ya presente en el historial): con el
+    // dedup por valor esta vuelta se perdía; por contador se añade siempre.
+    const merged=_enMergeLapHistory([67.0,66.8,67.1], 3, [66.8,67.1,67.0], 4);
+    assert.deepEqual(merged, [67.0,66.8,67.1,67.0]);
+  });
+  test('varias vueltas nuevas: añade la cola exacta de la ventana', () => {
+    const merged=_enMergeLapHistory([60,61], 2, [60,61,62,63,64], 5);
+    assert.deepEqual(merged, [60,61,62,63,64]);
+  });
+  test('sin vueltas nuevas (mismo contador): conserva el acumulado tal cual', () => {
+    const prev=[60,61,62];
+    assert.deepEqual(_enMergeLapHistory(prev, 3, [61,62], 3), prev);
+  });
+  test('contador hacia atrás (reinicio del servidor): conserva el acumulado', () => {
+    const prev=Array.from({length:80},(_,i)=>60+i*0.01);
+    assert.deepEqual(_enMergeLapHistory(prev, 80, [60.1,60.2], 2), prev);
+  });
+  test('hueco mayor que la ventana: añade toda la ventana (mejor esfuerzo)', () => {
+    // 15 vueltas nuevas pero la ventana solo trae 10 → se añaden esas 10
+    const win=Array.from({length:10},(_,i)=>70+i);
+    const merged=_enMergeLapHistory([60,61], 2, win, 17);
+    assert.deepEqual(merged, [60,61,...win]);
+  });
+  test('tope de 1500: recorta por el principio', () => {
+    const prev=Array.from({length:1499},(_,i)=>60+(i%30)*0.1);
+    const merged=_enMergeLapHistory(prev, 1499, [65,66,67], 1502);
+    assert.equal(merged.length, 1500);
+    assert.equal(merged[merged.length-1], 67);
+    assert.equal(merged[0], prev[2]); // se descartaron las 2 más antiguas
+  });
+  test('historiales vacíos: primera ventana entra entera', () => {
+    assert.deepEqual(_enMergeLapHistory([], 0, [60,61], 2), [60,61]);
   });
 });
 

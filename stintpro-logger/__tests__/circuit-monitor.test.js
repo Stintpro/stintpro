@@ -252,6 +252,26 @@ describe('_onState', () => {
     expect(msg.type).toBe('live');
     expect(msg.data.equipos[0].lapHistory).toHaveLength(10);
     expect(msg.data.equipos[0].lapHistory[0]).toBe(laps[5]);
+    // Contador del historial completo — el cliente fusiona por diferencia de
+    // contadores (no por valor de vuelta, que descartaba tiempos repetidos)
+    expect(msg.data.equipos[0].lapHistoryTotal).toBe(15);
+  });
+
+  test('el snapshot "history" incluye lapHistoryTotal del parser', () => {
+    const m  = createMonitor();
+    // Grid con colMap (c3=llp) + 3 vueltas reales por celda llp
+    m.parser.parse(buildGrid(kartRow('r1', '7', 'JAVIER')));
+    m.parser.parse('r1c3|ti|1:04.100');
+    m.parser.parse('r1c3|ti|1:04.200');
+    m.parser.parse('r1c3|ti|1:04.100'); // tiempo repetido — cuenta igual
+
+    const ws = fakeClientWs();
+    m.subscribe(ws); // primer envío es el snapshot 'history'
+    const msg = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(msg.type).toBe('history');
+    const kart = msg.snapshot.equipos.find(e => e.dorsal === '7');
+    expect(kart.lapHistory).toHaveLength(3);
+    expect(kart.lapHistoryTotal).toBe(3);
   });
 
   test('throttle: dos actualizaciones en menos de 200ms solo emiten un broadcast', () => {
