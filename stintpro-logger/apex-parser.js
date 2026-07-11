@@ -77,7 +77,7 @@ class ApexParser {
             // setGrid() en apex-protocol.js (fuente de verdad única). Pre-parsearlo aquí
             // hacía un doble strip: al llegar ya sin brackets, setGrid no reconocía al
             // piloto y volcaba su nombre en teamName.
-            if (n && n.length > 1 && isNaN(parseInt(n)) && !skip.includes(n)) kg.name = n;
+            if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !skip.includes(n)) kg.name = n;
           }
         }
 

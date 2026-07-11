@@ -120,7 +120,7 @@ window.ApexConnector = {
         }
 
         const drCell = colMap.dr ? row.querySelector(`[data-id$="${colMap.dr}"]`) : row.querySelector('.dr');
-        if (drCell) { const n = drCell.textContent.trim(); if (n && isNaN(parseInt(n))) kg.name = n; }
+        if (drCell) { const n = drCell.textContent.trim(); if (n && !/^\d+(\.\d+)?$/.test(n)) kg.name = n; }
 
         if (colMap.blp) {
           const c = row.querySelector(`[data-id$="${colMap.blp}"]`);

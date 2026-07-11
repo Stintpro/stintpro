@@ -157,7 +157,10 @@
       // ── Nombre ────────────────────────────────────────────────────────
       if (dtype === 'dr') {
         const n = (v || '').trim();
-        if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
+        // Rechaza solo valores puramente numéricos (dorsales) o de tiempo, no
+        // nombres que empiezan por dígito ("24H Racing", "1000 Millas") — antes
+        // isNaN(parseInt) los descartaba y ese equipo se quedaba sin nombre.
+        if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) {
             // Nombre con brackets = piloto confirmado (carreras por equipos)
@@ -180,7 +183,7 @@
       // ── Nombre vía drteam (algunos circuitos usan tipo 'drteam' en col llp) ──
       if (type === 'drteam') {
         const n = (val || '').trim();
-        if (n && n.length > 1 && isNaN(parseInt(n)) && !SKIP_NAMES.has(n)) {
+        if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) {
             k.name = pm[1].trim();

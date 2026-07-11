@@ -72,6 +72,18 @@ describe('_parseGrid', () => {
     expect(kart.name).toBe('JAVIER COY');
   });
 
+  // Antes isNaN(parseInt(n)) descartaba nombres que empiezan por dígito
+  // ("24H Racing" → parseInt=24 → rechazado) y ese equipo quedaba sin nombre.
+  test('nombre que empieza por dígito se conserva ("24H Racing")', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({
+      colDefs: STANDARD_COLS,
+      rows: kartRow('r1', '7', '24H Racing'),
+    }));
+    const kart = p.getState().equipos.find(e => e.dorsal === '7');
+    expect(kart.name).toBe('24H Racing');
+  });
+
   test('múltiples karts con posición fijada via |#|', () => {
     const p = new ApexParser();
     p.parse(buildGrid({

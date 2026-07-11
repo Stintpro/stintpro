@@ -793,6 +793,53 @@ group('dr column — pilot name regression', () => {
     assert.equal(k.teamName, 'Team StintPro', 'teamName debe conservarse del mensaje sin brackets');
   });
 
+  // Bug: isNaN(parseInt(n)) descartaba cualquier nombre que empezara por dígito
+  // ("24H Racing" → parseInt=24 → no NaN → rechazado). Ahora solo se rechaza lo
+  // puramente numérico (dorsales/tiempos), no nombres alfanuméricos con dígito inicial.
+  test('nombre que empieza por dígito se acepta (celda en vivo)', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }],
+    });
+    p.parse('r1c2|ti|24H Racing');
+    assert.equal(p.getState().equipos[0].name, '24H Racing');
+  });
+
+  test('otro nombre con dígito inicial: "1000 Millas"', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }],
+    });
+    p.parse('r1c2|ti|1000 Millas');
+    assert.equal(p.getState().equipos[0].name, '1000 Millas');
+  });
+
+  test('valor puramente numérico se sigue rechazando como nombre', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1, name: 'Real Name' }],
+    });
+    p.parse('r1c2|ti|42');       // dorsal puro → no debe pisar el nombre
+    p.parse('r1c2|ti|64.500');   // tiempo puro → tampoco
+    assert.equal(p.getState().equipos[0].name, 'Real Name');
+  });
+
+  test('setGrid: nombre con dígito inicial va a k.name', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2' },
+      colByNum: { c1: 'no', c2: 'dr' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1, name: '24H Racing' }],
+    });
+    assert.equal(p.getState().equipos[0].name, '24H Racing');
+  });
+
   test('Endurance _applyCell dr con brackets: no sobreescribe k.name si ya está puesto', () => {
     const p = createParser({});
     p.setGrid({
