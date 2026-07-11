@@ -116,11 +116,19 @@ const Logger = {
     this.connected = false;
   },
 
-  // Token de sesión de Supabase (para autenticar lecturas y WS por usuario)
+  // Token de sesión de Supabase (para autenticar lecturas y WS por usuario).
+  // getSession() no refresca si el timer de fondo no ha corrido (p.ej. pestaña
+  // suspendida en Safari/iPad al cambiar de app) → puede devolver un access_token
+  // ya caducado. Se fuerza un refresco activo cuando falta <60s o ya caducó.
   async _getToken() {
     try {
-      const s = await window.supabaseClient?.auth?.getSession();
-      return s?.data?.session?.access_token || '';
+      const client = window.supabaseClient;
+      let session = (await client?.auth?.getSession())?.data?.session;
+      const nearExpiry = session?.expires_at && (session.expires_at * 1000 - Date.now() < 60000);
+      if (session && nearExpiry) {
+        session = (await client.auth.refreshSession())?.data?.session || session;
+      }
+      return session?.access_token || '';
     } catch(e) { return ''; }
   },
 
