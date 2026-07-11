@@ -308,7 +308,9 @@ function _enRenderStrategy(eq, trackAvg){
     const qColor=(k)=>k.quality==='good'?'#22c55e':k.quality==='bad'?'#ef4444':k.quality==='neutral'?'#fbbf24':'#333';
     const qLabel=(k)=>k.quality==='unknown'?'?':'';
     const qBorder=(k,accessible)=>accessible?'1.5px solid #fff':'1.5px dashed #2a2b2e';
-    const qTitle=(k)=>k.quality==='unknown'?'Sin info':(k.name||'#'+k.dorsal)+' ('+({good:'bueno',bad:'malo',neutral:'neutro'}[k.quality]||'?')+')';
+    // _esc obligatorio: k.name/k.dorsal vienen del feed de Apex (no confiable)
+    // y esto se interpola en atributos title="..." del diagrama del box.
+    const qTitle=(k)=>k.quality==='unknown'?'Sin info':_esc((k.name||'#'+k.dorsal)+' ('+({good:'bueno',bad:'malo',neutral:'neutro'}[k.quality]||'?')+')');
 
     if(qLen>0){
       html+=`<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid #1a1b22">`;

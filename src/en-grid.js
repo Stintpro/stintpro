@@ -566,7 +566,7 @@ function _enShowPilotHistory(name, evt) {
   overlay.innerHTML = `
     <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(500px,92vw);overflow:hidden">
       <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
-        <span style="font-size:15px;font-weight:700;color:var(--text-1);flex:1">${name}</span>
+        <span style="font-size:15px;font-weight:700;color:var(--text-1);flex:1">${_esc(name)}</span>
         ${score!=null?`<span style="font-size:20px;font-weight:700;color:${scoreColor};font-family:monospace">${score}</span><span style="font-size:11px;color:${scoreColor};opacity:.8">${scoreLabel}</span>`:''}
         <button onclick="document.getElementById('en-pilot-history-overlay').remove()" style="background:transparent;border:1px solid #2a2d3a;border-radius:6px;color:var(--text-3);padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
       </div>
