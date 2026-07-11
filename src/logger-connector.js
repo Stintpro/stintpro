@@ -15,7 +15,10 @@ const Logger = {
     this.onData = onData;
     this.onStatus = onStatus;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
-    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+    // Desarmar el socket anterior ANTES de cerrarlo: su onclose (async) vería
+    // this.slug ya fijado y programaría una reconexión paralela a los 5s →
+    // dos sockets vivos recibiendo live/history a la vez.
+    this._disarm(this.ws); this.ws = null;
 
     // URL del logger — guardada en AppState o localStorage
     const loggerUrl = window.AppState?.loggerUrl || localStorage.getItem('stintpro_logger_url') || '';
@@ -98,10 +101,18 @@ const Logger = {
     }
   },
 
+  // Quita los handlers y cierra el socket — un ws reemplazado no debe volver a
+  // hablar (mensajes tardíos, onclose que reconecta).
+  _disarm(ws) {
+    if (!ws) return;
+    ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+    try { ws.close(); } catch(e) {}
+  },
+
   disconnect() {
     this.slug = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
-    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+    this._disarm(this.ws); this.ws = null;
     this.connected = false;
   },
 

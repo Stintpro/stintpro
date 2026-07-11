@@ -20,7 +20,11 @@ window.ApexConnector = {
     this.onData = onData; this.onStatus = onStatus; this.onComment = onComment; this.onTitle = onTitle || null;
     this._comments = [];
     this._httpPort = null; this._historyFetched = false;
-    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+    // Desarmar el socket anterior ANTES de cerrarlo: su onclose se dispara en
+    // async (después de que connect() retorne) con this.slug ya apuntando a la
+    // sesión nueva, y programaría una reconexión paralela a los 5s → dos
+    // sockets alimentando el mismo parser (vueltas duplicadas vía llp).
+    this._disarm(this.ws); this.ws = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
 
     this._parser = ApexProtocol.createParser({
@@ -64,10 +68,18 @@ window.ApexConnector = {
     } catch(e) { if (this.onStatus) this.onStatus('error', '● No se pudo conectar'); }
   },
 
+  // Quita los handlers y cierra el socket — un ws reemplazado no debe volver a
+  // hablar (onmessage tardío contra un parser nulo, onclose que reconecta).
+  _disarm(ws) {
+    if (!ws) return;
+    ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+    try { ws.close(); } catch(e) {}
+  },
+
   disconnect() {
     this.slug = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
-    if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+    this._disarm(this.ws); this.ws = null;
     this.connected = false;
     this._parser = null;
   },
