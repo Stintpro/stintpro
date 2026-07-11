@@ -209,7 +209,7 @@ function renderSprintSetup() {
         </div>
       </div>
       <div class="conn-row">
-        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span><span id="circuit-offset-badge" style="display:none;margin-left:8px;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span></div>
+        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span><span id="circuit-offset-badge" style="display:none;margin-left:8px;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span><span id="circuit-offset-reset" onclick="_resetOffsetBadge()" style="display:none;margin-left:6px;font-size:11px;color:var(--text-3);cursor:pointer;text-decoration:underline">↻ recalibrar</span></div>
         <button class="btn" onclick="testConn()">Verificar</button>
       </div>
     </div>
@@ -349,7 +349,7 @@ function renderEnduranceSetup() {
         </div>
       </div>
       <div class="conn-row">
-        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span><span id="circuit-offset-badge" style="display:none;margin-left:8px;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span></div>
+        <div class="conn-st"><div class="cdot" id="cdot"></div><span id="cLabel">Sin verificar</span><span id="circuit-offset-badge" style="display:none;margin-left:8px;font-size:11px;color:#22c55e;background:rgba(34,197,94,0.12);border:0.5px solid rgba(34,197,94,0.35);border-radius:4px;padding:1px 6px;font-family:monospace"></span><span id="circuit-offset-reset" onclick="_resetOffsetBadge()" style="display:none;margin-left:6px;font-size:11px;color:var(--text-3);cursor:pointer;text-decoration:underline">↻ recalibrar</span></div>
         <button class="btn" onclick="testConn()">Verificar</button>
       </div>
     </div>
@@ -421,12 +421,30 @@ function onCircuitSelect() {
 // dispositivo nuevo, incluido uno que nunca ha calibrado nada).
 function _updateOffsetBadge(circ) {
   const badge=document.getElementById('circuit-offset-badge');
+  const reset=document.getElementById('circuit-offset-reset');
   if(!badge)return;
-  if(!circ){badge.style.display='none';return;}
+  if(!circ){badge.style.display='none';if(reset)reset.style.display='none';return;}
   const key=window.CircuitDB.pitOffsetKey(circ.slug,_trackDirection);
-  const saved=localStorage.getItem(key) ?? window.CircuitDB.getKnownOffset(circ.slug,_trackDirection);
+  const own=localStorage.getItem(key);
+  const saved=own ?? window.CircuitDB.getKnownOffset(circ.slug,_trackDirection);
   if(saved){badge.textContent='✓ offset '+parseFloat(saved).toFixed(0)+'s';badge.style.display='';}
   else{badge.style.display='none';}
+  // Solo se ofrece recalibrar cuando hay una medición propia de ESTE dispositivo
+  // guardada (no tiene sentido "recalibrar" el valor de fábrica de solo lectura).
+  if(reset)reset.style.display=(own!=null)?'':'none';
+}
+
+// Borra la calibración propia del dispositivo para este circuito+sentido, para
+// que vuelva a caer en el offset de fábrica (o sin calibrar) y se remida limpio
+// en la próxima sesión. Pensado para dispositivos donde una calibración pasada
+// quedó contaminada (tráfico en pit exit, prueba/demo) y no hay consola a mano
+// para borrar el localStorage a mano (p.ej. iPad).
+function _resetOffsetBadge() {
+  const id=document.getElementById('circuitSelect')?.value;
+  const circ=window.CircuitDB.list.find(x=>x.id===id);
+  if(!circ)return;
+  localStorage.removeItem(window.CircuitDB.pitOffsetKey(circ.slug,_trackDirection));
+  _updateOffsetBadge(circ);
 }
 
 function setTrackDirection(dir) {
