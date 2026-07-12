@@ -1,0 +1,616 @@
+<meta charset="utf-8">
+<title>StintPro · IRONMAN 2026 · Los Santos</title>
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --surface-2: #f4f6f8;
+    --border: #dde1e7;
+    --text: #12151a;
+    --text-dim: #5b6270;
+    --text-faint: #868d99;
+    --accent: #3f6fd6;
+    --accent-soft: #e4ebfb;
+    --accent-ink: #ffffff;
+    --warn: #b9791f;
+    --warn-soft: #f6ecd8;
+    --good: #17914f;
+    --good-soft: #e1f3e8;
+    --bad: #d33a34;
+    --bad-soft: #fbe6e4;
+    --grid-line: #e6e9ee;
+    --shadow: 0 1px 2px rgba(18,21,26,0.06), 0 8px 24px -12px rgba(18,21,26,0.14);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0d10;
+      --surface: #15171c;
+      --surface-2: #1b1e24;
+      --border: #272b32;
+      --text: #eef0f2;
+      --text-dim: #9aa0a9;
+      --text-faint: #6c7279;
+      --accent: #5b8dee;
+      --accent-soft: #1c2740;
+      --accent-ink: #06101f;
+      --warn: #fbbf24;
+      --warn-soft: #382d12;
+      --good: #22c55e;
+      --good-soft: #12291b;
+      --bad: #ef4444;
+      --bad-soft: #2e1614;
+      --grid-line: #23262d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px -16px rgba(0,0,0,0.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c0d10; --surface: #15171c; --surface-2: #1b1e24; --border: #272b32;
+    --text: #eef0f2; --text-dim: #9aa0a9; --text-faint: #6c7279;
+    --accent: #5b8dee; --accent-soft: #1c2740; --accent-ink: #06101f;
+    --warn: #fbbf24; --warn-soft: #382d12;
+    --good: #22c55e; --good-soft: #12291b; --bad: #ef4444; --bad-soft: #2e1614;
+    --grid-line: #23262d; --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px -16px rgba(0,0,0,0.6);
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f4; --surface: #ffffff; --surface-2: #f4f6f8; --border: #dde1e7;
+    --text: #12151a; --text-dim: #5b6270; --text-faint: #868d99;
+    --accent: #3f6fd6; --accent-soft: #e4ebfb; --accent-ink: #ffffff;
+    --warn: #b9791f; --warn-soft: #f6ecd8;
+    --good: #17914f; --good-soft: #e1f3e8; --bad: #d33a34; --bad-soft: #fbe6e4;
+    --grid-line: #e6e9ee; --shadow: 0 1px 2px rgba(18,21,26,0.06), 0 8px 24px -12px rgba(18,21,26,0.14);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 20px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+
+  /* ── App bar (marca StintPro) ─────────────────────────── */
+  .appbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 4px 2px 2px;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand svg { display: block; }
+  .brand .wordmark { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand .wordmark .hi { color: var(--accent); }
+  .brand .tagline { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-left: 1px; }
+  .appbar-meta { font-size: 12px; color: var(--text-faint); text-align: right; }
+
+  /* ── Selector de piloto ───────────────────────────────── */
+  .selector-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; box-shadow: var(--shadow);
+  }
+  .selector-bar label { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  select {
+    font: inherit; font-size: 13.5px; color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px;
+    max-width: 260px;
+  }
+  select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead { display: flex; align-items: center; gap: 18px; padding: 20px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .kart-badge {
+    flex: none; width: 68px; height: 68px; border-radius: 8px; background: var(--accent); color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", Consolas, monospace; font-weight: 700; font-size: 30px; letter-spacing: -0.02em;
+  }
+  .masthead-text { min-width: 0; }
+  .masthead h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .masthead .meta { margin-top: 4px; color: var(--text-dim); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+  .masthead .meta .sep { color: var(--text-faint); }
+
+  /* ── Stat strip ───────────────────────────────────────── */
+  .stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .stat-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .stat-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); }
+  .stat-tile .value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .stat-tile .value.accent { color: var(--accent); }
+  .stat-tile .sub { font-size: 12px; color: var(--text-dim); }
+  .pill { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 99px; }
+  .pill.up { color: var(--good); background: var(--good-soft); }
+  .pill.down { color: var(--bad); background: var(--bad-soft); }
+
+  /* ── Panels ───────────────────────────────────────────── */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .panel-head { padding: 16px 20px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+  .panel-head h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.005em; }
+  .panel-head .time-range { font-size: 12.5px; color: var(--text-dim); }
+  .panel-body { padding: 16px 20px 20px; }
+
+  /* ── Chart (eje fijo + área scrollable) ──────────────── */
+  .chart-flex { display: flex; gap: 0; position: relative; }
+  .chart-axis { flex: none; width: 52px; position: relative; }
+  .chart-axis span { position: absolute; right: 8px; transform: translateY(-50%); font: 10px ui-monospace, "SF Mono", "Roboto Mono", monospace; color: var(--text-faint); white-space: nowrap; }
+  .chart-scroll { flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; }
+  .chart-scroll svg { display: block; }
+  .chart-hint { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+  .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-dim); margin-top: 8px; }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .swatch.line { width: 14px; height: 2px; border-radius: 1px; }
+
+  .chart-tooltip {
+    position: fixed; z-index: 50; pointer-events: none;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; box-shadow: var(--shadow); min-width: 140px;
+    transition: opacity 0.08s ease;
+  }
+  .chart-tooltip .tt-lap { font-weight: 700; margin-bottom: 4px; }
+  .chart-tooltip .tt-row { display: flex; align-items: center; gap: 6px; justify-content: space-between; gap: 12px; }
+  .chart-tooltip .tt-row + .tt-row { margin-top: 2px; }
+  .chart-tooltip .tt-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .chart-tooltip .tt-pit { color: var(--bad); font-weight: 600; }
+
+  /* ── Tablas ───────────────────────────────────────────── */
+  .table-scroll { overflow-x: auto; margin-top: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--grid-line); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; }
+  .best-tag { color: var(--good); font-weight: 700; }
+  .lap-table tbody td.laptime { position: relative; }
+  .bar-track { position: absolute; left: 10px; right: 10px; bottom: 3px; height: 3px; background: var(--grid-line); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .bar-fill.best { background: var(--good); }
+
+  /* ── Comparador ───────────────────────────────────────── */
+  .compare-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .compare-controls .vs { font-size: 12px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+  .compare-select-group { display: flex; align-items: center; gap: 8px; }
+  .compare-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .compare-stats { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0 14px; margin-top: 16px; font-size: 13.5px; }
+  .compare-stats .ch { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 6px 0; }
+  .compare-stats .row-label { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 10px 0 2px; border-top: 1px solid var(--grid-line); margin-top: 4px; }
+  .compare-stats .row-label:first-of-type { border-top: none; margin-top: 0; }
+  .compare-val { padding: 3px 0; font-weight: 600; }
+  .compare-val.win { color: var(--good); }
+  .compare-val.mid { text-align: center; color: var(--text-faint); font-weight: 400; }
+
+  footer { text-align: center; color: var(--text-faint); font-size: 12px; padding: 6px 0 0; }
+
+  @media (prefers-reduced-motion: no-preference) { .panel { animation: rise 0.35s ease-out both; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
+
+  a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 560px) {
+    .masthead { flex-wrap: wrap; }
+    .appbar { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .appbar-meta { text-align: left; }
+  }
+</style>
+
+<div class="page">
+
+  <div class="appbar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <circle cx="13" cy="13" r="11.5" fill="none" stroke="var(--accent)" stroke-width="2.4"/>
+        <circle cx="13" cy="13" r="1.6" fill="var(--accent)"/>
+        <line x1="13" y1="13" x2="13" y2="5.2" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="13" y1="13" x2="18" y2="15.6" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/>
+        <rect x="10.4" y="1.6" width="5.2" height="2.4" rx="1.2" fill="var(--accent)"/>
+      </svg>
+      <div>
+        <div class="wordmark">Stint<span class="hi">Pro</span></div>
+      </div>
+      <div class="tagline">Informe de sesión</div>
+    </div>
+    <div class="appbar-meta" id="appbar-meta"></div>
+  </div>
+
+  <div class="selector-bar">
+    <label>Piloto
+      <select id="driver-select"></select>
+    </label>
+  </div>
+
+  <header class="masthead">
+    <div class="kart-badge" id="kart-badge">—</div>
+    <div class="masthead-text">
+      <h1 id="driver-name">—</h1>
+      <div class="meta" id="driver-meta"></div>
+    </div>
+  </header>
+
+  <section class="stat-strip" id="stat-strip"></section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Carrera · <span id="race-title-suffix"></span></h2>
+      <div class="time-range num">dorsal <span id="race-dorsal"></span></div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-flex" id="chart-race-flex">
+        <div class="chart-axis" id="chart-race-axis"></div>
+        <div class="chart-scroll"><div id="chart-race"></div></div>
+      </div>
+      <div class="chart-hint" id="chart-race-hint"></div>
+      <div class="chart-legend">
+        <span><span class="swatch line" style="background:var(--accent)"></span> vuelta</span>
+        <span><span class="swatch" style="background:var(--good)"></span> mejor vuelta</span>
+        <span><span class="swatch" style="background:var(--bad)"></span> parada en boxes</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Stint</th><th>Vueltas</th><th class="num">Nº</th><th class="num">Mejor</th><th class="num">Media</th><th class="num">1.ª vuelta</th><th class="num">Última</th></tr></thead>
+          <tbody id="stint-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Entrenamiento cronometrado</h2>
+      <div class="time-range num">dorsal <span id="practice-dorsal"></span></div>
+    </div>
+    <div class="panel-body">
+      <div class="chart-flex" id="chart-practice-flex">
+        <div class="chart-axis" id="chart-practice-axis"></div>
+        <div class="chart-scroll"><div id="chart-practice"></div></div>
+      </div>
+      <div class="table-scroll">
+        <table class="lap-table">
+          <thead><tr><th class="num">Vuelta</th><th class="num">Tiempo</th><th class="num">Diferencia</th><th></th></tr></thead>
+          <tbody id="practice-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Comparador de pilotos</h2>
+      <div class="time-range">vueltas de carrera, superpuestas</div>
+    </div>
+    <div class="panel-body">
+      <div class="compare-controls">
+        <div class="compare-select-group">
+          <span class="compare-dot" style="background:var(--accent)"></span>
+          <select id="compare-a"></select>
+        </div>
+        <div class="vs">vs</div>
+        <div class="compare-select-group">
+          <span class="compare-dot" style="background:var(--warn)"></span>
+          <select id="compare-b"></select>
+        </div>
+      </div>
+      <div class="chart-flex" id="chart-compare-flex" style="margin-top:16px">
+        <div class="chart-axis" id="chart-compare-axis"></div>
+        <div class="chart-scroll"><div id="chart-compare"></div></div>
+      </div>
+      <div class="chart-hint" id="chart-compare-hint"></div>
+      <div class="chart-legend" id="compare-legend"></div>
+      <div class="compare-stats" id="compare-stats"></div>
+    </div>
+  </section>
+
+  <footer>Datos extraídos del feed Apex Timing (log crudo) con el parser <span class="num">apex-protocol.js</span> de StintPro.</footer>
+</div>
+
+<div class="chart-tooltip" id="tooltip" hidden></div>
+
+<script>
+  const DATA = {"event":"IRONMAN 2026","circuit":"Los Santos · Adulto (1100 m)","practice":{"title":"IRONMAN 2026 · ENTRENOS CRONOMETRADOS","drivers":[{"dorsal":"3","name":"JUAN SANCHEZ","pos":1,"startPos":16,"bestLap":64587,"lastLap":64878,"tours":10,"stops":0,"laps":[65421,65898,64674,64833,64759,66750,64840,64587,65015,64878],"stints":[{"n":1,"from":1,"to":10,"count":10,"best":64587,"avg":65165.5,"first":65421,"last":64878}]},{"dorsal":"8","name":"FÉLIX SERNANDEZ","pos":2,"startPos":13,"bestLap":65272,"lastLap":66254,"tours":10,"stops":0,"laps":[66751,65708,66119,65682,65497,66863,65485,65367,65272,66254],"stints":[{"n":1,"from":1,"to":10,"count":10,"best":65272,"avg":65899.8,"first":66751,"last":66254}]},{"dorsal":"7","name":"GERMAN MUÑOZ","pos":3,"startPos":3,"bestLap":65276,"lastLap":65611,"tours":10,"stops":0,"laps":[66786,65891,65735,65834,65606,65955,65276,65299,65342,65611],"stints":[{"n":1,"from":1,"to":10,"count":10,"best":65276,"avg":65733.5,"first":66786,"last":65611}]},{"dorsal":"11","name":"JAIME ESPAÑA","pos":4,"startPos":10,"bestLap":65297,"lastLap":65297,"tours":9,"stops":0,"laps":[66037,66008,66020,65618,65555,65455,65664,65449,65297],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65297,"avg":65678.11111111111,"first":66037,"last":65297}]},{"dorsal":"5","name":"BORIS MARTIN","pos":5,"startPos":6,"bestLap":65361,"lastLap":65986,"tours":10,"stops":0,"laps":[65893,66084,66153,65767,65570,65361,66055,65597,65606,65986],"stints":[{"n":1,"from":1,"to":10,"count":10,"best":65361,"avg":65807.2,"first":65893,"last":65986}]},{"dorsal":"12","name":"JAVIER COY SEGOVIA","pos":6,"startPos":2,"bestLap":65435,"lastLap":65435,"tours":10,"stops":0,"laps":[66630,66630,66020,65694,66073,65701,65620,65771,65552,65894,65435],"stints":[{"n":1,"from":1,"to":11,"count":11,"best":65435,"avg":65910.90909090909,"first":66630,"last":65435}]},{"dorsal":"4","name":"SAMU GARCIA","pos":7,"startPos":1,"bestLap":65609,"lastLap":66351,"tours":10,"stops":0,"laps":[66562,66295,66185,66329,65671,65668,65804,65617,65609,66351],"stints":[{"n":1,"from":1,"to":10,"count":10,"best":65609,"avg":66009.1,"first":66562,"last":66351}]},{"dorsal":"17","name":"RAUL MARIAN VICENTE","pos":8,"startPos":15,"bestLap":65623,"lastLap":65905,"tours":10,"stops":0,"laps":[66820,67536,67007,67224,65623,65675,66381,65703,65700,65905],"stints":[{"n":1,"from":1,"to":10,"count":10,"best":65623,"avg":66357.4,"first":66820,"last":65905}]},{"dorsal":"16","name":"LUIS URBIOLA","pos":9,"startPos":9,"bestLap":65638,"lastLap":66485,"tours":10,"stops":0,"laps":[66018,66018,67720,65673,65638,65836,65828,66053,65952,65993,66485],"stints":[{"n":1,"from":1,"to":11,"count":11,"best":65638,"avg":66110.36363636363,"first":66018,"last":66485}]},{"dorsal":"10","name":"DIEGO MARIAN","pos":10,"startPos":4,"bestLap":65695,"lastLap":66059,"tours":9,"stops":0,"laps":[67764,66230,65768,66126,65695,65712,65954,66155,66059],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65695,"avg":66162.55555555556,"first":67764,"last":66059}]},{"dorsal":"1","name":"JAVIER DE LOS RÍOS YAÑEZ","pos":11,"startPos":11,"bestLap":65730,"lastLap":66151,"tours":9,"stops":0,"laps":[66535,67272,65954,65740,65730,65798,68052,66044,66151],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65730,"avg":66364,"first":66535,"last":66151}]},{"dorsal":"2","name":"JAVIER ARRAIZA RUIZ","pos":12,"startPos":5,"bestLap":65988,"lastLap":66396,"tours":9,"stops":0,"laps":[66545,68227,66789,66886,65988,67379,66197,66308,66396],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65988,"avg":66746.11111111111,"first":66545,"last":66396}]},{"dorsal":"9","name":"GUSTAVO CARMONA","pos":13,"startPos":12,"bestLap":66178,"lastLap":66744,"tours":9,"stops":0,"laps":[67247,66649,66670,66178,67536,66561,66572,66265,66744],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":66178,"avg":66713.55555555556,"first":67247,"last":66744}]},{"dorsal":"14","name":"ALEJANDRO PEREIRA","pos":14,"startPos":8,"bestLap":66873,"lastLap":66873,"tours":9,"stops":0,"laps":[67623,70278,68402,67374,66949,67227,67920,67161,66873],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":66873,"avg":67756.33333333333,"first":67623,"last":66873}]},{"dorsal":"6","name":"ALEX MUÑOZ","pos":15,"startPos":7,"bestLap":67402,"lastLap":67402,"tours":9,"stops":0,"laps":[67511,68136,67719,68092,67524,67981,67786,67635,67402],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":67402,"avg":67754,"first":67511,"last":67402}]},{"dorsal":"15","name":"PABLO CRISTOBALENA","pos":16,"startPos":14,"bestLap":null,"lastLap":null,"tours":0,"stops":0,"laps":[],"stints":[]}]},"race":{"title":"IRONMAN 2026 · IRONMAN","drivers":[{"dorsal":"3","name":"JUAN SANCHEZ","pos":1,"startPos":1,"bestLap":64778,"lastLap":66216,"tours":103,"stops":3,"laps":[66118,65009,65003,65043,64906,64907,64997,65145,64942,64892,64998,65048,64986,64996,65416,65182,64891,64985,64979,64803,64778,65127,65284,65163,65202,65311,65316,65430,65227,65291,65060,65247,65769,65348,65146,65296,65028,65129,65392,65442,242292,67315,66385,66096,66589,65866,65843,65736,66013,65791,65870,65875,65862,65899,65921,65972,65860,65903,65970,66020,65867,66116,65866,66063,66220,66036,243042,67126,66424,66406,66446,66092,66172,66178,66194,66247,66215,66210,66223,66341,66287,66383,243034,66366,65967,65825,66075,66497,66068,65709,65722,65672,65653,65776,65609,65958,65722,65730,65624,65614,70162,66216],"stints":[{"n":1,"from":1,"to":40,"count":40,"best":64778,"avg":65155.8,"first":66118,"last":65442},{"n":2,"from":42,"to":66,"count":25,"best":65736,"avg":66038.16,"first":67315,"last":66036},{"n":3,"from":68,"to":82,"count":15,"best":66092,"avg":66329.6,"first":67126,"last":66383},{"n":4,"from":84,"to":102,"count":19,"best":65609,"avg":66103.42105263157,"first":66366,"last":66216}]},{"dorsal":"5","name":"BORIS MARTIN","pos":2,"startPos":5,"bestLap":65227,"lastLap":66342,"tours":103,"stops":3,"laps":[66760,65798,66170,65698,67243,66001,65993,65777,65976,243351,67515,66189,65627,65382,65249,65390,65383,65356,65578,65394,65355,65417,65469,65362,65331,65344,65324,65371,65408,65478,65439,65320,65501,65227,65410,65403,65321,65596,65760,242814,65983,65751,65917,65521,65757,65708,65660,65685,65880,65752,65610,65761,65984,65937,65796,65897,65502,65636,65549,65431,66275,65745,65581,65568,65897,65880,65774,65711,65841,65661,65787,65635,65727,65860,65592,65772,65527,65727,65819,243040,67217,66682,66511,66413,65998,65930,66930,66031,66355,66152,66112,65950,65937,66102,65891,66180,65992,66456,66067,66178,66036,66342],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65698,"avg":66157.33333333333,"first":66760,"last":65976},{"n":2,"from":11,"to":39,"count":29,"best":65227,"avg":65513.75862068965,"first":67515,"last":65760},{"n":3,"from":41,"to":79,"count":39,"best":65431,"avg":65746.05128205128,"first":65983,"last":65819},{"n":4,"from":81,"to":102,"count":22,"best":65891,"avg":66248.27272727272,"first":67217,"last":66342}]},{"dorsal":"11","name":"JAIME ESPAÑA","pos":3,"startPos":4,"bestLap":65553,"lastLap":67248,"tours":103,"stops":3,"laps":[66716,65635,65775,65799,65601,65675,65609,65621,65641,65553,65680,65674,65692,65831,65739,65769,65877,65881,65710,65735,65876,66043,65879,66209,66372,65848,66009,65981,66030,65975,66141,66150,66095,66073,66046,66064,66110,66097,66164,65948,243077,66816,66364,66288,66029,66295,65975,66241,66317,66152,65957,66061,66123,66120,66402,66030,66232,66293,66119,66185,66291,66658,66058,65939,66109,66096,66067,66141,66331,66218,66209,66187,66186,66354,66174,66325,243256,67179,66890,66347,66247,66116,66334,66374,66309,66304,66168,66328,66405,242377,66951,66188,66111,66049,66012,65905,65842,65860,66055,65915,66376,67248],"stints":[{"n":1,"from":1,"to":40,"count":40,"best":65553,"avg":65908.075,"first":66716,"last":65948},{"n":2,"from":42,"to":76,"count":35,"best":65939,"avg":66209.77142857143,"first":66816,"last":66325},{"n":3,"from":78,"to":89,"count":12,"best":66116,"avg":66416.75,"first":67179,"last":66405},{"n":4,"from":91,"to":102,"count":12,"best":65842,"avg":66209.33333333333,"first":66951,"last":67248}]},{"dorsal":"7","name":"GERMAN MUÑOZ","pos":4,"startPos":3,"bestLap":65363,"lastLap":67505,"tours":103,"stops":3,"laps":[66400,65635,65484,65481,65363,65518,65585,65391,65551,65492,65698,65608,65607,65624,65677,65672,65495,65528,65550,65490,65427,65761,65587,65660,65600,65602,65700,65537,65702,65587,65656,65556,65654,65648,65686,65702,65670,65596,65743,65488,241878,67304,66597,66535,66740,66516,66381,66546,66602,66486,243357,67577,66875,66609,66236,66216,66165,66184,66450,66167,66226,66388,66057,66178,66168,65968,66123,66055,66213,66093,242336,67487,66732,66862,66521,66547,67093,66563,66188,66342,66294,66633,66410,66346,66497,66543,66481,66242,66325,66465,66560,66473,66285,66360,66661,66324,66204,66329,66210,66484,66673,67505],"stints":[{"n":1,"from":1,"to":40,"count":40,"best":65363,"avg":65610.275,"first":66400,"last":65488},{"n":2,"from":42,"to":50,"count":9,"best":66381,"avg":66634.11111111111,"first":67304,"last":66486},{"n":3,"from":52,"to":70,"count":19,"best":65968,"avg":66313.05263157895,"first":67577,"last":66093},{"n":4,"from":72,"to":102,"count":31,"best":66188,"avg":66536.74193548386,"first":67487,"last":67505}]},{"dorsal":"4","name":"SAMU GARCIA","pos":5,"startPos":7,"bestLap":65642,"lastLap":66659,"tours":103,"stops":3,"laps":[67233,65773,65866,65644,66553,65642,65729,65727,65676,65852,65996,65773,66011,65910,66426,66262,65975,65985,65993,66019,66061,66145,66143,66178,66143,66328,66150,66075,66020,66166,66248,66134,66131,65920,66038,66133,66159,66269,66274,66263,242843,66931,66427,66475,66492,66006,65929,66001,66099,65983,66313,66504,66111,65951,66043,66258,66067,66190,66205,66259,66043,66170,66245,66254,66240,66186,66446,66626,66074,66213,66157,66253,66102,66208,66166,66090,66085,66162,66326,66188,243341,66903,66590,66445,66300,66370,66597,66279,66824,66752,243200,66963,66592,66704,66434,66586,66790,66721,66636,66346,66425,66659],"stints":[{"n":1,"from":1,"to":40,"count":40,"best":65642,"avg":66075.575,"first":67233,"last":66263},{"n":2,"from":42,"to":80,"count":39,"best":65929,"avg":66217.38461538461,"first":66931,"last":66188},{"n":3,"from":82,"to":90,"count":9,"best":66279,"avg":66562.22222222222,"first":66903,"last":66752},{"n":4,"from":92,"to":102,"count":11,"best":66346,"avg":66623.27272727272,"first":66963,"last":66659}]},{"dorsal":"10","name":"DIEGO MARIAN","pos":6,"startPos":10,"bestLap":65613,"lastLap":66796,"tours":103,"stops":3,"laps":[67373,65737,65748,65977,66284,66161,65909,65962,65758,244409,67908,66716,66597,66318,65950,66274,66077,66166,66129,66279,66141,66287,66051,66261,66397,66490,65613,66119,65693,65806,65873,66272,66253,66314,65985,66112,66209,66103,66582,243891,66412,66241,66038,65811,65993,65700,65941,65918,66193,65857,66061,66034,65631,65919,65962,66098,66102,65929,65690,65977,65993,65914,65998,66062,65783,66207,66024,65864,65830,65826,66444,65945,66240,66079,65990,65922,242943,67360,66809,66814,66785,66707,66666,66624,66803,66660,66906,66659,66788,66693,66612,66682,66838,66716,66604,66688,66813,66457,66673,66932,66829,66796],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65737,"avg":66101,"first":67373,"last":65758},{"n":2,"from":11,"to":39,"count":29,"best":65613,"avg":66240.5172413793,"first":67908,"last":66582},{"n":3,"from":41,"to":76,"count":36,"best":65631,"avg":65989.66666666667,"first":66412,"last":65922},{"n":4,"from":78,"to":102,"count":25,"best":66457,"avg":66756.56,"first":67360,"last":66796}]},{"dorsal":"8","name":"FÉLIX SERNANDEZ","pos":7,"startPos":2,"bestLap":65405,"lastLap":67687,"tours":102,"stops":3,"laps":[66319,66209,65577,65405,65607,65506,65566,65656,65701,65501,65623,65516,65656,65697,65652,65561,65429,65749,66159,65839,65512,65775,65728,66031,65781,66071,65974,65841,65709,65934,65906,65946,65845,65835,66064,65824,65896,65982,66110,66001,243671,67297,66834,66837,66784,66758,66557,66807,67111,66400,66381,243756,66966,66858,66437,66411,66389,66328,66226,66612,66284,66388,66329,66142,66241,66028,66365,66261,66574,66457,66292,66247,66421,66378,66320,66309,66262,66293,66712,66476,243746,68572,67487,67376,67101,67112,67123,66989,67085,67051,67014,66838,66854,66934,66740,66925,67423,67773,76400,67687],"stints":[{"n":1,"from":1,"to":40,"count":40,"best":65405,"avg":65792.325,"first":66319,"last":66001},{"n":2,"from":42,"to":51,"count":10,"best":66381,"avg":66776.6,"first":67297,"last":66381},{"n":3,"from":53,"to":80,"count":28,"best":66028,"avg":66393.07142857143,"first":66966,"last":66476},{"n":4,"from":82,"to":100,"count":19,"best":66740,"avg":67709.68421052632,"first":68572,"last":67687}]},{"dorsal":"12","name":"JAVIER COY SEGOVIA","pos":8,"startPos":6,"bestLap":65575,"lastLap":67041,"tours":102,"stops":3,"laps":[66997,65575,66137,65740,66074,65923,66399,65646,65775,65847,65930,65802,65910,65911,66122,66580,66047,65940,65929,66314,66017,66207,66098,66092,66069,66943,66405,66550,66162,66090,65960,66247,66329,66365,66471,66104,66364,66216,66485,66204,245073,67322,66927,67222,66671,66840,67153,66829,67398,66945,244930,67937,66628,66321,66755,66197,66154,66288,66709,66715,66737,66689,66288,66775,66643,66596,66396,66451,66783,66496,66890,66367,66426,66228,66292,66278,244184,67650,67360,66981,66903,66852,67357,67055,67029,66698,67179,67115,66822,67219,66571,66806,67039,66551,66732,66907,67195,67073,67306,67552,67041],"stints":[{"n":1,"from":1,"to":40,"count":40,"best":65575,"avg":66149.4,"first":66997,"last":66204},{"n":2,"from":42,"to":50,"count":9,"best":66671,"avg":67034.11111111111,"first":67322,"last":66945},{"n":3,"from":52,"to":76,"count":25,"best":66154,"avg":66561.56,"first":67937,"last":66278},{"n":4,"from":78,"to":101,"count":24,"best":66551,"avg":67041.375,"first":67650,"last":67041}]},{"dorsal":"9","name":"GUSTAVO CARMONA","pos":9,"startPos":13,"bestLap":65908,"lastLap":66299,"tours":102,"stops":3,"laps":[68287,66394,66199,66471,66694,66395,66832,66427,66416,244673,67835,66875,66632,66404,66667,66755,66052,66058,66140,66131,66873,66733,66339,66105,66099,66165,66190,66099,66234,65908,65970,66140,66351,66189,66280,66261,66188,66357,66172,66344,66392,66675,66353,66210,66149,66297,66197,66310,244838,67232,66947,66564,67023,66920,66865,66827,67138,66923,66683,67035,66976,66834,244348,67234,67035,66852,66333,66233,66603,66647,66306,66646,66585,66568,66334,66728,66661,66940,66775,66372,66411,66443,66662,66545,66353,66414,66613,66545,66356,66833,66589,66449,68010,67087,66469,66697,66671,66526,66503,66647,66299],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":66199,"avg":66679.44444444444,"first":68287,"last":66416},{"n":2,"from":11,"to":48,"count":38,"best":65908,"avg":66345.5,"first":67835,"last":66310},{"n":3,"from":50,"to":62,"count":13,"best":66564,"avg":66920.53846153847,"first":67232,"last":66834},{"n":4,"from":64,"to":101,"count":38,"best":66233,"avg":66630.8947368421,"first":67234,"last":66299}]},{"dorsal":"16","name":"LUIS URBIOLA","pos":10,"startPos":9,"bestLap":65729,"lastLap":67088,"tours":102,"stops":3,"laps":[67164,65729,65982,65934,66278,66108,65896,65754,65918,66291,65889,65903,65999,66372,66180,65985,66279,66070,65957,66033,66108,66011,66107,66466,66240,66286,66513,66163,66682,66249,66023,65891,65952,66099,66298,66147,66193,66209,66162,244966,68958,67807,67306,67531,67232,67345,67178,67230,67381,67204,245005,67225,67236,66788,67654,66921,66936,66912,66638,66961,67062,66790,67075,66699,67087,66884,66950,66772,67097,67319,67350,67026,66832,66708,67106,67094,66875,66842,66945,245575,67363,66792,66827,66906,66848,67112,67141,66935,67087,66784,66693,67003,67171,66708,66789,67015,67332,67012,68177,66861,67088],"stints":[{"n":1,"from":1,"to":39,"count":39,"best":65729,"avg":66141.53846153847,"first":67164,"last":66162},{"n":2,"from":41,"to":50,"count":10,"best":67178,"avg":67517.2,"first":68958,"last":67204},{"n":3,"from":52,"to":79,"count":28,"best":66638,"avg":66992.28571428571,"first":67225,"last":66945},{"n":4,"from":81,"to":101,"count":21,"best":66693,"avg":67030.66666666667,"first":67363,"last":67088}]},{"dorsal":"1","name":"JAVIER DE LOS RÍOS YAÑEZ","pos":11,"startPos":11,"bestLap":66058,"lastLap":67105,"tours":102,"stops":3,"laps":[67542,66429,66118,66058,66374,66377,66460,66293,66471,66377,66502,66381,66287,66151,66325,66905,66498,66226,66733,66267,66229,66370,66467,66263,66316,66347,66072,66264,66265,66333,66567,66448,66388,66464,66426,66463,66499,66653,66571,243658,69569,67905,68086,67263,66955,67184,66909,67595,67043,66958,66982,66859,67036,66646,66887,66967,66776,66537,66968,67011,67459,66834,67079,67048,67042,66934,67038,66961,67300,67116,66682,67238,246087,68990,67592,67709,67396,67595,67716,67038,67072,67564,67726,67560,67059,67263,67457,67614,245248,68660,68009,67838,67065,67310,67485,67069,67119,68790,67224,67179,67105],"stints":[{"n":1,"from":1,"to":39,"count":39,"best":66058,"avg":66414.84615384616,"first":67542,"last":66571},{"n":2,"from":41,"to":72,"count":32,"best":66537,"avg":67152.09375,"first":69569,"last":67238},{"n":3,"from":74,"to":88,"count":15,"best":67038,"avg":67556.73333333334,"first":68990,"last":67614},{"n":4,"from":90,"to":101,"count":12,"best":67065,"avg":67571.08333333333,"first":68660,"last":67105}]},{"dorsal":"17","name":"RAUL MARIAN VICENTE","pos":12,"startPos":8,"bestLap":65521,"lastLap":67144,"tours":101,"stops":4,"laps":[67414,65711,65944,65651,66312,65945,66029,65748,65936,243286,69457,67646,67104,66863,66631,66725,66580,66574,67125,66492,66917,66664,66715,66537,66399,66922,67072,66676,66607,66510,66778,66847,66763,66935,67124,66806,66727,244449,65885,65702,65623,65812,65726,65739,65800,65594,65878,65789,65840,65815,65784,65716,65708,65603,65667,65669,65857,65628,65620,65959,65756,65762,65925,65641,66076,65747,65521,65778,66157,65810,65761,66016,65801,65870,65881,65755,65982,242971,67138,66641,66819,66550,66769,66430,66471,66491,67000,66467,66506,66600,66588,66611,66391,66365,66517,66396,66391,66756,68144,67144],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":65651,"avg":66076.66666666667,"first":67414,"last":65936},{"n":2,"from":11,"to":37,"count":27,"best":66399,"avg":66896.14814814815,"first":69457,"last":66727},{"n":3,"from":39,"to":77,"count":39,"best":65521,"avg":65785.97435897436,"first":65885,"last":65982},{"n":4,"from":79,"to":100,"count":22,"best":66365,"avg":66690.22727272728,"first":67138,"last":67144}]},{"dorsal":"2","name":"JAVIER ARRAIZA RUIZ","pos":13,"startPos":12,"bestLap":66326,"lastLap":67250,"tours":101,"stops":3,"laps":[67557,66852,66326,66531,67404,66909,66502,66481,66519,66330,66859,66710,67229,66569,66777,67127,67080,66694,66751,66586,244922,68663,68553,67566,67254,67616,67671,67220,67380,66889,66876,68311,67332,67534,245618,67705,67517,67132,66981,66747,66812,66888,66797,66930,68096,66868,67130,67036,67267,67096,67218,66979,67012,67279,67398,67563,67218,67082,67088,67258,67406,66756,66788,67163,67327,66627,245394,68962,68367,68233,68336,67580,67474,67751,67821,67918,67279,67132,67167,67307,67882,68206,68375,67922,67752,67298,67837,67178,68642,67350,67696,67731,67651,67540,67021,67856,67788,67721,67662,67250],"stints":[{"n":1,"from":1,"to":20,"count":20,"best":66326,"avg":66789.65,"first":67557,"last":66586},{"n":2,"from":22,"to":34,"count":13,"best":66876,"avg":67605,"first":68663,"last":67534},{"n":3,"from":36,"to":66,"count":31,"best":66627,"avg":67134.32258064517,"first":67705,"last":66627},{"n":4,"from":68,"to":100,"count":33,"best":67021,"avg":67748.0303030303,"first":68962,"last":67250}]},{"dorsal":"6","name":"ALEX MUÑOZ","pos":14,"startPos":15,"bestLap":66915,"lastLap":66971,"tours":100,"stops":3,"laps":[69424,67690,67300,67457,67369,67565,67399,67211,68270,247339,69170,68475,68088,67964,67591,67744,67566,67775,67684,68016,67825,67695,67538,67998,67789,67847,67785,67344,67870,68167,67700,67929,67694,67781,67694,67374,67803,245481,67948,67722,67491,67607,67579,68669,67876,67896,67946,68563,67561,67552,68111,68292,67569,67679,67872,68011,68270,68444,68089,244505,68428,67535,68002,67426,67983,67892,67697,67330,67882,67240,67972,67912,67348,67358,67436,67271,67562,67410,67323,67331,67692,67711,67651,67415,67504,67959,67154,67479,67494,67484,66915,67605,67841,67494,67129,68026,67559,67777,66971],"stints":[{"n":1,"from":1,"to":9,"count":9,"best":67211,"avg":67742.77777777778,"first":69424,"last":68270},{"n":2,"from":11,"to":37,"count":27,"best":67344,"avg":67848.37037037036,"first":69170,"last":67803},{"n":3,"from":39,"to":59,"count":21,"best":67491,"avg":67940.33333333333,"first":67948,"last":68089},{"n":4,"from":61,"to":99,"count":39,"best":66915,"avg":67569.17948717948,"first":68428,"last":66971}]},{"dorsal":"14","name":"ALEJANDRO PEREIRA","pos":15,"startPos":14,"bestLap":67045,"lastLap":67810,"tours":100,"stops":3,"laps":[68363,67151,67045,67501,67258,67146,67533,67609,67752,67180,67495,67604,67734,67845,67820,67495,67982,68015,67452,67692,67600,67566,250998,68457,68325,68005,67919,67752,67541,67568,67810,67952,67849,68292,67546,68020,68048,68051,67913,67855,67620,67890,67782,67518,248351,68483,67883,67778,67417,67478,67399,67750,67646,67518,67917,78814,67588,67680,67870,67305,67996,67723,67488,67381,67678,67791,67373,67269,67395,67728,67771,67432,67609,248277,68427,68281,67688,67846,68373,67907,68268,68017,68065,68269,67948,68072,68276,68128,68631,68270,68512,68150,67637,68271,68669,67877,67604,67810],"stints":[{"n":1,"from":1,"to":22,"count":22,"best":67045,"avg":67583.54545454546,"first":68363,"last":67566},{"n":2,"from":24,"to":44,"count":21,"best":67518,"avg":67891.09523809524,"first":68457,"last":67518},{"n":3,"from":46,"to":73,"count":28,"best":67269,"avg":68041.42857142857,"first":68483,"last":67609},{"n":4,"from":75,"to":98,"count":24,"best":67604,"avg":68124.83333333333,"first":68427,"last":67810}]},{"dorsal":"15","name":"PABLO CRISTOBALENA","pos":16,"startPos":16,"bestLap":65949,"lastLap":67551,"tours":66,"stops":3,"laps":[68406,66862,66376,66079,66248,66121,66196,66206,66141,66046,66038,65949,66231,66104,66225,66441,66433,66386,66296,66280,66283,66247,66546,66315,66347,66410,66234,66309,66245,66116,66477,66356,66229,66590,66578,66552,66497,66313,66341,243887,68568,67857,67273,67234,67179,66986,66891,66829,66602,244431,67841,67455,67198,67158,67159,67364,67255,67231,67053,67197,67089,67299,67201,68101,67551],"stints":[{"n":1,"from":1,"to":39,"count":39,"best":65949,"avg":66360.23076923077,"first":68406,"last":66341},{"n":2,"from":41,"to":49,"count":9,"best":66602,"avg":67268.77777777778,"first":68568,"last":66602},{"n":3,"from":51,"to":65,"count":15,"best":67053,"avg":67343.46666666666,"first":67841,"last":67551}]}]}};
+  const PIT_THRESHOLD = 120000;
+
+  function fmt(ms) {
+    if (ms == null) return '—';
+    const s = ms / 1000;
+    const m = Math.floor(s / 60);
+    const sec = (s - m * 60).toFixed(3);
+    return m + ':' + sec.padStart(6, '0');
+  }
+  function fmtDelta(ms, best) {
+    if (ms == null || best == null) return '—';
+    const d = (ms - best) / 1000;
+    return d <= 0.0005 ? '—' : '+' + d.toFixed(3);
+  }
+  function practiceOf(dorsal) { return DATA.practice.drivers.find(d => d.dorsal === dorsal); }
+  function raceOf(dorsal) { return DATA.race.drivers.find(d => d.dorsal === dorsal); }
+  function cleanAvg(laps) {
+    const c = laps.filter(v => v <= PIT_THRESHOLD);
+    if (!c.length) return null;
+    return c.reduce((a, b) => a + b, 0) / c.length;
+  }
+  function pitLapNumbers(laps) {
+    return laps.map((v, i) => [v, i + 1]).filter(([v]) => v > PIT_THRESHOLD).map(([, i]) => i);
+  }
+
+  const ALL_DRIVERS = DATA.race.drivers.map(d => ({ dorsal: d.dorsal, name: d.name }));
+
+  // ── Selects ────────────────────────────────────────────
+  function fillSelect(sel, selected) {
+    sel.innerHTML = ALL_DRIVERS.map(d => `<option value="${d.dorsal}" ${d.dorsal === selected ? 'selected' : ''}>#${d.dorsal} · ${d.name}</option>`).join('');
+  }
+  const driverSelect = document.getElementById('driver-select');
+  const compareA = document.getElementById('compare-a');
+  const compareB = document.getElementById('compare-b');
+  fillSelect(driverSelect, '12');
+  fillSelect(compareA, '12');
+  fillSelect(compareB, DATA.race.drivers[0].dorsal);
+
+  document.getElementById('appbar-meta').textContent = `${DATA.circuit} · ${DATA.event}`;
+
+  // ── Tooltip ──────────────────────────────────────────────
+  const tooltipEl = document.getElementById('tooltip');
+  function showTooltip(x, y, html) {
+    tooltipEl.innerHTML = html;
+    tooltipEl.hidden = false;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = x + 14, top = y + 14;
+    tooltipEl.style.left = left + 'px';
+    tooltipEl.style.top = top + 'px';
+    requestAnimationFrame(() => {
+      const r = tooltipEl.getBoundingClientRect();
+      if (r.right > vw - 8) tooltipEl.style.left = (x - r.width - 14) + 'px';
+      if (r.bottom > vh - 8) tooltipEl.style.top = (y - r.height - 14) + 'px';
+    });
+  }
+  function hideTooltip() { tooltipEl.hidden = true; }
+
+  // ── Chart genérico (1 o 2 series), eje fijo + scroll horizontal + hover ──
+  function renderChart({ axisEl, scrollHostEl, hintEl, series }) {
+    const H = 220, padT = 14, padB = 26, padL = 10, padR = 16;
+    const plotH = H - padT - padB;
+
+    const allClean = series.flatMap(s => s.laps.filter(v => v <= PIT_THRESHOLD));
+    const best = Math.min(...allClean);
+    const worst = Math.max(...allClean);
+    const span = (worst - best) || 1;
+    const yMin = best - span * 0.15;
+    const yMax = worst + span * 0.15;
+    const y = v => padT + (1 - (v - yMin) / (yMax - yMin)) * plotH;
+
+    const maxLen = Math.max(...series.map(s => s.laps.length));
+    const pxPerLap = maxLen > 60 ? 9 : maxLen > 25 ? 14 : 26;
+    const minWidth = (scrollHostEl.parentElement.getBoundingClientRect().width) || 600;
+    const W = Math.max(minWidth, maxLen * pxPerLap + padL + padR);
+    const stepX = (W - padL - padR) / Math.max(1, maxLen - 1);
+    const x = i => padL + i * stepX;
+
+    // eje Y fijo (fuera del scroll)
+    const steps = 4;
+    let axisHtml = '';
+    for (let s = 0; s <= steps; s++) {
+      const v = yMin + (s / steps) * (yMax - yMin);
+      axisHtml += `<span style="top:${y(v).toFixed(1)}px">${fmt(v)}</span>`;
+    }
+    axisEl.style.height = H + 'px';
+    axisEl.innerHTML = axisHtml;
+
+    // grid + series
+    let gridLines = '';
+    for (let s = 0; s <= steps; s++) {
+      const v = yMin + (s / steps) * (yMax - yMin);
+      gridLines += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="var(--grid-line)" stroke-width="1"/>`;
+    }
+
+    const pitIdxSet = new Set();
+    series.forEach(s => s.laps.forEach((v, i) => { if (v > PIT_THRESHOLD) pitIdxSet.add(i); }));
+
+    let seriesSvg = '';
+    let ticks = '';
+    const lastIdx = maxLen - 1;
+    const tickEvery = maxLen > 60 ? 10 : maxLen > 20 ? 5 : 1;
+    for (let i = 0; i < maxLen; i++) {
+      const isReg = (i + 1) % tickEvery === 0;
+      const tooCloseToEnd = tickEvery > 1 && isReg && i !== lastIdx && (lastIdx - i) < tickEvery / 2;
+      const tooCloseToPit = tickEvery > 1 && isReg && [...pitIdxSet].some(p => Math.abs(p - i) < tickEvery / 2);
+      if ((isReg && !tooCloseToEnd && !tooCloseToPit) || i === 0 || i === lastIdx) {
+        ticks += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="axis-label">${i + 1}</text>`;
+      }
+    }
+
+    [...pitIdxSet].sort((a, b) => a - b).forEach(i => {
+      const xx = x(i);
+      seriesSvg += `<line x1="${xx.toFixed(1)}" y1="${padT}" x2="${xx.toFixed(1)}" y2="${H - padB}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="3,3"/>` +
+        `<circle cx="${xx.toFixed(1)}" cy="${H - padB}" r="3.5" fill="var(--bad)"/>` +
+        `<text x="${xx.toFixed(1)}" y="${H - 6}" text-anchor="middle" class="axis-label pit-label">BOX v${i + 1}</text>`;
+    });
+
+    series.forEach(s => {
+      const pts = [];
+      s.laps.forEach((v, i) => { if (v <= PIT_THRESHOLD) pts.push([x(i), y(v)]); });
+      const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+      seriesSvg += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const bestLocal = Math.min(...s.laps.filter(v => v <= PIT_THRESHOLD));
+      const bestIdx = s.laps.indexOf(bestLocal);
+      seriesSvg += `<circle cx="${x(bestIdx).toFixed(1)}" cy="${y(bestLocal).toFixed(1)}" r="4.5" fill="var(--good)" stroke="var(--surface)" stroke-width="1.5"/>`;
+    });
+
+    scrollHostEl.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Tiempos de vuelta">
+        <style>
+          .axis-label { font: 10px ui-monospace, "SF Mono", "Roboto Mono", monospace; fill: var(--text-faint); }
+          .pit-label { fill: var(--bad); font-weight: 600; }
+        </style>
+        ${gridLines}
+        ${seriesSvg}
+        ${ticks}
+        <line class="crosshair" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="var(--text-faint)" stroke-width="1" stroke-dasharray="2,2" opacity="0"/>
+        <rect class="hover-target" x="${padL}" y="0" width="${W - padL - padR}" height="${H}" fill="transparent"/>
+      </svg>`;
+
+    if (hintEl) hintEl.textContent = (W > minWidth + 4) ? '← desliza el gráfico para navegar por todas las vueltas →' : '';
+
+    const svgEl = scrollHostEl.querySelector('svg');
+    const crosshair = svgEl.querySelector('.crosshair');
+    const hoverTarget = svgEl.querySelector('.hover-target');
+
+    hoverTarget.addEventListener('mousemove', (evt) => {
+      const rect = svgEl.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const mx = (evt.clientX - rect.left) * scaleX;
+      let idx = Math.round((mx - padL) / stepX);
+      idx = Math.max(0, Math.min(maxLen - 1, idx));
+      crosshair.setAttribute('x1', x(idx).toFixed(1));
+      crosshair.setAttribute('x2', x(idx).toFixed(1));
+      crosshair.setAttribute('opacity', '1');
+
+      let html = `<div class="tt-lap">Vuelta ${idx + 1}</div>`;
+      series.forEach(s => {
+        const v = s.laps[idx];
+        if (v === undefined) return;
+        const isPit = v > PIT_THRESHOLD;
+        const bestLocal = Math.min(...s.laps.filter(t => t <= PIT_THRESHOLD));
+        html += `<div class="tt-row"><span style="display:flex;align-items:center;gap:6px"><span class="tt-dot" style="background:${s.color}"></span>${s.label}</span>` +
+          `<span class="num ${isPit ? 'tt-pit' : ''}">${isPit ? 'parada en boxes' : fmt(v) + (v === bestLocal ? ' ★' : '')}</span></div>`;
+      });
+      showTooltip(evt.clientX, evt.clientY, html);
+    });
+    hoverTarget.addEventListener('mouseleave', () => { crosshair.setAttribute('opacity', '0'); hideTooltip(); });
+  }
+
+  // ── Render de un piloto ──────────────────────────────────
+  function renderDriver(dorsal) {
+    const race = raceOf(dorsal);
+    const practice = practiceOf(dorsal);
+
+    document.getElementById('kart-badge').textContent = dorsal;
+    document.getElementById('driver-name').textContent = race.name;
+    document.getElementById('driver-meta').innerHTML =
+      `<span>${DATA.circuit}</span><span class="sep">·</span><span>${DATA.event}</span>`;
+    document.getElementById('race-dorsal').textContent = dorsal;
+    document.getElementById('practice-dorsal').textContent = dorsal;
+    document.getElementById('race-title-suffix').textContent = 'IRONMAN';
+
+    const posDelta = race.startPos - race.pos;
+    const posPill = posDelta > 0
+      ? `<span class="pill up">↑ ${posDelta}</span>`
+      : posDelta < 0 ? `<span class="pill down">↓ ${-posDelta}</span>` : '';
+    const avgRace = cleanAvg(race.laps);
+    const pits = pitLapNumbers(race.laps);
+
+    document.getElementById('stat-strip').innerHTML = `
+      <div class="stat-tile">
+        <div class="label">Posición en carrera</div>
+        <div class="value">${race.pos}.º ${posPill}</div>
+        <div class="sub">salió ${race.startPos}.º</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Vueltas</div>
+        <div class="value">${race.tours}</div>
+        <div class="sub">carrera IRONMAN</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Mejor vuelta</div>
+        <div class="value accent num">${fmt(race.bestLap)}</div>
+        <div class="sub">entrenos: ${fmt(practice.bestLap)}</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Vuelta media</div>
+        <div class="value num">${fmt(avgRace)}</div>
+        <div class="sub">excl. paradas</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Paradas en boxes</div>
+        <div class="value">${race.stops}</div>
+        <div class="sub">${pits.length ? 'vueltas ' + pits.join(', ') : '—'}</div>
+      </div>
+    `;
+
+    renderChart({
+      axisEl: document.getElementById('chart-race-axis'),
+      scrollHostEl: document.getElementById('chart-race'),
+      hintEl: document.getElementById('chart-race-hint'),
+      series: [{ label: race.name, color: 'var(--accent)', laps: race.laps }],
+    });
+
+    document.getElementById('stint-table').innerHTML = race.stints.map(st => `
+      <tr>
+        <td>Stint ${st.n}</td>
+        <td class="num">${st.from}&ndash;${st.to}</td>
+        <td class="num">${st.count}</td>
+        <td class="num best-tag">${fmt(st.best)}</td>
+        <td class="num">${fmt(st.avg)}</td>
+        <td class="num">${fmt(st.first)}</td>
+        <td class="num">${fmt(st.last)}</td>
+      </tr>`).join('');
+
+    renderChart({
+      axisEl: document.getElementById('chart-practice-axis'),
+      scrollHostEl: document.getElementById('chart-practice'),
+      hintEl: null,
+      series: [{ label: race.name, color: 'var(--accent)', laps: practice.laps.length ? practice.laps : [0] }],
+    });
+
+    const pBest = Math.min(...practice.laps.filter(v => v <= PIT_THRESHOLD));
+    document.getElementById('practice-table').innerHTML = practice.laps.map((ms, i) => {
+      const isBest = ms === pBest;
+      const worst = Math.max(...practice.laps);
+      const pct = Math.max(6, Math.round(((worst - ms) / (worst - pBest || 1)) * 100));
+      return `<tr>
+        <td class="num">${i + 1}</td>
+        <td class="num ${isBest ? 'best-tag' : ''}">${fmt(ms)}</td>
+        <td class="num">${fmtDelta(ms, pBest)}</td>
+        <td class="laptime" style="min-width:90px"><div class="bar-track"><div class="bar-fill ${isBest ? 'best' : ''}" style="width:${pct}%"></div></div></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="4" style="color:var(--text-faint)">Sin vueltas registradas</td></tr>';
+  }
+
+  // ── Comparador ────────────────────────────────────────────
+  function renderCompare() {
+    const dA = compareA.value, dB = compareB.value;
+    const rA = raceOf(dA), rB = raceOf(dB);
+
+    renderChart({
+      axisEl: document.getElementById('chart-compare-axis'),
+      scrollHostEl: document.getElementById('chart-compare'),
+      hintEl: document.getElementById('chart-compare-hint'),
+      series: [
+        { label: rA.name, color: 'var(--accent)', laps: rA.laps },
+        { label: rB.name, color: 'var(--warn)', laps: rB.laps },
+      ],
+    });
+
+    document.getElementById('compare-legend').innerHTML = `
+      <span><span class="swatch line" style="background:var(--accent)"></span> ${rA.name}</span>
+      <span><span class="swatch line" style="background:var(--warn)"></span> ${rB.name}</span>
+      <span><span class="swatch" style="background:var(--good)"></span> mejor vuelta</span>
+      <span><span class="swatch" style="background:var(--bad)"></span> parada en boxes</span>
+    `;
+
+    const avgA = cleanAvg(rA.laps), avgB = cleanAvg(rB.laps);
+    function rowNum(label, va, vb, lowerIsBetter, formatter) {
+      const aWins = lowerIsBetter ? va < vb : va > vb;
+      const bWins = lowerIsBetter ? vb < va : vb > va;
+      return `<div class="row-label">${label}</div>
+        <div class="compare-val ${aWins ? 'win' : ''}">${formatter(va)}</div>
+        <div class="compare-val mid">vs</div>
+        <div class="compare-val ${bWins ? 'win' : ''}">${formatter(vb)}</div>`;
+    }
+    document.getElementById('compare-stats').innerHTML = `
+      <div class="ch">${rA.name}</div><div></div><div class="ch" style="text-align:right">${rB.name}</div>
+      ${rowNum('Posición final', rA.pos, rB.pos, true, v => v + '.º')}
+      ${rowNum('Mejor vuelta', rA.bestLap, rB.bestLap, true, fmt)}
+      ${rowNum('Vuelta media', avgA, avgB, true, fmt)}
+      ${rowNum('Vueltas', rA.tours, rB.tours, false, v => v)}
+      ${rowNum('Paradas', rA.stops, rB.stops, true, v => v)}
+    `;
+  }
+
+  driverSelect.addEventListener('change', () => renderDriver(driverSelect.value));
+  compareA.addEventListener('change', renderCompare);
+  compareB.addEventListener('change', renderCompare);
+  window.addEventListener('resize', () => { renderDriver(driverSelect.value); renderCompare(); });
+
+  renderDriver('12');
+  renderCompare();
+</script>
