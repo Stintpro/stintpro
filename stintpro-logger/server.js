@@ -928,7 +928,15 @@ wss.on('connection', (ws) => {
       }, 10000)
     : null;
 
-  ws.on('message', async (raw) => {
+  // Los mensajes se procesan en cola por conexión (ver registro de 'message'
+  // más abajo): si el cliente manda auth+subscribe/list seguidos sin esperar
+  // auth_ok (patrón habitual — ver logger-connector.js), el segundo mensaje
+  // podía colarse ANTES de que terminara el await a verifySupabaseJwt del
+  // primero (un await, aunque resuelva rápido, siempre cede el turno al
+  // microtask queue) → "list"/"subscribe" veían ws._authed aún en false y el
+  // servidor cerraba con auth_required fatal aunque el JWT fuera válido.
+  // Reproducido: ~40% de fallos en 20 intentos seguidos con JWT real.
+  const handleWsMessage = async (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); }
     catch(e) { ws.send(JSON.stringify({ type: 'error', msg: 'json_invalido' })); return; }
@@ -1037,6 +1045,12 @@ wss.on('connection', (ws) => {
     }
 
     ws.send(JSON.stringify({ type: 'error', msg: `Tipo desconocido: ${msg.type}` }));
+  };
+
+  ws.on('message', (raw) => {
+    ws._msgQueue = (ws._msgQueue || Promise.resolve())
+      .then(() => handleWsMessage(raw))
+      .catch((e) => console.error('[WS] Error procesando mensaje:', e.message));
   });
 });
 
