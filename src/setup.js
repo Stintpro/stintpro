@@ -287,29 +287,29 @@ function renderEnduranceSetup() {
       <div id="pilotInputs"></div>
     </div>
 
-    <div class="sec-label">Mi dorsal</div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="dorsal-wrap">
-        <div class="dorsal-row">
-          <input class="dorsal-input" id="dorsalInput" type="number" min="1" max="999" placeholder="20" oninput="onDorsalInput()">
-          <div>
-            <div class="dorsal-label">Número de dorsal</div>
-            <div class="dorsal-hint">La app obtiene tus datos del livetiming</div>
+    <div class="sec-label">Mi dorsal y duración</div>
+    <div style="display:flex;gap:12px;margin-bottom:12px">
+      <div class="card" style="flex:1;min-width:0">
+        <div class="dorsal-wrap">
+          <div class="dorsal-row">
+            <input class="dorsal-input" id="dorsalInput" type="number" min="1" max="999" placeholder="20" oninput="onDorsalInput()" style="width:64px">
+            <div style="min-width:0">
+              <div class="dorsal-label">Dorsal</div>
+              <div class="dorsal-hint">Del livetiming</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="sec-label">Duración de la carrera</div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="field">
-        <div class="f-icon">⏱</div>
-        <div class="f-body">
-          <div class="f-label">Duración total (opcional)</div>
-          <div class="f-hint">Ajusta el cronómetro del primer stint si conectas después de la salida</div>
+      <div class="card" style="flex:1;min-width:0">
+        <div class="field">
+          <div class="f-icon">⏱</div>
+          <div class="f-body">
+            <div class="f-label">Duración (opcional)</div>
+            <div class="f-hint">Ajusta el 1er stint</div>
+          </div>
+          <input class="f-input" id="raceDurationInput" type="number" min="0" step="0.5" placeholder="2" style="width:36px;text-align:center;font-family:var(--font-mono)">
+          <span class="f-unit">h</span>
         </div>
-        <input class="f-input" id="raceDurationInput" type="number" min="0" step="0.5" placeholder="2" style="width:52px;text-align:center;font-family:var(--font-mono)">
-        <span class="f-unit">horas</span>
       </div>
     </div>
 
