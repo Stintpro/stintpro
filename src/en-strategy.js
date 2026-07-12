@@ -923,6 +923,31 @@ function _enInitSim(){
   },1000);
 }
 
+// Calcula el timestamp de inicio del primer stint a partir del reloj de Apex.
+// Por defecto (sin cfg.duration) usa Date.now() — que es "cuándo conectó mi
+// WebSocket", no "cuándo arrancó la carrera de verdad": si la conexión tardó
+// o falló varias veces antes de estabilizarse, el primer stint se queda
+// corto por ese hueco (visto en la carrera de Los Santos del 2026-07-11).
+// Con cfg.duration (horas totales anunciadas por la organización) se puede
+// reconstruir el tiempo real ya transcurrido y anclar el timer ahí en vez de
+// a Date.now().
+function _enStintStartFromClock(cfg){
+  const now=Date.now();
+  if(window.ApexClock.isCountUp()){
+    // Reloj ascendente: remainingMs() ya devuelve el tiempo transcurrido de sesión.
+    const elapsed=window.ApexClock.remainingMs();
+    return elapsed!=null?now-Math.max(0,elapsed):now;
+  }
+  const raceDurMs=(cfg?.duration||0)*3600*1000;
+  if(raceDurMs>0){
+    const rem=window.ApexClock.remainingMs();
+    if(rem!=null)return now-Math.max(0,raceDurMs-rem);
+  }
+  // Sin duración configurada: no hay forma de saber cuánto llevaba ya
+  // corriendo la sesión — se mantiene el comportamiento anterior.
+  return now;
+}
+
 // ── API pública ───────────────────────────────────────────────────────────
 window.showEnduranceDashboard=function(cfg){
   _enInjectStyles();
@@ -952,7 +977,7 @@ window.showEnduranceDashboard=function(cfg){
       cv.textContent=window.ApexClock.fmtMs(window.ApexClock.remainingMs());
       if(lbl)lbl.textContent=window.ApexClock.isCountUp()?'tiempo transcurrido':'tiempo restante';
       // Iniciar stint cuando el reloj arranca por primera vez
-      if(!EnSession.stintStart&&window.ApexClock._synced)EnSession.stintStart=Date.now();
+      if(!EnSession.stintStart&&window.ApexClock._synced)EnSession.stintStart=_enStintStartFromClock(cfg);
       // Congelar stint cuando countdown llega a 0
       if(EnSession.stintStart&&!EnSession.stintFrozen&&!window.ApexClock.isCountUp()){
         const rem=window.ApexClock.remainingMs();

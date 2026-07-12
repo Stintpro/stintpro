@@ -300,6 +300,19 @@ function renderEnduranceSetup() {
       </div>
     </div>
 
+    <div class="sec-label">Duración de la carrera</div>
+    <div class="card" style="margin-bottom:12px">
+      <div class="field">
+        <div class="f-icon">⏱</div>
+        <div class="f-body">
+          <div class="f-label">Duración total (opcional)</div>
+          <div class="f-hint">Ajusta el cronómetro del primer stint si conectas después de la salida</div>
+        </div>
+        <input class="f-input" id="raceDurationInput" type="number" min="0" step="0.5" placeholder="2" style="width:52px;text-align:center;font-family:var(--font-mono)">
+        <span class="f-unit">horas</span>
+      </div>
+    </div>
+
     ${_connMode==='replay'?`
     <div class="sec-label">Grabación</div>
     <div class="card" style="margin-bottom:12px;padding:12px 14px">
@@ -641,7 +654,12 @@ function startEndurance() {
     stintMin:10, stintMax:45, stops:0, pitMinTime:3,
     myDorsal:_myDorsal||'20', nKarts:4, pitLayout:'libre',
     slug, port:getCircuitPort(), trackDirection,
-    pilotos:getPilotosConfig()
+    pilotos:getPilotosConfig(),
+    // Duración total anunciada de la carrera (horas) — opcional. Permite
+    // reconstruir el tiempo real transcurrido del primer stint si el reloj
+    // de Apex sincroniza tarde (conexión tardía o inestable al arrancar).
+    // Ver _enStintStartFromClock en en-strategy.js.
+    duration:parseFloat(document.getElementById('raceDurationInput')?.value)||0
   };
   window.AppState.config=cfg;
   // Pre-poblar calibración: prioriza el offset propio de este dispositivo
