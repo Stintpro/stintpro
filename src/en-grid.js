@@ -11,6 +11,30 @@ function _enUpdateBars(){
   });
 }
 
+// ── Throttle del render en vivo ─────────────────────────────────────────────
+// Un debounce puro (setTimeout que se reinicia con CADA frame) se starva bajo
+// inundación: si los frames llegan más rápido que la espera, el timer se reinicia
+// sin parar y el dashboard se congela. Pasa en circuitos que mandan el pit como
+// timer en streaming (sin si/so, p.ej. Campillos) durante un pit en masa, y también
+// con ráfagas de reconexión o dyn|countdown. Solución agnóstica al feed: techo duro
+// _EN_RENDER_MAXWAIT — la espera se encoge conforme nos acercamos al techo, así que
+// SIEMPRE se dispara aunque los frames no paren. Nunca más de ~1 render/techo.
+const _EN_RENDER_DEBOUNCE = 80;    // espera tras el último frame cuando el feed va tranquilo
+const _EN_RENDER_MAXWAIT  = 300;   // techo: pinta al menos cada 300ms aunque no pare de llegar
+function _enScheduleRender(){
+  const sinceLast = Date.now() - _enLastRenderAt;
+  if(_enTimer) clearTimeout(_enTimer);
+  // Conforme sinceLast se acerca al techo, wait→0, garantizando el disparo bajo inundación.
+  const wait = sinceLast >= _EN_RENDER_MAXWAIT
+    ? 0
+    : Math.min(_EN_RENDER_DEBOUNCE, _EN_RENDER_MAXWAIT - sinceLast);
+  _enTimer = setTimeout(()=>{
+    _enTimer = null;
+    _enLastRenderAt = Date.now();
+    _enRender();
+  }, wait);
+}
+
 // ── Render principal ───────────────────────────────────────────────────────
 function _enRender(){
   const el=document.getElementById('screen-dash');

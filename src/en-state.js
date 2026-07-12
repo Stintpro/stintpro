@@ -118,6 +118,7 @@ const EnUi = {
 
 // ── Timers (handles — no son estado de dominio) ───────────────────────────
 let _enTimer      = null;
+let _enLastRenderAt = 0;   // ts del último render en vivo — techo del throttle (_enScheduleRender)
 let _enClockTimer = null;
 let _enSimTimer   = null;
 let _enBarTimer   = null;

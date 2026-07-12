@@ -918,8 +918,7 @@ function _enInitSim(){
       e.gapMs=i===0?0:Math.round((e.bestLap-leaderBest)*1000*(e.pos));
     });
     EnSession.data.leaderLap=leaderLaps;
-    if(_enTimer)clearTimeout(_enTimer);
-    _enTimer=setTimeout(_enRender,80);
+    _enScheduleRender();
   },1000);
 }
 
@@ -1258,8 +1257,7 @@ window.showEnduranceDashboard=function(cfg){
         }
         }catch(err){console.error('[StintPro] Error en tracking (render continúa):',err);}
 
-        if(_enTimer)clearTimeout(_enTimer);
-        _enTimer=setTimeout(_enRender,80);
+        _enScheduleRender();
       },
       (status,msg)=>console.log('[Apex]',status,msg),
       (comment)=>console.log('[Apex]',comment),
