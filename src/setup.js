@@ -263,7 +263,7 @@ function startSprint() {
 // ── ENDURANCE SETUP ───────────────────────────────────────────────────────
 function renderEnduranceSetup() {
   document.getElementById('screen-setup').innerHTML = `
-  <div style="max-width:520px;margin:0 auto;padding:0 20px;min-height:100vh;display:flex;flex-direction:column;justify-content:center;gap:0;padding-top:60px;padding-bottom:32px">
+  <div style="max-width:520px;margin:0 auto;padding:0 20px;height:100vh;overflow-y:auto;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-start;gap:0;padding-top:60px;padding-bottom:32px">
     <div class="titlebar-drag" style="flex-shrink:0;position:fixed;top:0;left:0;right:0;height:28px"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
       <button class="btn" onclick="renderSetup()">← Volver</button>
