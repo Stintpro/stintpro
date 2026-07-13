@@ -80,7 +80,7 @@ window.CircuitDB = {
 // exit→meta cambia radicalmente según el sentido (Apex no lo indica en el
 // feed, así que hay que seleccionarlo a mano en el setup).
 window.CircuitDB.knownOffsets = {
-  'karting-lossantos': 8.2, // N=11, sesión 2026-06-27 (3H Resistencia)
+  'karting-lossantos': 8.0, // N=58 combinado, sesiones 2026-06-27 (3H Resistencia) + 2026-07-10 (IRONMAN entrenos)
   'ariza-racing-circuit': { inverso: 38.7 }, // N=21, sesión 2026-07-03 (2H Amateur Final) — sentido normal aún sin medir
 };
 
