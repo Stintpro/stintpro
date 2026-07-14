@@ -10,6 +10,25 @@ const BROADCAST_INTERVAL_MS   = 200; // throttle live updates a 5 fps
 const APEX_SAMPLE_INTERVAL_MS = 5 * 60 * 1000; // frecuencia del muestreo .P (investigación)
 const APEX_SAMPLE_FIRST_MS    = 30 * 1000;     // primera muestra a los 30s de arrancar
 
+// ── Keepalive + watchdog de la conexión saliente a Apex ────────────────────
+// Apex sirve todos los circuitos tras un único frente (proxy). Cuando ese frente
+// deja de reenviar datos de un circuito pero mantiene el TCP vivo (half-open a
+// nivel de aplicación), el socket queda ESTABLISHED sin datos: 'close' nunca
+// dispara y el monitor se congela en la última sesión vista — para SIEMPRE
+// (se han observado congelaciones de días). El cliente, que abre conexión fresca
+// cada vez, sí ve la sesión real → discrepancia "vía logger sale otra sesión".
+// Dos mecanismos independientes lo detectan:
+//  1. Ping/pong WS: cachea sockets realmente muertos (sin pong → terminate).
+//  2. Watchdog de datos: si no llegan mensajes de aplicación durante X, se fuerza
+//     una reconexión (que re-sincroniza con la sesión actual). El umbral es corto
+//     con sesión activa o espectadores (el feed emite constante) y suave si el
+//     circuito está ocioso y nadie mira (evita reconectar en vano de madrugada).
+const APEX_PING_INTERVAL_MS     = 30 * 1000;      // heartbeat cada 30s
+const APEX_WATCHDOG_INTERVAL_MS = 20 * 1000;      // revisa frescura cada 20s
+const APEX_STALE_ACTIVE_MS      = 90 * 1000;      // sesión activa sin datos → congelado
+const APEX_STALE_WATCHED_MS     = 2 * 60 * 1000;  // alguien mirando y sin datos → refrescar
+const APEX_STALE_IDLE_MS        = 30 * 60 * 1000; // ocioso sin espectadores → reconexión suave
+
 class CircuitMonitor {
   constructor(cfg, computeRatings) {
     this._computeRatings = computeRatings || null;
@@ -22,6 +41,12 @@ class CircuitMonitor {
     this._reconnectTimer = null;
     this._saveTimer      = null;
     this._lastBroadcast  = 0;
+
+    // Keepalive/watchdog de la conexión a Apex (ver constantes arriba)
+    this._pingTimer     = null;
+    this._watchdogTimer = null;
+    this._awaitingPong  = false;
+    this._lastDataAt    = 0;  // último mensaje de aplicación recibido de Apex
 
     // Subscriptores WebSocket del dashboard
     this.subscribers = new Set();
@@ -71,9 +96,58 @@ class CircuitMonitor {
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
     if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
+    this._stopHeartbeat();
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
     if (this._rawLog)         { try { this._rawLog.end(); } catch(e) {} this._rawLog = null;      }
     this.connected = false;
+  }
+
+  // ── Keepalive + watchdog de la conexión a Apex ─────────────────────────
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this._awaitingPong = false;
+
+    // Ping/pong: si un ping se queda sin pong hasta el siguiente ciclo, el socket
+    // está muerto → terminate() dispara 'close' y la reconexión estándar.
+    this._pingTimer = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (this._awaitingPong) {
+        console.warn(`[${this.slug}] Apex sin pong → cerrando socket para reconectar`);
+        try { this.ws.terminate(); } catch(e) { try { this.ws.close(); } catch(e2) {} }
+        return;
+      }
+      this._awaitingPong = true;
+      try { this.ws.ping(); } catch(e) {}
+    }, APEX_PING_INTERVAL_MS);
+
+    // Watchdog de datos: fuerza reconexión si el feed lleva demasiado sin mensajes.
+    this._watchdogTimer = setInterval(() => this._checkStale(), APEX_WATCHDOG_INTERVAL_MS);
+  }
+
+  _stopHeartbeat() {
+    if (this._pingTimer)     { clearInterval(this._pingTimer);     this._pingTimer = null;     }
+    if (this._watchdogTimer) { clearInterval(this._watchdogTimer); this._watchdogTimer = null; }
+    this._awaitingPong = false;
+  }
+
+  // Umbral de silencio tolerado según el estado: corto si hay carrera o alguien
+  // mirando (el feed emite constante), suave si el circuito está ocioso.
+  _staleLimitMs() {
+    const active  = !!this.sessionId && !this.parser.sessionFinished;
+    const watched = this.subscribers.size > 0 || this.pilotSubscribers.size > 0;
+    return active ? APEX_STALE_ACTIVE_MS : watched ? APEX_STALE_WATCHED_MS : APEX_STALE_IDLE_MS;
+  }
+
+  _checkStale() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const silence = Date.now() - this._lastDataAt;
+    if (silence > this._staleLimitMs()) {
+      const active  = !!this.sessionId && !this.parser.sessionFinished;
+      const watched = this.subscribers.size > 0 || this.pilotSubscribers.size > 0;
+      console.warn(`[${this.slug}] Feed sin datos ${Math.round(silence / 1000)}s ` +
+                   `(activa=${active}, mirando=${watched}) → reconectando`);
+      try { this.ws.terminate(); } catch(e) { try { this.ws.close(); } catch(e2) {} }
+    }
   }
 
   // ── Muestreo HTTP de request.php (investigación .P) ────────────────────
@@ -109,10 +183,18 @@ class CircuitMonitor {
         this.connected = true;
         console.log(`[${this.slug}] Apex conectado`);
         this.ws.send(this.slug);
+        this._lastDataAt = Date.now();
+        this._startHeartbeat();
         this._broadcastStatus('connected');
       });
 
+      // El pong solo confirma que el socket está vivo; NO cuenta como "datos"
+      // para el watchdog (un proxy puede seguir respondiendo pong sin reenviar
+      // el feed — justo el caso de congelación que hay que cazar).
+      this.ws.on('pong', () => { this._awaitingPong = false; });
+
       this.ws.on('message', (data) => {
+        this._lastDataAt = Date.now();
         const raw = data.toString();
         if (this._rawLog) {
           try { this._rawLog.write(JSON.stringify({ t: Date.now(), raw }) + '\n'); } catch(e) {}
@@ -123,11 +205,13 @@ class CircuitMonitor {
 
       this.ws.on('error', (err) => {
         this.connected = false;
+        this._stopHeartbeat();
         console.error(`[${this.slug}] WS error:`, err.message);
       });
 
       this.ws.on('close', () => {
         this.connected = false;
+        this._stopHeartbeat();
         console.log(`[${this.slug}] Desconectado, reconectando en 5s...`);
         this._broadcastStatus('disconnected');
         this._reconnectTimer = setTimeout(() => this._connect(), 5000);
@@ -381,6 +465,10 @@ class CircuitMonitor {
   // ── Info pública ──────────────────────────────────────────────────────
 
   getInfo() {
+    // Frescura del feed: un socket "connected" puede estar congelado (half-open)
+    // sirviendo datos viejos. lastDataAgo/stale lo hacen visible en /api/status
+    // para poder detectarlo/alertarlo aunque el watchdog aún no haya reconectado.
+    const dataAgoMs = this._lastDataAt ? Date.now() - this._lastDataAt : null;
     return {
       slug:          this.slug,
       name:          this.name,
@@ -393,6 +481,8 @@ class CircuitMonitor {
       subscribers:   this.subscribers.size,
       recording:     this.recording,
       rawLog:        this._rawLogEnabled,
+      lastDataAgo:   dataAgoMs == null ? null : Math.round(dataAgoMs / 1000),
+      stale:         this.connected && dataAgoMs != null && dataAgoMs > this._staleLimitMs(),
     };
   }
 }
