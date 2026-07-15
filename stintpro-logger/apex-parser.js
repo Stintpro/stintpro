@@ -34,6 +34,7 @@ class ApexParser {
     try {
       const root = parseHTML(`<table><tbody>${html}</tbody></table>`);
       const colMap = {}, colByNum = {};
+      let otrIsPit = false;
 
       const r0 = root.querySelector('tr[data-id="r0"]');
       if (r0) {
@@ -41,6 +42,9 @@ class ApexParser {
           const cid   = td.getAttribute('data-id');
           const dtype = (td.getAttribute('data-type') || '').trim();
           if (cid && dtype) { colMap[dtype] = cid; colByNum[cid] = dtype; }
+          // La columna otr es "Tiempo en PIT" en unos circuitos y "tiempo en pista"
+          // (En piste/Tijd op circuit) en otros — se discrimina por el texto de cabecera.
+          if (dtype === 'otr' && /\b(pit|box)\b/i.test(td.text || '')) otrIsPit = true;
         });
       }
 
@@ -107,7 +111,7 @@ class ApexParser {
         gridKarts.push(kg);
       });
 
-      this._proto.setGrid({ colMap, colByNum, karts: gridKarts });
+      this._proto.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit });
     } catch(e) {
       console.error('[ApexParser] parseGrid:', e.message);
     }

@@ -106,6 +106,7 @@ const EnBox = {
   queue:          [],    // [{quality, dorsal, time}]
   queueInited:    false,
   pitDuration:    180,   // duración de parada en segundos (marca la organización)
+  _pitDurUserSet: false, // el usuario editó la duración a mano → no auto-sobrescribir con la de Apex (otr)
   pilotMinTime:   0,     // minutos mínimos por piloto
   totalStops:     3,     // paradas obligatorias totales de la carrera
   stratConfigured:false, // si el usuario ya configuró stint min/max

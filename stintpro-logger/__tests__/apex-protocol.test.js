@@ -286,7 +286,8 @@ describe('pit in / out', () => {
     const onPit = jest.fn();
     const p = makeParser({ onPit });
     parse(p, stateMsg('r1', 'si'), stateMsg('r1', 'so'));
-    expect(onPit).toHaveBeenLastCalledWith('7', 'out', expect.any(Number), expect.any(Number));
+    // 5º arg = duración oficial de parada (crono otr); null sin columna otr de pit.
+    expect(onPit).toHaveBeenLastCalledWith('7', 'out', expect.any(Number), expect.any(Number), null);
   });
 
   test('pit=true y pitState="in" tras si', () => {

@@ -35,8 +35,9 @@ function _enRenderStratConfig(){
       </div>
       <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Parada:</span>
-        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
+        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;EnBox._pitDurUserSet=true;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
         <span style="font-size:11.5px;color:var(--text-2)">s</span>
+        ${(EnSession._pitDurAuto&&!EnBox._pitDurUserSet)?`<span title="Detectada del cronómetro oficial de Apex" style="font-size:10.5px;color:#22c55e;font-weight:600">✓ Apex</span>`:''}
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Dorsal:</span>
@@ -1108,6 +1109,18 @@ window.showEnduranceDashboard=function(cfg){
         if(data.flag!==undefined)EnSession.flag=data.flag;
         if(data.raceStopped!==undefined)EnSession.raceStopped=!!data.raceStopped;
         if(Array.isArray(data.raceEvents))EnSession.raceEvents=data.raceEvents;
+
+        // ── Parada obligatoria oficial (crono de pit otr) ─────────────────────
+        // Apex da la duración exacta de parada (mandatoryPitSec = moda de las
+        // paradas observadas). Si el usuario no la ha fijado a mano, se auto-rellena
+        // EnBox.pitDuration — la usa la fórmula de deuda de paradas. Solo en los
+        // circuitos donde otr es cronómetro de PIT (otrIsPit).
+        EnSession._otrIsPit=!!data.otrIsPit;
+        if(data.mandatoryPitSec&&data.mandatoryPitSec>=20&&!EnBox._pitDurUserSet
+           &&data.mandatoryPitSec!==EnBox.pitDuration){
+          EnBox.pitDuration=data.mandatoryPitSec;
+          EnSession._pitDurAuto=data.mandatoryPitSec;
+        }
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
         if(data.countdown!=null&&window.ApexClock){

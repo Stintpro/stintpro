@@ -89,6 +89,9 @@
     let _sessionMode     = '';   // 'p' = practice/clasificación · 'r' = carrera (letra del init|X|)
     let _recentLaps      = [];   // últimas vueltas válidas de la sesión (ritmo de pista, para filtro de glitches)
     let _flag            = null; // bandera del panel de luces: 'green'|'red'|'yellow'|null (lg/lr/ly)
+    let _otrIsPit        = false;// la columna otr es cronómetro de PIT (cabecera "Tiempo en PIT"/"Box"),
+                                 // no "tiempo en pista" (En piste/Tijd op circuit) — lo fija el grid wrapper
+    let _pitDurations    = [];   // duraciones oficiales de paradas completadas (para estimar la obligatoria)
 
     // Ritmo de pista: mediana de las últimas vueltas aceptadas de todos los karts.
     // Sirve de referencia cuando un kart aún no tiene vueltas propias suficientes.
@@ -103,6 +106,32 @@
       _lastLapTime = Date.now();   // señal de actividad (cubre también circuitos solo-llp)
     }
 
+    // Duraciones oficiales de parada (crono otr). La parada OBLIGATORIA es un
+    // tiempo fijo que la organización impone → es la moda de las duraciones. Se
+    // ignoran las paradas cortas (<20s: glitch de baliza / drive-through) para no
+    // contaminar la moda. Se expone la estimación cuando hay ≥2 paradas iguales.
+    function _pushPitDuration(sec) {
+      _pitDurations.push(sec);
+      if (_pitDurations.length > 200) _pitDurations.shift();
+    }
+    // El otr mide el tiempo TRANSCURRIDO en boxes → siempre es obligatoria +
+    // reacción del piloto al salir (~1-2s), nunca por debajo (salir antes = sanción).
+    // Ej. real: Los Santos obligatoria 180s → otr llega a 3:00 y el piloto sale a 3:01
+    // (medido 181). La obligatoria es un valor redondo, así que se agrupa cada parada
+    // al múltiplo de 5s inferior y se toma la moda → recupera 180/120 (no 181/121).
+    function _mandatoryPitSec() {
+      const counts = new Map();
+      let best = null, bestN = 1;
+      for (const d of _pitDurations) {
+        if (d < 20) continue;
+        const key = Math.floor(d / 5) * 5;
+        const n = (counts.get(key) || 0) + 1;
+        counts.set(key, n);
+        if (n > bestN) { bestN = n; best = key; }
+      }
+      return bestN >= 2 ? best : null;
+    }
+
     function _kart(rowId) {
       if (!_karts[rowId]) _karts[rowId] = {
         _rowId: rowId, lapHistory: [], state: 'sr', tours: 0,
@@ -112,6 +141,7 @@
         _lapFromFlash: undefined, _lapFromFlashTs: 0,
         _pilotName: undefined, // solo se actualiza con nombres que llevan [X:XX] (carreras por equipos)
         _pendingPitEvent: undefined, // si/so llegó antes que el dorsal — se dispara al fijarlo
+        _otrTimer: null, _otrPeak: null, lastPitDuration: null, // crono de pit oficial (col otr, ver _otrIsPit)
       };
       return _karts[rowId];
     }
@@ -153,6 +183,7 @@
         }
         if (type === 'si') {
           k.pit = true; k.pitState = 'in'; k._pitInTime = Date.now(); k._lapInvalid = true;
+          k._otrPeak = null; k._otrTimer = null;   // arranca el crono oficial de esta parada
           if (callbacks.onPit) {
             // La celda de estado puede llegar antes que la del dorsal en el mismo lote de
             // diffs (orden por número de columna) — sin dorsal aún no hay a quién avisar,
@@ -163,9 +194,13 @@
         } else if (type === 'so') {
           k.pit = true; k.pitState = 'out'; k.pitS = 0; k._pitTimerActive = false; k._pitInTime = null;
           k._lapInvalid = true;
+          // Duración oficial de la parada = pico del crono otr durante el si→so.
+          const pitDur = (_otrIsPit && k._otrPeak != null && k._otrPeak > 0) ? k._otrPeak : null;
+          if (pitDur != null) { k.lastPitDuration = pitDur; _pushPitDuration(pitDur); }
+          k._otrTimer = null;
           if (callbacks.onPit) {
-            if (k.dorsal) callbacks.onPit(k.dorsal, 'out', k.standsCount, Date.now());
-            else k._pendingPitEvent = { type: 'out', standsCount: k.standsCount, time: Date.now() };
+            if (k.dorsal) callbacks.onPit(k.dorsal, 'out', k.standsCount, Date.now(), pitDur);
+            else k._pendingPitEvent = { type: 'out', standsCount: k.standsCount, time: Date.now(), pitDur };
           }
         } else if (type === 'sr' || type === 'su') {
           if (!k._pitTimerActive) k.pit = false;
@@ -192,7 +227,7 @@
           k.dorsal = d;
           if (k._pendingPitEvent && callbacks.onPit) {
             const pe = k._pendingPitEvent;
-            callbacks.onPit(k.dorsal, pe.type, pe.standsCount, pe.time);
+            callbacks.onPit(k.dorsal, pe.type, pe.standsCount, pe.time, pe.pitDur);
           }
           k._pendingPitEvent = undefined;
         }
@@ -325,7 +360,22 @@
         return;
       }
 
-      if (dtype === 'otr') return;
+      // ── Crono de pit oficial (columna otr con cabecera de PIT) ─────────
+      // La misma columna otr es "tiempo en pista" en otros circuitos (En piste /
+      // Tijd op circuit) → solo se interpreta como crono de pit si el grid la
+      // marcó así (_otrIsPit). Cuenta hacia arriba mientras el kart está en boxes;
+      // su pico entre si→so = la duración oficial de la parada (validado con datos
+      // reales: Los Santos 181s, Ariza 151s, coincidencia sub-segundo con si→so).
+      if (dtype === 'otr') {
+        if (_otrIsPit) {
+          const s = parsePitTimer(v);
+          if (s !== null && s >= 0 && s < 3600) {
+            k._otrTimer = s;
+            if (k.pit && (k._otrPeak == null || s > k._otrPeak)) k._otrPeak = s;
+          }
+        }
+        return;
+      }
 
       // ── Sin dtype mapeado ─────────────────────────────────────────────
       if (type === 'to') {
@@ -513,8 +563,13 @@
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
             lapHistory: k.lapHistory || [], gap: k.gap || '', interval: k.interval || '',
             pit: !!k.pit, pitState: k.pitState || null,
-            pitS: k._pitTimerActive ? k.pitS : (k.pit && k._pitInTime ? Math.round((now - k._pitInTime) / 1000) : k.pitS || 0),
+            // pitS = segundos en boxes. Preferir el crono oficial de Apex (otr) si
+            // está en pit y disponible; si no, el inferido por pit dtype o por si→so.
+            pitS: (_otrIsPit && k.pit && k._otrTimer != null) ? k._otrTimer
+                  : k._pitTimerActive ? k.pitS
+                  : (k.pit && k._pitInTime ? Math.round((now - k._pitInTime) / 1000) : k.pitS || 0),
             pitDuration: k.pitDuration || 0,
+            lastPitDuration: k.lastPitDuration || null, // duración oficial de la última parada (otr)
             state: k.state || 'sr', s1: k.s1, s2: k.s2, s3: k.s3,
             tours: Math.max(k.tours || 0, (k.lapHistory || []).length), standsCount: k.standsCount || 0, stops: k.stops || 0,
             checkered: !!k.checkered, gapMs: k.gapMs || 0,
@@ -527,7 +582,8 @@
           ? parseInt(a.dorsal) - parseInt(b.dorsal)
           : a.pos - b.pos);
       return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap,
-               title1: _title1, title2: _title2, sessionMode: _sessionMode, flag: _flag };
+               title1: _title1, title2: _title2, sessionMode: _sessionMode, flag: _flag,
+               otrIsPit: _otrIsPit, mandatoryPitSec: _mandatoryPitSec() };
     }
 
     return {
@@ -543,9 +599,10 @@
       },
 
       // Llamado por el wrapper tras parsear el HTML del grid con DOMParser/node-html-parser
-      setGrid({ colMap, colByNum, karts: gridKarts } = {}) {
+      setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit } = {}) {
         _colMap   = colMap   || {};
         _colByNum = colByNum || {};
+        if (otrIsPit !== undefined) _otrIsPit = !!otrIsPit;
 
         // Detección de nueva sesión por cambio de parrilla: si el grid entrante comparte
         // pocos dorsales con el estado actual, es una parrilla nueva y hay que limpiar el
@@ -590,6 +647,7 @@
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
+        _otrIsPit = false; _pitDurations = [];
       },
 
       get colMap()          { return _colMap; },

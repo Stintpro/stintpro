@@ -113,6 +113,7 @@ window.ApexConnector = {
     try {
       const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
       const colMap = {}, colByNum = {};
+      let otrIsPit = false;
 
       const r0 = doc.querySelector('tr[data-id="r0"]');
       if (r0) {
@@ -120,6 +121,9 @@ window.ApexConnector = {
           const cid   = td.getAttribute('data-id');
           const dtype = (td.getAttribute('data-type') || '').trim();
           if (cid && dtype) { colMap[dtype] = cid; colByNum[cid] = dtype; }
+          // otr = "Tiempo en PIT" en unos circuitos, "tiempo en pista" en otros:
+          // se discrimina por el texto de la cabecera.
+          if (dtype === 'otr' && /\b(pit|box)\b/i.test(td.textContent || '')) otrIsPit = true;
         });
       }
 
@@ -169,7 +173,7 @@ window.ApexConnector = {
         gridKarts.push(kg);
       });
 
-      this._parser.setGrid({ colMap, colByNum, karts: gridKarts });
+      this._parser.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit });
       if (!this._historyFetched) this._fetchLapHistories();
     } catch(e) { console.error('[ApexConnector] parseGrid:', e); }
   },

@@ -33,6 +33,7 @@ function _enSaveRaceState() {
       box: {
         config: EnBox.config,
         pitDuration: EnBox.pitDuration,
+        pitDurUserSet: EnBox._pitDurUserSet,
         totalStops: EnBox.totalStops,
         pilotMinTime: EnBox.pilotMinTime,
         stratConfigured: EnBox.stratConfigured,
@@ -93,6 +94,7 @@ function _enApplyRaceState(snap) {
   if (snap.box) {
     EnBox.config = snap.box.config || EnBox.config;
     EnBox.pitDuration = snap.box.pitDuration ?? EnBox.pitDuration;
+    EnBox._pitDurUserSet = snap.box.pitDurUserSet ?? EnBox._pitDurUserSet;
     EnBox.totalStops = snap.box.totalStops ?? EnBox.totalStops;
     EnBox.pilotMinTime = snap.box.pilotMinTime ?? EnBox.pilotMinTime;
     EnBox.stratConfigured = snap.box.stratConfigured ?? EnBox.stratConfigured;

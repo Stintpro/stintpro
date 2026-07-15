@@ -284,10 +284,13 @@ class CircuitMonitor {
     db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp);
   }
 
-  _onPit(dorsal, eventType, standsCount, timestamp) {
+  _onPit(dorsal, eventType, standsCount, timestamp, pitDurationSec) {
     if (!this.recording || !this.sessionId) return;
     db.insertPitEvent(this.sessionId, dorsal, eventType, standsCount, timestamp);
-    this.pitEvents.push({ dorsal, event: eventType, time: timestamp, standsCount });
+    // pitDur = duración oficial (crono otr) de la parada, en el evento 'out'.
+    const ev = { dorsal, event: eventType, time: timestamp, standsCount };
+    if (eventType === 'out' && pitDurationSec != null) ev.pitDur = pitDurationSec;
+    this.pitEvents.push(ev);
   }
 
   _onState(state) {

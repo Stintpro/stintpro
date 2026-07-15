@@ -3,7 +3,7 @@
 function _enRenderAdvConfig(){
   return `<div style="margin:14px 14px 0;background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
     <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">⏱ Duración de parada (marcada por organización):</span>
-    <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:var(--text-1);font-size:13.5px;text-align:center">
+    <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;EnBox._pitDurUserSet=true" style="width:70px;padding:5px 8px;border-radius:6px;border:0.5px solid #2a2b2e;background:#0e0f11;color:var(--text-1);font-size:13.5px;text-align:center">
     <span style="font-size:11.5px;color:var(--text-3)">segundos</span>
   </div>`;
 }
