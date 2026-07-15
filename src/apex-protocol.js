@@ -52,6 +52,28 @@
     return isNaN(s) ? null : Math.round(s);
   }
 
+  // ── Vuelta imposible (glitch de baliza al entrar/salir de boxes) ───────────
+  // Una entrada a pit puede hacer que la baliza cuente un trozo de vuelta como
+  // vuelta entera: un tiempo anormalmente corto que, al ser el más bajo, falsea
+  // la vuelta rápida. Se descarta esa vuelta.
+  // Referencia = la MEJOR vuelta del propio kart (no la mediana): la mediana se
+  // contamina con vueltas lentas/paradas y clava falsos positivos, mientras que
+  // la mejor refleja el ritmo real y es imposible batirla por un 35%.
+  //   · Kart con ritmo (≥3 vueltas): se descarta lo que baje del 65% de su mejor
+  //     vuelta (un glitch de pit es 30-55% del ritmo; una vuelta real jamás es
+  //     >35% más rápida que la mejor del propio kart → 0 falsos positivos).
+  //   · Kart sin ritmo aún (p.ej. su 1ª vuelta): se usa el ritmo de PISTA
+  //     (mediana del resto de karts) al 60%. Solo caza glitches groseros.
+  function isGlitchLap(hist, t, fieldMedian) {
+    if (hist && hist.length >= 3) {
+      let best = Infinity;
+      for (const l of hist) if (l < best) best = l;
+      return t < best * 0.65;
+    }
+    if (fieldMedian) return t < fieldMedian * 0.60;
+    return false;
+  }
+
   // ── Factory ───────────────────────────────────────────────────────────────
 
   function createParser(callbacks = {}) {
@@ -65,6 +87,19 @@
     let _title1          = '';
     let _title2          = '';
     let _sessionMode     = '';   // 'p' = practice/clasificación · 'r' = carrera (letra del init|X|)
+    let _recentLaps      = [];   // últimas vueltas válidas de la sesión (ritmo de pista, para filtro de glitches)
+
+    // Ritmo de pista: mediana de las últimas vueltas aceptadas de todos los karts.
+    // Sirve de referencia cuando un kart aún no tiene vueltas propias suficientes.
+    function _fieldMedian() {
+      if (_recentLaps.length < 5) return null;
+      const s = _recentLaps.slice().sort((a, b) => a - b);
+      return s[s.length >> 1];
+    }
+    function _pushRecent(t) {
+      _recentLaps.push(t);
+      if (_recentLaps.length > 40) _recentLaps.shift();
+    }
 
     function _kart(rowId) {
       if (!_karts[rowId]) _karts[rowId] = {
@@ -86,7 +121,7 @@
     // en el mismo init (title1 y title2 juntos) y en la primera conexión.
     function _maybeNewSessionByTitle() {
       if (_sessionActive && Object.keys(_karts).length > 0) {
-        _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0;
+        _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
         if (callbacks.onNewSession) callbacks.onNewSession();
       }
     }
@@ -200,7 +235,7 @@
       if (dtype === 'llp') {
         const t = parseTime(v);
         if (t && t >= 20 && t < 300) {
-          if (!k._lapInvalid) {
+          if (!k._lapInvalid && !isGlitchLap(k.lapHistory, t, _fieldMedian())) {
             const flashAge = k._lapFromFlashTs ? Date.now() - k._lapFromFlashTs : Infinity;
             if (k._lapFromFlash !== undefined && flashAge < 5000 && k.lapHistory.length) {
               // Refinamiento: llp llegó poco después de |*| (misma vuelta)
@@ -210,7 +245,7 @@
             } else {
               // Vuelta nueva (sin |*| previo, o llp tardío)
               k.lastLap = t;
-              k.lapHistory.push(t);
+              k.lapHistory.push(t); _pushRecent(t);
               if (k.lapHistory.length > 1500) k.lapHistory.shift();
               if (!k.bestLap || t < k.bestLap) k.bestLap = t;
               if (callbacks.onLap && k.dorsal)
@@ -227,7 +262,7 @@
       // ── Mejor vuelta ──────────────────────────────────────────────────
       if (dtype === 'blp') {
         const t = parseTime(v);
-        if (t && t >= 20 && t < 300 && (!k.bestLap || t < k.bestLap)) k.bestLap = t;
+        if (t && t >= 20 && t < 300 && !isGlitchLap(k.lapHistory, t, _fieldMedian()) && (!k.bestLap || t < k.bestLap)) k.bestLap = t;
         return;
       }
 
@@ -311,12 +346,12 @@
           k._lapFlash  = Date.now();
           if (!k._lapInvalid) {
             const t = parseFloat((ms / 1000).toFixed(3));
-            if (!_colMap.llp) {
+            if (!_colMap.llp && !isGlitchLap(k.lapHistory, t, _fieldMedian())) {
               // Sin columna llp → |*| es la fuente de verdad de tiempos
               const lastH = k.lapHistory[k.lapHistory.length - 1];
               if (lastH === undefined || Math.abs(lastH - t) > 0.05) {
                 k.lastLap = t;
-                k.lapHistory.push(t);
+                k.lapHistory.push(t); _pushRecent(t);
                 if (k.lapHistory.length > 1500) k.lapHistory.shift();
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
@@ -361,7 +396,7 @@
       if (line.startsWith('grid|')) {
         const inactiveTooLong = _lastLapTime && (Date.now() - _lastLapTime) > 600000;
         if (_sessionActive && (_sessionFinished || inactiveTooLong)) {
-          _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0;
+          _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
           if (callbacks.onNewSession) callbacks.onNewSession();
         }
         _sessionActive = true;
@@ -495,7 +530,7 @@
           if (_curDorsals.length >= 3) {
             const _overlap = _curDorsals.filter(d => _newDorsals.has(d)).length;
             if (_overlap < _curDorsals.length * 0.4) {
-              _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0;
+              _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
               if (callbacks.onNewSession) callbacks.onNewSession();
             }
           }
@@ -515,7 +550,7 @@
             }
             else { if (!k.teamName) k.teamName = kg.name; if (!k.name) k.name = kg.name; }
           }
-          if (kg.bestLap && !k.bestLap)        k.bestLap      = kg.bestLap;
+          if (kg.bestLap && !k.bestLap && !isGlitchLap(k.lapHistory, kg.bestLap, _fieldMedian())) k.bestLap = kg.bestLap;
           if (kg.lastLap && !k.lastLap)        k.lastLap      = kg.lastLap;
           if (kg.tours)                        k.tours        = kg.tours;
           if (kg.standsCount !== undefined)    k.standsCount  = kg.standsCount;
@@ -527,7 +562,7 @@
       reset() {
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
-        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = '';
+        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = [];
       },
 
       get colMap()          { return _colMap; },
@@ -554,11 +589,11 @@
         k.lapHistory  = [...toAdd, ...current];
         if (k.lapHistory.length > 1500) k.lapHistory = k.lapHistory.slice(-1500);
         k.tours = Math.max(k.tours || 0, tourCount);
-        const best = Math.min(...k.lapHistory.filter(t => t >= 20 && t < 300));
+        const best = Math.min(...k.lapHistory.filter(t => t >= 20 && t < 300 && !isGlitchLap(k.lapHistory, t, _fieldMedian())));
         if (!isNaN(best) && (!k.bestLap || best < k.bestLap)) k.bestLap = best;
       },
     };
   }
 
-  return { createParser, parseTime };
+  return { createParser, parseTime, isGlitchLap };
 });

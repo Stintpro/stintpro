@@ -9,7 +9,7 @@
 //   - Hay que enviar un grid| vacío para que _sessionActive=true,
 //     lo que permite que el siguiente grid| dispare onNewSession.
 
-const { createParser, parseTime } = require('../apex-protocol');
+const { createParser, parseTime, isGlitchLap } = require('../apex-protocol');
 
 // ── parseTime ─────────────────────────────────────────────────────────────────
 
@@ -309,5 +309,53 @@ describe('kartCount', () => {
       { rowId: 'r3', dorsal: '5' },
     ]);
     expect(p.kartCount).toBe(3);
+  });
+});
+
+// ── Vuelta imposible por glitch de baliza (entrada a pit) ──────────────────────
+// Una entrada a boxes puede hacer que la baliza cuente un trozo de vuelta como
+// vuelta entera: un tiempo anormalmente corto que, al ser el más bajo, falsearía
+// la vuelta rápida. Debe descartarse sin tocar vueltas reales.
+
+describe('isGlitchLap (helper)', () => {
+  const pace = [70, 71, 70, 72, 70]; // ritmo del kart ~70s (mejor = 70)
+
+  test('descarta un trozo de vuelta (23s en pista de 70s)', () => {
+    expect(isGlitchLap(pace, 23)).toBe(true);
+  });
+
+  test('conserva una vuelta rápida real (68s, 3% mejor)', () => {
+    expect(isGlitchLap(pace, 68)).toBe(false);
+  });
+
+  test('conserva una vuelta de calentamiento lenta (85s)', () => {
+    expect(isGlitchLap(pace, 85)).toBe(false);
+  });
+
+  test('sin ritmo propio (<3 vueltas) no filtra sin referencia de pista', () => {
+    expect(isGlitchLap([70], 23)).toBe(false);
+  });
+
+  test('sin ritmo propio usa el ritmo de PISTA para glitches groseros', () => {
+    // 1ª vuelta del kart (hist vacío) pero la pista rueda a ~70s → 23s es imposible
+    expect(isGlitchLap([], 23, 70)).toBe(true);
+    // un kart rápido real (55s) en pista de 70s NO se filtra
+    expect(isGlitchLap([], 55, 70)).toBe(false);
+  });
+
+  test('la mejor vuelta no se contamina con vueltas lentas del historial', () => {
+    // historial con vueltas de parada (250s) no infla la referencia: 88s es real
+    expect(isGlitchLap([88, 250, 249, 90, 251], 88)).toBe(false);
+  });
+});
+
+describe('glitch de pit no falsea la vuelta rápida', () => {
+  test('un trozo de vuelta corto NO entra como mejor vuelta', () => {
+    const p = makeParser();
+    parse(p, 'r1|*|70000|0', 'r1|*|71000|0', 'r1|*|70500|0'); // ritmo ~70s
+    parse(p, 'r1|*|23000|0'); // glitch de baliza al entrar a pit
+    const k = kart7(p);
+    expect(k.bestLap).toBeCloseTo(70, 1);        // sigue siendo la real, no 23
+    expect(k.lapHistory).not.toContain(23);      // el glitch no se registró
   });
 });
