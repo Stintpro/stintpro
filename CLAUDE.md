@@ -58,10 +58,10 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 | Archivo | Función |
 |---|---|
 | `server.js` | Express + WebSocket server, gestión de sesiones |
-| `db.js` | Capa SQLite (sql.js para ARM Docker) |
+| `db.js` | Capa SQLite (better-sqlite3 en el VPS x86; sql.js en el NAS ARM) |
 | `apex-connector.js` | Conector a Apex (versión servidor, sin DOM) |
 | `config.json` | Lista de circuitos a monitorizar (hasta 10) |
-| `package.json` | Dependencias (express, ws, sql.js) |
+| `package.json` | Dependencias (express, ws, better-sqlite3; sql.js se mantiene para rollback) |
 | `start.sh` | Script arranque Docker |
 
 ## Dominio: Karting Endurance
@@ -256,7 +256,7 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 
 ### Logger NAS
 - Docker node:latest en UGREEN NAS (ARM)
-- sql.js en vez de better-sqlite3 (compilación ARM falla)
+- En el NAS ARM se usaba sql.js porque better-sqlite3 no compilaba. **El VPS (x86) ya usa better-sqlite3** desde 2026-07-15 (escritura a disco directa con WAL). Ver [[project-stintpro-dbmigration]].
 - Solo crea sesión cuando detecta primera vuelta real (no al recibir grid → fix micro-sesiones)
 - GET `/api/cleanup` borra sesiones sin vueltas
 - CORS habilitado para acceso desde navegador
@@ -265,7 +265,7 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 ### Logger VPS — rol y fiabilidad
 - El VPS es ahora la raíz de la aplicación web StintPro (no solo un relay/logger del NAS)
 - **Riesgos de fiabilidad conocidos:**
-  - Pérdida de hasta 2 min de vueltas en crash (SQLite se vuelca a disco cada 2 min en `db.js`)
+  - ~~Pérdida de hasta 2 min de vueltas en crash~~ RESUELTO 2026-07-15: la migración a better-sqlite3 escribe cada vuelta a disco al instante (antes sql.js volcaba el fichero entero cada 2 min y `insertLap` no tocaba disco)
   - Reinicio del servidor rompe la sesión activa (sessionId vive en memoria del CircuitMonitor)
   - Dos features del app NO portadas al logger: fallback de tiempos desde `|*|` y detección de estado por código
 
