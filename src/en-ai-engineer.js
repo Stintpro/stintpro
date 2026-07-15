@@ -204,10 +204,20 @@ function _enRenderAiEngineerPanel(){
     queryBody='';
   }
 
+  const alertsOn=typeof _enAiAlerts!=='undefined'&&_enAiAlerts.enabled;
+
   return `<div style="padding:0 14px 14px"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif">🎙️ Ingeniero de pista</div>
-      <button onclick="_enFetchBulletinNow()" style="font-size:11px;color:#F5A623;border:0.5px solid #F5A623;background:#F5A62318;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:sans-serif">Boletín</button>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div onclick="_enToggleAiAlerts()" title="${alertsOn?'Alertas automáticas activas — se desactivan para pruebas':'Alertas automáticas desactivadas — actívalas en carrera'}" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+          <span style="font-size:11px;color:${alertsOn?'#F5A623':'var(--text-3)'};font-family:sans-serif">Alertas auto</span>
+          <span style="position:relative;width:32px;height:18px;border-radius:9px;background:${alertsOn?'#F5A623':'#2a2b2e'};transition:background .2s;flex-shrink:0">
+            <span style="position:absolute;top:2px;left:${alertsOn?'16px':'2px'};width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s"></span>
+          </span>
+        </div>
+        <button onclick="_enFetchBulletinNow()" style="font-size:11px;color:#F5A623;border:0.5px solid #F5A623;background:#F5A62318;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:sans-serif">Boletín</button>
+      </div>
     </div>
     ${body}
     <div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:0.5px solid #1a1b22">

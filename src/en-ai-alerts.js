@@ -9,6 +9,7 @@
 // no un toast — así se nota estés en la pestaña que estés, sin interrumpir.
 
 const _enAiAlerts = {
+  enabled:          false, // toggle maestro: alertas automáticas OFF por defecto (evita gasto de API en pruebas)
   log:              [],   // {ts, text} más reciente primero, máx 15
   fetching:         false,
   cooldowns:        {},   // type -> timestamp del último disparo
@@ -17,6 +18,18 @@ const _enAiAlerts = {
   gapHistory:       {},   // dorsal -> [{ts, gap}] ring buffer para detectar rival recortando
   unread:           false, // controla el parpadeo de la pestaña Avanzado
 };
+
+// Restaura la preferencia guardada — persiste entre reinicios de la app.
+// Si nunca se activó (localStorage vacío) → queda desactivado (default seguro).
+try { _enAiAlerts.enabled = localStorage.getItem('stintpro_ai_alerts_enabled')==='1'; } catch(e){}
+
+// Activa/desactiva las alertas automáticas de la IA y guarda la preferencia.
+function _enToggleAiAlerts(){
+  _enAiAlerts.enabled=!_enAiAlerts.enabled;
+  try { localStorage.setItem('stintpro_ai_alerts_enabled', _enAiAlerts.enabled?'1':'0'); } catch(e){}
+  if(!_enAiAlerts.enabled)_enClearAlertBlink(); // al apagar, corta el parpadeo pendiente
+  _enRepaintAiPanel(document.getElementById('en-adv-ai-engineer'));
+}
 
 function _enClearAlertBlink(){
   _enAiAlerts.unread=false;
@@ -34,6 +47,7 @@ function _enMarkAlertUnread(){
 // _enRender(), independiente de la pestaña activa, para que siga vigilando
 // aunque no se esté mirando Avanzado. Dispara como mucho una alerta por tick.
 function _enCheckAlerts(eq, trackAvg){
+  if(!_enAiAlerts.enabled)return; // toggle maestro apagado (p. ej. en pruebas) → ni detección ni llamadas
   if(_enAiAlerts.fetching)return; // solo una alerta en curso a la vez
   if(!eq||!eq.length||!trackAvg)return;
   const cfg=window.AppState?.config||{};
