@@ -22,6 +22,7 @@ const EnSession = {
   kartAutoState:    {},     // dorsal → {quality, badCount, stintStartIdx}
   lastTrackAvg:     null,   // último valor válido de media de pista (caché anti-parpadeo)
   myPitInAt:        null,   // timestamp real de mi pit-in (ancla el túnel de salida mientras estoy en boxes)
+  raceStart:        null,   // {at, clock, source} salida oficial (com|) — ancla del stint 1
 };
 
 // ── Historial de pilotos (logger o URL configurada en modo Apex/Replay) ──

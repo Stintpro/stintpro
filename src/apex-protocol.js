@@ -604,5 +604,97 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap };
+  // ── Ancla de salida oficial (canal com| de dirección de carrera) ──────────
+  // Apex publica el cronograma como HTML acumulativo, evento más reciente
+  // primero, y REENVÍA el historial completo de la sesión en cada mensaje:
+  //   <p><b>18:15</b><span data-flag="green"></span>Start</p>
+  // La etiqueta ("Start"/"Départ"/"Partenza") depende del idioma; data-flag no.
+  // Una verde nueva en cabeza = salida real (el mensaje llega segundos después
+  // de ondear la bandera). Gracias al historial, una conexión a mitad de carrera
+  // también recupera la hora de salida (precisión de minuto).
+  //
+  // Lógica compartida por el logger (circuit-monitor) y el conector directo de
+  // la app (apex-connector): ambos reciben el mismo com| replayeado al conectar.
+  // `ingest(html, { raceInProgress })` → devuelve el ancla {at, clock, source}
+  // SOLO cuando cambia (verde nueva); null en cualquier otro caso.
+  function createRaceStartTracker() {
+    let _raceStart = null;    // {at, clock, source:'live'|'history'}
+    let _timeline  = [];
+    const _seen    = new Set();
+    let _primed    = false;
+
+    // Hora de pared HH:MM del cronograma → instante más reciente ≤ ahora con esa
+    // hora. Los circuitos actuales (ES/FR/IT/BE/NL) comparten huso Europe/Madrid.
+    function _clockToEpoch(hhmm) {
+      try {
+        const [h, min] = hhmm.split(':').map(Number);
+        if (isNaN(h) || isNaN(min)) return null;
+        const [nh, nm] = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+        }).format(new Date()).split(':').map(Number);
+        let diffMin = (nh * 60 + nm) - (h * 60 + min);
+        if (diffMin < 0) diffMin += 24 * 60; // esa hora aún no ha pasado hoy → fue ayer
+        return Date.now() - diffMin * 60000;
+      } catch (e) { return null; }
+    }
+
+    function ingest(html, opts = {}) {
+      const entries = [];
+      const re = /<p><b>(\d{1,2}:\d{2})<\/b><span data-flag="([a-z]+)"><\/span>([^<]*)<\/p>/g;
+      let m;
+      while ((m = re.exec(html)) !== null)
+        entries.push({ clock: m[1], flag: m[2], label: m[3].trim() });
+      if (!entries.length) return null;
+      _timeline = entries;
+
+      if (!_primed) {
+        // Primer com| tras conectar: es un replay del historial, no eventos en
+        // vivo (anclar con Date.now() aquí marcaría como salida el momento de
+        // conexión). Sembrar lo visto y, si hay carrera EN MARCHA (la entrada
+        // más reciente es una verde), reconstruir desde su HH:MM.
+        _primed = true;
+        for (const e of entries) _seen.add(e.clock + '|' + e.flag);
+        if (entries[0].flag === 'green') {
+          const at = _clockToEpoch(entries[0].clock);
+          if (at && Date.now() - at < 8 * 3600000) {
+            _raceStart = { at, clock: entries[0].clock, source: 'history' };
+            return _raceStart;
+          }
+        }
+        return null;
+      }
+
+      const newest = entries[0];
+      const isNew  = !_seen.has(newest.clock + '|' + newest.flag);
+      for (const e of entries) _seen.add(e.clock + '|' + e.flag);
+      if (!isNew || newest.flag !== 'green') return null;
+
+      // Verde con carrera ya en marcha y ancla fijada = reanudación tras una
+      // interrupción (roja→verde) → se conserva el ancla original de la salida.
+      if (opts.raceInProgress && _raceStart) return null;
+
+      // Publicada en vivo → Date.now(). Si la hora de pared queda >2 min atrás,
+      // la verde ondeó durante un hueco de reconexión → mejor la hora de pared.
+      let at = Date.now();
+      const fromClock = _clockToEpoch(newest.clock);
+      if (fromClock && at - fromClock > 2 * 60000) at = fromClock;
+      _raceStart = { at, clock: newest.clock, source: 'live' };
+      return _raceStart;
+    }
+
+    return {
+      ingest,
+      get raceStart() { return _raceStart; },
+      get timeline()  { return _timeline; },
+      // Fin de sesión (bandera a cuadros): el ancla ya quedó persistida; que no
+      // la herede la sesión siguiente.
+      clear() { _raceStart = null; },
+      // Sesión nueva detectada por el parser: la verde de la sesión entrante
+      // suele llegar ANTES → un ancla reciente se conserva; una vieja (>30 min,
+      // de la carrera anterior acabada sin bandera) se descarta.
+      onNewSession() { if (_raceStart && Date.now() - _raceStart.at > 30 * 60000) _raceStart = null; },
+    };
+  }
+
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker };
 });

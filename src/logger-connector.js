@@ -9,11 +9,13 @@ const Logger = {
   onStatus: null,
   _reconnectTimer: null,
   _serverUrl: null,
+  _raceStart: null,   // ancla de salida oficial reenviada por el logger (type:'raceStart')
 
   connect(slug, onData, onStatus, onComment, port) {
     this.slug = slug;
     this.onData = onData;
     this.onStatus = onStatus;
+    this._raceStart = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     // Desarmar el socket anterior ANTES de cerrarlo: su onclose (async) vería
     // this.slug ya fijado y programaría una reconexión paralela a los 5s →
@@ -57,7 +59,15 @@ const Logger = {
         try {
           const msg = JSON.parse(evt.data);
 
+          // Ancla de salida oficial (com|) reenviada por el logger. Se cachea y
+          // se adjunta a los payloads live/history para que el dashboard la vea
+          // igual que en modo directo (data.raceStart).
+          if (msg.type === 'raceStart') {
+            this._raceStart = { at: msg.at, clock: msg.clock, source: msg.source };
+          }
+
           if (msg.type === 'live' && msg.data && this.onData) {
+            if (this._raceStart && !msg.data.raceStart) msg.data.raceStart = this._raceStart;
             this.onData(msg.data);
           }
 
@@ -73,6 +83,10 @@ const Logger = {
             if (msg.snapshot.clock && window.ApexClock) {
               ApexClock.sync(msg.snapshot.clock.ms, msg.snapshot.clock.mode);
             }
+            // El snapshot ya trae raceStart si el logger lo tenía; cachearlo para
+            // los ticks live siguientes (que no lo reenvían).
+            if (msg.snapshot.raceStart) this._raceStart = msg.snapshot.raceStart;
+            else if (this._raceStart) msg.snapshot.raceStart = this._raceStart;
             // Marcar como snapshot histórico para que el cliente reconstruya estado derivado
             this.onData({ ...msg.snapshot, _isHistory: true });
           }

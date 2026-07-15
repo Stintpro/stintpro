@@ -14,12 +14,16 @@ window.ApexConnector = {
   _comments: [],
   _httpPort: null,
   _historyFetched: false,
+  _raceTracker: null,   // ancla de salida oficial (com|) — ver apex-protocol
+  _raceStart: null,     // {at, clock, source} cacheado para adjuntar al estado
 
   connect(slug, onData, onStatus, onComment, port, onTitle) {
     this.slug = slug; this.port = port || 7913;
     this.onData = onData; this.onStatus = onStatus; this.onComment = onComment; this.onTitle = onTitle || null;
     this._comments = [];
     this._httpPort = null; this._historyFetched = false;
+    this._raceTracker = ApexProtocol.createRaceStartTracker();
+    this._raceStart = null;
     // Desarmar el socket anterior ANTES de cerrarlo: su onclose se dispara en
     // async (después de que connect() retorne) con this.slug ya apuntando a la
     // sesión nueva, y programaría una reconexión paralela a los 5s → dos
@@ -36,9 +40,15 @@ window.ApexConnector = {
       },
       onNewSession: ()         => {
         if (window.ApexClock?.reset) ApexClock.reset();
+        if (this._raceTracker) this._raceTracker.onNewSession();
+        this._raceStart = this._raceTracker ? this._raceTracker.raceStart : null;
         if (this.onStatus) this.onStatus('connected', '● Nueva sesión');
       },
-      onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
+      onSessionEnd: ()         => {
+        if (window.ApexClock) ApexClock.stop();
+        if (this._raceTracker) this._raceTracker.clear();
+        this._raceStart = null;
+      },
       onTitle:      (title)    => { if (this.onTitle) this.onTitle(title); },
       onComment:    (html)     => this._parseComment(html),
       onChange:     (state)    => this._emit(state),
@@ -151,6 +161,15 @@ window.ApexConnector = {
   },
 
   _parseComment(html) {
+    // Ancla de salida oficial: el com| crudo trae el cronograma con data-flag.
+    // Se alimenta el tracker ANTES de aplanar el HTML a texto para el feed de
+    // comentarios. Una verde nueva → se cachea y se re-emite el estado ya, para
+    // que el dashboard reancle el stint 1 sin esperar al siguiente tick.
+    if (this._raceTracker) {
+      const raceInProgress = !!(window.ApexClock && window.ApexClock._synced);
+      const rs = this._raceTracker.ingest(html, { raceInProgress });
+      if (rs) { this._raceStart = rs; if (this._parser) this._emit(this._parser.getState()); }
+    }
     try {
       const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
       const entries = [];
@@ -265,6 +284,7 @@ window.ApexConnector = {
   },
 
   _emit(state) {
+    if (this._raceStart) state.raceStart = this._raceStart;
     if (this.onData) this.onData(state);
   },
 };

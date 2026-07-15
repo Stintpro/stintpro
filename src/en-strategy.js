@@ -932,6 +932,10 @@ function _enInitSim(){
 // a Date.now().
 function _enStintStartFromClock(cfg){
   const now=Date.now();
+  // 1) Salida oficial (canal com| de dirección de carrera): la fuente más
+  // fiable del arranque real. Precede al reloj y a la duración manual.
+  const rs=EnSession.raceStart;
+  if(rs&&rs.at&&now-rs.at>=0&&now-rs.at<24*3600*1000)return rs.at;
   if(window.ApexClock.isCountUp()){
     // Reloj ascendente: remainingMs() ya devuelve el tiempo transcurrido de sesión.
     const elapsed=window.ApexClock.remainingMs();
@@ -1052,6 +1056,19 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.leaderLap=data.leaderLap||0;
         EnSession.data.sessionMode=data.sessionMode||'';
         if(data.sessionFinished)EnSession._finished=true;
+
+        // ── Salida oficial (com|): ancla del arranque de carrera ──────────────
+        // Llega vía data.raceStart en ambos modos (directo y logger). Reancla el
+        // PRIMER stint (aún sin paradas y sin congelar) al instante real de la
+        // verde, corrigiendo el arranque a Date.now() de una conexión tardía.
+        // Tras el primer pit out, stintStart pertenece al stint vigente → no se toca.
+        if(data.raceStart&&data.raceStart.at){
+          EnSession.raceStart=data.raceStart;
+          if(EnSession.stintHistory.length===0&&!EnSession.stintFrozen&&
+             (!EnSession.stintStart||Math.abs(EnSession.stintStart-data.raceStart.at)>1000)){
+            EnSession.stintStart=data.raceStart.at;
+          }
+        }
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
         if(data.countdown!=null&&window.ApexClock){

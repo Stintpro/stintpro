@@ -3,6 +3,7 @@ const WebSocket  = require('ws');
 const fs         = require('fs');
 const path       = require('path');
 const ApexParser = require('./apex-parser');
+const ApexProtocol = require('./apex-protocol');
 const db         = require('./db');
 const apexHttpSampler = require('./apex-http-sampler');
 
@@ -78,11 +79,17 @@ class CircuitMonitor {
       onNewSession: this._onNewSession.bind(this),
       onTitle:      this._onTitle.bind(this),
       onCountdown:  this._onCountdown.bind(this),
+      onComment:    this._onComment.bind(this),
     });
 
     // Último countdown recibido de Apex ({ms, mode, at}) — para reenviar a subscriptores
     // y reconstruir el reloj en el snapshot al conectar a mitad de sesión.
     this._lastClock = null;
+
+    // Ancla de salida oficial de carrera sacada del canal com| de dirección de
+    // carrera — lógica compartida con el conector directo de la app (ver
+    // createRaceStartTracker en apex-protocol.js). _onComment le pasa el html.
+    this._raceTracker = ApexProtocol.createRaceStartTracker();
   }
 
   start() {
@@ -334,6 +341,8 @@ class CircuitMonitor {
       this._saveSnapshot();
       db.endSession(this.sessionId);
     }
+    // El ancla ya quedó en el snapshot final; que no la herede la sesión siguiente
+    this._raceTracker.clear();
   }
 
   _onNewSession() {
@@ -346,6 +355,10 @@ class CircuitMonitor {
     this.pitEvents = [];
     this._lapCount = 0;
     this._lastClock = null;
+    // La verde de la sesión entrante suele llegar ANTES de que el parser detecte
+    // la sesión nueva (primer grid/vueltas) → un ancla reciente se conserva;
+    // una vieja (carrera anterior acabada sin bandera) se descarta.
+    this._raceTracker.onNewSession();
     if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
   }
 
@@ -363,6 +376,20 @@ class CircuitMonitor {
       this._lastClock = { ms, mode, at: Date.now() };
     }
     this._broadcast({ type: 'clock', ms: this._lastClock.ms, mode: this._lastClock.mode });
+  }
+
+  // ── Cronograma oficial (canal com| de dirección de carrera) ─────────────
+  // Toda la lógica de extracción y anclaje vive en el tracker compartido
+  // (createRaceStartTracker en apex-protocol.js). Aquí solo se le pasa el html,
+  // se le dice si hay carrera en marcha (para conservar el ancla en reanudación)
+  // y, cuando devuelve un ancla nueva, se difunde a los subscriptores.
+  _onComment(html) {
+    const raceInProgress = !!this.sessionId && !this.parser.sessionFinished;
+    const rs = this._raceTracker.ingest(html, { raceInProgress });
+    if (rs) {
+      console.log(`[${this.slug}] Salida oficial ${rs.clock} (${rs.source})`);
+      this._broadcast({ type: 'raceStart', at: rs.at, clock: rs.clock, source: rs.source });
+    }
   }
 
   // ── Subscriptores WebSocket ───────────────────────────────────────────
@@ -430,6 +457,7 @@ class CircuitMonitor {
     }
 
     const snapshot = { ...state, pitEvents: [...this.pitEvents] };
+    if (this._raceTracker.raceStart) snapshot.raceStart = this._raceTracker.raceStart;
     if (this._computeRatings) {
       try { snapshot.pilotRatings = this._computeRatings(this.slug); } catch(e) {}
     }
@@ -459,7 +487,9 @@ class CircuitMonitor {
   _saveSnapshot() {
     if (!this.sessionId) return;
     const state = this.parser.getState();
-    db.saveSnapshot(this.sessionId, { ...state, pitEvents: this.pitEvents });
+    const snap  = { ...state, pitEvents: this.pitEvents };
+    if (this._raceTracker.raceStart) snap.raceStart = this._raceTracker.raceStart;
+    db.saveSnapshot(this.sessionId, snap);
   }
 
   // ── Info pública ──────────────────────────────────────────────────────

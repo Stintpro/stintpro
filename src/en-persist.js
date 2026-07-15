@@ -25,6 +25,7 @@ function _enSaveRaceState() {
         stintBestLap: EnSession.stintBestLap,
         stintLapTimes: EnSession.stintLapTimes,
         stintStartTours: EnSession.data?._stintStartTours || 0,
+        raceStart: EnSession.raceStart,
       },
       // Reglas de la organización configuradas a mano — el feed de Apex/Logger no las
       // manda, así que no hay forma de reconstruirlas al reconectar (a diferencia de la
@@ -85,6 +86,7 @@ function _enApplyRaceState(snap) {
   EnSession.stintBestLap = snap.en.stintBestLap || null;
   EnSession.stintLapTimes = snap.en.stintLapTimes || [];
   EnSession.data._stintStartTours = snap.en.stintStartTours || 0;
+  EnSession.raceStart = snap.en.raceStart || null;
   // showEnduranceDashboard() ya reseteó EnBox a sus valores por defecto — restauramos
   // encima solo si el snapshot trae `box` (snapshots guardados antes de este fix no lo
   // tienen; en ese caso se quedan los valores por defecto, no un crash).
