@@ -306,16 +306,22 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
   const trend=_enTrend(e.lapHistory);
   const cons=_enCons(e.lapHistory);
 
-  // Color última vuelta vs media pista
+  // Color de la última vuelta. Prioridad al token oficial de Apex (morada=mejor
+  // absoluta de la sesión, verde=mejor personal — validado con datos: tb/ti);
+  // si el circuito no manda token, se cae a la heurística de ritmo vs media pista.
   let lastCol='#9ca3af';
-  if(e.lastLap&&trackAvg){
+  if(e.lastLapKind==='purple')lastCol='#c084fc';
+  else if(e.lastLapKind==='green')lastCol='#22c55e';
+  else if(e.lastLap&&trackAvg){
     const d=e.lastLap-trackAvg;
     if(d<-0.5)lastCol='#c084fc';
     else if(d<0)lastCol='#22c55e';
     else if(d>1.0)lastCol='#ef4444';
     else if(d>0.3)lastCol='#fbbf24';
   }
-  const bestCol=e.bestLap&&bestSess&&Math.abs(e.bestLap-bestSess)<0.001?'#c084fc':'#9ca3af';
+  // Mejor vuelta morada si este kart tiene la mejor absoluta (token Apex bestOverall,
+  // o el cálculo local como respaldo).
+  const bestCol=(e.bestOverall||(e.bestLap&&bestSess&&Math.abs(e.bestLap-bestSess)<0.001))?'#c084fc':'#9ca3af';
 
   // Delta vs pista
   const delta=avg5&&trackAvg?(avg5-trackAvg):null;

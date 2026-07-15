@@ -142,6 +142,7 @@
         _pilotName: undefined, // solo se actualiza con nombres que llevan [X:XX] (carreras por equipos)
         _pendingPitEvent: undefined, // si/so llegó antes que el dorsal — se dispara al fijarlo
         _otrTimer: null, _otrPeak: null, lastPitDuration: null, // crono de pit oficial (col otr, ver _otrIsPit)
+        lastLapKind: null, bestOverall: false, // color de vuelta Apex: 'purple'|'green'|null / mejor absoluta
       };
       return _karts[rowId];
     }
@@ -278,6 +279,12 @@
 
       // ── Última vuelta ─────────────────────────────────────────────────
       if (dtype === 'llp') {
+        // Token de color de Apex (validado con datos: tb=97% mejor absoluta,
+        // ti=97% mejor personal, tn=normal). Se guarda aunque no venga tiempo
+        // nuevo (Apex puede mandar solo el cambio de color).
+        if (type === 'tb') k.lastLapKind = 'purple';
+        else if (type === 'ti') k.lastLapKind = 'green';
+        else if (type === 'tn') k.lastLapKind = null;
         const t = parseTime(v);
         if (t && t >= 20 && t < 300) {
           if (!k._lapInvalid && !isGlitchLap(k.lapHistory, t, _fieldMedian())) {
@@ -306,6 +313,10 @@
 
       // ── Mejor vuelta ──────────────────────────────────────────────────
       if (dtype === 'blp') {
+        // tb en la columna de mejor vuelta = este kart TIENE la mejor absoluta
+        // de la sesión (morada persistente); ib/in = solo su mejor personal.
+        if (type === 'tb') k.bestOverall = true;
+        else if (type === 'ib' || type === 'in') k.bestOverall = false;
         const t = parseTime(v);
         if (t && t >= 20 && t < 300 && !isGlitchLap(k.lapHistory, t, _fieldMedian()) && (!k.bestLap || t < k.bestLap)) k.bestLap = t;
         return;
@@ -570,6 +581,8 @@
                   : (k.pit && k._pitInTime ? Math.round((now - k._pitInTime) / 1000) : k.pitS || 0),
             pitDuration: k.pitDuration || 0,
             lastPitDuration: k.lastPitDuration || null, // duración oficial de la última parada (otr)
+            lastLapKind: k.lastLapKind || null, // 'purple'=mejor absoluta · 'green'=mejor personal
+            bestOverall: !!k.bestOverall,        // este kart tiene la mejor vuelta absoluta de la sesión
             state: k.state || 'sr', s1: k.s1, s2: k.s2, s3: k.s3,
             tours: Math.max(k.tours || 0, (k.lapHistory || []).length), standsCount: k.standsCount || 0, stops: k.stops || 0,
             checkered: !!k.checkered, gapMs: k.gapMs || 0,
