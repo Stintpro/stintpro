@@ -163,7 +163,7 @@
       if (!(_sessionActive && Object.keys(_karts).length > 0)) return;
       const lapFlowing = _lastLapTime && (Date.now() - _lastLapTime) < 60000;
       if (lapFlowing && !_sessionFinished) return;   // parpadeo/inyección → no borrar
-      _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
+      _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
       if (callbacks.onNewSession) callbacks.onNewSession();
     }
 
@@ -467,7 +467,7 @@
       if (line.startsWith('grid|')) {
         const inactiveTooLong = _lastLapTime && (Date.now() - _lastLapTime) > 600000;
         if (_sessionActive && (_sessionFinished || inactiveTooLong)) {
-          _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
+          _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
           if (callbacks.onNewSession) callbacks.onNewSession();
         }
         _sessionActive = true;
@@ -627,7 +627,7 @@
           if (_curDorsals.length >= 3) {
             const _overlap = _curDorsals.filter(d => _newDorsals.has(d)).length;
             if (_overlap < _curDorsals.length * 0.4) {
-              _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
+              _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
               if (callbacks.onNewSession) callbacks.onNewSession();
             }
           }
