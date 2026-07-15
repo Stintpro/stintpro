@@ -99,6 +99,7 @@
     function _pushRecent(t) {
       _recentLaps.push(t);
       if (_recentLaps.length > 40) _recentLaps.shift();
+      _lastLapTime = Date.now();   // señal de actividad (cubre también circuitos solo-llp)
     }
 
     function _kart(rowId) {
@@ -114,16 +115,24 @@
       return _karts[rowId];
     }
 
-    // Señal principal de nueva sesión: cambio del título de sesión de Apex
-    // (title1/title2), que llega ANTES del grid en el init. Al cambiar el título
-    // con una sesión ya activa y karts en estado, limpiamos todo para no acumular
-    // vueltas de la sesión anterior. El guard de karts>0 evita disparar dos veces
-    // en el mismo init (title1 y title2 juntos) y en la primera conexión.
+    // Señal de nueva sesión: cambio del título de sesión de Apex (title1/title2),
+    // que suele llegar ANTES del grid. PERO el título PARPADEA: algunos feeds lo
+    // cambian y lo revierten en segundos durante una carrera en marcha (visto en
+    // Los Santos: IRONMAN→ENTRENOS→IRONMAN en 14s). Un parpadeo así NO puede borrar
+    // una carrera en vivo (perderíamos historial, stints, paradas a mitad de carrera).
+    // Regla: solo se acepta el borrado por título si la sesión anterior YA terminó
+    // (bandera a cuadros) o lleva ≥60s sin vueltas. Si hay vueltas fluyendo y sin
+    // bandera, es un parpadeo (o una inyección en el feed) y se ignora — la detección
+    // por grid (solapamiento de dorsales / inactividad >10min) cazará una sesión
+    // nueva real cuando llegue su parrilla.
+    // El guard de karts>0 evita disparar dos veces en el mismo init (title1 y title2
+    // juntos) y en la primera conexión.
     function _maybeNewSessionByTitle() {
-      if (_sessionActive && Object.keys(_karts).length > 0) {
-        _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
-        if (callbacks.onNewSession) callbacks.onNewSession();
-      }
+      if (!(_sessionActive && Object.keys(_karts).length > 0)) return;
+      const lapFlowing = _lastLapTime && (Date.now() - _lastLapTime) < 60000;
+      if (lapFlowing && !_sessionFinished) return;   // parpadeo/inyección → no borrar
+      _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = [];
+      if (callbacks.onNewSession) callbacks.onNewSession();
     }
 
     function _applyCell(k, col, type, val) {
@@ -195,7 +204,7 @@
         // Rechaza solo valores puramente numéricos (dorsales) o de tiempo, no
         // nombres que empiezan por dígito ("24H Racing", "1000 Millas") — antes
         // isNaN(parseInt) los descartaba y ese equipo se quedaba sin nombre.
-        if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !SKIP_NAMES.has(n)) {
+        if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !/^\d{1,2}:\d{2}/.test(n) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) {
             // Nombre con brackets = piloto confirmado (carreras por equipos)
@@ -218,7 +227,7 @@
       // ── Nombre vía drteam (algunos circuitos usan tipo 'drteam' en col llp) ──
       if (type === 'drteam') {
         const n = (val || '').trim();
-        if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !SKIP_NAMES.has(n)) {
+        if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !/^\d{1,2}:\d{2}/.test(n) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) {
             k.name = pm[1].trim();

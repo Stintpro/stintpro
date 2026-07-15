@@ -209,6 +209,67 @@ describe('ciclo de sesión', () => {
   });
 });
 
+// ── Anti-parpadeo del título (no borrar una carrera en vivo) ───────────────────
+// Algunos feeds cambian el título y lo revierten en segundos con la carrera en
+// marcha (Los Santos: IRONMAN→ENTRENOS→IRONMAN en 14s). Ese parpadeo NO debe
+// borrar el estado; solo un fin de sesión real (bandera) o inactividad debe.
+
+describe('anti-parpadeo del título', () => {
+  test('cambio de título con vueltas fluyendo (sin bandera) NO borra', () => {
+    const onNewSession = jest.fn();
+    const p = makeParser({ onNewSession });
+    parse(p, 'r1|*|64000|0');                 // vuelta reciente → carrera en marcha
+    parse(p, 'title2||ENTRENOS');             // parpadeo del título
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(p.getState().equipos).toHaveLength(1);   // el kart sigue ahí
+  });
+
+  test('cambio de título TRAS bandera a cuadros SÍ es sesión nueva', () => {
+    const onNewSession = jest.fn();
+    const p = makeParser({ onNewSession });
+    parse(p, 'r1|*|64000|0');
+    parse(p, 'light|lf');                     // sesión terminada
+    parse(p, 'title2||Sesión 47');            // ahora sí, título nuevo = sesión nueva
+    expect(onNewSession).toHaveBeenCalledTimes(1);
+    expect(p.getState().equipos).toHaveLength(0);
+  });
+
+  test('parpadeo ida y vuelta preserva el estado en ambos saltos', () => {
+    const onNewSession = jest.fn();
+    const p = makeParser({ onNewSession });
+    parse(p, 'r1|*|64000|0');
+    parse(p, 'title2||ENTRENOS');             // IRONMAN → ENTRENOS
+    parse(p, 'title2||IRONMAN');              // ENTRENOS → IRONMAN (vuelta atrás)
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(p.getState().equipos).toHaveLength(1);
+  });
+});
+
+// ── Columna de nombre (dr) blindada contra tiempos ────────────────────────────
+// Un tiempo (con ':') en la columna de nombre —por grid mal etiquetado o inyección—
+// no debe registrarse como nombre del equipo/piloto.
+
+describe('columna dr blindada contra tiempos', () => {
+  test('un tiempo NO sobrescribe el nombre real', () => {
+    const p = makeParser();                   // r1 arranca con nombre 'JAVIER'
+    parse(p, 'r1c2|tb|2:32.382');             // tiempo colado en la columna dr (c2)
+    expect(kart7(p).name).toBe('JAVIER');
+    expect(kart7(p).teamName).not.toBe('2:32.382');
+  });
+
+  test('un nombre real sí actualiza', () => {
+    const p = makeParser();
+    parse(p, 'r1c2|dr|SCUDERIA X');
+    expect(kart7(p).teamName).toBe('SCUDERIA X');
+  });
+
+  test('nombre que empieza por número se conserva (24H Racing)', () => {
+    const p = makeParser();
+    parse(p, 'r1c2|dr|24H Racing');
+    expect(kart7(p).teamName).toBe('24H Racing');
+  });
+});
+
 // ── Pit events ────────────────────────────────────────────────────────────────
 
 describe('pit in / out', () => {
