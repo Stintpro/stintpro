@@ -16,6 +16,8 @@ window.ApexConnector = {
   _historyFetched: false,
   _raceTracker: null,   // ancla de salida oficial (com|) — ver apex-protocol
   _raceStart: null,     // {at, clock, source} cacheado para adjuntar al estado
+  _flagTracker: null,   // bandera del panel + estado carrera detenida — ver apex-protocol
+  _raceStopped: false,  // ¿carrera detenida por roja con carrera activa?
 
   connect(slug, onData, onStatus, onComment, port, onTitle) {
     this.slug = slug; this.port = port || 7913;
@@ -24,6 +26,8 @@ window.ApexConnector = {
     this._httpPort = null; this._historyFetched = false;
     this._raceTracker = ApexProtocol.createRaceStartTracker();
     this._raceStart = null;
+    this._flagTracker = ApexProtocol.createFlagTracker();
+    this._raceStopped = false;
     // Desarmar el socket anterior ANTES de cerrarlo: su onclose se dispara en
     // async (después de que connect() retorne) con this.slug ya apuntando a la
     // sesión nueva, y programaría una reconexión paralela a los 5s → dos
@@ -42,15 +46,25 @@ window.ApexConnector = {
         if (window.ApexClock?.reset) ApexClock.reset();
         if (this._raceTracker) this._raceTracker.onNewSession();
         this._raceStart = this._raceTracker ? this._raceTracker.raceStart : null;
+        if (this._flagTracker) this._flagTracker.reset();
+        this._raceStopped = false;
         if (this.onStatus) this.onStatus('connected', '● Nueva sesión');
       },
       onSessionEnd: ()         => {
         if (window.ApexClock) ApexClock.stop();
         if (this._raceTracker) this._raceTracker.clear();
         this._raceStart = null;
+        if (this._flagTracker) this._flagTracker.reset();
+        this._raceStopped = false;
       },
       onTitle:      (title)    => { if (this.onTitle) this.onTitle(title); },
       onComment:    (html)     => this._parseComment(html),
+      onFlag:       (flag, ctx)=> {
+        this._flagTracker.ingest(flag, ctx || {});
+        this._raceStopped = this._flagTracker.stopped;
+        // Re-emitir ya para que el cartel reaccione sin esperar al siguiente tick
+        if (this._parser) this._emit(this._parser.getState());
+      },
       onChange:     (state)    => this._emit(state),
     });
 
@@ -285,6 +299,7 @@ window.ApexConnector = {
 
   _emit(state) {
     if (this._raceStart) state.raceStart = this._raceStart;
+    state.raceStopped = this._raceStopped;   // state.flag ya viene de getState()
     if (this.onData) this.onData(state);
   },
 };

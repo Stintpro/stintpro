@@ -181,6 +181,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
         <div class="sp-clock-lbl" id="sp-clk-lbl">tiempo restante</div>
       </div>
     </div>
+    <div id="en-flag-banner" style="display:none;align-items:center;justify-content:center;gap:8px;padding:7px 12px;margin:0 0 6px;border-radius:5px;font-weight:700;font-size:13px;letter-spacing:.3px"></div>
     <div class="en-kpis" id="en-kpis">
       ${_enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, EnSession.data.equipos)}
     </div>

@@ -88,6 +88,7 @@
     let _title2          = '';
     let _sessionMode     = '';   // 'p' = practice/clasificación · 'r' = carrera (letra del init|X|)
     let _recentLaps      = [];   // últimas vueltas válidas de la sesión (ritmo de pista, para filtro de glitches)
+    let _flag            = null; // bandera del panel de luces: 'green'|'red'|'yellow'|null (lg/lr/ly)
 
     // Ritmo de pista: mediana de las últimas vueltas aceptadas de todos los karts.
     // Sirve de referencia cuando un kart aún no tiene vueltas propias suficientes.
@@ -434,10 +435,27 @@
         return true;
       }
 
-      // ── BANDERA A CUADROS ─────────────────────────────────────────────
-      if (line.startsWith('light|lf')) {
-        _sessionFinished = true;
-        if (callbacks.onSessionEnd) callbacks.onSessionEnd();
+      // ── PANEL DE LUCES: cuadros (lf) / verde (lg) / roja (lr) / amarilla (ly) ──
+      // El panel emite roja también como estado de reposo ENTRE sesiones (visto
+      // en la auditoría: 82% de las rojas caen sin carrera). Por eso el parser
+      // solo surface la bandera cruda + si hay carrera activa; la decisión de
+      // "carrera detenida/reanudada" la toma createFlagTracker con ese contexto.
+      if (line.startsWith('light|')) {
+        const code = line.substring(6, 8);
+        if (code === 'lf') {
+          _sessionFinished = true;
+          if (callbacks.onSessionEnd) callbacks.onSessionEnd();
+          return true;
+        }
+        const flag = code === 'lr' ? 'red' : code === 'lg' ? 'green' : code === 'ly' ? 'yellow' : null;
+        if (flag) {
+          _flag = flag;
+          if (callbacks.onFlag) {
+            const raceActive = _sessionActive && !_sessionFinished &&
+                               !!_lastLapTime && (Date.now() - _lastLapTime) < 90000;
+            callbacks.onFlag(flag, { raceActive });
+          }
+        }
         return true;
       }
 
@@ -509,7 +527,7 @@
           ? parseInt(a.dorsal) - parseInt(b.dorsal)
           : a.pos - b.pos);
       return { equipos, leaderLap: _leaderLap, timestamp: now, sessionFinished: _sessionFinished, colMap: _colMap,
-               title1: _title1, title2: _title2, sessionMode: _sessionMode };
+               title1: _title1, title2: _title2, sessionMode: _sessionMode, flag: _flag };
     }
 
     return {
@@ -571,7 +589,7 @@
       reset() {
         _karts = {}; _colMap = {}; _colByNum = {};
         _sessionActive = false; _sessionFinished = false;
-        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = [];
+        _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
       },
 
       get colMap()          { return _colMap; },
@@ -696,5 +714,42 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker };
+  // ── Estado de carrera detenida por bandera roja ───────────────────────────
+  // Convierte el flujo crudo de banderas (onFlag del parser) en eventos de alto
+  // nivel "detenida"/"reanudada". Solo una ROJA con carrera activa detiene: las
+  // rojas de reposo entre sesiones (82% en la auditoría) NO tienen carrera
+  // activa y se ignoran. La reanudación es la primera verde tras una detención.
+  // La amarilla se guarda como bandera cruda (para el cartel) pero no detiene.
+  // Compartido por el logger (circuit-monitor) y el conector directo de la app.
+  function createFlagTracker() {
+    let _flag      = null;   // última bandera cruda vista: 'green'|'red'|'yellow'
+    let _stopped   = false;  // ¿carrera detenida por roja con carrera activa?
+    let _stoppedAt = null;   // timestamp de la roja que detuvo
+
+    // Devuelve {type:'stopped'|'resumed', ...} SOLO en la transición; si no, null.
+    function ingest(flag, opts = {}) {
+      _flag = flag;
+      if (flag === 'red' && opts.raceActive && !_stopped) {
+        _stopped = true; _stoppedAt = Date.now();
+        return { type: 'stopped', at: _stoppedAt };
+      }
+      if (flag === 'green' && _stopped) {
+        const at = _stoppedAt;
+        _stopped = false; _stoppedAt = null;
+        return { type: 'resumed', at: Date.now(), stoppedAt: at, durationMs: at ? Date.now() - at : null };
+      }
+      return null;
+    }
+
+    return {
+      ingest,
+      get flag()      { return _flag; },
+      get stopped()   { return _stopped; },
+      get stoppedAt() { return _stoppedAt; },
+      // Fin de sesión / sesión nueva: la carrera siguiente arranca sin detención.
+      reset() { _flag = null; _stopped = false; _stoppedAt = null; },
+    };
+  }
+
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker };
 });

@@ -23,6 +23,9 @@ const EnSession = {
   lastTrackAvg:     null,   // último valor válido de media de pista (caché anti-parpadeo)
   myPitInAt:        null,   // timestamp real de mi pit-in (ancla el túnel de salida mientras estoy en boxes)
   raceStart:        null,   // {at, clock, source} salida oficial (com|) — ancla del stint 1
+  flag:             null,   // bandera del panel de luces: 'green'|'red'|'yellow'|null
+  raceStopped:      false,  // carrera detenida por bandera roja (con carrera activa)
+  raceEvents:       [],     // eventos de detención/reanudación de la sesión
 };
 
 // ── Historial de pilotos (logger o URL configurada en modo Apex/Replay) ──

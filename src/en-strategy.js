@@ -951,6 +951,27 @@ function _enStintStartFromClock(cfg){
   return now;
 }
 
+// Cartel de estado de carrera: rojo si detenida (bandera roja con carrera
+// activa), ámbar si precaución (amarilla). Oculto en verde/sin bandera. Lee
+// EnSession.raceStopped/flag, que alimentan ambos conectores (directo y logger).
+function _enUpdateFlagBanner(){
+  const el=document.getElementById('en-flag-banner');
+  if(!el)return;
+  let html='',bg='',fg='',show=false;
+  if(EnSession.raceStopped){
+    show=true; bg='#ef4444'; fg='#fff';
+    let extra='';
+    const st=[...(EnSession.raceEvents||[])].reverse().find(e=>e.type==='stopped');
+    if(st&&st.time){const s=Math.round((Date.now()-st.time)/1000);extra=` · ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+    html='🔴 CARRERA DETENIDA (bandera roja)'+extra;
+  } else if(EnSession.flag==='yellow'){
+    show=true; bg='#fbbf24'; fg='#111';
+    html='🟡 PRECAUCIÓN (bandera amarilla)';
+  }
+  if(show){el.style.display='flex';el.style.background=bg;el.style.color=fg;el.textContent=html;}
+  else el.style.display='none';
+}
+
 // ── API pública ───────────────────────────────────────────────────────────
 window.showEnduranceDashboard=function(cfg){
   _enInjectStyles();
@@ -987,6 +1008,9 @@ window.showEnduranceDashboard=function(cfg){
         if(rem!==null&&rem<=0)EnSession.stintFrozen=Date.now()-EnSession.stintStart;
       }
     }
+    // Cartel de bandera roja / precaución (fuera del if del reloj: debe verse
+    // aunque el reloj no esté sincronizado durante la detención).
+    _enUpdateFlagBanner();
     // Red de seguridad: guarda el estado de carrera cada ~20s aunque no haya
     // eventos de pit — fuera del `if(cv&&ApexClock)` para que no deje de
     // guardar cuando el reloj no está sincronizado (justo tras reconectar).
@@ -1027,6 +1051,14 @@ window.showEnduranceDashboard=function(cfg){
     ApexConnector.connect(
       cfg.slug,
       (data)=>{
+        // Payload ligero de bandera (logger): solo actualiza estado de banderas
+        // y sale — no trae equipos, así que NO debe pasar por el flujo normal
+        // (que haría EnSession.data.equipos=[]). El cartel lo pinta el reloj (1s).
+        if(data._flagOnly){
+          EnSession.flag=data.flag||null;
+          EnSession.raceStopped=!!data.raceStopped;
+          return;
+        }
         const now=Date.now();
         (data.equipos||[]).forEach(e=>{
           const prev=EnSession.data.equipos.find(p=>p.dorsal===e.dorsal);
@@ -1069,6 +1101,13 @@ window.showEnduranceDashboard=function(cfg){
             EnSession.stintStart=data.raceStart.at;
           }
         }
+
+        // ── Bandera del panel / carrera detenida (roja) ───────────────────────
+        // El cartel visible lo pinta el intervalo del reloj (cada 1s) leyendo
+        // EnSession.raceStopped/flag. raceEvents es el histórico de la sesión.
+        if(data.flag!==undefined)EnSession.flag=data.flag;
+        if(data.raceStopped!==undefined)EnSession.raceStopped=!!data.raceStopped;
+        if(Array.isArray(data.raceEvents))EnSession.raceEvents=data.raceEvents;
 
         // ── Countdown desde logger (no llega por protocolo Apex bruto) ─────────
         if(data.countdown!=null&&window.ApexClock){

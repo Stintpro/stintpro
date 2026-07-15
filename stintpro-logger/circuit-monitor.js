@@ -58,6 +58,7 @@ class CircuitMonitor {
     // Estado de sesión
     this.sessionId  = null;
     this.pitEvents  = [];   // eventos de pit de la sesión actual (para snapshot)
+    this.raceEvents = [];   // eventos de bandera roja detenida/reanudada (para snapshot)
     this._lapCount  = 0;
 
     this.recording = cfg.recording !== false; // true por defecto
@@ -80,6 +81,7 @@ class CircuitMonitor {
       onTitle:      this._onTitle.bind(this),
       onCountdown:  this._onCountdown.bind(this),
       onComment:    this._onComment.bind(this),
+      onFlag:       this._onFlag.bind(this),
     });
 
     // Último countdown recibido de Apex ({ms, mode, at}) — para reenviar a subscriptores
@@ -90,6 +92,9 @@ class CircuitMonitor {
     // carrera — lógica compartida con el conector directo de la app (ver
     // createRaceStartTracker en apex-protocol.js). _onComment le pasa el html.
     this._raceTracker = ApexProtocol.createRaceStartTracker();
+
+    // Estado de carrera detenida por bandera roja — ver createFlagTracker.
+    this._flagTracker = ApexProtocol.createFlagTracker();
   }
 
   start() {
@@ -294,7 +299,8 @@ class CircuitMonitor {
     // inicial. lapHistoryTotal (longitud real en memoria del parser) permite al
     // cliente fusionar por contador en vez de deduplicar por valor de vuelta.
     const liveData = {
-      ...state,
+      ...state,   // incluye flag (bandera cruda del panel)
+      raceStopped: this._flagTracker.stopped,
       equipos: state.equipos.map(e => ({
         ...e,
         lapHistoryTotal: (e.lapHistory || []).length,
@@ -343,6 +349,7 @@ class CircuitMonitor {
     }
     // El ancla ya quedó en el snapshot final; que no la herede la sesión siguiente
     this._raceTracker.clear();
+    this._flagTracker.reset();
   }
 
   _onNewSession() {
@@ -353,8 +360,10 @@ class CircuitMonitor {
     }
     this.sessionId = null;
     this.pitEvents = [];
+    this.raceEvents = [];
     this._lapCount = 0;
     this._lastClock = null;
+    this._flagTracker.reset();
     // La verde de la sesión entrante suele llegar ANTES de que el parser detecte
     // la sesión nueva (primer grid/vueltas) → un ancla reciente se conserva;
     // una vieja (carrera anterior acabada sin bandera) se descarta.
@@ -390,6 +399,25 @@ class CircuitMonitor {
       console.log(`[${this.slug}] Salida oficial ${rs.clock} (${rs.source})`);
       this._broadcast({ type: 'raceStart', at: rs.at, clock: rs.clock, source: rs.source });
     }
+  }
+
+  // ── Bandera del panel de luces (verde/roja/amarilla) ────────────────────
+  // Se difunde la bandera cruda para el cartel del cliente y, cuando el tracker
+  // detecta detención/reanudación reales (roja con carrera activa → verde), se
+  // registra el evento en la sesión (va en el snapshot persistido).
+  _onFlag(flag, ctx) {
+    const ev = this._flagTracker.ingest(flag, ctx || {});
+    this._broadcast({ type: 'flag', flag, raceStopped: this._flagTracker.stopped });
+    if (!ev) return;
+    if (ev.type === 'stopped') {
+      console.warn(`[${this.slug}] 🔴 Carrera DETENIDA (bandera roja con carrera activa)`);
+      if (this.sessionId) this.raceEvents.push({ type: 'stopped', time: ev.at });
+    } else if (ev.type === 'resumed') {
+      const secs = ev.durationMs != null ? Math.round(ev.durationMs / 1000) : '?';
+      console.log(`[${this.slug}] 🟢 Carrera REANUDADA tras ${secs}s detenida`);
+      if (this.sessionId) this.raceEvents.push({ type: 'resumed', time: ev.at, durationMs: ev.durationMs });
+    }
+    if (this.sessionId) this._saveSnapshot();
   }
 
   // ── Subscriptores WebSocket ───────────────────────────────────────────
@@ -456,8 +484,9 @@ class CircuitMonitor {
       } catch(err) { console.error(`[${this.slug}] enrichHistory:`, err.message); }
     }
 
-    const snapshot = { ...state, pitEvents: [...this.pitEvents] };
+    const snapshot = { ...state, pitEvents: [...this.pitEvents], raceEvents: [...this.raceEvents] };
     if (this._raceTracker.raceStart) snapshot.raceStart = this._raceTracker.raceStart;
+    snapshot.raceStopped = this._flagTracker.stopped;
     if (this._computeRatings) {
       try { snapshot.pilotRatings = this._computeRatings(this.slug); } catch(e) {}
     }
@@ -487,8 +516,9 @@ class CircuitMonitor {
   _saveSnapshot() {
     if (!this.sessionId) return;
     const state = this.parser.getState();
-    const snap  = { ...state, pitEvents: this.pitEvents };
+    const snap  = { ...state, pitEvents: this.pitEvents, raceEvents: this.raceEvents };
     if (this._raceTracker.raceStart) snap.raceStart = this._raceTracker.raceStart;
+    snap.raceStopped = this._flagTracker.stopped;
     db.saveSnapshot(this.sessionId, snap);
   }
 

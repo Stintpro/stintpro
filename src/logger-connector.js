@@ -10,12 +10,16 @@ const Logger = {
   _reconnectTimer: null,
   _serverUrl: null,
   _raceStart: null,   // ancla de salida oficial reenviada por el logger (type:'raceStart')
+  _flag: null,        // última bandera del panel reenviada por el logger
+  _raceStopped: false,// ¿carrera detenida por roja con carrera activa?
 
   connect(slug, onData, onStatus, onComment, port) {
     this.slug = slug;
     this.onData = onData;
     this.onStatus = onStatus;
     this._raceStart = null;
+    this._flag = null;
+    this._raceStopped = false;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     // Desarmar el socket anterior ANTES de cerrarlo: su onclose (async) vería
     // this.slug ya fijado y programaría una reconexión paralela a los 5s →
@@ -66,8 +70,17 @@ const Logger = {
             this._raceStart = { at: msg.at, clock: msg.clock, source: msg.source };
           }
 
+          // Bandera del panel (roja/verde/amarilla). Se emite un payload ligero
+          // _flagOnly para que el cartel reaccione al instante sin pisar equipos.
+          if (msg.type === 'flag') {
+            this._flag = msg.flag;
+            this._raceStopped = !!msg.raceStopped;
+            if (this.onData) this.onData({ _flagOnly: true, flag: this._flag, raceStopped: this._raceStopped });
+          }
+
           if (msg.type === 'live' && msg.data && this.onData) {
             if (this._raceStart && !msg.data.raceStart) msg.data.raceStart = this._raceStart;
+            if (msg.data.raceStopped === undefined) msg.data.raceStopped = this._raceStopped;
             this.onData(msg.data);
           }
 
@@ -87,6 +100,9 @@ const Logger = {
             // los ticks live siguientes (que no lo reenvían).
             if (msg.snapshot.raceStart) this._raceStart = msg.snapshot.raceStart;
             else if (this._raceStart) msg.snapshot.raceStart = this._raceStart;
+            // Igual con el estado de carrera detenida (bandera roja).
+            if (msg.snapshot.raceStopped !== undefined) this._raceStopped = !!msg.snapshot.raceStopped;
+            this._flag = msg.snapshot.flag || null;
             // Marcar como snapshot histórico para que el cliente reconstruya estado derivado
             this.onData({ ...msg.snapshot, _isHistory: true });
           }
