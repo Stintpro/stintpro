@@ -1,0 +1,56 @@
+{
+  "_comment": "Catálogo de lo que YA conocemos del protocolo Apex. El detector de novedades (novelty-detector.js) marca todo lo que NO esté aquí. Cuando una novedad resulte conocida/inofensiva, añádela a la lista que corresponda para silenciarla en adelante.",
+  "_updated": "2026-07-15",
+
+  "gridDtypes": [
+    "grp", "sta", "rk", "no", "dr", "s1", "s2", "s3",
+    "llp", "blp", "gap", "int", "tlp", "lc", "pit", "otr", ""
+  ],
+
+  "cellTokens": [
+    "in", "to", "si", "so", "sr", "su", "sd", "ss", "sf",
+    "gs", "gf", "gl", "gm",
+    "tn", "ti", "tb", "ib",
+    "dr", "drteam"
+  ],
+  "cellTokenRegexes": [
+    "^no\\d+$",
+    "^pena\\d+$"
+  ],
+  "_notas_tokens": "pena1 (col de penalización, p.ej. Misano c12) = sanción en segundos (valores 5.000/10.000). Catalogado como conocido; PENDIENTE de implementar si se quiere mostrar penalizaciones (ver punto 'penalizaciones' de la auditoría).",
+
+  "linePrefixes": [
+    "init", "grid", "title1", "title2", "com", "msg",
+    "best", "effects", "comments", "track",
+    "wth1", "wth2", "wth3", "css",
+    "dyn1", "dyn2", "light"
+  ],
+
+  "lightCodes": ["lf", "lr", "lg", "ly"],
+  "dyn1Subtypes": ["countdown", "count", "text"],
+
+  "structuralLinePatterns": [
+    "^S#$",
+    "^r\\d+\\|\\*\\|\\d+\\|\\d*$",
+    "^r\\d+\\|\\*(in|out)\\|0$",
+    "^r\\d+\\|\\*\\|\\|$",
+    "^r\\d+\\|\\*i\\d+\\|",
+    "^r\\d+\\|#\\|\\d+$",
+    "^r\\d+c\\d+\\|",
+    "^r\\d+\\|c\\d+\\|"
+  ],
+
+  "knownColumnHeaders": [
+    "Tiempo en PIT", "En piste", "Tijd op circuit",
+    "Penalización", "Péna.", "Pena", "Categoría", "Kart", "Pilot",
+    "Vueltas", "Tours", "Snelste ronde", "Snelste ronde 2", "Snelste ronde 3",
+    "Clasif.", "Mejor vuelta", "Pits", "Ultimo T.", "Distacco", "Interv."
+  ],
+
+  "scannerNoisePrefixes": [
+    "GET ", "POST ", "HEAD ", "PUT ", "OPTIONS ", "Host:", "User-Agent:",
+    "Accept:", "Accept-Encoding:", "Accept-Language:", "Connection:",
+    "Referer:", "Origin:", "Upgrade", "Sec-", "Cache-Control:", "Pragma:",
+    "Content-", "Cookie:", "X-", "\\x16\\x03", "\\x00"
+  ]
+}
