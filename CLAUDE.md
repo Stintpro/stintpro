@@ -269,6 +269,12 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
   - Reinicio del servidor rompe la sesión activa (sessionId vive en memoria del CircuitMonitor)
   - Dos features del app NO portadas al logger: fallback de tiempos desde `|*|` y detección de estado por código
 
+### Acceso al logger según entorno (importante para sesiones de Claude)
+- **Desde Claude Code on the web / entornos remotos NO se puede alcanzar el logger en marcha.** Salida de red solo por proxy HTTPS a hosts permitidos (GitHub, Anthropic). Comprobado 2026-07-18: `188.245.90.48:3000` (VPS), `192.168.1.79:3000` (NAS) y `100.71.53.12:3000` (Tailscale) → todos timeout/reset. Tampoco hay clave `~/.ssh/stintpro_hetzner`, así que el `rsync` de grabaciones raw de `run-novelty.sh` tampoco funciona.
+- **Lo que SÍ se puede verificar desde cualquier entorno (nivel código):** sintaxis (`node -c`), batería de tests (`cd stintpro-logger && npm test` → 243 tests, 7 suites, todo en verde a 2026-07-18) y el detector de novedades contra las grabaciones versionadas (`__tests__/fixtures/recordings/`, `src/demo/demo-race.ndjson`).
+- **Lo que solo puede comprobar el usuario desde su Mac/red (estado vivo):** que el proceso graba, últimas sesiones reales, estado de la DB, y novedades del protocolo en grabaciones reales (`bash stintpro-logger/tools/run-novelty.sh`, o `curl -s http://188.245.90.48:3000/api/circuits`).
+- Nota menor: `npm test` deja un `MaxListenersExceededWarning` de WebSocket y Jest fuerza la salida (handles/timers sin cerrar en teardown de tests). No afecta a funcionalidad; pendiente de limpiar.
+
 ### Filtro de sesiones por título (pendiente de implementar)
 - **Problema:** algunos circuitos mezclan categorías (4T alquiler, motos, karts de competición) y el logger graba todo, contaminando los datos históricos de pilotos.
 - **Solución diseñada:** filtrar por título de sesión de Apex.
