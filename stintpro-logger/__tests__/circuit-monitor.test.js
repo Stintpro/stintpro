@@ -20,6 +20,19 @@ jest.mock('ws', () => {
     }
     send(data)  { this.sent.push(data); }
     close()     { this.readyState = FakeWebSocket.CLOSED; }
+    ping()      { this.pings = (this.pings || 0) + 1; }
+    // Fiel al `ws` real (medido contra un endpoint no enrutable): terminate()
+    // sobre un socket en CONNECTING emite SIEMPRE 'error' + 'close' de forma
+    // síncrona. Si el mock no lo replica, el test no ve que un 'error' sin
+    // listener tumba el proceso — que es justo el fallo que se coló aquí.
+    terminate() {
+      const wasConnecting = this.readyState === FakeWebSocket.CONNECTING;
+      this.readyState = FakeWebSocket.CLOSED;
+      if (wasConnecting) {
+        this.emit('error', new Error('WebSocket was closed before the connection was established'));
+      }
+      this.emit('close');
+    }
   }
   FakeWebSocket.CONNECTING = 0;
   FakeWebSocket.OPEN       = 1;
@@ -143,6 +156,88 @@ describe('conexión a Apex', () => {
     const ws = WebSocket.instances[0];
     ws.emit('open');
     expect(() => ws.emit('message', Buffer.from('esto-no-es-protocolo-apex'))).not.toThrow();
+  });
+
+  // Regresión: el 2026-07-20, tras reiniciar el VPS, campillos abrió el socket y
+  // se quedó en CONNECTING sin emitir 'open', 'error' ni 'close'. Como la
+  // reconexión solo colgaba de 'close', el monitor quedó muerto en silencio
+  // hasta reiniciar el servicio entero.
+  describe('handshake colgado (sin open/error/close)', () => {
+    test('un socket que nunca abre se cierra por timeout y reconecta', () => {
+      jest.useFakeTimers();
+      try {
+        const m = createMonitor();
+        m.start();
+        const ws = WebSocket.instances[0];
+
+        // A los 19s aún no ha pasado nada: sigue esperando el handshake.
+        jest.advanceTimersByTime(19000);
+        expect(WebSocket.instances).toHaveLength(1);
+        expect(ws.readyState).not.toBe(WebSocket.CLOSED);
+
+        // A los 20s salta el timeout: mata el socket y programa reconexión.
+        jest.advanceTimersByTime(1000);
+        expect(ws.readyState).toBe(WebSocket.CLOSED);
+        expect(m.connected).toBe(false);
+        expect(WebSocket.instances).toHaveLength(1); // aún no ha reintentado
+
+        jest.advanceTimersByTime(5000);
+        expect(WebSocket.instances).toHaveLength(2); // reconectó con el backoff de 5s
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test('un "close" tardío tras el timeout no duplica la reconexión', () => {
+      jest.useFakeTimers();
+      try {
+        const m = createMonitor();
+        m.start();
+        const ws = WebSocket.instances[0];
+
+        jest.advanceTimersByTime(20000);  // timeout → socket abandonado
+        ws.emit('close');                 // el socket muerto avisa tarde
+        ws.emit('error', new Error('ECONNRESET'));
+
+        jest.advanceTimersByTime(5000);
+        expect(WebSocket.instances).toHaveLength(2); // un solo socket nuevo, no dos
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test('tras un "open" correcto el timeout ya no mata el socket', () => {
+      jest.useFakeTimers();
+      try {
+        const m = createMonitor();
+        m.start();
+        const ws = WebSocket.instances[0];
+        ws.readyState = WebSocket.OPEN;
+        ws.emit('open');
+
+        // 25s: pasado el timeout de handshake (20s) y antes del ciclo ping/pong.
+        jest.advanceTimersByTime(25000);
+        expect(m.connected).toBe(true);
+        expect(ws.readyState).toBe(WebSocket.OPEN);
+        expect(WebSocket.instances).toHaveLength(1); // no reconectó
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test('stop() cancela el timeout de handshake pendiente', () => {
+      jest.useFakeTimers();
+      try {
+        const m = createMonitor();
+        m.start();
+        m.stop();
+
+        jest.advanceTimersByTime(60000);
+        expect(WebSocket.instances).toHaveLength(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   test('stop() cierra el WS y cancela el timer de reconexión pendiente', () => {

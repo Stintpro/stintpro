@@ -30,6 +30,14 @@ const APEX_STALE_ACTIVE_MS      = 90 * 1000;      // sesión activa sin datos �
 const APEX_STALE_WATCHED_MS     = 2 * 60 * 1000;  // alguien mirando y sin datos → refrescar
 const APEX_STALE_IDLE_MS        = 30 * 60 * 1000; // ocioso sin espectadores → reconexión suave
 
+// Timeout del handshake de conexión. Sin él, un socket que se queda en
+// CONNECTING sin emitir 'open', 'error' ni 'close' deja el monitor muerto en
+// silencio para siempre: la reconexión solo cuelga de 'close'/catch. Observado
+// el 2026-07-20 con 18 monitores arrancando a la vez contra el mismo host
+// (campillos se quedó colgado; el endpoint respondía bien a mano).
+const APEX_CONNECT_TIMEOUT_MS = 20 * 1000;
+const APEX_RECONNECT_MS       = 5000;
+
 class CircuitMonitor {
   constructor(cfg, computeRatings) {
     this._computeRatings = computeRatings || null;
@@ -40,6 +48,7 @@ class CircuitMonitor {
     this.ws              = null;
     this.connected       = false;
     this._reconnectTimer = null;
+    this._connectTimer   = null;  // timeout del handshake (ver APEX_CONNECT_TIMEOUT_MS)
     this._saveTimer      = null;
     this._lastBroadcast  = 0;
 
@@ -106,6 +115,7 @@ class CircuitMonitor {
 
   stop() {
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    this._clearConnectTimer();
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
     if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
     this._stopHeartbeat();
@@ -181,20 +191,61 @@ class CircuitMonitor {
 
   // ── Conexión Apex ─────────────────────────────────────────────────────
 
+  // Programa una reconexión. Idempotente a propósito: si el timeout de conexión
+  // ya la programó, el 'close' tardío que llegue después del terminate() no debe
+  // encadenar una segunda (dos sockets abriéndose en paralelo por circuito).
+  _scheduleReconnect() {
+    if (this._reconnectTimer) return;
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      this._connect();
+    }, APEX_RECONNECT_MS);
+  }
+
+  _clearConnectTimer() {
+    if (this._connectTimer) { clearTimeout(this._connectTimer); this._connectTimer = null; }
+  }
+
   _connect() {
+    this._clearConnectTimer();
+    let ws;
     try {
-      this.ws = new WebSocket(`wss://live-data.apex-timing.com:${this.port}/`, {
+      ws = new WebSocket(`wss://live-data.apex-timing.com:${this.port}/`, {
         headers: {
           Origin:     'https://live.apex-timing.com',
           Referer:    'https://live.apex-timing.com/rkc/',
           'User-Agent': 'Mozilla/5.0 StintPro-Logger/1.0',
         },
       });
+      this.ws = ws;
 
-      this.ws.on('open', () => {
+      // Handshake colgado: ni 'open' ni 'error' ni 'close'. Se mata el socket y
+      // se reprograma con el backoff normal. `current()` descarta eventos de un
+      // socket ya abandonado (un 'close' puede llegar tras el terminate).
+      this._connectTimer = setTimeout(() => {
+        this._connectTimer = null;
+        if (this.ws !== ws) return;
+        console.warn(`[${this.slug}] Timeout de conexión, reintentando`);
+        this.ws = null;
+        this.connected = false;
+        this._stopHeartbeat();
+        // Se sueltan los handlers para que los eventos tardíos del socket muerto
+        // no reprogramen nada; el 'error' se re-engancha a un noop porque un
+        // 'error' sin listener en un EventEmitter tumba el proceso.
+        try { ws.removeAllListeners(); ws.on('error', () => {}); } catch(e) {}
+        try { ws.terminate ? ws.terminate() : ws.close(); } catch(e) { try { ws.close(); } catch(e2) {} }
+        this._broadcastStatus('disconnected');
+        this._scheduleReconnect();
+      }, APEX_CONNECT_TIMEOUT_MS);
+
+      const current = () => this.ws === ws;
+
+      ws.on('open', () => {
+        if (!current()) return;
+        this._clearConnectTimer();
         this.connected = true;
         console.log(`[${this.slug}] Apex conectado`);
-        this.ws.send(this.slug);
+        ws.send(this.slug);
         this._lastDataAt = Date.now();
         this._startHeartbeat();
         this._broadcastStatus('connected');
@@ -203,9 +254,10 @@ class CircuitMonitor {
       // El pong solo confirma que el socket está vivo; NO cuenta como "datos"
       // para el watchdog (un proxy puede seguir respondiendo pong sin reenviar
       // el feed — justo el caso de congelación que hay que cazar).
-      this.ws.on('pong', () => { this._awaitingPong = false; });
+      ws.on('pong', () => { if (current()) this._awaitingPong = false; });
 
-      this.ws.on('message', (data) => {
+      ws.on('message', (data) => {
+        if (!current()) return;
         this._lastDataAt = Date.now();
         const raw = data.toString();
         if (this._rawLog) {
@@ -215,22 +267,26 @@ class CircuitMonitor {
         catch(e) { console.error(`[${this.slug}] parse error:`, e.message); }
       });
 
-      this.ws.on('error', (err) => {
+      ws.on('error', (err) => {
+        if (!current()) return;
         this.connected = false;
         this._stopHeartbeat();
         console.error(`[${this.slug}] WS error:`, err.message);
       });
 
-      this.ws.on('close', () => {
+      ws.on('close', () => {
+        if (!current()) return;
+        this._clearConnectTimer();
         this.connected = false;
         this._stopHeartbeat();
         console.log(`[${this.slug}] Desconectado, reconectando en 5s...`);
         this._broadcastStatus('disconnected');
-        this._reconnectTimer = setTimeout(() => this._connect(), 5000);
+        this._scheduleReconnect();
       });
     } catch(e) {
+      this._clearConnectTimer();
       console.error(`[${this.slug}] connect error:`, e.message);
-      this._reconnectTimer = setTimeout(() => this._connect(), 5000);
+      this._scheduleReconnect();
     }
   }
 

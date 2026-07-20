@@ -1081,11 +1081,17 @@ async function start() {
 
   // Conexión real a cada circuito (Apex). Fuera de createServer para que los
   // tests puedan construir la app sin abrir sockets a circuitos reales.
+  // Arranque escalonado: abrir ~18 handshakes simultáneos contra el mismo host
+  // de Apex hacía que alguno se quedara sin respuesta (ver el timeout de conexión
+  // en circuit-monitor.js). Unos cientos de ms entre monitores lo evita.
+  const MONITOR_START_STAGGER_MS = 300;
+  let startDelay = 0;
   for (const cfg of (config.circuits || [])) {
     if (!cfg.slug) continue;
     const mon = new CircuitMonitor(cfg, computePilotRatings);
     monitors.set(cfg.slug, mon);
-    mon.start();
+    setTimeout(() => mon.start(), startDelay);
+    startDelay += MONITOR_START_STAGGER_MS;
   }
   console.log(`[Logger] ${monitors.size} circuitos monitorizados`);
 

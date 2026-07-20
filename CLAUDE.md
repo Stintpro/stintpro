@@ -283,6 +283,7 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - El VPS es ahora la raíz de la aplicación web StintPro (no solo un relay/logger del NAS)
 - **Riesgos de fiabilidad conocidos:**
   - ~~Pérdida de hasta 2 min de vueltas en crash~~ RESUELTO 2026-07-15: la migración a better-sqlite3 escribe cada vuelta a disco al instante (antes sql.js volcaba el fichero entero cada 2 min y `insertLap` no tocaba disco)
+  - ~~Handshake colgado deja un circuito muerto en silencio~~ RESUELTO 2026-07-20: `_connect()` no tenía timeout, así que un socket que se quedaba en CONNECTING sin emitir `open`/`error`/`close` nunca reconectaba (el backoff solo colgaba de `close`). Ahora hay timeout de 20s → `terminate()` + reconexión con el mismo backoff de 5s, y el arranque de monitores va escalonado 300ms para no abrir 18 handshakes simultáneos contra el mismo host de Apex
   - Reinicio del servidor rompe la sesión activa (sessionId vive en memoria del CircuitMonitor)
   - Dos features del app NO portadas al logger: fallback de tiempos desde `|*|` y detección de estado por código
 
