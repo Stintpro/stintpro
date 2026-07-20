@@ -144,6 +144,8 @@ La meta puede estar lejos del pit. La app auto-calibra el offset midiendo el tie
 | `ss` | Bandera (vuelta inválida) |
 | `sf` | Sesión finalizada (checkered) |
 
+**Solo se aceptan los códigos catalogados** (`STATE_CODES` en `apex-protocol.js`). Apex cuela en esta columna tokens que no son estado de carrera y asignarlos dejaba a `k.state` en un valor que nadie reconoce: como la salida de boxes solo se limpia con `sr`/`su`, el kart se quedaba marcado en pit indefinidamente. Cualquier token no catalogado se ignora (queda en `k._unknownState` para diagnóstico).
+
 ### Tipos de celda (colMap dinámico del grid)
 
 | dtype | Celda |
@@ -157,6 +159,21 @@ La meta puede estar lejos del pit. La app auto-calibra el offset midiendo el tie
 | `int` | Intervalo al de delante |
 | `lc` | Vueltas completadas |
 | `sc` | Stands count (paradas oficiales) |
+
+### Conocido y deliberadamente NO usado
+
+Descifrado al pasar el detector de novedades (2026-07-20). Se documenta para no volver a investigarlo; **nada de esto se implementa**:
+
+| Qué | Significado | Por qué no se usa |
+|---|---|---|
+| `sl` (col. `sta`) | Kart lento/doblado | No es estado de carrera. Se ignora a propósito |
+| `rku` + `rkb`/`rkw`/`rke` | Variación de posiciones vs. parrilla: `rkb`=N ganadas, `rkw`=N perdidas, `rke`=sin cambio | Solo formato competición; ningún circuito de resistencia lo emite |
+| `nat` / `class` | Nacionalidad y clase | Declaradas en la cabecera, llegan vacías |
+| Tablas `br*` / `cr*` (`gridb`/`gridc`) | Mejores por sector / clasificación acumulada del campeonato | Formato competición, no resistencia |
+| `s1` / `s2` / `s3` | Tiempos por sector | **Sí se parsean** y viajan en el snapshot, pero ningún consumidor los usa. Decisión: no se muestran en la app |
+| `css\|<clase>\|<reglas>` | Apex define clases CSS al vuelo y las manda como "token" de la celda (a veces con espacio delante) | Es estilo, no protocolo |
+
+Todo ello está catalogado en `stintpro-logger/tools/novelty-baseline.json` para que el detector no lo vuelva a reportar.
 
 ## Pestañas del dashboard endurance
 

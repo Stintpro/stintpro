@@ -1,30 +1,41 @@
 {
   "_comment": "Catálogo de lo que YA conocemos del protocolo Apex. El detector de novedades (novelty-detector.js) marca todo lo que NO esté aquí. Cuando una novedad resulte conocida/inofensiva, añádela a la lista que corresponda para silenciarla en adelante.",
-  "_updated": "2026-07-15",
+  "_updated": "2026-07-20",
 
   "gridDtypes": [
     "grp", "sta", "rk", "no", "dr", "s1", "s2", "s3",
-    "llp", "blp", "gap", "int", "tlp", "lc", "pit", "otr", ""
+    "llp", "blp", "gap", "int", "tlp", "lc", "pit", "otr", "",
+    "rku", "nat", "class"
   ],
 
   "cellTokens": [
     "in", "to", "si", "so", "sr", "su", "sd", "ss", "sf",
     "gs", "gf", "gl", "gm",
     "tn", "ti", "tb", "ib",
-    "dr", "drteam"
+    "dr", "drteam", "drd", "dru",
+    "sl", "rkb", "rkw", "rke"
   ],
   "cellTokenRegexes": [
     "^no\\d+$",
     "^pena\\d+$"
   ],
-  "_notas_tokens": "pena1 (col de penalización, p.ej. Misano c12) = sanción en segundos (valores 5.000/10.000). Catalogado como conocido; PENDIENTE de implementar si se quiere mostrar penalizaciones (ver punto 'penalizaciones' de la auditoría).",
+  "_notas_tokens": {
+    "pena1": "Col. de penalización (p.ej. Misano c12) = sanción en segundos (valores 5.000/10.000). Conocido; PENDIENTE de implementar si se quiere mostrar penalizaciones.",
+    "sl": "Col. sta, kart lento/doblado. NO es estado de carrera: el parser lo ignora a propósito (asignarlo a k.state dejaba al kart marcado en pit para siempre). Solo visto en Sevilla. NO se va a usar.",
+    "rku / rkb / rkw / rke": "Col. sin cabecera con la variación de posiciones respecto a la parrilla: rkb=N ganadas, rkw=N perdidas, rke=sin cambio. Verificado sobre datos reales (posición + valor con signo = posición de salida, constante toda la manga). Solo formato competición, ningún circuito de resistencia lo emite. NO se va a usar.",
+    "nat / class": "Columnas informativas (nacionalidad, clase). Declaradas en la cabecera pero llegan vacías. NO se van a usar.",
+    "drd / dru": "Variantes de la celda de nombre en las tablas laterales de competición (br*/cr*). NO se van a usar.",
+    "s1 / s2 / s3": "Tiempos por sector. SÍ se parsean en apex-protocol.js y viajan en el snapshot, pero ningún consumidor los usa. Decisión 2026-07-20: no se muestran en la app."
+  },
 
   "linePrefixes": [
     "init", "grid", "title1", "title2", "com", "msg",
     "best", "effects", "comments", "track",
     "wth1", "wth2", "wth3", "css",
-    "dyn1", "dyn2", "light"
+    "dyn1", "dyn2", "light",
+    "gridb", "gridc", "gmt", "chp"
   ],
+  "_notas_prefijos": "gridb/gridc = tablas laterales del panel de competición (mejores por sector / clasificación acumulada del campeonato), su contenido son las celdas br*c* y cr*c*. gmt y chp llegan vacíos o con un flag. Todo esto es formato competición (Sevilla), no resistencia: catalogado para que no ensucie el informe, NO se va a usar.",
 
   "lightCodes": ["lf", "lr", "lg", "ly"],
   "dyn1Subtypes": ["countdown", "count", "text"],
@@ -33,11 +44,12 @@
     "^S#$",
     "^r\\d+\\|\\*\\|\\d+\\|\\d*$",
     "^r\\d+\\|\\*(in|out)\\|0$",
-    "^r\\d+\\|\\*\\|\\|$",
+    "^r\\d+\\|\\*\\|\\|\\d*$",
     "^r\\d+\\|\\*i\\d+\\|",
     "^r\\d+\\|#\\|\\d+$",
     "^r\\d+c\\d+\\|",
-    "^r\\d+\\|c\\d+\\|"
+    "^r\\d+\\|c\\d+\\|",
+    "^[bc]r\\d+c\\d+\\|"
   ],
 
   "knownColumnHeaders": [

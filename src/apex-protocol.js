@@ -22,7 +22,23 @@
 
   const STATE_CODES = new Set(['si','so','sr','su','sd','ss','sf','gs','gf','gl','gm']);
   const RUN_STATES  = new Set(['sr','su','sd','gs','gf','gl','gm']);
-  const SKIP_NAMES  = new Set(['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so']);
+  const SKIP_NAMES  = new Set(['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so','sl']);
+
+  // ── Tokens de Apex conocidos y deliberadamente NO usados ──────────────────
+  // Catalogados al pasar el detector de novedades (2026-07-20). Se documentan
+  // aquí para no volver a investigarlos; NINGUNO se implementa:
+  //   sl          columna sta, marca de kart lento/doblado. No es estado de
+  //               carrera → se ignora (ver _applyCell). Solo visto en Sevilla.
+  //   rku         columna sin cabecera con la variación de posiciones respecto
+  //               a la parrilla: rkb=N ganadas, rkw=N perdidas, rke=sin cambio.
+  //               Verificado (pos + valor con signo = posición de salida, y se
+  //               mantiene constante toda la manga). Solo formato competición.
+  //   nat/class   columnas informativas (nacionalidad, clase). Llegan vacías.
+  //   br*/cr*     tablas laterales de competición: br = mejores por sector,
+  //               cr = clasificación acumulada del campeonato. No es resistencia.
+  //   s1/s2/s3    tiempos por sector. SÍ se parsean abajo y viajan en el
+  //               snapshot, pero ningún consumidor los usa hoy (decisión
+  //               tomada 2026-07-20: no se muestran en la app).
 
   // ── Utilidades puras (también exportadas para los wrappers de grid) ────────
 
@@ -176,6 +192,12 @@
       const isStateCode = !dtype && STATE_CODES.has(type);
       if (isStateCol || isStateCode) {
         if (type === 'in') return;
+        // Solo códigos catalogados pueden cambiar el estado. Apex mete en esta
+        // columna tokens que no son estado de carrera (p.ej. 'sl' en Sevilla,
+        // marca de kart lento/doblado): asignarlos dejaba a k.state en un valor
+        // que ningún sitio reconoce y, como la salida de boxes solo se limpia
+        // con 'sr'/'su', el kart se quedaba marcado en pit indefinidamente.
+        if (!STATE_CODES.has(type)) { k._unknownState = type; return; }
         k.state = type;
         if (type === 'ss') {
           k._lapInvalid = true;

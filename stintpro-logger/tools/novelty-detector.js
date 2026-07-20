@@ -56,6 +56,11 @@ let files = 0, lines = 0, noiseLines = 0;
 let knownCells = 0, knownLines = 0;
 // colmap por circuito para saber el dtype de cada celda
 const colmap = {}; // circuit -> { cN: dtype }
+// Apex define clases CSS al vuelo (`css|no33023|border-bottom-color:#FF8000`) y
+// luego las manda como "token" de la celda a la que aplican, a veces con espacio
+// delante (`r12c6| no33023|12`). No son tokens de protocolo, son estilo: se
+// recogen aquí para no reportarlos como novedad.
+const cssClasses = {}; // circuit -> Set(nombre de clase)
 
 // El feed WS de Apex retransmite MUCHA basura de escáneres de internet (TLS,
 // SSH, sondas de proxy, protocolo Fox de Niagara, JSON suelto…). Todo eso NO es
@@ -75,9 +80,16 @@ function isNoise(line) {
 function classify(circuit, line) {
   lines++;
   if (!colmap[circuit]) colmap[circuit] = {};
+  if (!cssClasses[circuit]) cssClasses[circuit] = new Set();
 
   // Ruido de escáner PRIMERO — antes de intentar interpretarlo como protocolo.
   if (isNoise(line)) { noiseLines++; return; }
+
+  // css|<clase>|<reglas> → registra la clase para no confundirla con un token.
+  if (line.startsWith('css|')) {
+    const name = line.split('|')[1];
+    if (name) cssClasses[circuit].add(name.trim());
+  }
 
   // grid: refresca colmap; marca dtypes de columna no catalogados.
   if (line.startsWith('grid|')) {
@@ -103,7 +115,9 @@ function classify(circuit, line) {
     if (cm) {
       const [, , col, token] = cm;
       const dtype = colmap[circuit][col];
-      const tokenKnown = !token || KNOWN.tokens.has(token) || KNOWN.tokenRe.some(r => r.test(token));
+      const tokenKnown = !token || KNOWN.tokens.has(token.trim())
+        || KNOWN.tokenRe.some(r => r.test(token.trim()))
+        || cssClasses[circuit].has(token.trim());
       const dtypeKnown = dtype === undefined || KNOWN.dtypes.has(dtype);
       if (!tokenKnown) {
         const e = bump(nov.token, token, circuit, line.slice(0, 60));

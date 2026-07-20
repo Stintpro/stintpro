@@ -421,3 +421,42 @@ describe('glitch de pit no falsea la vuelta rápida', () => {
     expect(k.lapHistory).not.toContain(23);      // el glitch no se registró
   });
 });
+
+// ── Tokens de estado desconocidos ─────────────────────────────────────────────
+// Apex mete en la columna sta tokens que NO son estado de carrera (visto 'sl',
+// kart lento/doblado, en Sevilla). Antes se asignaban a k.state igualmente y,
+// como la salida de boxes solo se limpia con 'sr'/'su', el kart se quedaba
+// marcado en pit para siempre.
+
+describe('tokens no catalogados en la columna de estado', () => {
+  function makeParserWithSta(callbacks = {}) {
+    const p = createParser(callbacks);
+    p.setGrid({
+      colMap:   { no: 'c1', sta: 'c2', pit: 'c3' },
+      colByNum: { c1: 'no', c2: 'sta', c3: 'pit' },
+      karts: [{ rowId: 'r1', dorsal: '7', name: 'JAVIER' }],
+    });
+    p.parse('grid|');
+    return p;
+  }
+
+  test("'sl' no pisa el estado de carrera", () => {
+    const p = makeParserWithSta();
+    parse(p, 'r1c2|sr|', 'r1c2|sl|');
+    expect(kart7(p).state).toBe('sr');
+  });
+
+  test("'sl' no deja al kart marcado en boxes", () => {
+    const p = makeParserWithSta();
+    parse(p, 'r1c3|to|45');            // crono de pit corriendo → pit=true
+    parse(p, 'r1c2|sr|', 'r1c2|sl|');  // vuelve a pista y luego llega el 'sl'
+    parse(p, 'r1c3|in|3');             // fin del crono: debe limpiar el pit
+    expect(kart7(p).pit).toBe(false);
+  });
+
+  test('un token inventado tampoco cambia el estado', () => {
+    const p = makeParserWithSta();
+    parse(p, 'r1c2|si|', 'r1c2|zz|');
+    expect(kart7(p).state).toBe('si');
+  });
+});
