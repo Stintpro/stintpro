@@ -286,18 +286,14 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
   - Reinicio del servidor rompe la sesión activa (sessionId vive en memoria del CircuitMonitor)
   - Dos features del app NO portadas al logger: fallback de tiempos desde `|*|` y detección de estado por código
 
-### Filtro de sesiones por título (pendiente de implementar)
-- **Problema:** algunos circuitos mezclan categorías (4T alquiler, motos, karts de competición) y el logger graba todo, contaminando los datos históricos de pilotos.
-- **Solución diseñada:** filtrar por título de sesión de Apex.
-  - Apex emite el título de sesión vía `dyn1|text|` — actualmente el parser solo extrae el contador de vueltas (`Lap X/Y`) y descarta el resto del texto.
-  - El título identifica la categoría ANTES de que llegue ninguna vuelta (discriminador limpio).
-  - **Implementado (paso 1):** `apex-protocol.js` parsea `title1||` y `title2||` del mensaje `init` de Apex y los expone en `getState()`. `circuit-monitor.js` los combina como `"título1 · título2"` al crear la sesión. `db.js` los guarda en `sessions.title` (columna añadida con migración automática). Aplica a **todos** los circuitos.
-  - **Pendiente (paso 2):** configurar el filtro activo una vez confirmados los títulos exactos que manda Apex para cada circuito problemático. Campillos es el caso urgente (mezcla 4T alquiler con motos y otras categorías). Ver títulos acumulados en `/api/sessions/campillos`.
-  - **Opción A (filtro activo, pendiente):** configurar por circuito qué títulos grabar; si el título no incluye las palabras clave configuradas, se descarta la sesión entera. Config en `config.json`:
-    ```json
-    { "slug": "circuito-x", "sessionFilter": { "titleIncludes": ["4T", "alquiler"] } }
-    ```
-  - El título en Apex llega por `title1||<valor>` y `title2||<valor>` dentro del mensaje `init|r|`, antes del `grid|`. Ejemplo real de Henakart: `title1=85 PRO`, `title2=CARRERA`.
+### Filtro de sesiones por título — whitelist DESCARTADO (revisión 2026-07-29)
+- **Problema original:** se temía que algunos circuitos mezclaran categorías no-alquiler (motos, competición) y contaminaran los históricos de pilotos.
+- **Paso 1 (implementado, se queda):** `apex-protocol.js` parsea `title1||` y `title2||` del mensaje `init` de Apex y los expone en `getState()`. `circuit-monitor.js` los combina como `"título1 · título2"` al crear la sesión ([circuit-monitor.js:271](stintpro-logger/circuit-monitor.js:271)). `db.js` los guarda en `sessions.title` (columna con migración automática). Aplica a **todos** los circuitos. El título llega por `title1||<valor>`/`title2||<valor>` dentro del `init|r|`, antes del `grid|` (ej. Henakart: `title1=85 PRO`, `title2=CARRERA`).
+- **Paso 2 (whitelist por título) — DESCARTADO.** Al revisar TODOS los títulos reales de la BD del VPS (2026-07-29):
+  - **Casi todo lo etiquetado es rental karting relevante** y hay que conservarlo: carreras por categoría de peso (`czck`, `CATEGORIA NNkg` — son alquiler, NO federado) y las ligas/series (`SUMMER`, `MOBIS`, `RKT 2026`, `SENIOR KRT`, `FP`, `PRO`). Todas ruedan en banda de alquiler.
+  - Un whitelist `titleIncludes` tiraría datos buenos y **no discrimina los ~81 sesiones sin título de Campillos** (8.666 vueltas `null`).
+  - Los verdaderos vehículos distintos (`2T`/`rotax`/`biplaza`/`moto`) ya se limpiaron (julio 2026) y no reaparecen.
+- **Criterio vigente:** el título es **metadato útil**, no puerta de filtrado. Lo no-alquiler se depura **post-hoc con backup** por dos únicos discriminadores fiables: (a) vehículo distinto por título explícito (2T/rotax/biplaza/moto) y (b) **anomalía de ritmo** (vueltas imposibles para la banda del circuito). Borrado por `DELETE /api/sessions/:id` con cabecera `x-api-key`; hacer siempre backup del `.db` antes.
 
 ## Marca
 
