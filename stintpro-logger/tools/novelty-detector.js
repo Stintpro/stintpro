@@ -70,6 +70,10 @@ const cssClasses = {}; // circuit -> Set(nombre de clase)
 function isNoise(line) {
   // binario: carácter de reemplazo (UTF-8 inválido de un frame binario) o control
   if (/[�\x00-\x08\x0e-\x1f]/.test(line)) return true;
+  // sin contenido: una línea sin ningún alfanumérico (p.ej. un '|' pelado entre
+  // basura binaria) no tiene prefijo ni valor → nunca es protocolo Apex, es un
+  // fragmento de frame de escáner que casualmente cayó solo en su línea.
+  if (!/[A-Za-z0-9]/.test(line)) return true;
   // no-protocolo: Apex siempre lleva '|' salvo 'S#'. Sin '|' y no empieza por rN → escáner
   if (!line.includes('|') && !/^r\d+/.test(line) && line !== 'S#') return true;
   // firmas de escáner conocidas (texto plano con '|' pero no-Apex)
