@@ -1,4 +1,5 @@
 node_modules/
 stintpro-logger/data/
+stintpro-logger/tools/*.log
 .DS_Store
 .claude/
