@@ -3,7 +3,7 @@
 const {
   _enFmt, _enFmtGap, _enFmtDelta, _enFmtStint,
   _enDeltaColor, _enCleanLaps, _enCons, _enAvg5, _enTrend,
-  _enPaceStd, _enDensityTiers, _enResolveGap, _enMergeLapHistory,
+  _enPaceStd, _enDensityTiers, _enResolveGap, _enOrderEstimated, _enMergeLapHistory,
 } = require('../src/analysis');
 
 const assert = require('assert');
@@ -297,6 +297,66 @@ group('_enMergeLapHistory (historial acumulado + ventana live)', () => {
   });
   test('historiales vacíos: primera ventana entra entera', () => {
     assert.deepEqual(_enMergeLapHistory([], 0, [60,61], 2), [60,61]);
+  });
+});
+
+// ── _enOrderEstimated (orden con deferral a Apex) ──────────────────────────────
+
+group('_enOrderEstimated', () => {
+  const ord = items => _enOrderEstimated(items).map(i => i.dorsal);
+
+  test('paradas pendientes (diff>0) → ordena por estimatedGap, no por pos', () => {
+    // El kart "b" va peor en pos de Apex pero mejor normalizado (menos gap estimado)
+    const items = [
+      { dorsal:'a', pos:1, diff:1, estimatedGap:120 },
+      { dorsal:'b', pos:2, diff:0, estimatedGap:10 },
+      { dorsal:'c', pos:3, diff:1, estimatedGap:130 },
+    ];
+    assert.deepEqual(ord(items), ['b','a','c']);
+  });
+
+  test('caso Ariza: ganador oculto (paró antes, peor pos) sube al normalizar', () => {
+    // "win" tiene peor posición cruda de Apex (P4) por haber parado ya,
+    // pero su estimatedGap es el menor → debe quedar primero.
+    const items = [
+      { dorsal:'r1', pos:1, diff:1, estimatedGap:118 },
+      { dorsal:'r2', pos:2, diff:1, estimatedGap:119 },
+      { dorsal:'r3', pos:3, diff:1, estimatedGap:120 },
+      { dorsal:'win', pos:4, diff:0, estimatedGap:5 },
+    ];
+    assert.equal(ord(items)[0], 'win');
+  });
+
+  test('nadie con paradas pendientes (diff==0 para todos) → defiere a pos de Apex', () => {
+    // estimatedGap desordenado (gap contaminado) pero pos de Apex es la buena
+    const items = [
+      { dorsal:'a', pos:1, diff:0, estimatedGap:102 },
+      { dorsal:'b', pos:2, diff:0, estimatedGap:10 },
+      { dorsal:'c', pos:3, diff:0, estimatedGap:37 },
+    ];
+    assert.deepEqual(ord(items), ['a','b','c']);
+  });
+
+  test('deferral con pos nula → la trata como cola (99)', () => {
+    const items = [
+      { dorsal:'a', pos:2, diff:0, estimatedGap:5 },
+      { dorsal:'b', pos:null, diff:0, estimatedGap:1 },
+      { dorsal:'c', pos:1, diff:0, estimatedGap:9 },
+    ];
+    assert.deepEqual(ord(items), ['c','a','b']);
+  });
+
+  test('un solo diff>0 basta para NO deferir (usa estimatedGap)', () => {
+    const items = [
+      { dorsal:'a', pos:1, diff:0, estimatedGap:50 },
+      { dorsal:'b', pos:2, diff:1, estimatedGap:5 },
+    ];
+    assert.deepEqual(ord(items), ['b','a']);
+  });
+
+  test('array vacío y de un elemento no rompen', () => {
+    assert.deepEqual(_enOrderEstimated([]), []);
+    assert.deepEqual(ord([{ dorsal:'x', pos:1, diff:0, estimatedGap:0 }]), ['x']);
   });
 });
 

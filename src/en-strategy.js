@@ -744,7 +744,10 @@ function _enComputeEstimatedClassification(){
       gapReal, penalty, estimatedGap, avg5, quality, diff, lapsBehind,
       gapFromApex, gapFromLaps, lapHistory:e.lapHistory,
     };
-  }).sort((a,b)=>a.estimatedGap-b.estimatedGap);
+  });
+  // Orden con deferral a Apex cuando nadie tiene paradas pendientes (ver
+  // _enOrderEstimated en analysis.js). Validado con post-mortem IRONMAN+Ariza.
+  _enOrderEstimated(estimated);
 
   // ── Tiers de densidad ("posiciones en juego") ────────────────────────────
   // Agrupa posiciones consecutivas cuya diferencia estimada cabe dentro del

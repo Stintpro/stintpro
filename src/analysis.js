@@ -153,6 +153,27 @@ function _enResolveGap(opts){
   return Math.max(apexGap, lapsGap);
 }
 
+// ── Orden de la clasificación estimada (deferral a Apex) ───────────────────
+// Ordena los items del estimador. Regla, validada con post-mortem de dos
+// carreras reales (IRONMAN Los Santos + Ariza 2h):
+//  - Si ALGÚN kart tiene paradas pendientes (diff>0) → ordenar por estimatedGap:
+//    la normalización por paradas manda, y revela el orden oculto cuando las
+//    paradas divergen (caso Ariza: ganador escondido por haber parado antes).
+//  - Si NADIE tiene paradas pendientes (diff==0 para todos) → deferir a la
+//    posición de Apex: la normalización aporta cero (penalty=0) y el estimatedGap
+//    se reduce a un gapReal re-derivado del gap de Apex, que viene contaminado
+//    (el líder marca "+Nvueltas", los grupos a una vuelta reinician el conteo) y
+//    es más grosero que la propia pos de Apex, que conoce el gap al segundo.
+// Mutación in situ (Array.sort) sobre el array recibido; ambos comparadores son
+// órdenes totales → transitivo y estable. Ver [[project-stintpro-ironman-postmortem]].
+function _enOrderEstimated(items){
+  if(!Array.isArray(items)||items.length===0)return items;
+  const allStopsSettled=items.every(e=>(e.diff||0)===0);
+  return items.sort(allStopsSettled
+    ? (a,b)=>((a.pos==null?99:a.pos)-(b.pos==null?99:b.pos))
+    : (a,b)=>a.estimatedGap-b.estimatedGap);
+}
+
 // ── Merge del historial de vueltas (modo logger) ──────────────────────────
 // Los updates live del logger llevan solo las últimas N vueltas (ventana) más
 // el contador total del parser (lapHistoryTotal). Se añaden al historial
@@ -176,4 +197,4 @@ function _enMergeLapHistory(prevHist, prevTotal, window, total){
   return merged.length>1500?merged.slice(-1500):merged;
 }
 
-if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap,_enMergeLapHistory};
+if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap,_enOrderEstimated,_enMergeLapHistory};
