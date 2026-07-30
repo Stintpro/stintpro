@@ -310,19 +310,20 @@ function _enToggleQuality(dorsal, ev){
   _enRender();
 }
 
-// ── Calidad automática del kart ──────────────────────────────────────────
-
-function _enAutoKartQuality(e, trackAvg){
-  if(!trackAvg||!e.lapHistory||e.lapHistory.length<3)return null;
-
-  // Estado previo
+// ── Máquina de estados del stint (pit in/out) ────────────────────────────
+// Debe correr en CADA tick, incluso con override manual activo, para que
+// stintStartIdx siga al kart físico. Sin esto, al volver de un override a
+// 'auto' se evaluarían vueltas del kart anterior como si fueran del actual (B4).
+// Devuelve el objeto de estado del dorsal (nunca null si e.lapHistory existe).
+function _enTrackKartStint(e){
+  if(!e||!e.lapHistory)return null;
   if(!EnSession.kartAutoState[e.dorsal])EnSession.kartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
   const state=EnSession.kartAutoState[e.dorsal];
 
   // Pit IN: guardar calidad previa (para tracking de box)
   if(e.pitState==='in'){
     if(state.quality)state.prePitQuality=state.quality;
-    return state.prePitQuality||state.quality||null;
+    return state;
   }
 
   // Pit OUT: kart NUEVO → reset total SOLO en la transición
@@ -332,20 +333,51 @@ function _enAutoKartQuality(e, trackAvg){
       state.badCount=0;
       state.prePitQuality=null;
       state.stintStartIdx=e.lapHistory.length; // las vueltas anteriores son del kart viejo
+      state.lastEvalKey=null;                  // fuerza reevaluar el kart nuevo (gate B1)
     }
     state._lastPitState='out';
-    // No retornamos null incondicionalmente: pitState='out' puede persistir mucho tiempo
-    // sin que llegue sr/su. Si ya hay vueltas del kart nuevo, evaluamos normalmente.
-    // Si no hay suficientes (< 3), el bloque de abajo retorna null igualmente.
+    // 'out' puede persistir muchos ticks sin sr/su. No reseteamos de nuevo:
+    // si ya hay vueltas del kart nuevo se evalúa normal, si no, retorna null abajo.
   } else {
     state._lastPitState=e.pitState||null;
   }
+  return state;
+}
+
+// ── Calidad automática del kart ──────────────────────────────────────────
+
+function _enAutoKartQuality(e, trackAvg){
+  if(!trackAvg||!e.lapHistory||e.lapHistory.length<3)return null;
+
+  const state=_enTrackKartStint(e);
+  if(!state)return null;
+
+  // En boxes: mostrar la calidad previa (el kart entregado, para tracking de box)
+  if(e.pitState==='in')return state.prePitQuality||state.quality||null;
 
   // Solo vueltas del KART ACTUAL (desde el último pit out)
   const startIdx=Math.min(state.stintStartIdx||0, e.lapHistory.length);
   const stintLaps=e.lapHistory.slice(startIdx);
   const clean=_enCleanLaps(stintLaps);
   if(clean.length<3)return null;
+
+  // Gate B1: la histéresis (badCount) y el cálculo avanzan SOLO cuando entra
+  // una vuelta nueva. La función se llama 6-8 veces por render (grid +
+  // estrategia); sin este gate el badCount subía en cada llamada y las "5
+  // vueltas de gracia" del kart bueno se gastaban en 1-2 s con los mismos
+  // datos. Ahora la histéresis cuenta vueltas reales, no renders.
+  //
+  // La llave incluye stintStartIdx (no solo la longitud) para que CUALQUIER
+  // cambio de kart invalide el caché, incluidos los escritores externos del
+  // índice — p.ej. la reconstrucción desde stintLapCount al reconectar con el
+  // logger (en-strategy.js, snapshot _isHistory), que no conoce este caché.
+  // Nota: si lapHistory llegara al tope de 1500 la longitud dejaría de crecer
+  // y el caché se congelaría dentro de un mismo stint; inalcanzable en la
+  // práctica (9 h a ~65 s/vuelta ≈ 500 vueltas por kart).
+  const evalKey=startIdx+':'+e.lapHistory.length;
+  if(state.lastEvalKey===evalKey)return state.quality;
+  state.lastEvalKey=evalKey;
+
   const last5=clean.slice(-5);
   const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
   const stintBest=Math.min(...clean);
@@ -385,7 +417,8 @@ function _enAutoKartQuality(e, trackAvg){
   // Si no es bueno ni malo → neutro
   if(!instant)instant='neutral';
 
-  // Kart bueno: aguanta 5 evaluaciones consecutivas fuera del umbral antes de bajar
+  // Kart bueno: aguanta 5 vueltas nuevas consecutivas fuera del umbral antes de bajar
+  // (el gate B1 garantiza que cada incremento de badCount es una vuelta real)
   if(state.quality==='good'){
     if(instant==='good'){state.badCount=0;return'good';}
     state.badCount=(state.badCount||0)+1;
@@ -401,7 +434,13 @@ function _enAutoKartQuality(e, trackAvg){
 // ── Calidad efectiva (manual > auto) ─────────────────────────────────────
 function _enEffectiveQuality(dorsal, e, trackAvg){
   const manual=EnUi.kartQuality[dorsal];
-  if(manual==='good'||manual==='neutral'||manual==='bad')return manual;
+  if(manual==='good'||manual==='neutral'||manual==='bad'){
+    // B4: aunque el display use el valor manual, seguimos rastreando el kart
+    // físico (pit in/out → stintStartIdx) para que al volver a 'auto' la
+    // evaluación no arrastre vueltas del kart anterior.
+    _enTrackKartStint(e);
+    return manual;
+  }
   if(manual==='auto'||!manual)return _enAutoKartQuality(e, trackAvg);
   return 'neutral';
 }
@@ -423,24 +462,30 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     return `${labels[manual]} (manual)`;
   }
 
+  // B3: usar EXACTAMENTE los mismos datos que la decisión (_enAutoKartQuality):
+  // solo vueltas del stint actual y el mismo criterio de fiabilidad. Antes el
+  // tooltip calculaba avg5 sobre el historial completo y fijaba isReliable=false
+  // sin score, mostrando un delta que no era el que produjo el color.
   const state=EnSession.kartAutoState?.[dorsal];
   const stintStartIdx=state?.stintStartIdx||0;
   const stintLaps=(e.lapHistory||[]).slice(stintStartIdx);
   const cleanStint=_enCleanLaps(stintLaps);
   const fewDataNote=cleanStint.length<5?`\n⚠ Datos provisionales (${cleanStint.length}/5 vueltas del kart actual)`:'';
 
-  const avg5=_enAvg5(e.lapHistory);
-  if(!avg5||!trackAvg)
-    return `SIN DATOS\nVueltas del kart actual: ${cleanStint.length} (necesita 5)`;
+  if(cleanStint.length<3||!trackAvg)
+    return `SIN DATOS\nVueltas del kart actual: ${cleanStint.length} (necesita 3)`;
 
-  const stintBest=cleanStint.length?Math.min(...cleanStint):null;
+  const last5=cleanStint.slice(-5);
+  const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
+  const stintBest=Math.min(...cleanStint);
+  const stintMax=Math.max(...cleanStint);
   const _pr=_enPilotRatings[e.name]??null;
   const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
-  const isReliable=pilotScore!=null?pilotScore>=600:false;
+  const isReliable=pilotScore!=null?pilotScore>=600:(stintMax-stintBest)<0.5;
   const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
   const ref=isReliable?avg5:stintBest;
-  const delta=ref!=null?(ref-trackAvg):null;
-  const deltaStr=delta!=null?`${delta>=0?'+':''}${delta.toFixed(3)}s`:'—';
+  const delta=ref-trackAvg;
+  const deltaStr=`${delta>=0?'+':''}${delta.toFixed(3)}s`;
 
   const effective=_enEffectiveQuality(dorsal, e, trackAvg);
   const label={good:'BUENO',neutral:'NEUTRO',bad:'MALO'}[effective]||'SIN DATOS';
@@ -454,9 +499,11 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   const pilotLine=pilotScore!=null
     ?`Piloto: ${pilotLabel} (${pilotScore}) · umbral ±${threshold}s`
     :`Piloto: sin score histórico · umbral ±${threshold}s`;
+  const reliableReason=pilotScore>=600?'score fiable':'rodada consistente';
+  const erraticReason=pilotScore!=null?'score bajo':'sin score, rodada irregular';
   const refLine=isReliable
-    ?`Referencia: M5v ${_enFmt(avg5)} (piloto fiable)`
-    :`Referencia: mejor vuelta ${stintBest?_enFmt(stintBest):'—'} (piloto no fiable / sin datos)`;
+    ?`Referencia: M5v del stint ${_enFmt(avg5)} (${reliableReason})`
+    :`Referencia: mejor vuelta del stint ${_enFmt(stintBest)} (${erraticReason})`;
 
   return `${label} (auto)\n${pilotLine}\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${fewDataNote}`;
 }

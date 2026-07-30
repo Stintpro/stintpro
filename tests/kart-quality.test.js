@@ -31,13 +31,6 @@ function kart(dorsal, laps, pitState = null, name = 'Piloto') {
   return { dorsal, name, lapHistory: laps, pitState, bestLap: Math.min(...laps) };
 }
 
-// Llama a _enAutoKartQuality varias veces para saturar el badCount
-function evalN(n, e, trackAvg) {
-  let result;
-  for (let i = 0; i < n; i++) result = _enAutoKartQuality(e, trackAvg);
-  return result;
-}
-
 // ── Casos base ────────────────────────────────────────────────────────────────
 
 group('Precondiciones — devuelve null sin datos suficientes', () => {
@@ -161,51 +154,83 @@ group('Piloto errático — rango ≥0.5s → referencia = stintBest', () => {
   });
 });
 
-// ── Sticky: kart bueno aguanta 5 evaluaciones malas ──────────────────────────
+// ── B1: la histéresis cuenta VUELTAS nuevas, no llamadas/renders ─────────────
+// Añade una vuelta nueva al historial y evalúa (simula el paso real del tiempo)
+function appendLap(e, lapTime, trackAvg) {
+  e.lapHistory = [...e.lapHistory, lapTime];
+  return _enAutoKartQuality(e, trackAvg);
+}
 
-group('Sticky — kart bueno aguanta badCount < 5', () => {
-  test('kart bueno, 1 evaluación mala → sigue good', () => {
+group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', () => {
+  test('llamar 20 veces sin vueltas nuevas NO degrada el kart bueno', () => {
     reset();
-    const good = [63.5, 63.5, 63.5, 63.5, 63.5];
-    const bad  = [66.5, 66.5, 66.5, 66.5, 66.5];
-    const e = kart('1', good);
-    _enAutoKartQuality(e, 65); // establece good
-    e.lapHistory = bad;
+    _enPilotRatings['P'] = { score: 650 }; // fiable → ref=avg5
+    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
+    assert.equal(_enAutoKartQuality(e, 65), 'good'); // establece good, lastEvalLen=5
+    // La ventana pasa a peor pero SIN vueltas nuevas (misma longitud):
+    // simula 20 renders con los mismos datos → el gate devuelve el cache.
+    e.lapHistory = [64, 64, 64, 64, 65.6];
+    let result;
+    for (let i = 0; i < 20; i++) result = _enAutoKartQuality(e, 65);
+    assert.equal(result, 'good'); // gate: mismo length → badCount NO avanza
+  });
+
+  test('kart bueno cae a bad tras 5 vueltas malas NUEVAS', () => {
+    reset();
+    _enPilotRatings['P'] = { score: 650 }; // fiable → ref=avg5, umbral ±0.5
+    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
+    assert.equal(_enAutoKartQuality(e, 65), 'good');
+    // Ventana llena de vueltas malas moderadas (delta +0.6, sin degradación:
+    // avg5 65.6 < stintBest 64 + 2.0). 1ª evaluación con ventana mala → badCount=1.
+    e.lapHistory = [64, 64, 64, 64, 64, 65.6, 65.6, 65.6, 65.6, 65.6];
     assert.equal(_enAutoKartQuality(e, 65), 'good'); // badCount=1, aguanta
+    // 4 vueltas malas nuevas más → badCount llega a 5 → cae
+    let result;
+    for (let i = 0; i < 4; i++) result = appendLap(e, 65.6, 65);
+    assert.equal(result, 'bad');
   });
 
-  test('kart bueno, 4 evaluaciones malas → sigue good (badCount=4)', () => {
+  test('kart bueno con 4 vueltas malas nuevas → aguanta (badCount=4)', () => {
     reset();
-    const good = [63.5, 63.5, 63.5, 63.5, 63.5];
-    const bad  = [66.5, 66.5, 66.5, 66.5, 66.5];
-    const e = kart('1', good);
+    _enPilotRatings['P'] = { score: 650 };
+    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
     _enAutoKartQuality(e, 65);
-    e.lapHistory = bad;
-    assert.equal(evalN(4, e, 65), 'good'); // badCount=4, todavía aguanta
+    e.lapHistory = [64, 64, 64, 64, 64, 65.6, 65.6, 65.6, 65.6, 65.6];
+    _enAutoKartQuality(e, 65); // badCount=1
+    let result;
+    for (let i = 0; i < 3; i++) result = appendLap(e, 65.6, 65); // badCount=4
+    assert.equal(result, 'good');
   });
 
-  test('kart bueno, 5 evaluaciones malas → cae a bad (badCount=5)', () => {
+  test('reescritura externa de stintStartIdx invalida el caché sin vuelta nueva', () => {
     reset();
-    const good = [63.5, 63.5, 63.5, 63.5, 63.5];
-    const bad  = [66.5, 66.5, 66.5, 66.5, 66.5];
-    const e = kart('1', good);
+    _enPilotRatings['P'] = { score: 650 }; // fiable → ref=avg5, sensible a la mezcla
+    // Kart viejo lento + kart nuevo rápido en el mismo historial
+    const e = kart('1', [66.5, 66.5, 66.5, 66.5, 66.5, 63.5, 63.5, 63.5], null, 'P');
+    // Con stintStartIdx=0 se evalúa todo el historial (mezcla ambos karts)
+    const mixed = _enAutoKartQuality(e, 65);
+    // Reconexión al logger: el snapshot reconstruye stintStartIdx desde
+    // stintLapCount (en-strategy.js) SIN que llegue ninguna vuelta nueva.
+    EnSession.kartAutoState['1'].stintStartIdx = 5;
+    // El gate debe recalcular: ahora solo cuentan las 4 vueltas del kart nuevo
+    assert.equal(_enAutoKartQuality(e, 65), 'good');
+    assert.notEqual(mixed, 'good'); // antes del reindexado no era bueno
+  });
+
+  test('kart bueno se recupera antes de agotar las 5 vueltas de gracia', () => {
+    reset();
+    _enPilotRatings['P'] = { score: 650 };
+    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
     _enAutoKartQuality(e, 65);
-    e.lapHistory = bad;
-    assert.equal(evalN(5, e, 65), 'bad'); // badCount=5, cae
-  });
-
-  test('kart bueno recupera → badCount se resetea a 0', () => {
-    reset();
-    const good = [63.5, 63.5, 63.5, 63.5, 63.5];
-    const bad  = [66.5, 66.5, 66.5, 66.5, 66.5];
-    const e = kart('1', good);
-    _enAutoKartQuality(e, 65); // good
-    e.lapHistory = bad;
-    evalN(3, e, 65);           // badCount=3, sigue good
-    e.lapHistory = good;
-    assert.equal(_enAutoKartQuality(e, 65), 'good'); // badCount reseteado
-    e.lapHistory = bad;
-    assert.equal(_enAutoKartQuality(e, 65), 'good'); // empieza de nuevo desde badCount=1
+    // Una ventana mala (badCount=1) y luego 4 vueltas buenas: la M5v vuelve a
+    // estar por debajo del umbral en la 4ª → instant good → badCount se resetea
+    // sin haber llegado nunca a 5. El kart sigue verde.
+    e.lapHistory = [64, 64, 64, 64, 64, 65.6, 65.6, 65.6, 65.6, 65.6];
+    assert.equal(_enAutoKartQuality(e, 65), 'good'); // badCount=1
+    appendLap(e, 64, 65); // badCount=2
+    appendLap(e, 64, 65); // badCount=3
+    appendLap(e, 64, 65); // badCount=4
+    assert.equal(appendLap(e, 64, 65), 'good'); // instant good → reset a 0
   });
 });
 
@@ -301,6 +326,29 @@ group('_enEffectiveQuality — override manual prevalece sobre auto', () => {
     reset();
     const e = kart('1', [63.5, 63.5, 63.5, 63.5, 63.5]);
     assert.equal(_enEffectiveQuality('1', e, 65), 'good');
+  });
+
+  test('B4: override durante una parada no arrastra vueltas del kart viejo al volver a auto', () => {
+    reset();
+    // Kart viejo malo, evaluado en auto
+    const e = kart('1', [66.5, 66.5, 66.5, 66.5, 66.5]);
+    assert.equal(_enEffectiveQuality('1', e, 65), 'bad');
+    // El usuario fija override manual y el equipo entra a boxes
+    EnUi.kartQuality['1'] = 'good';
+    e.pitState = 'in';
+    assert.equal(_enEffectiveQuality('1', e, 65), 'good');
+    // Pit out: kart NUEVO. El tracking debe correr aunque el display sea manual.
+    e.pitState = 'out';
+    _enEffectiveQuality('1', e, 65); // stintStartIdx debe saltar al final (5)
+    // Llegan 4 vueltas rápidas del kart nuevo mientras sigue el override
+    e.lapHistory = [66.5, 66.5, 66.5, 66.5, 66.5, 63.5, 63.5, 63.5, 63.5];
+    e.pitState = 'sr';
+    _enEffectiveQuality('1', e, 65);
+    // El usuario vuelve a 'auto': debe evaluar SOLO las vueltas del kart nuevo
+    EnUi.kartQuality['1'] = 'auto';
+    assert.equal(_enEffectiveQuality('1', e, 65), 'good');
+    // Y stintStartIdx quedó anclado tras las 5 vueltas del kart viejo
+    assert.equal(EnSession.kartAutoState['1'].stintStartIdx, 5);
   });
 });
 
