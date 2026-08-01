@@ -19,18 +19,24 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 │       ├── Estrategia (pool box, probabilidad, reco.) │
 │       └── Avanzado (túnel salida, plan paradas)      │
 └────────┬─────────────────────────┬───────────────────┘
-         │ WebSocket directo       │ WebSocket vía Logger
+         │ WebSocket directo       │ WebSocket vía Logger (por defecto)
+         │ (fallback si cae VPS)   │
          ▼                         ▼
-   Apex Timing Server      StintPro Logger (NAS)
-   (circuito)              (Docker, node, sql.js)
-                           └── Graba 10 circuitos 24/7
-                           └── API REST + WS relay
+   Apex Timing Server      StintPro Logger (VPS Hetzner)
+   (circuito)              (systemd, node, better-sqlite3)
+                           └── Graba los circuitos 24/7
+                           └── App web + API REST + WS relay
 ```
+
+> **NAS retirado.** El logger vivió al principio en un NAS UGREEN (Docker, ARM,
+> sql.js) accesible solo en red local / Tailscale. Como no daba portabilidad al
+> circuito, se migró al **VPS Hetzner** (ver [VPS](#logger-vps--rol-y-fiabilidad)),
+> que es hoy la **única** infraestructura viva. El NAS ya no se usa.
 
 ### Modos de conexión
 
-1. **Directo a Apex** — WebSocket al servidor del circuito. Funciona desde cualquier sitio con internet. Pierdes historial previo.
-2. **Vía Logger** — WebSocket al NAS propio (192.168.1.79:3000 local, 100.71.53.12:3000 via Tailscale). El logger graba desde el inicio; conectando tarde tienes todo el historial.
+1. **Vía Logger (por defecto)** — WebSocket al VPS Hetzner (`stintpro.duckdns.org` vía nginx→localhost:3000, TLS). El logger graba desde el inicio, así que conectando tarde tienes todo el historial. Da portabilidad total: funciona desde el circuito por internet.
+2. **Directo a Apex (fallback)** — WebSocket al servidor del circuito. Sin dependencia del VPS: es la red de seguridad si el VPS cae en pleno evento. Pierdes el historial previo (arranca en blanco).
 
 ## Estructura de archivos
 
@@ -49,20 +55,20 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 | `src/clock.js` | ApexClock: reloj sincronizado con countdown de Apex |
 | `src/helpers.js` | Utilidades (formateo, parseo) |
 | `src/apex-connector.js` | Conector WebSocket a Apex Timing (parser del protocolo) |
-| `src/logger-connector.js` | Conector WebSocket al Logger del NAS |
+| `src/logger-connector.js` | Conector WebSocket al Logger (VPS) |
 | `src/sprint.js` | Dashboard Sprint completo |
 | `src/endurance.js` | Dashboard Endurance completo (~2700 líneas) |
 
-### Logger NAS (`stintpro-logger/`)
+### Logger VPS (`stintpro-logger/`)
 
 | Archivo | Función |
 |---|---|
 | `server.js` | Express + WebSocket server, gestión de sesiones |
-| `db.js` | Capa SQLite (better-sqlite3 en el VPS x86; sql.js en el NAS ARM) |
+| `db.js` | Capa SQLite (better-sqlite3 en el VPS x86; escritura a disco directa con WAL) |
 | `apex-connector.js` | Conector a Apex (versión servidor, sin DOM) |
-| `config.json` | Lista de circuitos a monitorizar (hasta 10) |
-| `package.json` | Dependencias (express, ws, better-sqlite3; sql.js se mantiene para rollback) |
-| `start.sh` | Script arranque Docker |
+| `config.json` | Lista de circuitos a monitorizar |
+| `package.json` | Dependencias (express, ws, better-sqlite3; sql.js queda solo como rollback histórico del NAS) |
+| `start.sh` | Script de arranque (histórico Docker; en el VPS corre bajo systemd) |
 
 ## Dominio: Karting Endurance
 
@@ -271,13 +277,17 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - Piloto errático: usa mejor vuelta del stint en vez de M5v
 - Kart bueno se mantiene sticky hasta pit in
 
-### Logger NAS
-- Docker node:latest en UGREEN NAS (ARM)
-- En el NAS ARM se usaba sql.js porque better-sqlite3 no compilaba. **El VPS (x86) ya usa better-sqlite3** desde 2026-07-15 (escritura a disco directa con WAL). Ver [[project-stintpro-dbmigration]].
+### Logger — comportamiento (corre en el VPS)
+- Corre bajo **systemd** en el VPS Hetzner (x86) con **better-sqlite3** (escritura a disco directa con WAL). La migración desde sql.js es de 2026-07-15. Ver [[project-stintpro-dbmigration]].
 - Solo crea sesión cuando detecta primera vuelta real (no al recibir grid → fix micro-sesiones)
 - GET `/api/cleanup` borra sesiones sin vueltas
 - CORS habilitado para acceso desde navegador
-- Tailscale configurado: IP 100.71.53.12 (cuenta coyjavier@gmail.com)
+
+> **Histórico NAS (retirado):** el logger nació en un UGREEN NAS (ARM) sobre
+> Docker `node:latest`, con `sql.js` (better-sqlite3 no compilaba en ARM) y acceso
+> por Tailscale (IP 100.71.53.12). Solo era alcanzable en red local / Tailscale, sin
+> portabilidad al circuito — por eso se creó el VPS, que lo reemplazó por completo.
+> El NAS ya no se usa; estos datos quedan solo como referencia de rollback.
 
 ### Logger VPS — rol y fiabilidad
 - El VPS es ahora la raíz de la aplicación web StintPro (no solo un relay/logger del NAS)
@@ -302,28 +312,50 @@ cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf 
 - **Colores:** azul #5b8dee, verde #22c55e, amarillo #fbbf24, rojo #ef4444, dark #0e0f11
 - **Tema:** oscuro (background #08090a)
 
-## Pendiente (futuro)
+## Roadmap (cribado 2026-08-01)
 
-### Funcionalidades
-- Exportación PDF al cerrar sesión (resumen de stints con vueltas)
-- Fetch HTTP snapshot al conectar directo a Apex
-- Countdown a ventana de pit en clasificación
-- Alertas sonoras
-- Reset manual de cola FIFO
-- Icono ℹ️ ficha rival (datos históricos)
-- Ritmo de caza del rival directo
-- Alerta de degradación del propio kart
-- Timeline de eventos de carrera
-- Modo lluvia (detector de cambio de condiciones)
+**Filtro rector:** el **panel en vivo se mantiene despiadado** — algo entra en él solo
+si cambia una decisión que tomas mirándolo en carrera ("decisión en 2 segundos"). Lo
+que es útil pero no decide en vivo va a **otra superficie** (prep / repaso / producto
+aparte), donde no roba atención al panel. Útil ≠ va en el panel.
 
-### Infraestructura
-- VPS público (proxy + licencias + app web) — Hetzner 5€/mes
+### 🟢 Panel en vivo — construir (mueve una decisión)
+- **Fetch HTTP snapshot al conectar directo a Apex** — red de seguridad si el VPS cae
+  en circuito (ya ha salvado alguna carrera). Rellena el historial al vuelo en modo directo.
+- **Reset manual de cola FIFO** — airbag: cuando la cola del box se desincroniza de la
+  realidad, restaura la fiabilidad de la probabilidad de kart bueno.
+- **Countdown a ventana de pit (grid)** — que **complemente** la "Previsión de box", no
+  que repita el mismo número en otro sitio.
+- **Ritmo de caza del rival directo** — cierre de gap al de delante/detrás: decide
+  empujar o guardar, y si el adelantamiento cabe antes de la próxima parada.
+- **Alertas sonoras** — techo estricto de **2 eventos** (tu ventana de pit + undercut de
+  rival). Te alcanzan cuando NO miras la pantalla. Más de 2 = fatiga → esterilidad.
+- **Versión web para iPad** — el VPS ya sirve web; es sobre todo trabajo responsive.
+  Real porque a veces se lleva el iPad al muro.
+
+### 🟡 Otras superficies — útil basta (FUERA del panel en vivo)
+- **Ficha rival histórica** → superficie de **pre-carrera** (briefing). Si intenta vivir
+  en el grid en vivo, roba atención → ahí sí muere.
+- **Timeline de eventos** → superficie de **post-carrera** (debrief). No como scroll en
+  vivo (se solaparía con las alertas).
+- **Lluvia** → NO un "modo" aparte: el detector ya existe ([en-ai-alerts.js](src/en-ai-alerts.js)).
+  Lo útil es que la lluvia detectada **afloje los umbrales de calidad de kart** (con lluvia
+  los tiempos se dispersan y un kart bueno parece malo). Refinar lo existente, no crear superficie.
+- **Directorio equipos/pilotos** → **producto aparte** en el VPS, no apéndice del dashboard.
+  Ya se abandonó una vez (rama de junio); retomar solo de forma consciente.
+
+### ⚪ Negocio — decidir por si se vende, no por eficacia
 - Sistema de licencias con expiración (online + gracia 7 días)
 - Empaquetado .exe / .dmg (electron-builder)
-- Landing page sencilla (Netlify/GitHub Pages)
-- Versión web para iPad
-- Directorio equipos/pilotos funcional (prototipo HTML existe)
+- Exportación PDF post-carrera (útil solo si el equipo realmente hace *debrief*; si no, muere)
 
-### Pendiente de portar al logger NAS
-- Fallback de tiempos desde `|*|` (implementado en app, no en logger)
-- Detección de estado por código (implementado en app, no en logger)
+### 🔴 Descartadas
+- **Alerta de degradación del propio kart** — las sensaciones del piloto + los tiempos ya lo cubren.
+- **VPS público / landing** como "pendiente" — el VPS ya es la raíz viva y `landing.html` ya existe.
+
+### Robustez del logger (VPS) — pendiente de confirmar si hace falta
+Dos features viven en el conector del app pero **no** en el logger del VPS: **fallback de
+tiempos desde `|*|`** y **detección de estado por código**. Portarlas mejoraría la calidad
+del dato grabado **solo si** algún circuito que graba el VPS tuviera el colMap roto.
+Confirmar primero que ese caso ocurre en producción; si no ocurre, no tocar. (El NAS, donde
+originalmente se planteó portarlas, está retirado — no es el objetivo.)
