@@ -82,6 +82,10 @@ window.CircuitDB = {
 window.CircuitDB.knownOffsets = {
   'karting-lossantos': 8.0, // N=58 combinado, sesiones 2026-06-27 (3H Resistencia) + 2026-07-10 (IRONMAN entrenos)
   'ariza-racing-circuit': { inverso: 38.7 }, // N=21, sesión 2026-07-03 (2H Amateur Final) — sentido normal aún sin medir
+  // Henakart: la COPA PISTON 2026 (2026-08-01) invierte el sentido a mitad de carrera
+  // con parada sincronizada de toda la parrilla → un solo log da los dos sentidos.
+  // normal=2ª mitad (pit-exit a ~1 vuelta de meta), inverso=1ª mitad+cronos.
+  'henakart': { normal: 39.5, inverso: 20.0 }, // N=79 normal / N=42 inverso, cadena so→primer |*|
 };
 
 // ¿Este circuito tiene offsets distintos según el sentido de la pista?

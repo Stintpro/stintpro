@@ -26,10 +26,51 @@ function _enComputeTunnelProjections(eq, myDorsal, offset){
   return {projections, offset};
 }
 
+// Toggle de sentido de pista para circuitos con variantes (Ariza, Henakart…) —
+// permite cambiar el sentido A MITAD DE CARRERA sin salir al setup. El offset
+// pit exit→meta cambia radicalmente según el sentido y Apex no lo indica en el
+// feed. Devuelve '' si el circuito no corre en ambos sentidos.
+function _enRenderDirectionToggle(){
+  const cfg=window.AppState?.config;
+  const slug=cfg?.slug;
+  if(!slug||!window.CircuitDB?.hasDirectionVariants?.(slug))return '';
+  const dir=cfg.trackDirection||'normal';
+  const btn=(d,lbl)=>{
+    const on=dir===d;
+    return `<div onclick="_enSetTrackDirection('${d}')" style="flex:1;padding:6px;border-radius:5px;border:1px solid ${on?'#F5A623':'var(--border)'};background:${on?'rgba(245,166,35,0.10)':'transparent'};cursor:pointer;text-align:center;font-size:12px;font-weight:${on?'600':'400'};color:${on?'#F5A623':'var(--text-3)'}">${lbl}</div>`;
+  };
+  return `<div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:12px;color:var(--text-2);font-family:sans-serif;flex-shrink:0">↔ Sentido de pista:</span>
+    <div style="display:flex;gap:6px;flex:1">${btn('normal','Normal')}${btn('inverso','Inverso')}</div>
+  </div>`;
+}
+
+// Cambia el sentido de pista a mitad de carrera desde la pestaña Avanzado.
+// Actualiza el sentido activo (fuente de verdad para guardar la calibración por
+// sentido en en-strategy.js), recarga el offset del túnel para ese sentido
+// (lo calibrado en ESTE dispositivo prima sobre el valor de fábrica) y repinta
+// el shell para reflejar el nuevo offset y el estado del toggle.
+function _enSetTrackDirection(dir){
+  const cfg=window.AppState?.config;
+  const slug=cfg?.slug;
+  if(!slug||!window.CircuitDB?.hasDirectionVariants?.(slug))return;
+  if(cfg.trackDirection===dir)return;
+  cfg.trackDirection=dir;
+  const own=parseFloat(localStorage.getItem(window.CircuitDB.pitOffsetKey(slug,dir)));
+  const off=!isNaN(own)?own:window.CircuitDB.getKnownOffset(slug,dir);
+  EnSession.pitOutCalibration=(off!=null&&!isNaN(off))?[off,off]:[];
+  const advTunnel=document.getElementById('en-adv-tunnel');
+  if(advTunnel){
+    const calibrated=EnSession.pitOutCalibration.length>=2;
+    const offset=calibrated?EnSession.pitOutCalibration.reduce((a,b)=>a+b,0)/EnSession.pitOutCalibration.length:0;
+    advTunnel.innerHTML=_enRenderTunnelShell(calibrated, EnSession.pitOutCalibration.length, offset);
+  }
+}
+
 // Renderiza el esqueleto del túnel + orden de paso (una vez) — valores actualizados por RAF
 function _enRenderTunnelShell(calibrated, calibCount, offset){
   if(!calibrated){
-    return `<div style="padding:14px 14px 0"><div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
+    return `<div style="padding:14px 14px 0">${_enRenderDirectionToggle()}<div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
       <div style="font-size:13.5px;color:#fbbf24;font-family:sans-serif;padding:8px 0">⏳ Calibrando — esperando paradas observadas (<span id="en-calib-count">${calibCount}/2</span>)</div>
       <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">El sistema mide automáticamente el tiempo entre pit out y el primer pase por meta para calibrar la posición de salida en este circuito.</div>
@@ -40,6 +81,7 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
     </div></div>`;
   }
   return `<div style="padding:14px 14px 0">
+    ${_enRenderDirectionToggle()}
     <div style="background:#13141a;border:0.5px solid #1a1b22;border-radius:10px;padding:14px 16px;margin-bottom:12px">
       <div style="font-size:13.5px;font-weight:500;color:var(--text-1);font-family:sans-serif;margin-bottom:10px">🚦 Salida de box <span data-tunnel-label style="font-size:11.5px;color:var(--text-3);font-weight:400">(si paras ahora)</span></div>
       <div id="en-tunnel-nocfg" style="display:none;font-size:13.5px;color:var(--text-3);font-family:sans-serif">Configura tu dorsal en Estrategia para ver tu proyección de salida</div>
