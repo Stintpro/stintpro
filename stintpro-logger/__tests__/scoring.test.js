@@ -458,3 +458,64 @@ describe('casos borde', () => {
     });
   });
 });
+
+// ── Dos cilindradas en la misma tabla de tiempos ─────────────────────────────
+
+describe('categorías (dos tipos de kart en la misma carrera)', () => {
+  // Resistencia con 270cc y 390cc juntos en la clasificación. Los 390 ruedan
+  // ~12% más rápido: sin categoría, la referencia la marcan ellos y TODOS los
+  // 270 se van al suelo del pace aunque sean buenos pilotos.
+  function carrera(sid, withCategory) {
+    const out = [];
+    for (let i = 0; i < 8; i++) {
+      out.push({ name: `RAPIDO${i + 1}`, session_id: sid, best_ms: 60000 + i * 300,
+        avg_ms: 62400, laps: 30, category: withCategory ? '390' : null });
+    }
+    for (let i = 0; i < 8; i++) {
+      out.push({ name: `LENTO${i + 1}`, session_id: sid, best_ms: 67500 + i * 300,
+        avg_ms: 70200, laps: 30, category: withCategory ? '270' : null });
+    }
+    return out;
+  }
+
+  test('SIN categoría, la cilindrada lenta se hunde', () => {
+    const result = computePilotRatings(carrera(1, false));
+    const lentos = result.filter(p => p.name.startsWith('LENTO'));
+    // Todos arrastran la diferencia de cilindrada: el mejor de los 270 se queda
+    // a un 11,9% de la referencia (que marcan los 390) y raspa 4 puntos de 500.
+    expect(lentos.every(p => p.pace_score < 50)).toBe(true);
+    expect(lentos.filter(p => p.pace_score === 0).length).toBeGreaterThan(4);
+  });
+
+  test('CON categoría, cada cilindrada se mide contra la suya', () => {
+    const result = computePilotRatings(carrera(1, true));
+    const punteroLento = result.find(p => p.name === 'LENTO1');
+    const punteroRapido = result.find(p => p.name === 'RAPIDO1');
+    // El primero de los 270 debe puntuar como el primero de los 390
+    expect(punteroLento.pace_score).toBe(punteroRapido.pace_score);
+    expect(punteroLento.pace_score).toBe(500);
+    // Y ninguno de los 270 se va al suelo
+    expect(result.filter(p => p.name.startsWith('LENTO'))
+      .every(p => p.pace_score > 0)).toBe(true);
+  });
+
+  test('la categoría queda registrada en el resultado', () => {
+    const result = computePilotRatings(carrera(1, true));
+    expect(result.find(p => p.name === 'LENTO1').category).toBe('270');
+    expect(result.find(p => p.name === 'RAPIDO1').category).toBe('390');
+  });
+
+  test('una categoría con muy pocos karts cae al respaldo, no inventa referencia', () => {
+    // Solo 2 karts de 270: por debajo del mínimo para fijar su propia referencia
+    const rows = [
+      ...carrera(1, true).filter(r => r.category === '390'),
+      { name: 'SUELTO1', session_id: 1, best_ms: 67500, avg_ms: 70200, laps: 30, category: '270' },
+      { name: 'SUELTO2', session_id: 1, best_ms: 67800, avg_ms: 70500, laps: 30, category: '270' },
+    ];
+    const result = computePilotRatings(rows);
+    // No revientan ni desaparecen: quedan puntuados por el respaldo del grupo
+    const s1 = result.find(p => p.name === 'SUELTO1');
+    expect(s1).toBeDefined();
+    expect(s1.score).not.toBeNull();
+  });
+});

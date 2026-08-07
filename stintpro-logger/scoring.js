@@ -57,6 +57,12 @@ const SESSION_REF_PCTL   = 0.10;
 // otro en +1,2/+1,6/+2,7% —la misma variación real— sacaba 25.
 const SPREAD_FULL = 0.03;
 
+// Clave de referencia: sesión + categoría cuando el circuito la manda.
+function _refKey(r) {
+  const cat = (r.category || '').trim();
+  return cat ? `${r.session_id}\u0000${cat}` : String(r.session_id);
+}
+
 function _percentile(sortedAsc, p) {
   if (!sortedAsc.length) return null;
   return sortedAsc[Math.min(sortedAsc.length - 1, Math.floor(sortedAsc.length * p))];
@@ -113,11 +119,21 @@ function computePilotRatings(rows) {
   const multiGroup = groupIds.length > 1;
 
   // ── Referencia de cada sesión con parrilla suficiente ────────────────────
+  // La clave incluye la categoría: si una carrera junta dos tipos de kart en la
+  // misma tabla (270cc y 390cc, p.ej.), cada uno se mide contra los suyos. Sin
+  // esto la referencia la marca el kart rápido y toda la categoría lenta
+  // aparece como pilotos malos. Si Apex no manda categoría, la clave es la
+  // sesión a secas y el comportamiento es idéntico al de antes.
   const sessionRef = {};
-  for (const [sid, rs] of Object.entries(rowsBySession)) {
+  const bucketed   = {};
+  for (const r of validRows) {
+    const key = _refKey(r);
+    (bucketed[key] = bucketed[key] || []).push(r);
+  }
+  for (const [key, rs] of Object.entries(bucketed)) {
     const eligible = rs.filter(r => r.laps >= MIN_REF_LAPS);
     if (eligible.length < SESSION_REF_PILOTS) continue;
-    sessionRef[sid] = _percentile(
+    sessionRef[key] = _percentile(
       eligible.map(r => r.best_ms).sort((a, b) => a - b), SESSION_REF_PCTL);
   }
 
@@ -169,7 +185,8 @@ function computePilotRatings(rows) {
   // calcularla; si no, la del grupo, y ahí sí hay que descartar la lluvia
   // (la referencia del grupo se calculó con sesiones secas).
   function _refFor(r) {
-    if (sessionRef[r.session_id] != null) return sessionRef[r.session_id];
+    const byBucket = sessionRef[_refKey(r)];
+    if (byBucket != null) return byBucket;
     if (wetSessions.has(r.session_id)) return null;
     const g = groupOf[r.session_id];
     return scorableGroup[g] ? refByGroup[g] : null;
@@ -198,7 +215,7 @@ function computePilotRatings(rows) {
     const ref   = _refFor(r);
     pilotMap[key].sessions.push({
       best_ms: r.best_ms, laps: r.laps, position: pos, total: rank.length,
-      group: g, reference_ms: ref,
+      group: g, reference_ms: ref, category: r.category || null,
       gap: ref ? (r.best_ms - ref) / ref : null,
     });
     pilotMap[key].total_laps += r.laps;
@@ -278,6 +295,7 @@ function computePilotRatings(rows) {
       total_laps,
       layout_group:      bestSession.group,
       layout_count:      groupIds.length,
+      category:          bestSession.category,
     });
   }
 

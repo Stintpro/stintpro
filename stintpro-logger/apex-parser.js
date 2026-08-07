@@ -4,6 +4,14 @@
 const { parse: parseHTML }          = require('node-html-parser');
 const { createParser, parseTime }   = require('./apex-protocol');
 
+// Cabeceras que delatan una columna de categoría/cilindrada
+const CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
+// dtypes que ya tienen significado propio: nunca son la columna de categoría
+const RESERVED_DTYPES = new Set([
+  'rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr',
+  's1','s2','s3','grp','sta','nat',
+]);
+
 class ApexParser {
   constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag } = {}) {
     this._proto = createParser({
@@ -36,6 +44,14 @@ class ApexParser {
       const colMap = {}, colByNum = {};
       let otrIsPit = false;
 
+      // Columna de categoría (cilindrada, clase…). Hasta ahora ningún circuito
+      // la ha rellenado, pero una carrera con dos tipos de kart en la misma
+      // tabla la necesita: sin ella, los karts lentos parecen malos pilotos.
+      // Se identifica por dtype 'class' o por el texto de cabecera. NO se
+      // deduce de la columna 'grp': ahí Apex mete tokens que no son categoría
+      // (p.ej. 'sl', kart doblado) y acabaríamos inventando categorías.
+      let catCol = null;
+
       const r0 = root.querySelector('tr[data-id="r0"]');
       if (r0) {
         r0.querySelectorAll('td[data-id]').forEach(td => {
@@ -45,6 +61,10 @@ class ApexParser {
           // La columna otr es "Tiempo en PIT" en unos circuitos y "tiempo en pista"
           // (En piste/Tijd op circuit) en otros — se discrimina por el texto de cabecera.
           if (dtype === 'otr' && /\b(pit|box)\b/i.test(td.text || '')) otrIsPit = true;
+
+          if (!cid) return;
+          if (dtype === 'class') catCol = cid;
+          else if (!catCol && CAT_HEADER.test(td.text || '') && !RESERVED_DTYPES.has(dtype)) catCol = cid;
         });
       }
 
@@ -108,10 +128,15 @@ class ApexParser {
           if (c) { const n = parseInt(c.text.trim()); if (!isNaN(n)) kg.standsCount = n; }
         }
 
+        if (catCol) {
+          const c = cell(catCol);
+          if (c) { const t = c.text.trim(); if (t && !skip.includes(t)) kg.category = t; }
+        }
+
         gridKarts.push(kg);
       });
 
-      this._proto.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit });
+      this._proto.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit, catCol });
     } catch(e) {
       console.error('[ApexParser] parseGrid:', e.message);
     }

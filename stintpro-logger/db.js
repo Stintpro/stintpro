@@ -46,6 +46,10 @@ function _migrate() {
 
   try {
     const lapNames = db.prepare("PRAGMA table_info(laps)").all().map(r => r.name);
+    if (lapNames.length && !lapNames.includes('category')) {
+      db.exec('ALTER TABLE laps ADD COLUMN category TEXT');
+      console.log('[DB] Columna category añadida a laps');
+    }
     if (lapNames.length && !lapNames.includes('team_name')) {
       db.exec('ALTER TABLE laps ADD COLUMN team_name TEXT');
       console.log('[DB] Columna team_name añadida a laps');
@@ -85,6 +89,7 @@ async function init() {
       dorsal       TEXT,
       name         TEXT,
       team_name    TEXT,
+      category     TEXT,
       lap_time_ms  INTEGER,
       lap_number   INTEGER,
       timestamp    INTEGER,
@@ -148,11 +153,11 @@ function deleteSession(sessionId) {
 
 // ── Laps ──────────────────────────────────────────────────────────────────
 
-function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, timestamp) {
+function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, timestamp, category) {
   db.prepare(
-    'INSERT INTO laps (session_id,dorsal,name,team_name,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?,?)'
+    'INSERT INTO laps (session_id,dorsal,name,team_name,category,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?,?,?)'
   ).run(sessionId, dorsal ?? null, _normalizeName(name), teamName ? _normalizeName(teamName) : null,
-        lapTimeMs ?? null, lapNumber ?? null, timestamp || Date.now());
+        category || null, lapTimeMs ?? null, lapNumber ?? null, timestamp || Date.now());
 }
 
 function getLapsBySession(sessionId) {
@@ -246,6 +251,7 @@ function getTotalLapsByCircuit(slug) {
 function getPilotSessionsByCircuit(slug) {
   return db.prepare(`
     SELECT l.name, l.team_name, l.session_id, s.started_at,
+           MAX(l.category) as category,
            MIN(l.lap_time_ms) as best_ms,
            CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
            COUNT(*) as laps

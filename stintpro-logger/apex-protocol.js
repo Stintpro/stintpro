@@ -23,6 +23,9 @@
   const STATE_CODES = new Set(['si','so','sr','su','sd','ss','sf','gs','gf','gl','gm']);
   const RUN_STATES  = new Set(['sr','su','sd','gs','gf','gl','gm']);
   const SKIP_NAMES  = new Set(['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so','sl']);
+  // Tokens que nunca son una categoría aunque caigan en su columna: marcas de
+  // agrupación visual, kart doblado y demás ruido de la columna de estado.
+  const GROUP_MARKS = new Set(['in','sl','tn','ti','tb','ib','to']);
 
   // ── Tokens de Apex conocidos y deliberadamente NO usados ──────────────────
   // Catalogados al pasar el detector de novedades (2026-07-20). Se documentan
@@ -96,6 +99,7 @@
     let _karts           = {};
     let _colMap          = {};
     let _colByNum        = {};
+    let _catCol          = null;   // columna de categoría/cilindrada (si el circuito la manda)
     let _sessionActive   = false;
     let _sessionFinished = false;
     let _leaderLap       = 0;
@@ -186,6 +190,16 @@
     function _applyCell(k, col, type, val) {
       const dtype = _colByNum[col] || '';
       const v = (val !== undefined && val !== '') ? val : type;
+
+      // ── Categoría / cilindrada ────────────────────────────────────────
+      // Solo la columna identificada en la cabecera del grid. Se ignoran los
+      // códigos de estado y las marcas de dibujo por si esa columna comparte
+      // sitio con ellos.
+      if (_catCol && col === _catCol) {
+        const c = (v || '').trim();
+        if (c && !STATE_CODES.has(c) && !GROUP_MARKS.has(c)) k.category = c;
+        return;
+      }
 
       // ── Estado ────────────────────────────────────────────────────────
       const isStateCol  = dtype === 'grp' || dtype === 'sta';
@@ -323,7 +337,7 @@
               if (k.lapHistory.length > 1500) k.lapHistory.shift();
               if (!k.bestLap || t < k.bestLap) k.bestLap = t;
               if (callbacks.onLap && k.dorsal)
-                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now());
+                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now(), k.category || null);
             }
           }
           k._lapInvalid = false;
@@ -448,7 +462,7 @@
                 if (k.lapHistory.length > 1500) k.lapHistory.shift();
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
-                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, k.lapHistory.length, Date.now());
+                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, k.lapHistory.length, Date.now(), k.category || null);
               }
               // Anti-dedup solo cuando |*| empujó: si llp llega después refina esa entrada
               // Con colMap.llp, |*| no empuja → llp siempre crea entrada nueva (no hay nada que refinar)
@@ -593,6 +607,7 @@
           if (!k.dorsal) k.dorsal = k._rowId.replace('r', '');
           return {
             dorsal: k.dorsal, name: k.name || `#${k.dorsal}`, teamName: k.teamName || null,
+            category: k.category || null,
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
             lapHistory: k.lapHistory || [], gap: k.gap || '', interval: k.interval || '',
             pit: !!k.pit, pitState: k.pitState || null,
@@ -634,9 +649,10 @@
       },
 
       // Llamado por el wrapper tras parsear el HTML del grid con DOMParser/node-html-parser
-      setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit } = {}) {
+      setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit, catCol } = {}) {
         _colMap   = colMap   || {};
         _colByNum = colByNum || {};
+        _catCol   = catCol   || null;
         if (otrIsPit !== undefined) _otrIsPit = !!otrIsPit;
 
         // Detección de nueva sesión por cambio de parrilla: si el grid entrante comparte
@@ -673,13 +689,14 @@
           if (kg.lastLap && !k.lastLap)        k.lastLap      = kg.lastLap;
           if (kg.tours)                        k.tours        = kg.tours;
           if (kg.standsCount !== undefined)    k.standsCount  = kg.standsCount;
+          if (kg.category)                     k.category     = kg.category;
           k.tours = k.tours || 0;
         }
       },
 
       getState,
       reset() {
-        _karts = {}; _colMap = {}; _colByNum = {};
+        _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null;
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
         _otrIsPit = false; _pitDurations = [];

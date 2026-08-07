@@ -217,3 +217,76 @@ describe('integración ApexParser', () => {
     expect(onPit).toHaveBeenCalledWith('7', 'in', expect.any(Number), expect.any(Number));
   });
 });
+
+// ── Columna de categoría (dos cilindradas en la misma tabla) ─────────────────
+
+describe('columna de categoría', () => {
+  // Grid con una 5ª columna de categoría. Se prueban las dos formas de
+  // declararla: dtype 'class' y texto de cabecera.
+  const COLS_CAT_DTYPE = STANDARD_COLS + '<td data-id="c5" data-type="class">Cat.</td>';
+  const COLS_CAT_TEXTO = STANDARD_COLS + '<td data-id="c5" data-type="xx">Categoría</td>';
+
+  function kartRowCat(rowId, dorsal, name, cat) {
+    return (
+      `<tr data-id="${rowId}">` +
+      `<td data-id="${rowId}c1"><div>${dorsal}</div></td>` +
+      `<td data-id="${rowId}c2"><div>${name}</div></td>` +
+      `<td data-id="${rowId}c3"></td>` +
+      `<td data-id="${rowId}c4"></td>` +
+      `<td data-id="${rowId}c5">${cat}</td>` +
+      '</tr>'
+    );
+  }
+
+  test('captura la categoría declarada por dtype "class"', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({
+      colDefs: COLS_CAT_DTYPE,
+      rows: kartRowCat('r1', '7', 'JAVIER', '270') + kartRowCat('r2', '8', 'ANA', '390'),
+    }));
+    const eq = p.getState().equipos;
+    expect(eq.find(e => e.dorsal === '7').category).toBe('270');
+    expect(eq.find(e => e.dorsal === '8').category).toBe('390');
+  });
+
+  test('captura la categoría por el texto de la cabecera', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({
+      colDefs: COLS_CAT_TEXTO,
+      rows: kartRowCat('r1', '7', 'JAVIER', '270 cc'),
+    }));
+    expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBe('270 cc');
+  });
+
+  test('la categoría llega actualizada por celda en vivo', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({ colDefs: COLS_CAT_DTYPE, rows: kartRowCat('r1', '7', 'JAVIER', '') }));
+    p.parse('r1c5||390');
+    expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBe('390');
+  });
+
+  test('la vuelta grabada lleva la categoría', () => {
+    const laps = [];
+    const p = new ApexParser({ onLap: (...a) => laps.push(a) });
+    p.parse(buildGrid({ colDefs: COLS_CAT_DTYPE, rows: kartRowCat('r1', '7', 'JAVIER', '270') }));
+    p.parse('r1c3||1:04.500');
+    expect(laps.length).toBeGreaterThan(0);
+    expect(laps[0][6]).toBe('270');   // 7º argumento = categoría
+  });
+
+  test('sin columna de categoría, nada cambia', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({ colDefs: STANDARD_COLS, rows: kartRow('r1', '7', 'JAVIER') }));
+    expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBeNull();
+  });
+
+  test('no confunde una columna de datos con la de categoría', () => {
+    // Cabecera "Clasif." (posición) no debe tomarse por categoría
+    const p = new ApexParser();
+    p.parse(buildGrid({
+      colDefs: '<td data-id="c1" data-type="rk">Clasif.</td>' + STANDARD_COLS,
+      rows: kartRow('r1', '7', 'JAVIER'),
+    }));
+    expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBeNull();
+  });
+});
