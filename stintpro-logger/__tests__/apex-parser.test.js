@@ -290,3 +290,94 @@ describe('columna de categoría', () => {
     expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBeNull();
   });
 });
+
+// ── Blindaje de la captura de categoría ──────────────────────────────────────
+
+describe('isValidCategory — filtra ruido del feed', () => {
+  const { isValidCategory } = require('../apex-protocol');
+
+  test('acepta categorías reales', () => {
+    for (const v of ['PRO', 'AMATEUR', '270', '390', '270cc', 'SENIOR', 'GR 2', 'GOLD']) {
+      expect(isValidCategory(v)).toBe(true);
+    }
+  });
+
+  test('rechaza nombres de tipo de columna (fuga al reordenar el grid)', () => {
+    for (const v of ['dr', 'no', 'gap', 'class', 'rku', 'blp']) {
+      expect(isValidCategory(v)).toBe(false);
+    }
+  });
+
+  test('rechaza tiempos, gaps e intervalos', () => {
+    for (const v of ['29.415', '1:04.500', '+1,2', '30.111', '0.052']) {
+      expect(isValidCategory(v)).toBe(false);
+    }
+  });
+
+  test('rechaza vacíos y nombres de piloto', () => {
+    for (const v of ['', '   ', null, undefined, 'Moises Morales Gonzalez']) {
+      expect(isValidCategory(v)).toBe(false);
+    }
+  });
+});
+
+describe('categoría — persistencia frente a parpadeos', () => {
+  const COLS_CAT = STANDARD_COLS + '<td data-id="c5" data-type="class">Clase</td>';
+  function rowCat(rowId, dorsal, name, cat) {
+    return (
+      `<tr data-id="${rowId}">` +
+      `<td data-id="${rowId}c1"><div>${dorsal}</div></td>` +
+      `<td data-id="${rowId}c2"><div>${name}</div></td>` +
+      `<td data-id="${rowId}c3"></td><td data-id="${rowId}c4"></td>` +
+      `<td data-id="${rowId}c5">${cat}</td>` +
+      '</tr>'
+    );
+  }
+
+  test('un valor basura no sobrescribe una categoría ya fijada', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({ colDefs: COLS_CAT, rows: rowCat('r1', '7', 'JAVIER', 'PRO') }));
+    // Al reordenar el grid llega por esa columna el token 'dr' y un tiempo
+    p.parse('r1c5|dr');
+    p.parse('r1c5||29.415');
+    expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBe('PRO');
+  });
+
+  test('el grid inicial no captura basura como categoría', () => {
+    const p = new ApexParser();
+    // La celda de categoría llega con el token de tipo 'dr' en vez de un valor
+    p.parse(buildGrid({ colDefs: COLS_CAT, rows: rowCat('r1', '7', 'JAVIER', 'dr') }));
+    expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBeNull();
+  });
+});
+
+// ── Regresión con log real de Sevilla (dos clases, grid reordenado) ──────────
+
+describe('categoría — log real de Sevilla 2026-08-07', () => {
+  const fs   = require('fs');
+  const path = require('path');
+  const fixture = path.join(__dirname, 'fixtures', 'sevilla-categorias.ndjson');
+
+  test('captura PRO/AMATEUR sin ensuciarse con la reordenación de columnas', () => {
+    const lapCats = {};
+    const p = new ApexParser({ onLap: (d, n, t, ms, ln, ts, cat) => {
+      lapCats[cat || '(sin)'] = (lapCats[cat || '(sin)'] || 0) + 1;
+    }});
+    for (const line of fs.readFileSync(fixture, 'utf8').split('\n')) {
+      if (!line) continue;
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      if (o.raw) { try { p.parse(o.raw); } catch (e) { /* robustez */ } }
+    }
+    const conCat = p.getState().equipos.filter(e => e.category);
+    const cats = {};
+    for (const e of conCat) cats[e.category] = (cats[e.category] || 0) + 1;
+
+    // 31 karts, exactamente dos clases, sin 'dr' ni tiempos colados
+    expect(cats).toEqual({ PRO: 7, AMATEUR: 24 });
+    // Y las vueltas grabadas solo llevan categorías reales
+    for (const c of Object.keys(lapCats)) {
+      if (c === '(sin)') continue;
+      expect(['PRO', 'AMATEUR']).toContain(c);
+    }
+  });
+});

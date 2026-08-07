@@ -1,8 +1,8 @@
 // ── ApexParser — wrapper Node.js sobre ApexProtocol ───────────────────────
 // Responsabilidades: grid HTML (node-html-parser), callbacks de BD, relay de estado.
 
-const { parse: parseHTML }          = require('node-html-parser');
-const { createParser, parseTime }   = require('./apex-protocol');
+const { parse: parseHTML }                    = require('node-html-parser');
+const { createParser, parseTime, isValidCategory } = require('./apex-protocol');
 
 // Cabeceras que delatan una columna de categoría/cilindrada
 const CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
@@ -130,7 +130,7 @@ class ApexParser {
 
         if (catCol) {
           const c = cell(catCol);
-          if (c) { const t = c.text.trim(); if (t && !skip.includes(t)) kg.category = t; }
+          if (c) { const t = c.text.trim(); if (isValidCategory(t)) kg.category = t; }
         }
 
         gridKarts.push(kg);

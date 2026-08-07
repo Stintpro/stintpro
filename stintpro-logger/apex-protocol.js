@@ -26,6 +26,27 @@
   // Tokens que nunca son una categoría aunque caigan en su columna: marcas de
   // agrupación visual, kart doblado y demás ruido de la columna de estado.
   const GROUP_MARKS = new Set(['in','sl','tn','ti','tb','ib','to']);
+  // Nombres de tipo de columna de Apex. Al reordenar el grid entre mangas, la
+  // columna de categoría cambia de sitio y por ella entran fugazmente celdas de
+  // otro tipo: se ha visto llegar el propio token 'dr' como valor. Ninguno es
+  // una categoría real.
+  const DTYPE_TOKENS = new Set([
+    'rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr',
+    's1','s2','s3','grp','sta','nat','class','rku','rkb','rkw','rke',
+  ]);
+
+  // ¿Parece una categoría real (PRO, AMATEUR, 270, 390…) y no ruido del feed?
+  // Rechaza: vacíos, códigos de estado/dibujo, nombres de tipo de columna,
+  // valores con pinta de tiempo/gap (29.415, 1:04.500, +12,3) y cadenas largas
+  // (un nombre de piloto que se cuele al reordenar el grid — "Moises Morales
+  // Gonzalez" son 23; una categoría real cabe de sobra en 16).
+  function isValidCategory(v) {
+    const s = String(v == null ? '' : v).trim();
+    if (!s || s.length > 16) return false;
+    if (STATE_CODES.has(s) || GROUP_MARKS.has(s) || DTYPE_TOKENS.has(s)) return false;
+    if (/\d[.:,]\d/.test(s)) return false;   // 29.415, 1:04.500, +1,2
+    return true;
+  }
 
   // ── Tokens de Apex conocidos y deliberadamente NO usados ──────────────────
   // Catalogados al pasar el detector de novedades (2026-07-20). Se documentan
@@ -192,12 +213,12 @@
       const v = (val !== undefined && val !== '') ? val : type;
 
       // ── Categoría / cilindrada ────────────────────────────────────────
-      // Solo la columna identificada en la cabecera del grid. Se ignoran los
-      // códigos de estado y las marcas de dibujo por si esa columna comparte
-      // sitio con ellos.
+      // Solo la columna identificada en la cabecera del grid, y solo un valor
+      // que parezca una categoría real. Primer valor válido gana: la clase de
+      // un kart no cambia dentro del evento, así que una vez fijada no se
+      // sobrescribe — eso descarta los parpadeos al reordenar el grid.
       if (_catCol && col === _catCol) {
-        const c = (v || '').trim();
-        if (c && !STATE_CODES.has(c) && !GROUP_MARKS.has(c)) k.category = c;
+        if (!k.category) { const c = (v || '').trim(); if (isValidCategory(c)) k.category = c; }
         return;
       }
 
@@ -689,7 +710,7 @@
           if (kg.lastLap && !k.lastLap)        k.lastLap      = kg.lastLap;
           if (kg.tours)                        k.tours        = kg.tours;
           if (kg.standsCount !== undefined)    k.standsCount  = kg.standsCount;
-          if (kg.category)                     k.category     = kg.category;
+          if (kg.category && !k.category && isValidCategory(kg.category)) k.category = kg.category;
           k.tours = k.tours || 0;
         }
       },
@@ -861,5 +882,5 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker };
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory };
 });
