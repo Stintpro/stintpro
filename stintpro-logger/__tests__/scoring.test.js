@@ -1,6 +1,6 @@
 'use strict';
 
-const { computePilotRatings } = require('../scoring');
+const { computePilotRatings, _groupSessionsByLayout } = require('../scoring');
 
 // Fábrica de fila: valores por defecto razonables para un circuito de ~50s
 function row(name, session_id, best_ms, opts = {}) {
@@ -217,6 +217,128 @@ describe('detección de sesiones lluviosas', () => {
     expect(p.circuit_record_ms).toBe(DRY_RECORD);
     // La vuelta lluviosa no debe contaminar la mejor del piloto
     expect(p.pilot_best_ms).toBe(DRY_RECORD);
+  });
+});
+
+// ── Trazados distintos bajo un mismo circuito ────────────────────────────────
+
+describe('agrupación por trazado', () => {
+  // Un mismo slug mezcla recorridos: Campillos rueda a ~40s y a ~90s.
+  // Helper: N sesiones de 5 pilotos en torno a un ritmo base.
+  function layout(prefix, sessionIds, baseMs) {
+    const out = [];
+    for (const sid of sessionIds) {
+      for (let i = 0; i < 5; i++) {
+        out.push(row(`${prefix}${i + 1}`, sid, baseMs + i * 1000, { laps: 15 }));
+      }
+    }
+    return out;
+  }
+
+  test('_groupSessionsByLayout separa ritmos lejanos y junta cercanos', () => {
+    const groups = _groupSessionsByLayout({ 1: 40000, 2: 41000, 3: 90000 });
+    expect(groups[1]).toBe(groups[2]);
+    expect(groups[3]).not.toBe(groups[1]);
+  });
+
+  test('el trazado lento NO se puntúa contra el récord del trazado rápido', () => {
+    const rows = [
+      ...layout('LARGO', [1, 2, 3], 90000),
+      ...layout('CORTO', [11, 12, 13], 40000),
+    ];
+    const result = computePilotRatings(rows);
+    const largo5 = result.find(p => p.name === 'LARGO5'); // el más lento del largo
+
+    expect(largo5.layout_count).toBe(2);
+    // Su referencia es la de SU trazado (~90s), no los 40s del otro
+    expect(largo5.circuit_record_ms).toBeGreaterThan(80000);
+    // Antes sacaba 0: 94s contra un récord de 40s son +135%
+    expect(largo5.pace_score).toBeGreaterThan(0);
+  });
+
+  test('los dos trazados conviven en el mismo ranking', () => {
+    const rows = [
+      ...layout('LARGO', [1, 2, 3], 90000),
+      ...layout('CORTO', [11, 12, 13], 40000),
+    ];
+    const result = computePilotRatings(rows);
+    // Ningún piloto desaparece (antes el trazado lento se descartaba como "lluvia")
+    expect(result).toHaveLength(10);
+    for (const p of result) expect(p.score).not.toBeNull();
+  });
+
+  test('un trazado con muy pocos datos no inventa referencia → Sin datos', () => {
+    const rows = [
+      ...layout('LARGO', [1, 2, 3], 90000),
+      // Trazado minoritario: una sola sesión de 2 pilotos
+      row('RARO1', 90, 40000, { laps: 15 }),
+      row('RARO2', 90, 41000, { laps: 15 }),
+    ];
+    const result = computePilotRatings(rows);
+    const raro = result.find(p => p.name === 'RARO1');
+    expect(raro.score).toBeNull();
+    expect(raro.tier).toBe('Sin datos');
+  });
+});
+
+// ── Referencia robusta ───────────────────────────────────────────────────────
+
+describe('referencia de ritmo robusta', () => {
+  function layout(prefix, sessionIds, baseMs) {
+    const out = [];
+    for (const sid of sessionIds) {
+      for (let i = 0; i < 5; i++) {
+        out.push(row(`${prefix}${i + 1}`, sid, baseMs + i * 1000, { laps: 15 }));
+      }
+    }
+    return out;
+  }
+
+  test('una sesión de 1 piloto no puede fijar la referencia del circuito', () => {
+    const base = layout('PLT', [1, 2, 3], 90000);
+    const sinAnomalia = computePilotRatings(base);
+    // Misma tanda + una sesión suelta de 1 piloto anormalmente rápida
+    const conAnomalia = computePilotRatings([
+      ...base,
+      row('ANOMALO', 99, 85000, { laps: 10 }),
+    ]);
+
+    const antes   = sinAnomalia.find(p => p.name === 'PLT5');
+    const despues = conAnomalia.find(p => p.name === 'PLT5');
+    expect(despues.circuit_record_ms).toBe(antes.circuit_record_ms);
+    expect(despues.pace_score).toBe(antes.pace_score);
+  });
+
+  test('ningún componente se sale de su techo con gaps negativos', () => {
+    // Un piloto por debajo de la referencia da gaps negativos. Con la fórmula
+    // de consistencia sin blindar, el CV salía negativo y el score se disparaba
+    // a miles de puntos (visto sobre datos reales: 4885 con techo de 1000).
+    const rows = [
+      ...Array.from({ length: 15 }, (_, i) =>
+        row(`PLT${i % 5 + 1}`, Math.floor(i / 5) + 1, 90000 + (i % 5) * 1000, { laps: 15 })),
+      ...Array.from({ length: 4 }, (_, i) => row('CRACK', 10 + i, 88000, { laps: 15 })),
+    ];
+    const result = computePilotRatings(rows);
+    for (const p of result) {
+      if (p.score == null) continue;
+      expect(p.pace_score).toBeLessThanOrEqual(500);
+      expect(p.position_score).toBeLessThanOrEqual(300);
+      expect(p.consistency_score).toBeLessThanOrEqual(200);
+      expect(p.consistency_score).toBeGreaterThanOrEqual(0);
+      expect(p.score).toBeLessThanOrEqual(1000);
+    }
+  });
+
+  test('pace_score nunca pasa de 500 aunque el piloto bata la referencia', () => {
+    const rows = [
+      ...layout('PLT', [1, 2, 3], 90000),
+      // Un crack que rueda por debajo del percentil de referencia
+      ...Array.from({ length: 5 }, (_, i) => row('CRACK', 10 + i, 88000, { laps: 15 })),
+    ];
+    const result = computePilotRatings(rows);
+    const crack = result.find(p => p.name === 'CRACK');
+    expect(crack.pace_score).toBeLessThanOrEqual(500);
+    expect(crack.pace_score).toBe(500);
   });
 });
 

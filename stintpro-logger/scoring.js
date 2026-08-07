@@ -12,6 +12,60 @@ function _validName(n) {
   return true;
 }
 
+// ── Parámetros ──────────────────────────────────────────────────────────────
+
+const PACE_FLOOR    = 0.12;  // 12% sobre la referencia = 0 puntos de pace
+const MIN_LAPS      = 10;    // vueltas mínimas para puntuar a un piloto
+const WET_THRESHOLD = 1.12;  // sesión >12% más lenta que su grupo = lluvia
+
+// Separación de trazados. Un mismo slug de circuito mezcla recorridos distintos
+// (Campillos rueda a 40s y a 90s; Henakart a 36s y a 53s) y el récord del
+// trazado corto hundía a todo el que rodaba en el largo. Dos sesiones son de
+// trazados distintos si su ritmo difiere más de un 35%: la lluvia infla un
+// 12-25% (no separa, la caza el detector de lluvia), un recorrido distinto
+// infla un 40-150% (sí separa).
+const LAYOUT_SPLIT     = 0.35;
+const MIN_CLUSTER_ROWS = 5;  // grupo minoritario con menos filas: no puntúa pace
+
+// Referencia robusta dentro de un grupo. El mínimo absoluto lo fijaba cualquier
+// vuelta anómala (Campillos: una sesión de 1 piloto y 10 vueltas marcaba el
+// récord de todo el circuito), así que se usa un percentil bajo y solo cuentan
+// sesiones con pilotos suficientes.
+// Percentil 2 medido sobre los datos reales del VPS: el mínimo absoluto (o un
+// percentil 1) deja que una vuelta anómala vuelva a fijar la referencia
+// (Campillos: 76% de pilotos a 0), y un percentil 5 pega demasiada gente al
+// techo de 500 (26%). El 2 deja suelo y techo en su sitio.
+const REF_PCTL       = 0.02;
+const MIN_REF_ROWS   = 8;    // filas elegibles mínimas para exigir elegibilidad
+const MIN_REF_LAPS   = 10;
+const MIN_REF_PILOTS = 3;    // una sesión de 1-2 pilotos no fija la referencia
+
+function _percentile(sortedAsc, p) {
+  if (!sortedAsc.length) return null;
+  return sortedAsc[Math.min(sortedAsc.length - 1, Math.floor(sortedAsc.length * p))];
+}
+
+/**
+ * Agrupa sesiones por trazado a partir de su ritmo representativo.
+ * Corta la lista ordenada allí donde el salto relativo supera LAYOUT_SPLIT.
+ *
+ * @param {Object<string, number>} sessionPace  session_id → ritmo (ms)
+ * @returns {Object<string, number>} session_id → índice de grupo
+ */
+function _groupSessionsByLayout(sessionPace) {
+  const entries = Object.entries(sessionPace).sort((a, b) => a[1] - b[1]);
+  const groupOf = {};
+  let group = 0;
+  for (let i = 0; i < entries.length; i++) {
+    if (i > 0) {
+      const prev = entries[i - 1][1];
+      if (prev > 0 && (entries[i][1] - prev) / prev > LAYOUT_SPLIT) group++;
+    }
+    groupOf[entries[i][0]] = group;
+  }
+  return groupOf;
+}
+
 /**
  * Calcula los scores de pilotos a partir de filas de sesión.
  *
@@ -23,36 +77,71 @@ function computePilotRatings(rows) {
   const validRows = rows.filter(r => _validName(r.name));
   if (!validRows.length) return [];
 
-  // ── Detección de sesiones lluviosas ──────────────────────────────────────
-  const sessionPace = {};
+  // ── Sesiones: filas y nº de pilotos ──────────────────────────────────────
+  const rowsBySession   = {};
+  const pilotsPerSession = {};
   for (const r of validRows) {
-    if (!sessionPace[r.session_id]) sessionPace[r.session_id] = { sum: 0, laps: 0 };
-    sessionPace[r.session_id].sum  += r.avg_ms * r.laps;
-    sessionPace[r.session_id].laps += r.laps;
+    (rowsBySession[r.session_id] = rowsBySession[r.session_id] || []).push(r);
+    pilotsPerSession[r.session_id] = (pilotsPerSession[r.session_id] || 0) + 1;
   }
-  const sessionAvgs = Object.entries(sessionPace)
-    .filter(([, d]) => d.laps >= 5)
-    .map(([sid, d]) => ({ session_id: parseInt(sid), avg: d.sum / d.laps }))
-    .sort((a, b) => a.avg - b.avg);
 
-  // Referencia seca = P25 de ritmos de sesión
-  const dryRef = sessionAvgs.length
-    ? sessionAvgs[Math.floor(sessionAvgs.length * 0.25)].avg
-    : null;
+  // ── Agrupación por trazado (ritmo = mediana de mejores vueltas) ───────────
+  const sessionPace = {};
+  for (const [sid, rs] of Object.entries(rowsBySession)) {
+    const bests = rs.map(r => r.best_ms).sort((a, b) => a - b);
+    sessionPace[sid] = bests[Math.floor(bests.length / 2)];
+  }
+  const groupOf    = _groupSessionsByLayout(sessionPace);
+  const groupIds   = [...new Set(Object.values(groupOf))];
+  const multiGroup = groupIds.length > 1;
 
-  // Sesión lluviosa: ritmo medio >12% sobre la referencia seca
-  const WET_THRESHOLD = 1.12;
-  const wetSessions = new Set(
-    dryRef
-      ? sessionAvgs.filter(s => s.avg / dryRef > WET_THRESHOLD).map(s => s.session_id)
-      : []
-  );
+  // ── Por grupo: lluvia + referencia de ritmo ──────────────────────────────
+  const wetSessions = new Set();
+  const refByGroup  = {};   // grupo → referencia de ritmo (ms)
+  const rowsByGroup = {};   // grupo → filas secas
 
-  // Récord absoluto del circuito en sesiones secas
+  for (const g of groupIds) {
+    const groupRows = validRows.filter(r => groupOf[r.session_id] === g);
+
+    // Lluvia: relativa al propio grupo, nunca al circuito entero
+    const pace = {};
+    for (const r of groupRows) {
+      if (!pace[r.session_id]) pace[r.session_id] = { sum: 0, laps: 0 };
+      pace[r.session_id].sum  += r.avg_ms * r.laps;
+      pace[r.session_id].laps += r.laps;
+    }
+    const avgs = Object.entries(pace)
+      .filter(([, d]) => d.laps >= 5)
+      .map(([sid, d]) => ({ session_id: parseInt(sid), avg: d.sum / d.laps }))
+      .sort((a, b) => a.avg - b.avg);
+    const dryRef = avgs.length ? avgs[Math.floor(avgs.length * 0.25)].avg : null;
+    if (dryRef) {
+      for (const s of avgs) {
+        if (s.avg / dryRef > WET_THRESHOLD) wetSessions.add(s.session_id);
+      }
+    }
+
+    const dry = groupRows.filter(r => !wetSessions.has(r.session_id));
+    const pool = dry.length ? dry : groupRows;
+    rowsByGroup[g] = pool;
+
+    // Referencia: percentil bajo sobre las filas que pueden fijarla
+    const eligible = pool.filter(r =>
+      r.laps >= MIN_REF_LAPS && pilotsPerSession[r.session_id] >= MIN_REF_PILOTS);
+    const source = eligible.length >= MIN_REF_ROWS ? eligible : pool;
+    refByGroup[g] = _percentile(source.map(r => r.best_ms).sort((a, b) => a - b), REF_PCTL);
+  }
+
+  // Un grupo minoritario (pocas filas) no da una referencia creíble: sus filas
+  // no puntúan pace. Solo aplica si de verdad hay varios trazados.
+  const scorableGroup = {};
+  for (const g of groupIds) {
+    scorableGroup[g] = !multiGroup || rowsByGroup[g].length >= MIN_CLUSTER_ROWS;
+  }
+
   const dryRows = validRows.filter(r => !wetSessions.has(r.session_id));
-  const circuitRecord = Math.min(...(dryRows.length ? dryRows : validRows).map(r => r.best_ms));
 
-  // Agrupar por sesión para ranking por sesión (solo sesiones secas)
+  // ── Ranking dentro de cada sesión (para el componente de posición) ────────
   const bySession = {};
   for (const r of dryRows) {
     if (!bySession[r.session_id]) bySession[r.session_id] = [];
@@ -62,41 +151,55 @@ function computePilotRatings(rows) {
     bySession[sid].sort((a, b) => a.best_ms - b.best_ms);
   }
 
-  // Agregar por piloto
+  // ── Agregar por piloto ───────────────────────────────────────────────────
   const pilotMap = {};
   for (const r of dryRows) {
     const key = r.name.trim();
     if (!pilotMap[key]) pilotMap[key] = { name: key, sessions: [], total_laps: 0 };
-    const rank = bySession[r.session_id];
-    const pos  = rank.findIndex(x => x.name === r.name) + 1;
-    pilotMap[key].sessions.push({ best_ms: r.best_ms, laps: r.laps, position: pos, total: rank.length });
+    const rank  = bySession[r.session_id];
+    const pos   = rank.findIndex(x => x.name === r.name) + 1;
+    const g     = groupOf[r.session_id];
+    const ref   = scorableGroup[g] ? refByGroup[g] : null;
+    pilotMap[key].sessions.push({
+      best_ms: r.best_ms, laps: r.laps, position: pos, total: rank.length,
+      group: g, reference_ms: ref,
+      gap: ref ? (r.best_ms - ref) / ref : null,
+    });
     pilotMap[key].total_laps += r.laps;
   }
-
-  // 12% sobre récord = 0 puntos de pace
-  const PACE_FLOOR = 0.12;
-  const MIN_LAPS   = 10;
 
   const results = [];
 
   for (const p of Object.values(pilotMap)) {
-    const pilot_best = Math.min(...p.sessions.map(s => s.best_ms));
     const n_sessions = p.sessions.length;
     const total_laps = p.total_laps;
+    const scorable   = p.sessions.filter(s => s.gap != null);
 
-    if (total_laps < MIN_LAPS) {
+    // Mejor actuación = menor gap relativo a la referencia de SU trazado
+    // (comparar mejores vueltas en bruto no significa nada entre trazados).
+    const bestSession = scorable.length
+      ? scorable.reduce((a, b) => (b.gap < a.gap ? b : a))
+      : null;
+    const pilot_best  = bestSession ? bestSession.best_ms
+                                    : Math.min(...p.sessions.map(s => s.best_ms));
+
+    if (total_laps < MIN_LAPS || !bestSession) {
       results.push({
         name: p.name, score: null, tier: 'Sin datos',
         pace_score: null, position_score: null, consistency_score: null,
-        pilot_best_ms: pilot_best, circuit_record_ms: circuitRecord,
+        pilot_best_ms: pilot_best,
+        circuit_record_ms: bestSession ? bestSession.reference_ms : null,
         gap_to_record_pct: null, session_count: n_sessions, total_laps,
+        layout_group: bestSession ? bestSession.group : null,
+        layout_count: groupIds.length,
       });
       continue;
     }
 
     // Componente 1: Pace (0-500)
-    const pace_raw   = (pilot_best - circuitRecord) / circuitRecord;
-    const pace_score = Math.round(Math.max(0, 1 - pace_raw / PACE_FLOOR) * 500);
+    const pace_raw   = bestSession.gap;
+    const pace_score = Math.round(
+      Math.min(1, Math.max(0, 1 - pace_raw / PACE_FLOOR)) * 500);
 
     // Componente 2: Posición (0-300)
     const compSessions = p.sessions.filter(s => s.total >= 5);
@@ -108,17 +211,20 @@ function computePilotRatings(rows) {
       position_score = Math.round(avgPct * 300);
     }
 
-    // Componente 3: Consistencia (0-200) — mitad mejor de sesiones
+    // Componente 3: Consistencia (0-200) — mitad mejor de sesiones puntuables
     let consistency_score = 100;
-    if (n_sessions >= 2) {
-      const paces = p.sessions
-        .map(s => (s.best_ms - circuitRecord) / circuitRecord)
+    if (scorable.length >= 2) {
+      const paces = scorable
+        .map(s => s.gap)
         .sort((a, b) => a - b)
-        .slice(0, Math.ceil(n_sessions / 2));
+        .slice(0, Math.ceil(scorable.length / 2));
       const mean   = paces.reduce((a, b) => a + b, 0) / paces.length;
       const stddev = Math.sqrt(paces.reduce((a, b) => a + (b - mean) ** 2, 0) / paces.length);
-      const cv     = stddev / (mean + 0.001);
-      consistency_score = Math.round(Math.max(0, 1 - cv / 0.3) * 200);
+      // El gap puede ser negativo (piloto por debajo de la referencia), así que
+      // el denominador va en valor absoluto: si no, el CV sale negativo y el
+      // score se dispara por encima de su techo.
+      const cv     = stddev / (Math.abs(mean) + 0.001);
+      consistency_score = Math.round(Math.min(1, Math.max(0, 1 - cv / 0.3)) * 200);
     }
 
     results.push({
@@ -129,10 +235,12 @@ function computePilotRatings(rows) {
       position_score,
       consistency_score,
       pilot_best_ms:     pilot_best,
-      circuit_record_ms: circuitRecord,
+      circuit_record_ms: bestSession.reference_ms,
       gap_to_record_pct: Math.round(pace_raw * 1000) / 10,
       session_count:     n_sessions,
       total_laps,
+      layout_group:      bestSession.group,
+      layout_count:      groupIds.length,
     });
   }
 
@@ -152,4 +260,4 @@ function computePilotRatings(rows) {
   return results.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
 }
 
-module.exports = { computePilotRatings };
+module.exports = { computePilotRatings, _groupSessionsByLayout };
