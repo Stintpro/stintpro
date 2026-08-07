@@ -146,15 +146,85 @@ describe('consistency_score', () => {
     // Con 2 sesiones el algoritmo solo evalúa la 1 mejor → varianza=0 → score=200.
     // Se necesitan ≥4 sesiones para que la "mitad mejor" (2 sesiones) muestre varianza.
     // avg_ms homogéneo en todas para que ninguna se detecte como lluviosa.
+    // La regularidad mide dispersión absoluta: hacen falta varios puntos
+    // porcentuales de diferencia para considerarse irregular.
     const rows = [
-      row('IRREGULAR', 1, 50000, { avg_ms: 53000, laps: 15 }), // pace=0
-      row('IRREGULAR', 2, 51000, { avg_ms: 53000, laps: 15 }), // pace=0.02
-      row('IRREGULAR', 3, 52000, { avg_ms: 53000, laps: 15 }), // pace=0.04
-      row('IRREGULAR', 4, 53000, { avg_ms: 53000, laps: 15 }), // pace=0.06
+      row('IRREGULAR', 1, 50000, { avg_ms: 56000, laps: 15 }), // gap 0
+      row('IRREGULAR', 2, 53500, { avg_ms: 56000, laps: 15 }), // gap 7%
+      row('IRREGULAR', 3, 54000, { avg_ms: 56000, laps: 15 }), // gap 8%
+      row('IRREGULAR', 4, 54500, { avg_ms: 56000, laps: 15 }), // gap 9%
     ];
-    // best half (2 sesiones): paces [0, 0.02] → CV ≈ 0.9 > 0.3 → score = 0
+    // mitad mejor (2 sesiones): gaps [0, 0.07] → desviación 0.035 > 0.03 → 0
     const [p] = computePilotRatings(rows);
     expect(p.consistency_score).toBeLessThan(50);
+  });
+
+  test('ser rápido no penaliza la regularidad', () => {
+    // El fallo que tenía la fórmula anterior: medía la variación EN PROPORCIÓN
+    // a la distancia a la referencia, así que al piloto pegado a ella cualquier
+    // décima le disparaba el coeficiente. Dos pilotos con la MISMA variación
+    // real (1,5 puntos porcentuales) deben sacar la misma regularidad.
+    const campo = [];
+    for (let s = 1; s <= 4; s++) {
+      for (let i = 0; i < 6; i++) {
+        campo.push(row(`CAMPO${i + 1}`, s, 50000 + i * 400, { laps: 15 }));
+      }
+    }
+    const rows = [
+      ...campo,
+      // Rápido: gaps ~1,2% y ~2,7%
+      row('RAPIDO', 1, 50600, { laps: 15 }), row('RAPIDO', 2, 51350, { laps: 15 }),
+      row('RAPIDO', 3, 50600, { laps: 15 }), row('RAPIDO', 4, 51350, { laps: 15 }),
+      // Lento: gaps ~10% y ~11,5%, misma diferencia entre ambos
+      row('LENTO',  1, 55000, { laps: 15 }), row('LENTO',  2, 55750, { laps: 15 }),
+      row('LENTO',  3, 55000, { laps: 15 }), row('LENTO',  4, 55750, { laps: 15 }),
+    ];
+    const result = computePilotRatings(rows);
+    const rapido = result.find(p => p.name === 'RAPIDO');
+    const lento  = result.find(p => p.name === 'LENTO');
+    expect(rapido.consistency_score).toBe(lento.consistency_score);
+    // Y el rápido debe quedar por delante en el total
+    expect(rapido.score).toBeGreaterThan(lento.score);
+  });
+});
+
+// ── Referencia de la propia sesión ───────────────────────────────────────────
+
+describe('referencia por sesión', () => {
+  test('el ritmo se mide contra la parrilla del día, no contra otro trazado', () => {
+    // Henakart real: tres recorridos (36s, 42s, 51s) con saltos del 12% y 19%
+    // entre ellos — demasiado juntos para separarlos por ritmo, porque la
+    // lluvia infla en ese mismo rango. La referencia de sesión lo resuelve.
+    const sesion = (sid, baseMs) =>
+      Array.from({ length: 8 }, (_, i) =>
+        row(`P${sid}_${i + 1}`, sid, baseMs + i * 300, { laps: 15 }));
+    const rows = [
+      ...sesion(1, 36000), ...sesion(2, 36200),
+      ...sesion(3, 42000), ...sesion(4, 42200),
+      ...sesion(5, 51000), ...sesion(6, 51200),
+    ];
+    const result = computePilotRatings(rows);
+    // El más rápido de CADA recorrido debe puntuar alto, no solo el del de 36s
+    for (const sid of [1, 3, 5]) {
+      const puntero = result.find(p => p.name === `P${sid}_1`);
+      expect(puntero.pace_score).toBeGreaterThan(400);
+    }
+  });
+
+  test('una sesión lluviosa con parrilla suficiente ya no se tira a la basura', () => {
+    const sesion = (sid, baseMs, avgMul) =>
+      Array.from({ length: 8 }, (_, i) =>
+        row(`PLT${i + 1}`, sid, baseMs + i * 300, { laps: 15, avg_ms: Math.round((baseMs + i * 300) * avgMul) }));
+    const rows = [
+      ...sesion(1, 50000, 1.04), ...sesion(2, 50200, 1.04), ...sesion(3, 50100, 1.04),
+      // Sesión pasada por agua: todos un 25% más lentos
+      ...sesion(4, 62500, 1.04),
+    ];
+    const result = computePilotRatings(rows);
+    // Nadie desaparece y el puntero del día de lluvia sigue puntuando su ritmo
+    const puntero = result.find(p => p.name === 'PLT1');
+    expect(puntero.score).not.toBeNull();
+    expect(result.every(p => p.score != null)).toBe(true);
   });
 });
 

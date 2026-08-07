@@ -40,6 +40,23 @@ const MIN_REF_ROWS   = 8;    // filas elegibles mínimas para exigir elegibilida
 const MIN_REF_LAPS   = 10;
 const MIN_REF_PILOTS = 3;    // una sesión de 1-2 pilotos no fija la referencia
 
+// Referencia de la propia sesión. Es la vía principal: agrupar por ritmo no
+// separa trazado de lluvia (Henakart tiene tres recorridos a 36s, 42s y 51s, y
+// los saltos entre ellos —12% y 19%— caen dentro del rango en que la lluvia
+// infla los tiempos). Da igual: para puntuar, trazado distinto y lluvia son lo
+// mismo — la referencia de un piloto tiene que ser el ritmo alcanzable en las
+// condiciones en que rodó. Ese ritmo es el extremo rápido de su propia parrilla.
+// Cubre el 88-100% de las filas según circuito; el resto cae al grupo.
+const SESSION_REF_PILOTS = 5;
+const SESSION_REF_PCTL   = 0.10;
+
+// Regularidad: dispersión ABSOLUTA de los gaps. Antes era un coeficiente de
+// variación (desviación / media), que castigaba justo a los rápidos: al estar
+// pegados a la referencia el divisor se hace diminuto y cualquier variación
+// mínima dispara el coeficiente. Un piloto anclado en +10/+11/+12% sacaba ~150;
+// otro en +1,2/+1,6/+2,7% —la misma variación real— sacaba 25.
+const SPREAD_FULL = 0.03;
+
 function _percentile(sortedAsc, p) {
   if (!sortedAsc.length) return null;
   return sortedAsc[Math.min(sortedAsc.length - 1, Math.floor(sortedAsc.length * p))];
@@ -95,6 +112,15 @@ function computePilotRatings(rows) {
   const groupIds   = [...new Set(Object.values(groupOf))];
   const multiGroup = groupIds.length > 1;
 
+  // ── Referencia de cada sesión con parrilla suficiente ────────────────────
+  const sessionRef = {};
+  for (const [sid, rs] of Object.entries(rowsBySession)) {
+    const eligible = rs.filter(r => r.laps >= MIN_REF_LAPS);
+    if (eligible.length < SESSION_REF_PILOTS) continue;
+    sessionRef[sid] = _percentile(
+      eligible.map(r => r.best_ms).sort((a, b) => a - b), SESSION_REF_PCTL);
+  }
+
   // ── Por grupo: lluvia + referencia de ritmo ──────────────────────────────
   const wetSessions = new Set();
   const refByGroup  = {};   // grupo → referencia de ritmo (ms)
@@ -139,11 +165,21 @@ function computePilotRatings(rows) {
     scorableGroup[g] = !multiGroup || rowsByGroup[g].length >= MIN_CLUSTER_ROWS;
   }
 
-  const dryRows = validRows.filter(r => !wetSessions.has(r.session_id));
+  // Referencia aplicable a una fila: la de su sesión si la parrilla daba para
+  // calcularla; si no, la del grupo, y ahí sí hay que descartar la lluvia
+  // (la referencia del grupo se calculó con sesiones secas).
+  function _refFor(r) {
+    if (sessionRef[r.session_id] != null) return sessionRef[r.session_id];
+    if (wetSessions.has(r.session_id)) return null;
+    const g = groupOf[r.session_id];
+    return scorableGroup[g] ? refByGroup[g] : null;
+  }
 
   // ── Ranking dentro de cada sesión (para el componente de posición) ────────
+  // Se ordena la parrilla completa: dentro de una sesión todos corrieron en las
+  // mismas condiciones, llueva o no.
   const bySession = {};
-  for (const r of dryRows) {
+  for (const r of validRows) {
     if (!bySession[r.session_id]) bySession[r.session_id] = [];
     bySession[r.session_id].push(r);
   }
@@ -153,13 +189,13 @@ function computePilotRatings(rows) {
 
   // ── Agregar por piloto ───────────────────────────────────────────────────
   const pilotMap = {};
-  for (const r of dryRows) {
+  for (const r of validRows) {
     const key = r.name.trim();
     if (!pilotMap[key]) pilotMap[key] = { name: key, sessions: [], total_laps: 0 };
     const rank  = bySession[r.session_id];
     const pos   = rank.findIndex(x => x.name === r.name) + 1;
     const g     = groupOf[r.session_id];
-    const ref   = scorableGroup[g] ? refByGroup[g] : null;
+    const ref   = _refFor(r);
     pilotMap[key].sessions.push({
       best_ms: r.best_ms, laps: r.laps, position: pos, total: rank.length,
       group: g, reference_ms: ref,
@@ -214,17 +250,18 @@ function computePilotRatings(rows) {
     // Componente 3: Consistencia (0-200) — mitad mejor de sesiones puntuables
     let consistency_score = 100;
     if (scorable.length >= 2) {
+      // Mitad mejor, pero nunca menos de dos sesiones: la dispersión de un
+      // único valor es cero, y con 2-3 sesiones eso regalaba el máximo.
       const paces = scorable
         .map(s => s.gap)
         .sort((a, b) => a - b)
-        .slice(0, Math.ceil(scorable.length / 2));
+        .slice(0, Math.max(2, Math.ceil(scorable.length / 2)));
       const mean   = paces.reduce((a, b) => a + b, 0) / paces.length;
       const stddev = Math.sqrt(paces.reduce((a, b) => a + (b - mean) ** 2, 0) / paces.length);
-      // El gap puede ser negativo (piloto por debajo de la referencia), así que
-      // el denominador va en valor absoluto: si no, el CV sale negativo y el
-      // score se dispara por encima de su techo.
-      const cv     = stddev / (Math.abs(mean) + 0.001);
-      consistency_score = Math.round(Math.min(1, Math.max(0, 1 - cv / 0.3)) * 200);
+      // Dispersión absoluta: cuánto varía el piloto, no cuánto varía en
+      // proporción a lo cerca que está de la referencia.
+      consistency_score = Math.round(
+        Math.min(1, Math.max(0, 1 - stddev / SPREAD_FULL)) * 200);
     }
 
     results.push({
