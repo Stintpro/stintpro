@@ -13,7 +13,8 @@
     "gs", "gf", "gl", "gm",
     "tn", "ti", "tb", "ib",
     "dr", "drteam", "drd", "dru",
-    "sl", "rkb", "rkw", "rke"
+    "sl", "rkb", "rkw", "rke",
+    "nat"
   ],
   "cellTokenRegexes": [
     "^no\\d+$",
@@ -23,7 +24,7 @@
     "pena1": "Col. de penalización (p.ej. Misano c12) = sanción en segundos (valores 5.000/10.000). Conocido; PENDIENTE de implementar si se quiere mostrar penalizaciones.",
     "sl": "Col. sta, kart lento/doblado. NO es estado de carrera: el parser lo ignora a propósito (asignarlo a k.state dejaba al kart marcado en pit para siempre). Solo visto en Sevilla. NO se va a usar.",
     "rku / rkb / rkw / rke": "Col. sin cabecera con la variación de posiciones respecto a la parrilla: rkb=N ganadas, rkw=N perdidas, rke=sin cambio. Verificado sobre datos reales (posición + valor con signo = posición de salida, constante toda la manga). Solo formato competición, ningún circuito de resistencia lo emite. NO se va a usar.",
-    "nat / class": "Columnas informativas (nacionalidad, clase). Declaradas en la cabecera pero llegan vacías. NO se van a usar.",
+    "nat / class": "Columnas informativas (nacionalidad, clase). Declaradas en la cabecera. En Sevilla competición (2026-08) la celda c6 llega como token 'nat' (con espacio delante) y VALOR VACÍO; la banderita/código de país (ESP/POR) viaja como clase CSS, no como contenido. El parser mapea por data-type y lo ignora. NO se va a usar.",
     "drd / dru": "Variantes de la celda de nombre en las tablas laterales de competición (br*/cr*). NO se van a usar.",
     "s1 / s2 / s3": "Tiempos por sector. SÍ se parsean en apex-protocol.js y viajan en el snapshot, pero ningún consumidor los usa. Decisión 2026-07-20: no se muestran en la app."
   },
