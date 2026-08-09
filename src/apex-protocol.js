@@ -22,6 +22,9 @@
 
   const STATE_CODES = new Set(['si','so','sr','su','sd','ss','sf','gs','gf','gl','gm']);
   const RUN_STATES  = new Set(['sr','su','sd','gs','gf','gl','gm']);
+  // Texto de "coche doblado" en la col gap/int, multiidioma. Apex lo emite en el
+  // idioma del organizador: tour(fr) lap(en) vuelta(es) giro/giri(it) volta(pt) runde(de).
+  const LAPS_BEHIND_RE = /tour|lap|vuelta|giro|giri|volta|runde|tr\b/i;
   const SKIP_NAMES  = new Set(['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so','sl']);
 
   // ── Tokens de Apex conocidos y deliberadamente NO usados ──────────────────
@@ -347,7 +350,7 @@
       // ── Gap ───────────────────────────────────────────────────────────
       if (dtype === 'gap') {
         const vRaw = v || '';
-        if (/tour|lap|tr\b/i.test(vRaw)) {
+        if (LAPS_BEHIND_RE.test(vRaw)) {
           const n = parseInt(vRaw.replace(/[^\d]/g, ''));
           k.gap = !isNaN(n) && n > 0 ? '+' + n + 'v' : '';
           return;
@@ -363,7 +366,13 @@
 
       // ── Intervalo ─────────────────────────────────────────────────────
       if (dtype === 'int') {
-        const raw = (v || '').replace(/[a-zA-Z]/g, '').trim();
+        const vRaw = v || '';
+        if (LAPS_BEHIND_RE.test(vRaw)) {
+          const n = parseInt(vRaw.replace(/[^\d]/g, ''));
+          k.interval = !isNaN(n) && n > 0 ? '+' + n + 'v' : '';
+          return;
+        }
+        const raw = vRaw.replace(/[a-zA-Z]/g, '').trim();
         if (!raw) { k.interval = ''; return; }
         const t = raw.includes(':')
           ? parseFloat(raw.split(':')[0]) * 60 + parseFloat(raw.split(':')[1])
