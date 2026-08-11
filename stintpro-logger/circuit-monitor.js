@@ -38,6 +38,21 @@ const APEX_STALE_IDLE_MS        = 30 * 60 * 1000; // ocioso sin espectadores →
 const APEX_CONNECT_TIMEOUT_MS = 20 * 1000;
 const APEX_RECONNECT_MS       = 5000;
 
+// ── Raw log por sesión ─────────────────────────────────────────────────────
+// El raw log ya no graba 24/7: captura UN .ndjson por sesión real, nombrado con
+// el título de la sesión. La ráfaga de apertura (init/grid/título) precede a la
+// 1ª vuelta, así que se acumula en un búfer y se vuelca al abrir el fichero. Un
+// .ndjson se abre solo cuando una vuelta real confirma la sesión → cero ficheros
+// vacíos entre tandas.
+// El búfer se poda por TIEMPO: solo conserva lo emitido en los últimos
+// RAW_PRELUDE_WINDOW_MS antes de la 1ª vuelta. Así el fichero empieza en el
+// init/grid de la sesión REAL, no arrastra horas de cháchara de grid ni títulos
+// fantasma de sesiones anteriores si el circuito estuvo idle. RAW_PRELUDE_MAX es
+// solo un tope duro de seguridad (evita crecer sin límite dentro de la ventana).
+const RAW_PRELUDE_WINDOW_MS = 15 * 60 * 1000;  // ventana de apertura conservada (últimos 15 min)
+const RAW_PRELUDE_MAX       = 5000;            // tope duro de líneas (backstop de memoria)
+const RAW_IDLE_CLOSE_MS     = 30 * 60 * 1000;  // cierra el fichero si el feed calla (tanda acabada sin bandera)
+
 class CircuitMonitor {
   constructor(cfg, computeRatings) {
     this._computeRatings = computeRatings || null;
@@ -72,9 +87,11 @@ class CircuitMonitor {
 
     this.recording = cfg.recording !== false; // true por defecto
 
-    // Raw log (replay mode)
-    this._rawLog        = null;
-    this._rawLogEnabled = cfg.rawLog || !!process.env.STINTPRO_RAW_LOG;
+    // Raw log por sesión (replay mode) — ver cabecera del fichero.
+    this._rawLog        = null;   // WriteStream del .ndjson de la sesión en curso (o null)
+    this._rawLogEnabled = cfg.rawLog || !!process.env.STINTPRO_RAW_LOG; // "armado"
+    this._rawLogPath    = null;   // ruta del fichero abierto
+    this._rawPrelude    = [];     // ráfaga init/grid/título acumulada antes de la 1ª vuelta
 
     // Muestreo del canal HTTP request.php (investigación .P — ver apex-http-sampler.js)
     this._apexSampleEnabled = cfg.apexHttpSample || !!process.env.STINTPRO_APEX_HTTP_SAMPLE;
@@ -108,7 +125,8 @@ class CircuitMonitor {
 
   start() {
     console.log(`[${this.slug}] Iniciando monitor (${this.name}, port ${this.port})`);
-    if (this._rawLogEnabled) this._openRawLog();
+    // Raw log: modo por-sesión. No se abre nada aquí; el fichero se crea al llegar
+    // la 1ª vuelta real de una sesión (_onLap → _openSessionRawLog), con su título.
     if (this._apexSampleEnabled) this._startApexSampler();
     this._connect();
   }
@@ -120,7 +138,7 @@ class CircuitMonitor {
     if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
     this._stopHeartbeat();
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
-    if (this._rawLog)         { try { this._rawLog.end(); } catch(e) {} this._rawLog = null;      }
+    this._closeSessionRawLog();
     this.connected = false;
   }
 
@@ -163,6 +181,13 @@ class CircuitMonitor {
   _checkStale() {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const silence = Date.now() - this._lastDataAt;
+    // Cierra el .ndjson de una sesión que dejó de emitir sin que llegue una sesión
+    // nueva (tandas de alquiler que acaban en silencio, sin bandera a cuadros). Si
+    // luego se reanuda el rodaje, la próxima vuelta reabre un fichero.
+    if (this._rawLog && silence > RAW_IDLE_CLOSE_MS) {
+      console.log(`[${this.slug}] Raw log cerrado por inactividad (${Math.round(silence / 1000)}s)`);
+      this._closeSessionRawLog();
+    }
     if (silence > this._staleLimitMs()) {
       const active  = !!this.sessionId && !this.parser.sessionFinished;
       const watched = this.subscribers.size > 0 || this.pilotSubscribers.size > 0;
@@ -260,11 +285,13 @@ class CircuitMonitor {
         if (!current()) return;
         this._lastDataAt = Date.now();
         const raw = data.toString();
-        if (this._rawLog) {
-          try { this._rawLog.write(JSON.stringify({ t: Date.now(), raw }) + '\n'); } catch(e) {}
-        }
+        // Parsear ANTES de capturar: así, si esta línea abre una sesión nueva
+        // (_onLap → abre fichero) o cierra la anterior (_onNewSession), el crudo
+        // cae en el fichero correcto. La 1ª vuelta abre el .ndjson y a continuación
+        // su propia línea se escribe en vivo.
         try { this.parser.parse(raw); }
         catch(e) { console.error(`[${this.slug}] parse error:`, e.message); }
+        this._rawCapture(raw);
       });
 
       ws.on('error', (err) => {
@@ -297,32 +324,89 @@ class CircuitMonitor {
     console.log(`[${this.slug}] Grabación ${enabled ? 'activada' : 'pausada'}`);
   }
 
+  // Arma/desarma la captura por sesión. Armar NO abre fichero: el .ndjson se crea
+  // con la 1ª vuelta real de la próxima sesión (o de la actual si ya está rodando,
+  // en la siguiente vuelta).
   setRawLog(enabled) {
-    if (enabled && !this._rawLog) {
+    if (enabled) {
       this._rawLogEnabled = true;
-      this._openRawLog();
-    } else if (!enabled && this._rawLog) {
+      console.log(`[${this.slug}] Raw log armado (grabará por sesión)`);
+    } else {
       this._rawLogEnabled = false;
-      try { this._rawLog.end(); } catch(e) {}
-      this._rawLog = null;
-      console.log(`[${this.slug}] Raw log detenido`);
+      this._rawPrelude = [];
+      this._closeSessionRawLog();
+      console.log(`[${this.slug}] Raw log desarmado`);
     }
   }
 
-  _openRawLog() {
+  // Captura cada mensaje crudo. Si el .ndjson de la sesión ya está abierto, escribe
+  // en vivo; si no, acumula en el búfer de apertura (`{t, line}`) que se volcará al
+  // abrir el fichero. El búfer se poda por TIEMPO: solo conserva la ráfaga reciente
+  // (últimos RAW_PRELUDE_WINDOW_MS), así el fichero empieza en el init/grid de la
+  // sesión real y no arrastra la cháchara del silencio previo.
+  _rawCapture(raw) {
+    if (!this._rawLogEnabled) return;
+    const now  = Date.now();
+    const line = JSON.stringify({ t: now, raw }) + '\n';
+    if (this._rawLog) {
+      try { this._rawLog.write(line); } catch(e) {}
+    } else {
+      this._rawPrelude.push({ t: now, line });
+      // Poda por tiempo (entradas ordenadas por t → basta descartar por delante).
+      const cutoff = now - RAW_PRELUDE_WINDOW_MS;
+      while (this._rawPrelude.length && this._rawPrelude[0].t < cutoff) this._rawPrelude.shift();
+      // Backstop de memoria por si un burst inunda dentro de la ventana.
+      while (this._rawPrelude.length > RAW_PRELUDE_MAX) this._rawPrelude.shift();
+    }
+  }
+
+  // Título de sesión → parte de nombre de fichero segura (sin acentos, espacios ni
+  // '/'); vacío/desconocido → 'sin-titulo'.
+  _rawTitleSlug(title) {
+    const clean = (title || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Za-z0-9]+/g, '-')
+      .replace(/-+/g, '-').replace(/^-|-$/g, '')
+      .slice(0, 60);
+    return clean || 'sin-titulo';
+  }
+
+  // Abre el .ndjson de la sesión confirmada y vuelca el búfer de apertura.
+  _openSessionRawLog(title) {
+    if (!this._rawLogEnabled || this._rawLog) return;
     try {
       const dir = path.join(__dirname, 'recordings');
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const file  = path.join(dir, `${this.slug}_${stamp}.ndjson`);
-      this._rawLog = fs.createWriteStream(file, { flags: 'a' });
-      console.log(`[${this.slug}] Raw log: recordings/${this.slug}_${stamp}.ndjson`);
+      const file  = path.join(dir, `${this.slug}_${this._rawTitleSlug(title)}_${stamp}.ndjson`);
+      this._rawLog     = fs.createWriteStream(file, { flags: 'a' });
+      this._rawLogPath = file;
+      if (this._rawPrelude.length) {
+        try { this._rawLog.write(this._rawPrelude.map(e => e.line).join('')); } catch(e) {}
+      }
+      this._rawPrelude = [];
+      console.log(`[${this.slug}] Raw log: recordings/${path.basename(file)}`);
     } catch(e) {
       console.error(`[${this.slug}] No se pudo abrir raw log:`, e.message);
     }
   }
 
+  _closeSessionRawLog() {
+    if (this._rawLog) { try { this._rawLog.end(); } catch(e) {} }
+    this._rawLog     = null;
+    this._rawLogPath = null;
+  }
+
   _onLap(dorsal, name, teamName, lapMs, lapNumber, timestamp, category) {
+    // Raw log por sesión: la 1ª vuelta real confirma actividad → abre el .ndjson
+    // (independiente de `recording`, que solo gobierna la escritura en BD). Si el
+    // fichero se cerró por inactividad a mitad de sesión, la siguiente vuelta lo
+    // reabre.
+    if (this._rawLogEnabled && !this._rawLog) {
+      const { title1, title2 } = this.parser.getState();
+      this._openSessionRawLog([title1, title2].filter(Boolean).join(' · '));
+    }
+
     if (!this.recording) return;
     if (!this.sessionId) {
       // Primera vuelta real → crear sesión
@@ -413,6 +497,7 @@ class CircuitMonitor {
 
   _onNewSession() {
     console.log(`[${this.slug}] Nueva sesión detectada`);
+    this._closeSessionRawLog();   // finaliza el .ndjson de la sesión anterior
     if (this.sessionId) {
       this._saveSnapshot();
       db.endSession(this.sessionId);
@@ -600,6 +685,7 @@ class CircuitMonitor {
       subscribers:   this.subscribers.size,
       recording:     this.recording,
       rawLog:        this._rawLogEnabled,
+      rawLogFile:    this._rawLogPath ? path.basename(this._rawLogPath) : null,
       lastDataAgo:   dataAgoMs == null ? null : Math.round(dataAgoMs / 1000),
       stale:         this.connected && dataAgoMs != null && dataAgoMs > this._staleLimitMs(),
     };
