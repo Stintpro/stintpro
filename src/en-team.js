@@ -370,6 +370,7 @@ function _enChangePilot(){
   // Resetear stint
   EnSession.stintStart=Date.now();
   EnSession.stintFrozen=null;
+  EnSession._myPitInDetected=false;
   EnSession.data._stintStartTours=myK?.tours||0;
   EnSession.posIn=myK?.pos||null;
   EnSession.stintBestLap=null;

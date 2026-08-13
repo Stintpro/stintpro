@@ -7,6 +7,7 @@ const EnSession = {
   data:             { equipos:[], leaderLap:0 }, // datos en vivo del conector
   stintStart:       null,   // timestamp inicio stint de mi equipo
   stintFrozen:      null,   // ms congelados cuando acaba sesión
+  _myPitInDetected: false,  // el freeze de stintFrozen viene de un pit-in real (no de fin de sesión)
   currentPilot:     0,      // índice del piloto actual
   stintHistory:     [],     // historial de stints completados
   posIn:            null,   // posición al entrar a pista
