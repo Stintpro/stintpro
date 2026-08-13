@@ -982,6 +982,7 @@ window.showEnduranceDashboard=function(cfg){
   EnUi.pinned=null;
   EnSession.stintStart=null; // Stint empieza cuando arranca el countdown
   EnSession.stintFrozen=null;
+  EnSession._myPitInDetected=false;
   EnSession.myPitInAt=null;
 
   if(window.ApexClock&&!window.ApexClock.fmt){
@@ -1273,48 +1274,34 @@ window.showEnduranceDashboard=function(cfg){
         const myD=cfg.myDorsal;
         const myK=EnSession.data.equipos.find(e=>e.dorsal===myD);
         _enCheckReconcile(myK);
-        if(myK&&myK.pitState==='in'&&!EnSession.data._myWasIn){
-          EnSession.data._myWasIn=true;
-
-          // Guardar stint actual en historial
-          const pilotos=cfg?.pilotos||[];
-          const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
-          const stintLaps=_enStintLaps(myK);
-          const pilotName=pilotos[EnSession.currentPilot]?.name||`Piloto ${EnSession.currentPilot+1}`;
-          if(stintMs>5000){
-            EnSession.stintHistory.push({
-              pilot:pilotName,
-              pilotIdx:EnSession.currentPilot,
-              durationMs:stintMs,
-              laps:stintLaps,
-              lapTimes:[...EnSession.stintLapTimes],
-              avg:_enAvg5(myK.lapHistory),
-              best:EnSession.stintBestLap,
-              posIn:EnSession.posIn,
-              posOut:myK.pos,
-              endTime:new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
-            });
-          }
-          // Congelar stint
-          EnSession.stintFrozen=EnSession.stintStart?(Date.now()-EnSession.stintStart):0;
-          _enSaveRaceState();
-        }
-        if(myK&&!myK.pit)EnSession.data._myWasIn=false;
-
-        // Detectar pit OUT → resetear timer + popup piloto
-        if(myK&&myK.pitState==='out'&&!EnSession.data._myWasOut){
-          EnSession.data._myWasOut=true;
-          EnSession.stintStart=Date.now();
-          EnSession.stintFrozen=null;
-          EnSession.data._stintStartTours=myK.tours;
-          EnSession.posIn=myK.pos;
-          EnSession.stintBestLap=null;
-          EnSession.stintLapTimes=[];
-          EnSession.data._lastMyLap=null;
-          _enSaveRaceState();
-          setTimeout(()=>_enShowPilotSelect(true),500);
-        }
-        if(myK&&myK.pitState!=='out')EnSession.data._myWasOut=false;
+        // Máquina de estados del timer de mi stint (congelar/descongelar por pit in/out).
+        // Aislada en en-stint-machine.js para tener test — incluye el fallback anti-congelación
+        // cuando Apex salta 'in'→null sin muestrear 'out'. Ver [[project-stintpro-stint-timer]].
+        EnStintMachine.updateMyStintState(myK, EnSession, Date.now(), {
+          onPitIn:()=>{
+            // Guardar stint actual en historial (efecto que necesita cfg/pilotos/vueltas)
+            const pilotos=cfg?.pilotos||[];
+            const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
+            const stintLaps=_enStintLaps(myK);
+            const pilotName=pilotos[EnSession.currentPilot]?.name||`Piloto ${EnSession.currentPilot+1}`;
+            if(stintMs>5000){
+              EnSession.stintHistory.push({
+                pilot:pilotName,
+                pilotIdx:EnSession.currentPilot,
+                durationMs:stintMs,
+                laps:stintLaps,
+                lapTimes:[...EnSession.stintLapTimes],
+                avg:_enAvg5(myK.lapHistory),
+                best:EnSession.stintBestLap,
+                posIn:EnSession.posIn,
+                posOut:myK.pos,
+                endTime:new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
+              });
+            }
+          },
+          onSave:_enSaveRaceState,
+          onPitOut:()=>setTimeout(()=>_enShowPilotSelect(true),500),
+        });
 
         // Trackear mejor vuelta del stint y posición
         if(myK&&myK.lastLap&&!myK.pit){
@@ -1370,6 +1357,7 @@ window._enGoBack=function(){
   EnSession.lastTrackAvg=null;
   EnSession.stintStart=null;
   EnSession.stintFrozen=null;
+  EnSession._myPitInDetected=false;
   EnUi.tab='grid';
   EnSession.currentPilot=0;
   EnSession.stintHistory=[];

@@ -21,6 +21,7 @@ function _enSaveRaceState() {
         stintHistory: EnSession.stintHistory,
         stintStart: EnSession.stintStart,
         stintFrozen: EnSession.stintFrozen,
+        myPitInDetected: EnSession._myPitInDetected,
         posIn: EnSession.posIn,
         stintBestLap: EnSession.stintBestLap,
         stintLapTimes: EnSession.stintLapTimes,
@@ -83,6 +84,7 @@ function _enApplyRaceState(snap) {
   EnSession.stintHistory = snap.en.stintHistory || [];
   EnSession.stintStart = snap.en.stintStart || null;
   EnSession.stintFrozen = snap.en.stintFrozen || null;
+  EnSession._myPitInDetected = snap.en.myPitInDetected || false;
   EnSession.posIn = snap.en.posIn || null;
   EnSession.stintBestLap = snap.en.stintBestLap || null;
   EnSession.stintLapTimes = snap.en.stintLapTimes || [];
