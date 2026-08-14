@@ -188,6 +188,13 @@ function saveSnapshot(sessionId, obj) {
   ).run(sessionId, JSON.stringify(obj), Date.now());
 }
 
+// Último snapshot guardado de una sesión (clasificación oficial de Apex).
+function getSnapshot(sessionId) {
+  const r = db.prepare('SELECT snapshot_json FROM snapshots WHERE session_id=?').get(sessionId);
+  if (!r || !r.snapshot_json) return null;
+  try { return JSON.parse(r.snapshot_json); } catch (e) { return null; }
+}
+
 // ── Queries / stats ───────────────────────────────────────────────────────
 
 function getAllSessions() {
@@ -277,7 +284,7 @@ module.exports = {
   createSession, endSession, updateSessionTitle, cleanupEmptySessions, deleteSession,
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
-  saveSnapshot,
+  saveSnapshot, getSnapshot,
   getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit,
   deletePilotFromCircuit, mergePilotsInCircuit, getTotalLapsByCircuit, searchPilotsGlobal,
 };

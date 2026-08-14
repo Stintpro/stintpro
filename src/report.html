@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StintPro · Informe de carrera</title>
+<style>
+  :root{
+    --paper:#ffffff; --page:#eef0f2; --hair:#e4e7eb; --hair2:#cfd4da;
+    --ink:#0f1216; --mut:#586170; --dim:#9aa2ad;
+    --green:#16a34a; --greenBright:#22c55e; --purple:#9333ea; --amber:#b45309; --blue:#2563eb;
+    --band:#0e1512; --bandInk:#f4f6f5;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);
+    display:flex;flex-direction:column;align-items:center;gap:24px;padding:28px 14px 80px;
+    -webkit-font-smoothing:antialiased;}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important;animation-iteration-count:1 !important;} }
+
+  /* ── barra de control ── */
+  .panel-box{width:100%;max-width:1080px;background:var(--paper);border:1px solid var(--hair);
+    border-radius:8px;padding:22px 24px;box-shadow:0 1px 2px rgba(15,18,22,.04),0 8px 24px rgba(15,18,22,.05)}
+  .brandline{display:flex;align-items:baseline;gap:10px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--hair)}
+  .brandline .nm{font-family:var(--mono);font-weight:700;font-size:15px;letter-spacing:1px}
+  .brandline .nm span{color:var(--green)}
+  .brandline .sub{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--dim);margin-left:auto}
+  .controls{display:grid;grid-template-columns:2fr 1fr auto;gap:12px;align-items:end}
+  @media(max-width:640px){.controls{grid-template-columns:1fr}}
+  .field label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--mut);margin-bottom:7px;text-transform:uppercase}
+  .field select,.field input{width:100%;background:var(--paper);border:1px solid var(--hair2);color:var(--ink);
+    border-radius:6px;padding:12px 13px;font-family:var(--mono);font-size:14px}
+  .field select:focus,.field input:focus{outline:2px solid var(--green);outline-offset:1px;border-color:transparent}
+  button.gen{background:var(--green);color:#ffffff;border:none;border-radius:6px;padding:13px 22px;
+    font-weight:700;font-size:14px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+  button.gen:disabled{opacity:.45;cursor:not-allowed}
+  button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .status{margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--mut);min-height:16px}
+  .status.err{color:#dc2626}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5}
+
+  .actions{width:100%;max-width:1080px;display:none;justify-content:flex-end;gap:12px}
+  .actions.show{display:flex;animation:riseIn .5s cubic-bezier(.16,1,.3,1) .08s both}
+  button.dl{background:var(--paper);color:var(--ink);border:1px solid var(--hair2);border-radius:6px;
+    padding:12px 20px;font-weight:600;font-size:14px;cursor:pointer;font-family:var(--sans)}
+  button.dl:hover{border-color:var(--green);color:var(--green)}
+
+  @keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+  /* ── tarjeta 1080×1350 — boletín de resultados (tema claro) ── */
+  .stage-outer{width:100%;max-width:1080px;overflow:hidden;display:none}
+  .stage-outer.show{display:block;animation:riseIn .55s cubic-bezier(.16,1,.3,1) both}
+  .stage{width:1080px;height:1350px;transform-origin:top left;background:var(--paper);border:1px solid var(--hair);
+    position:relative;display:flex;flex-direction:column;padding:0 64px 50px;overflow:hidden;}
+
+  /* cabecera: cinta de meta + membrete oscuro (firma de marca) */
+  .checker{height:15px;margin:0 -64px;flex:none;
+    background:repeating-conic-gradient(var(--greenBright) 0% 25%, #0b0d10 0% 50%) 0 0 / 30px 30px;}
+  .brandband{margin:0 -64px;padding:30px 64px 26px;display:flex;justify-content:space-between;align-items:center;
+    background:var(--band);border-bottom:2px solid var(--greenBright)}
+  .bb-word{font-family:var(--mono);font-weight:800;font-size:38px;letter-spacing:-1px;line-height:1;color:var(--bandInk)}
+  .bb-word span{color:var(--greenBright)}
+  .bb-word .g{font-weight:700;color:var(--bandInk);opacity:.92}
+  .bb-right{text-align:right}
+  .bb-right .tag{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--greenBright);text-transform:uppercase}
+  .bb-right .ref{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:#8b929c;margin-top:6px}
+
+  .meta{margin-top:40px;padding-top:22px;border-top:1px solid var(--hair)}
+  .eyebrow{font-family:var(--sans);font-weight:700;font-size:11.5px;letter-spacing:2px;color:var(--mut);text-transform:uppercase}
+  .event{font-family:var(--mono);font-weight:700;font-size:36px;letter-spacing:-.5px;line-height:1.05;color:var(--ink);margin-top:12px}
+
+  .platerow{margin-top:30px;padding:30px 0;border-top:2px solid var(--hair2);border-bottom:2px solid var(--hair2);
+    display:flex;align-items:stretch;gap:32px}
+  .plate{flex:none;border:3px solid var(--ink);border-radius:3px;padding:12px 30px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .plate .l{font-family:var(--mono);font-size:10.5px;letter-spacing:3px;color:var(--dim)}
+  .plate span{font-family:var(--mono);font-weight:800;font-size:92px;line-height:1;letter-spacing:-2px;
+    color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px}
+  .plate-side{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px}
+  .pos-lab{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--mut)}
+  .pos-val{display:flex;align-items:baseline;gap:8px}
+  .pos-val .p{font-family:var(--mono);font-weight:800;font-size:104px;line-height:.95;letter-spacing:-3px;color:var(--green);
+    font-variant-numeric:tabular-nums}
+  .pos-val .of{font-family:var(--mono);font-size:28px;color:var(--dim)}
+
+  .statline{display:flex}
+  .stc{flex:1;padding:20px 8px 0;border-right:1px solid var(--hair)}
+  .stc:last-child{border-right:none}
+  .stc .l{font-family:var(--sans);font-weight:700;font-size:10.5px;letter-spacing:2px;color:var(--mut);text-transform:uppercase}
+  .stc .v{font-family:var(--mono);font-weight:700;font-size:29px;margin-top:9px;letter-spacing:-1px;
+    font-variant-numeric:tabular-nums;color:var(--ink)}
+  .stc.purple .v{color:var(--purple)}
+
+  .chart{margin-top:32px}
+  .chart .head{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:9px;border-bottom:1px solid var(--hair)}
+  .chart .title{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:2px;color:var(--mut);text-transform:uppercase}
+  .chart .note{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  svg.plot{display:block;width:100%;margin-top:12px}
+  .axlab{font-family:var(--mono);font-size:12px;fill:var(--dim)}
+  .gl2{stroke:var(--hair);stroke-width:1;stroke-dasharray:2 5;opacity:1}
+
+  .foot{margin-top:auto;padding-top:24px;border-top:1px solid var(--hair)}
+  .foot .compliance{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.3px}
+  .foot .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .foot .l{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:1px}
+  .foot .l b{color:var(--green)}
+  .foot .r{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:2px}
+</style>
+</head>
+<body>
+
+<div class="panel-box">
+  <div class="brandline">
+    <div class="nm">Stint<span>Pro</span></div>
+    <div class="sub">GROUP · INFORME DE CARRERA</div>
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label for="sessionSel">Sesión</label>
+      <select id="sessionSel"><option value="">Cargando sesiones…</option></select>
+    </div>
+    <div class="field">
+      <label for="kartInput">Tu nº de dorsal</label>
+      <input id="kartInput" list="kartList" inputmode="numeric" placeholder="ej. 6" autocomplete="off">
+      <datalist id="kartList"></datalist>
+    </div>
+    <button class="gen" id="gen" disabled>Generar</button>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="hint">Elige la sesión en la que corriste y escribe tu número de dorsal. En enduro por equipos, es el dorsal de tu equipo. Por protección de datos, la identificación es siempre por dorsal — no se usan nombres.</div>
+</div>
+
+<div class="actions" id="actions">
+  <button class="dl" id="dl">⬇ Descargar PNG (1080×1350)</button>
+</div>
+
+<div class="stage-outer" id="stageOuter">
+  <div class="stage" id="stage">
+    <div class="checker"></div>
+    <div class="brandband">
+      <div class="bb-word">Stint<span>Pro</span> <span class="g">Group</span></div>
+      <div class="bb-right">
+        <div class="tag">Cronometraje oficial</div>
+        <div class="ref" id="cRef"></div>
+      </div>
+    </div>
+
+    <div class="meta">
+      <div class="eyebrow">Resultados · identificación por dorsal</div>
+      <div class="event" id="cEvent"></div>
+    </div>
+
+    <div class="platerow">
+      <div class="plate"><div class="l">DORSAL</div><span id="cKart"></span></div>
+      <div class="plate-side">
+        <div class="pos-lab">POSICIÓN FINAL</div>
+        <div class="pos-val"><span class="p" id="cPos"></span><span class="of" id="cField"></span></div>
+      </div>
+    </div>
+
+    <div class="statline">
+      <div class="stc purple"><div class="l">Mejor vuelta</div><div class="v" id="cBest"></div></div>
+      <div class="stc"><div class="l">Vueltas</div><div class="v" id="cLaps"></div></div>
+      <div class="stc"><div class="l">Ritmo medio</div><div class="v" id="cAvg"></div></div>
+      <div class="stc"><div class="l">Paradas</div><div class="v" id="cStops"></div></div>
+    </div>
+
+    <div class="chart">
+      <div class="head"><div class="title">Posición durante la carrera</div><div class="note" id="cPosNote"></div></div>
+      <svg class="plot" id="posSvg" viewBox="0 0 940 280" preserveAspectRatio="none" style="height:280px"></svg>
+    </div>
+    <div class="chart">
+      <div class="head"><div class="title">Tiempos por vuelta</div><div class="note" id="cLapNote"></div></div>
+      <svg class="plot" id="lapSvg" viewBox="0 0 940 240" preserveAspectRatio="none" style="height:240px"></svg>
+    </div>
+
+    <div class="foot">
+      <div class="compliance">Datos generados a partir del cronometraje oficial · identificación exclusiva por dorsal, sin nombres de piloto</div>
+      <div class="row">
+        <div class="l">Generado con <b>StintPro</b> · timing en vivo &amp; estrategia</div>
+        <div class="r">STINTPRO.GROUP</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const API = '/api/report';
+const MONO = 'ui-monospace,Menlo,monospace';
+const svgNS = 'http://www.w3.org/2000/svg';
+// paleta de las gráficas (tema claro)
+const C = {grid:'#e4e7eb', axis:'#9aa2ad', green:'#16a34a', greenFill:'#22c55e', purple:'#9333ea', blue:'#2563eb', paper:'#ffffff', dim:'#9aa2ad'};
+function el(tag, attrs){ const e=document.createElementNS(svgNS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+function fmt(s){ return s==null?'—':s.toFixed(3); }
+function monthName(ms){ if(!ms) return ''; const d=new Date(ms); const m=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']; return String(d.getDate()).padStart(2,'0')+' '+m[d.getMonth()]+' '+d.getFullYear(); }
+function dateCode(ms){ if(!ms) return '—·—'; const d=new Date(ms); return String(d.getDate()).padStart(2,'0')+'·'+String(d.getMonth()+1).padStart(2,'0'); }
+// nombre de carrera: primer segmento del título de Apex (descarta "· ENDURO", "· CARRERA", etc.)
+function raceName(title){ if(!title) return ''; return String(title).split(/\s*[·|]\s*/)[0].trim(); }
+
+/* ── carga de sesiones ── */
+async function loadSessions(){
+  try{
+    const r = await fetch(API+'?list=1'); const j = await r.json();
+    const sel = $('sessionSel'); sel.innerHTML = '<option value="">— Elige una sesión —</option>';
+    (j.sessions||[]).forEach(s=>{
+      const o=document.createElement('option'); o.value=s.id;
+      const t=[s.circuit, s.title].filter(Boolean).join(' · ');
+      o.textContent = `${t || 'Sesión '+s.id} — ${monthName(s.startedAt)} (${s.lapCount} vueltas)`;
+      sel.appendChild(o);
+    });
+    if(!(j.sessions||[]).length) sel.innerHTML='<option value="">No hay sesiones grabadas</option>';
+  }catch(e){ $('status').textContent='No se pudieron cargar las sesiones.'; $('status').className='status err'; }
+}
+
+/* ── al cambiar de sesión, ofrecer los dorsales como sugerencias ── */
+$('sessionSel').addEventListener('change', async ()=>{
+  const id=$('sessionSel').value; $('gen').disabled=!id||!$('kartInput').value.trim();
+  $('kartList').innerHTML='';
+  if(!id) return;
+  try{
+    const r=await fetch(`${API}?session=${id}`); const j=await r.json();
+    (j.karts||[]).forEach(k=>{ const o=document.createElement('option'); o.value=k.dorsal;
+      o.label=`${k.laps} vueltas`; $('kartList').appendChild(o); });
+  }catch(e){/* opcional */}
+});
+$('kartInput').addEventListener('input', ()=>{ $('gen').disabled=!$('sessionSel').value||!$('kartInput').value.trim(); });
+
+/* ── generar informe ── */
+$('gen').addEventListener('click', async ()=>{
+  const id=$('sessionSel').value, kart=$('kartInput').value.trim();
+  if(!id||!kart) return;
+  $('gen').disabled=true; $('status').className='status'; $('status').textContent='Generando informe…';
+  try{
+    const r=await fetch(`${API}?session=${id}&kart=${encodeURIComponent(kart)}`);
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'Error');
+    render(j);
+    $('status').textContent='Listo. Descarga tu imagen abajo.';
+    $('stageOuter').classList.add('show'); $('actions').classList.add('show');
+    fit();
+    $('stageOuter').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){ $('status').className='status err'; $('status').textContent=e.message; }
+  finally{ $('gen').disabled=false; }
+});
+
+/* ── pintar la tarjeta ── */
+function render(d){
+  const st=d.stats, k=d.kart, se=d.session;
+  $('cEvent').textContent=[(se.circuit||'').toUpperCase(), raceName(se.title).toUpperCase()].filter(Boolean).join(' · ') || 'CARRERA';
+  $('cRef').textContent='Ref. '+dateCode(se.startedAt);
+  $('cKart').textContent=k.dorsal;
+  $('cPos').textContent=st.finalPos!=null?('P'+st.finalPos):'—';
+  $('cField').textContent=st.fieldSize?('/ '+st.fieldSize):'';
+  $('cBest').textContent=fmt(st.bestLap);
+  $('cLaps').textContent=st.totalLaps??'—';
+  $('cAvg').textContent=st.avg!=null?st.avg.toFixed(2):'—';
+  $('cStops').textContent=st.stops??'0';
+  $('cPosNote').textContent=[st.worstPos&&('mínimo P'+st.worstPos), st.finalPos&&('meta P'+st.finalPos)].filter(Boolean).join(' · ');
+  const pits=d.lapSeries.filter(l=>l.pit).length;
+  $('cLapNote').textContent=`vuelta rápida ${fmt(st.bestLap)}${pits?` · ${pits} paradas`:''}`;
+  drawPos(d.posSeries, st);
+  drawLap(d.lapSeries, st);
+}
+
+function ticks(min,max,step){ const out=[]; for(let v=Math.ceil(min/step)*step; v<=max; v+=step) out.push(v); return out; }
+
+function drawPos(pos, st){
+  const svg=$('posSvg'); svg.innerHTML='';
+  if(!pos.length) return;
+  const W=940,H=280,L=48,R=16,T=14,B=26, pw=W-L-R, ph=H-T-B;
+  const tMax=Math.max(...pos.map(p=>p.min))||1;
+  const pMin=1, pMax=Math.max(2,(st.worstPos||Math.max(...pos.map(p=>p.pos)))+1);
+  const X=m=>L+(m/tMax)*pw, Y=p=>T+((p-pMin)/(pMax-pMin))*ph;
+  const step = pMax<=12?2:5;
+  ticks(pMin,pMax-0.5,step).concat([1]).filter((v,i,a)=>a.indexOf(v)===i).forEach(p=>{
+    svg.appendChild(el('line',{x1:L,y1:Y(p),x2:W-R,y2:Y(p),class:'gl2'}));
+    const tx=el('text',{x:L-10,y:Y(p)+4,class:'axlab','text-anchor':'end'}); tx.textContent='P'+p; svg.appendChild(tx);
+  });
+  let d='';
+  pos.forEach((p,i)=>{ if(i===0) d+='M'+X(p.min)+' '+Y(p.pos);
+    else d+=' L'+X(p.min)+' '+Y(pos[i-1].pos)+' L'+X(p.min)+' '+Y(p.pos); });
+  const last=pos[pos.length-1]; d+=' L'+X(tMax)+' '+Y(last.pos);
+  const grad=el('linearGradient',{id:'pg',x1:0,y1:0,x2:0,y2:1});
+  grad.appendChild(el('stop',{offset:'0%','stop-color':C.greenFill,'stop-opacity':'.16'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color':C.greenFill,'stop-opacity':'0'}));
+  svg.appendChild(grad);
+  svg.appendChild(el('path',{d:d+' L'+X(tMax)+' '+(T+ph)+' L'+L+' '+(T+ph)+' Z',fill:'url(#pg)'}));
+  svg.appendChild(el('path',{d,fill:'none',stroke:C.green,'stroke-width':'2.5','stroke-linejoin':'round'}));
+  const fx=X(tMax),fy=Y(last.pos);
+  svg.appendChild(el('circle',{cx:fx,cy:fy,r:6,fill:C.green,stroke:C.paper,'stroke-width':'2.5'}));
+  svg.appendChild(el('rect',{x:fx-56,y:fy-32,width:48,height:22,rx:2,fill:C.green}));
+  const fl=el('text',{x:fx-32,y:fy-16,'text-anchor':'middle','font-family':MONO,'font-size':'14','font-weight':'700',fill:'#ffffff'}); fl.textContent='P'+last.pos; svg.appendChild(fl);
+  svg.appendChild(el('circle',{cx:X(pos[0].min),cy:Y(pos[0].pos),r:3.5,fill:C.dim}));
+}
+
+function drawLap(laps, st){
+  const svg=$('lapSvg'); svg.innerHTML='';
+  const racing=laps.filter(l=>!l.pit), pits=laps.filter(l=>l.pit);
+  if(!racing.length) return;
+  const W=940,H=240,L=52,R=16,T=14,B=24, pw=W-L-R, ph=H-T-B;
+  const tMax=Math.max(...laps.map(l=>l.min))||1;
+  const best=st.bestLap||Math.min(...racing.map(l=>l.s));
+  const yMin=Math.floor((best-0.3)*10)/10;
+  const rs=racing.map(l=>l.s).sort((a,b)=>a-b); const med=rs[Math.floor(rs.length/2)];
+  const yMax=Math.max(best+1.2, med*1.05);
+  const X=m=>L+(m/tMax)*pw, Y=s=>{const c=Math.max(yMin,Math.min(yMax,s));return T+((c-yMin)/(yMax-yMin))*ph;};
+  ticks(yMin,yMax,(yMax-yMin)>3?1:0.5).forEach(v=>{
+    svg.appendChild(el('line',{x1:L,y1:Y(v),x2:W-R,y2:Y(v),class:'gl2'}));
+    const tx=el('text',{x:L-10,y:Y(v)+4,class:'axlab','text-anchor':'end'}); tx.textContent=v.toFixed((yMax-yMin)>3?0:1)+'s'; svg.appendChild(tx);
+  });
+  if(st.avg){
+    svg.appendChild(el('line',{x1:L,y1:Y(st.avg),x2:W-R,y2:Y(st.avg),stroke:C.blue,'stroke-width':'1.5','stroke-dasharray':'5 5',opacity:'.8'}));
+    const at=el('text',{x:W-R,y:Y(st.avg)-6,class:'axlab','text-anchor':'end',fill:C.blue}); at.textContent='media '+st.avg.toFixed(2); svg.appendChild(at);
+  }
+  pits.forEach(p=>{
+    svg.appendChild(el('line',{x1:X(p.min),y1:T,x2:X(p.min),y2:T+ph,stroke:C.purple,'stroke-width':'1.5','stroke-dasharray':'2 4',opacity:'.5'}));
+    const pt=el('text',{x:X(p.min),y:T+10,class:'axlab','text-anchor':'middle',fill:C.purple,'font-size':'10'}); pt.textContent='PIT'; svg.appendChild(pt);
+  });
+  let d='';
+  racing.forEach((l,i)=>{ d+=(i?' L':'M')+X(l.min)+' '+Y(l.s); });
+  const grad=el('linearGradient',{id:'lg',x1:0,y1:0,x2:0,y2:1});
+  grad.appendChild(el('stop',{offset:'0%','stop-color':C.greenFill,'stop-opacity':'.13'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color':C.greenFill,'stop-opacity':'0'}));
+  svg.appendChild(grad);
+  svg.appendChild(el('path',{d:d+' L'+X(racing[racing.length-1].min)+' '+(T+ph)+' L'+X(racing[0].min)+' '+(T+ph)+' Z',fill:'url(#lg)'}));
+  svg.appendChild(el('path',{d,fill:'none',stroke:C.green,'stroke-width':'2','stroke-linejoin':'round','stroke-linecap':'round'}));
+  const bl=racing.reduce((a,l)=>l.s<a.s?l:a,racing[0]);
+  svg.appendChild(el('circle',{cx:X(bl.min),cy:Y(bl.s),r:5.5,fill:C.purple,stroke:C.paper,'stroke-width':'2'}));
+  const bt=el('text',{x:X(bl.min),y:Y(bl.s)+22,'text-anchor':'middle','font-family':MONO,'font-size':'14','font-weight':'700',fill:C.purple}); bt.textContent=fmt(bl.s); svg.appendChild(bt);
+}
+
+/* ── ajuste de escala en pantalla ── */
+function fit(){
+  const outer=$('stageOuter'); if(!outer.classList.contains('show')) return;
+  const s=Math.min(1, outer.clientWidth/1080);
+  $('stage').style.transform='scale('+s+')'; outer.style.height=(1350*s)+'px';
+}
+window.addEventListener('resize',fit);
+
+/* ── descargar PNG a 1080×1350 ── */
+$('dl').addEventListener('click', async ()=>{
+  const stage=$('stage'), outer=$('stageOuter');
+  const prev=stage.style.transform, prevH=outer.style.height;
+  stage.style.transform='none'; outer.style.height='1350px';
+  try{
+    const url=await htmlToImage.toPng(stage,{width:1080,height:1350,pixelRatio:2,backgroundColor:'#ffffff',cacheBust:true});
+    const a=document.createElement('a');
+    const k=$('kartInput').value.trim();
+    a.download=`stintpro-informe-dorsal${k}.png`; a.href=url; a.click();
+  }catch(e){ $('status').className='status err'; $('status').textContent='No se pudo generar el PNG: '+e.message; }
+  finally{ stage.style.transform=prev; outer.style.height=prevH; fit(); }
+});
+
+loadSessions();
+</script>
+</body>
+</html>
