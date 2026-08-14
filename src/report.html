@@ -26,8 +26,9 @@
   .brandline .nm{font-family:var(--mono);font-weight:700;font-size:15px;letter-spacing:1px}
   .brandline .nm span{color:var(--green)}
   .brandline .sub{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--dim);margin-left:auto}
-  .controls{display:grid;grid-template-columns:2fr 1fr auto;gap:12px;align-items:end}
-  @media(max-width:640px){.controls{grid-template-columns:1fr}}
+  .controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}
+  .controls .wide{grid-column:1/-1}
+  @media(max-width:640px){.controls{grid-template-columns:1fr}.controls .wide{grid-column:auto}}
   .field label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--mut);margin-bottom:7px;text-transform:uppercase}
   .field select,.field input{width:100%;background:var(--paper);border:1px solid var(--hair2);color:var(--ink);
     border-radius:6px;padding:12px 13px;font-family:var(--mono);font-size:14px}
@@ -71,9 +72,14 @@
   .event{font-family:var(--mono);font-weight:700;font-size:36px;letter-spacing:-.5px;line-height:1.05;color:var(--ink);margin-top:12px}
 
   .platerow{margin-top:30px;padding:30px 0;border-top:2px solid var(--hair2);border-bottom:2px solid var(--hair2);
-    display:flex;align-items:stretch;gap:32px}
-  .plate{flex:none;border:3px solid var(--ink);border-radius:3px;padding:12px 30px;
+    display:flex;align-items:center;gap:32px}
+  .plate-col{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+  .plate{border:3px solid var(--ink);border-radius:3px;padding:12px 30px;
     display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .pilot{text-align:center;max-width:220px}
+  .pilot .l{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--dim)}
+  .pilot .v{font-family:var(--mono);font-weight:700;font-size:22px;letter-spacing:-.3px;color:var(--ink);margin-top:5px;
+    line-height:1.1;overflow-wrap:anywhere}
   .plate .l{font-family:var(--mono);font-size:10.5px;letter-spacing:3px;color:var(--dim)}
   .plate span{font-family:var(--mono);font-weight:800;font-size:92px;line-height:1;letter-spacing:-2px;
     color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px}
@@ -116,7 +122,7 @@
     <div class="sub">GROUP · INFORME DE CARRERA</div>
   </div>
   <div class="controls">
-    <div class="field">
+    <div class="field wide">
       <label for="sessionSel">Sesión</label>
       <select id="sessionSel"><option value="">Cargando sesiones…</option></select>
     </div>
@@ -125,10 +131,14 @@
       <input id="kartInput" list="kartList" inputmode="numeric" placeholder="ej. 6" autocomplete="off">
       <datalist id="kartList"></datalist>
     </div>
+    <div class="field">
+      <label for="nameInput">Tu nombre (opcional)</label>
+      <input id="nameInput" maxlength="24" placeholder="opcional" autocomplete="off">
+    </div>
     <button class="gen" id="gen" disabled>Generar</button>
   </div>
   <div class="status" id="status"></div>
-  <div class="hint">Elige la sesión en la que corriste y escribe tu número de dorsal. En enduro por equipos, es el dorsal de tu equipo. Por protección de datos, la identificación es siempre por dorsal — no se usan nombres.</div>
+  <div class="hint">Elige la sesión en la que corriste y escribe tu número de dorsal. En enduro por equipos, es el dorsal de tu equipo. El nombre es <b>opcional</b>: si lo escribes aparecerá en la imagen que compartas (contenido público); déjalo vacío para identificarte solo por dorsal.</div>
 </div>
 
 <div class="actions" id="actions">
@@ -152,7 +162,10 @@
     </div>
 
     <div class="platerow">
-      <div class="plate"><div class="l">DORSAL</div><span id="cKart"></span></div>
+      <div class="plate-col">
+        <div class="plate"><div class="l">DORSAL</div><span id="cKart"></span></div>
+        <div class="pilot" id="cPilotWrap" style="display:none"><div class="l">PILOTO</div><div class="v" id="cPilot"></div></div>
+      </div>
       <div class="plate-side">
         <div class="pos-lab">POSICIÓN FINAL</div>
         <div class="pos-val"><span class="p" id="cPos"></span><span class="of" id="cField"></span></div>
@@ -252,6 +265,11 @@ function render(d){
   $('cEvent').textContent=[(se.circuit||'').toUpperCase(), raceName(se.title).toUpperCase()].filter(Boolean).join(' · ') || 'CARRERA';
   $('cRef').textContent='Ref. '+dateCode(se.startedAt);
   $('cKart').textContent=k.dorsal;
+  // nombre: opcional, lo escribe el piloto en el cliente (nunca sale de la BD).
+  // Vacío → no se pinta y la tarjeta queda idéntica (degradación limpia).
+  const pilot=($('nameInput').value||'').trim();
+  if(pilot){ $('cPilot').textContent=pilot; $('cPilotWrap').style.display=''; }
+  else { $('cPilot').textContent=''; $('cPilotWrap').style.display='none'; }
   $('cPos').textContent=st.finalPos!=null?('P'+st.finalPos):'—';
   $('cField').textContent=st.fieldSize?('/ '+st.fieldSize):'';
   $('cBest').textContent=fmt(st.bestLap);
