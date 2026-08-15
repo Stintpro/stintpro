@@ -460,3 +460,44 @@ describe('tokens no catalogados en la columna de estado', () => {
     expect(kart7(p).state).toBe('si');
   });
 });
+
+// ── Dorsal: no contaminar con el rowId (transponder) sin colMap ────────────────
+describe('dorsal: fallback rowId solo con columna "no" mapeada', () => {
+  // Reproduce la corrupción de la COPA PISTON (sesión 1075): las celdas de vuelta
+  // llegan sin colMap (grid perdido en una reconexión). El data-id de fila de Apex
+  // es el nº de TRANSPONDER (r8676), NO el dorsal; el dorsal real (6) solo viaja en
+  // la columna 'no' del grid. Sin esa columna mapeada, el fallback NO debe usar el
+  // rowId, o grabaría un dorsal falso de 4 cifras (8676).
+  test('sin colMap con "no", no emite vueltas con el rowId como dorsal', () => {
+    const onLap = jest.fn();
+    // onChange presente = flujo real: el monitor llama getState() tras cada parse,
+    // que es donde el fallback muta k.dorsal ← rowId.
+    const p = createParser({ onLap, onChange: () => {} });
+    // NO se procesa el grid → colMap vacío (sin 'no')
+    p.parse('r8676|*|36181|0');
+    p.parse('r8676|*|36087|0');
+    p.parse('r8676|*|36200|0');
+    const dorsalesEmitidos = onLap.mock.calls.map(c => c[0]);
+    expect(dorsalesEmitidos).not.toContain('8676');
+  });
+
+  // Regresión: con la capa 1, un grid que llega DESPUÉS de las primeras vueltas
+  // re-etiqueta el kart existente (rowId→dorsal real) SIN disparar "nueva sesión".
+  // Esto es lo que hace innecesaria una "capa 2": la carrera no se parte en dos
+  // (como pasó con la COPA PISTON 1075/1084) y el kart conserva sus vueltas.
+  test('el grid re-etiqueta el kart existente sin partir la sesión', () => {
+    const onNewSession = jest.fn();
+    const p = createParser({ onLap: () => {}, onChange: () => {}, onNewSession });
+    p.parse('r8676|*|36181|0');   // vueltas antes del grid → kart sin dorsal (capa 1)
+    p.parse('r8676|*|36087|0');
+    p.setGrid({
+      colMap:   { no: 'c3', dr: 'c4' },
+      colByNum: { c3: 'no', c4: 'dr' },
+      karts: [{ rowId: 'r8676', dorsal: '6', name: 'JAVIER ICOY' }],
+    });
+    expect(onNewSession).not.toHaveBeenCalled();               // no se partió la sesión
+    const eq = p.getState().equipos.find(e => e.dorsal === '6');
+    expect(eq).toBeDefined();                                   // re-etiquetado al dorsal real
+    expect(eq.lapHistory.length).toBe(2);                      // conservó las vueltas
+  });
+});

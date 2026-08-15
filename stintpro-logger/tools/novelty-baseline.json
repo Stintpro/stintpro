@@ -1,11 +1,11 @@
 {
   "_comment": "Catálogo de lo que YA conocemos del protocolo Apex. El detector de novedades (novelty-detector.js) marca todo lo que NO esté aquí. Cuando una novedad resulte conocida/inofensiva, añádela a la lista que corresponda para silenciarla en adelante.",
-  "_updated": "2026-07-20",
+  "_updated": "2026-08-13",
 
   "gridDtypes": [
     "grp", "sta", "rk", "no", "dr", "s1", "s2", "s3",
     "llp", "blp", "gap", "int", "tlp", "lc", "pit", "otr", "",
-    "rku", "nat", "class"
+    "rku", "nat", "class", "eq"
   ],
 
   "cellTokens": [
@@ -57,7 +57,7 @@
     "Tiempo en PIT", "En piste", "Tijd op circuit",
     "Penalización", "Péna.", "Pena", "Categoría", "Kart", "Pilot",
     "Vueltas", "Tours", "Snelste ronde", "Snelste ronde 2", "Snelste ronde 3",
-    "Clasif.", "Mejor vuelta", "Pits", "Ultimo T.", "Distacco", "Interv."
+    "Clasif.", "Mejor vuelta", "Pits", "Ultimo T.", "Distacco", "Interv.", "PROCEDENCIA"
   ],
 
   "scannerNoisePrefixes": [

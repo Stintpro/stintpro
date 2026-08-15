@@ -386,6 +386,16 @@ app.get('/api/pits/:sessionId', readAuth, (req, res) => {
   res.json(db.getPitEventsBySession(id));
 });
 
+// Snapshot (clasificación oficial de Apex) de una sesión — usado por el informe
+// de carrera para la posición final autoritativa. Solo lectura, aditivo.
+app.get('/api/snapshot/:sessionId', readAuth, (req, res) => {
+  const id = parseInt(req.params.sessionId);
+  if (isNaN(id) || String(id) !== req.params.sessionId) return res.status(400).json({ error: 'id inválido' });
+  const snap = db.getSnapshot(id);
+  if (!snap) return res.status(404).json({ error: 'sin snapshot' });
+  res.json(snap);
+});
+
 // Mejores vueltas históricas por circuito
 app.get('/api/best/:slug', readAuth, (req, res) => {
   res.json(db.getBestLapsByCircuit(req.params.slug));

@@ -634,7 +634,12 @@
       const equipos = Object.values(_karts)
         .filter(k => k.dorsal || k._rowId)
         .map(k => {
-          if (!k.dorsal) k.dorsal = k._rowId.replace('r', '');
+          // El data-id de fila de Apex es un ID interno (nº de transponder en
+          // competición), NO el dorsal. Solo es fiable como dorsal si el grid mapeó
+          // la columna 'no' (donde vive el dorsal real). Sin 'no' mapeado (grid
+          // perdido en una reconexión) NO se inventa dorsal desde el rowId, o se
+          // grabarían transponders de 4 cifras como dorsal (bug COPA PISTON, sesión 1075).
+          if (!k.dorsal && _colMap.no) k.dorsal = k._rowId.replace('r', '');
           return {
             dorsal: k.dorsal, name: k.name || `#${k.dorsal}`, teamName: k.teamName || null,
             category: k.category || null,
