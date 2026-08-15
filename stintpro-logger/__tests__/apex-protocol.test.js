@@ -480,4 +480,24 @@ describe('dorsal: fallback rowId solo con columna "no" mapeada', () => {
     const dorsalesEmitidos = onLap.mock.calls.map(c => c[0]);
     expect(dorsalesEmitidos).not.toContain('8676');
   });
+
+  // Regresión: con la capa 1, un grid que llega DESPUÉS de las primeras vueltas
+  // re-etiqueta el kart existente (rowId→dorsal real) SIN disparar "nueva sesión".
+  // Esto es lo que hace innecesaria una "capa 2": la carrera no se parte en dos
+  // (como pasó con la COPA PISTON 1075/1084) y el kart conserva sus vueltas.
+  test('el grid re-etiqueta el kart existente sin partir la sesión', () => {
+    const onNewSession = jest.fn();
+    const p = createParser({ onLap: () => {}, onChange: () => {}, onNewSession });
+    p.parse('r8676|*|36181|0');   // vueltas antes del grid → kart sin dorsal (capa 1)
+    p.parse('r8676|*|36087|0');
+    p.setGrid({
+      colMap:   { no: 'c3', dr: 'c4' },
+      colByNum: { c3: 'no', c4: 'dr' },
+      karts: [{ rowId: 'r8676', dorsal: '6', name: 'JAVIER ICOY' }],
+    });
+    expect(onNewSession).not.toHaveBeenCalled();               // no se partió la sesión
+    const eq = p.getState().equipos.find(e => e.dorsal === '6');
+    expect(eq).toBeDefined();                                   // re-etiquetado al dorsal real
+    expect(eq.lapHistory.length).toBe(2);                      // conservó las vueltas
+  });
 });
