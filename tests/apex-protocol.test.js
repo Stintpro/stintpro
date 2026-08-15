@@ -881,13 +881,30 @@ group('tours reconciliado con lapHistory.length', () => {
     assert.equal(e.tours, 3, 'sin columna, tours = nº de pases por meta registrados');
   });
 
-  test('con columna de vueltas mayor: se prefiere la oficial (max)', () => {
+  test('con columna de vueltas mayor: se prefiere la oficial', () => {
     const p = createParser({});
     p.setGrid({ colMap: { no: 'c1', dr: 'c2', tlp: 'c3' }, colByNum: { c1: 'no', c2: 'dr', c3: 'tlp' },
                 karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
     p.parse('r1|*|44000|');           // 1 en lapHistory
     p.parse('r1c3||10');              // columna oficial dice 10 vueltas
     assert.equal(p.getState().equipos[0].tours, 10, 'con columna oficial > historial, gana la columna');
+  });
+
+  test('columna oficial MENOR que lapHistory inflado: gana la oficial (Apex manda)', () => {
+    // Reproduce el sobreconteo: Apex reenvía la celda llp con el MISMO tiempo al
+    // cambiar el color de la vuelta (ti/tb) → lapHistory se infla, pero el contador
+    // mostrado debe seguir a la columna oficial de Apex (lc/tlp), no al historial.
+    const p = createParser({});
+    p.setGrid({ colMap:   { no: 'c1', dr: 'c2', llp: 'c3', tlp: 'c4' },
+                colByNum: { c1: 'no', c2: 'dr', c3: 'llp', c4: 'tlp' },
+                karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
+    p.parse('r1c3|tn|1:05.000');      // vuelta 1 (por columna llp)
+    p.parse('r1c3|tn|1:05.200');      // vuelta 2
+    p.parse('r1c3|ti|1:05.200');      // REENVÍO mismo tiempo + color → vuelta fantasma
+    p.parse('r1c4||2');               // columna oficial de Apex: 2 vueltas
+    const e = p.getState().equipos[0];
+    assert.equal(e.lapHistory.length, 3, 'lapHistory se infla con el reenvío (entrada conocida)');
+    assert.equal(e.tours, 2, 'el contador usa la columna oficial de Apex, no el historial inflado');
   });
 
   test('sin vueltas ni columna: tours = 0', () => {
