@@ -73,17 +73,17 @@
 
   .platerow{margin-top:30px;padding:30px 0;border-top:2px solid var(--hair2);border-bottom:2px solid var(--hair2);
     display:flex;align-items:center;gap:32px}
-  .plate-col{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
-  .plate{border:3px solid var(--ink);border-radius:3px;padding:12px 30px;
+  .plate{flex:none;border:3px solid var(--ink);border-radius:3px;padding:12px 30px;
     display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .pilot{text-align:center;max-width:220px}
-  .pilot .l{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--dim)}
-  .pilot .v{font-family:var(--mono);font-weight:700;font-size:22px;letter-spacing:-.3px;color:var(--ink);margin-top:5px;
-    line-height:1.1;overflow-wrap:anywhere}
+  /* nombre del piloto: ocupa el espacio libre a la derecha de la posición */
+  .pilot-r{flex:1;min-width:0;text-align:right;align-self:center}
+  .pilot-r .l{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--mut)}
+  .pilot-r .v{font-family:var(--mono);font-weight:800;font-size:40px;letter-spacing:-1px;color:var(--ink);margin-top:8px;
+    line-height:1.05;overflow-wrap:anywhere}
   .plate .l{font-family:var(--mono);font-size:10.5px;letter-spacing:3px;color:var(--dim)}
   .plate span{font-family:var(--mono);font-weight:800;font-size:92px;line-height:1;letter-spacing:-2px;
     color:var(--ink);font-variant-numeric:tabular-nums;margin-top:4px}
-  .plate-side{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px}
+  .plate-side{flex:none;display:flex;flex-direction:column;justify-content:center;gap:12px}
   .pos-lab{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--mut)}
   .pos-val{display:flex;align-items:baseline;gap:8px}
   .pos-val .p{font-family:var(--mono);font-weight:800;font-size:104px;line-height:.95;letter-spacing:-3px;color:var(--green);
@@ -162,13 +162,13 @@
     </div>
 
     <div class="platerow">
-      <div class="plate-col">
-        <div class="plate"><div class="l">DORSAL</div><span id="cKart"></span></div>
-        <div class="pilot" id="cPilotWrap" style="display:none"><div class="l">PILOTO</div><div class="v" id="cPilot"></div></div>
-      </div>
+      <div class="plate"><div class="l">DORSAL</div><span id="cKart"></span></div>
       <div class="plate-side">
         <div class="pos-lab">POSICIÓN FINAL</div>
         <div class="pos-val"><span class="p" id="cPos"></span><span class="of" id="cField"></span></div>
+      </div>
+      <div class="pilot-r" id="cPilotWrap" style="display:none">
+        <div class="l">PILOTO</div><div class="v" id="cPilot"></div>
       </div>
     </div>
 
