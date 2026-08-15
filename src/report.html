@@ -9,6 +9,9 @@
     --paper:#ffffff; --page:#eef0f2; --hair:#e4e7eb; --hair2:#cfd4da;
     --ink:#0f1216; --mut:#586170; --dim:#9aa2ad;
     --green:#16a34a; --greenBright:#22c55e; --purple:#9333ea; --amber:#b45309; --blue:#2563eb;
+    --red:#dc2626; --redBright:#ef4444; --blueBright:#3b82f6; --yellow:#ca8a04; --yellowBright:#eab308;
+    /* acento activo del informe (lo reescribe el selector); por defecto rojo */
+    --accent:#dc2626; --accentBright:#ef4444;
     --band:#0e1512; --bandInk:#f4f6f5;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -41,6 +44,20 @@
   .status.err{color:#dc2626}
   .hint{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5}
 
+  /* ── personalización (acento + formato) ── */
+  .opts{display:flex;flex-wrap:wrap;gap:22px;margin-top:16px;padding-top:16px;border-top:1px solid var(--hair)}
+  .opts .field{margin:0}
+  .swatches{display:flex;gap:10px}
+  .sw{width:30px;height:30px;border-radius:50%;border:2px solid var(--hair2);background:var(--sw);
+    cursor:pointer;padding:0;transition:transform .12s ease}
+  .sw:hover{transform:scale(1.08)}
+  .sw[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--sw)}
+  .seg{display:inline-flex;border:1px solid var(--hair2);border-radius:6px;overflow:hidden}
+  .seg button{background:var(--paper);color:var(--mut);border:none;padding:11px 16px;cursor:pointer;
+    font-family:var(--mono);font-size:12px;letter-spacing:.5px}
+  .seg button+button{border-left:1px solid var(--hair2)}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
   .actions{width:100%;max-width:1080px;display:none;justify-content:flex-end;gap:12px}
   .actions.show{display:flex;animation:riseIn .5s cubic-bezier(.16,1,.3,1) .08s both}
   button.dl{background:var(--paper);color:var(--ink);border:1px solid var(--hair2);border-radius:6px;
@@ -57,14 +74,14 @@
 
   /* cabecera: cinta de meta + membrete oscuro (firma de marca) */
   .checker{height:15px;margin:0 -64px;flex:none;
-    background:repeating-conic-gradient(var(--greenBright) 0% 25%, #0b0d10 0% 50%) 0 0 / 30px 30px;}
+    background:repeating-linear-gradient(-45deg, var(--accent) 0 22px, #ffffff 22px 44px);}
   .brandband{margin:0 -64px;padding:30px 64px 26px;display:flex;justify-content:space-between;align-items:center;
-    background:var(--band);border-bottom:2px solid var(--greenBright)}
+    background:var(--band);border-bottom:2px solid var(--accentBright)}
   .bb-word{font-family:var(--mono);font-weight:800;font-size:38px;letter-spacing:-1px;line-height:1;color:var(--bandInk)}
-  .bb-word span{color:var(--greenBright)}
+  .bb-word span{color:var(--accentBright)}
   .bb-word .g{font-weight:700;color:var(--bandInk);opacity:.92}
   .bb-right{text-align:right}
-  .bb-right .tag{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--greenBright);text-transform:uppercase}
+  .bb-right .tag{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--accentBright);text-transform:uppercase}
   .bb-right .ref{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:#8b929c;margin-top:6px}
 
   .meta{margin-top:40px;padding-top:22px;border-top:1px solid var(--hair)}
@@ -86,7 +103,7 @@
   .plate-side{flex:none;display:flex;flex-direction:column;justify-content:center;gap:12px}
   .pos-lab{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--mut)}
   .pos-val{display:flex;align-items:baseline;gap:8px}
-  .pos-val .p{font-family:var(--mono);font-weight:800;font-size:104px;line-height:.95;letter-spacing:-3px;color:var(--green);
+  .pos-val .p{font-family:var(--mono);font-weight:800;font-size:104px;line-height:.95;letter-spacing:-3px;color:var(--accent);
     font-variant-numeric:tabular-nums}
   .pos-val .of{font-family:var(--mono);font-size:28px;color:var(--dim)}
 
@@ -103,6 +120,7 @@
   .chart .title{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:2px;color:var(--mut);text-transform:uppercase}
   .chart .note{font-family:var(--mono);font-size:11px;color:var(--dim)}
   svg.plot{display:block;width:100%;margin-top:12px}
+  #posSvg{height:280px} #lapSvg{height:240px}
   .axlab{font-family:var(--mono);font-size:12px;fill:var(--dim)}
   .gl2{stroke:var(--hair);stroke-width:1;stroke-dasharray:2 5;opacity:1}
 
@@ -110,8 +128,26 @@
   .foot .compliance{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.3px}
   .foot .row{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
   .foot .l{font-family:var(--mono);font-size:11.5px;color:var(--mut);letter-spacing:1px}
-  .foot .l b{color:var(--green)}
+  .foot .l b{color:var(--accent)}
   .foot .r{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:2px}
+
+  /* ── formato cuadrado 1080×1080: todo comprimido ── */
+  .stage.square{height:1080px}
+  .stage.square .meta{margin-top:20px;padding-top:16px}
+  .stage.square .event{font-size:30px}
+  .stage.square .platerow{margin-top:18px;padding:18px 0}
+  .stage.square .pos-val .p{font-size:84px}
+  .stage.square .plate span{font-size:74px}
+  .stage.square .plate{padding:10px 24px}
+  .stage.square .pilot-r .v{font-size:34px}
+  .stage.square .statline .stc{padding-top:16px}
+  .stage.square .stc .v{font-size:26px}
+  .stage.square .chart{margin-top:16px}
+  .stage.square #posSvg{height:196px}
+  .stage.square #lapSvg{height:168px}
+  .stage.square svg.plot{margin-top:8px}
+  .stage.square .foot{padding-top:16px}
+  .stage.square .foot .row{margin-top:8px}
 </style>
 </head>
 <body>
@@ -139,6 +175,24 @@
   </div>
   <div class="status" id="status"></div>
   <div class="hint">Elige la sesión en la que corriste y escribe tu número de dorsal. En enduro por equipos, es el dorsal de tu equipo. El nombre es <b>opcional</b>: si lo escribes aparecerá en la imagen que compartas (contenido público); déjalo vacío para identificarte solo por dorsal.</div>
+  <div class="opts">
+    <div class="field">
+      <label>Color de acento</label>
+      <div class="swatches" id="swatches">
+        <button class="sw" data-accent="red"   style="--sw:#ef4444" aria-label="Rojo"   aria-pressed="true"></button>
+        <button class="sw" data-accent="green" style="--sw:#22c55e" aria-label="Verde"   aria-pressed="false"></button>
+        <button class="sw" data-accent="blue"  style="--sw:#3b82f6" aria-label="Azul"    aria-pressed="false"></button>
+        <button class="sw" data-accent="amber" style="--sw:#eab308" aria-label="Amarillo" aria-pressed="false"></button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Formato</label>
+      <div class="seg" id="fmtSeg">
+        <button data-fmt="vertical" aria-pressed="true">Vertical 4:5</button>
+        <button data-fmt="square"   aria-pressed="false">Cuadrado 1:1</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="actions" id="actions">
@@ -149,7 +203,7 @@
   <div class="stage" id="stage">
     <div class="checker"></div>
     <div class="brandband">
-      <div class="bb-word">Stint<span>Pro</span> <span class="g">Group</span></div>
+      <div class="bb-word">Stint<span>Pro</span></div>
       <div class="bb-right">
         <div class="tag">Cronometraje oficial</div>
         <div class="ref" id="cRef"></div>
@@ -181,18 +235,18 @@
 
     <div class="chart">
       <div class="head"><div class="title">Posición durante la carrera</div><div class="note" id="cPosNote"></div></div>
-      <svg class="plot" id="posSvg" viewBox="0 0 940 280" preserveAspectRatio="none" style="height:280px"></svg>
+      <svg class="plot" id="posSvg" viewBox="0 0 940 280" preserveAspectRatio="none"></svg>
     </div>
     <div class="chart">
       <div class="head"><div class="title">Tiempos por vuelta</div><div class="note" id="cLapNote"></div></div>
-      <svg class="plot" id="lapSvg" viewBox="0 0 940 240" preserveAspectRatio="none" style="height:240px"></svg>
+      <svg class="plot" id="lapSvg" viewBox="0 0 940 240" preserveAspectRatio="none"></svg>
     </div>
 
     <div class="foot">
       <div class="compliance">Datos generados a partir del cronometraje oficial · identificación exclusiva por dorsal, sin nombres de piloto</div>
       <div class="row">
         <div class="l">Generado con <b>StintPro</b> · timing en vivo &amp; estrategia</div>
-        <div class="r">STINTPRO.GROUP</div>
+        <div class="r">STINTPRO</div>
       </div>
     </div>
   </div>
@@ -204,8 +258,19 @@ const $ = id => document.getElementById(id);
 const API = '/api/report';
 const MONO = 'ui-monospace,Menlo,monospace';
 const svgNS = 'http://www.w3.org/2000/svg';
-// paleta de las gráficas (tema claro)
-const C = {grid:'#e4e7eb', axis:'#9aa2ad', green:'#16a34a', greenFill:'#22c55e', purple:'#9333ea', blue:'#2563eb', paper:'#ffffff', dim:'#9aa2ad'};
+// paleta de las gráficas (tema claro). accent/accentFill los reescribe el selector de color.
+const C = {grid:'#e4e7eb', axis:'#9aa2ad', accent:'#dc2626', accentFill:'#ef4444', purple:'#9333ea', blue:'#2563eb', paper:'#ffffff', dim:'#9aa2ad'};
+
+// acentos disponibles (deben cuadrar con los data-accent del HTML)
+const ACCENTS = {
+  red:   {accent:'#dc2626', bright:'#ef4444'},
+  green: {accent:'#16a34a', bright:'#22c55e'},
+  blue:  {accent:'#2563eb', bright:'#3b82f6'},
+  amber: {accent:'#ca8a04', bright:'#eab308'},
+};
+// formatos de salida (relación de aspecto de la imagen)
+const FORMATS = { vertical:{w:1080,h:1350}, square:{w:1080,h:1080} };
+let curAccent='red', curFmt='vertical', lastData=null;
 function el(tag, attrs){ const e=document.createElementNS(svgNS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
 function fmt(s){ return s==null?'—':s.toFixed(3); }
 function monthName(ms){ if(!ms) return ''; const d=new Date(ms); const m=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']; return String(d.getDate()).padStart(2,'0')+' '+m[d.getMonth()]+' '+d.getFullYear(); }
@@ -269,6 +334,7 @@ $('gen').addEventListener('click', async ()=>{
 
 /* ── pintar la tarjeta ── */
 function render(d){
+  lastData=d;
   const st=d.stats, k=d.kart, se=d.session;
   $('cEvent').textContent=[(se.circuit||'').toUpperCase(), raceName(se.title).toUpperCase()].filter(Boolean).join(' · ') || 'CARRERA';
   $('cRef').textContent='Ref. '+dateCode(se.startedAt);
@@ -310,14 +376,14 @@ function drawPos(pos, st){
     else d+=' L'+X(p.min)+' '+Y(pos[i-1].pos)+' L'+X(p.min)+' '+Y(p.pos); });
   const last=pos[pos.length-1]; d+=' L'+X(tMax)+' '+Y(last.pos);
   const grad=el('linearGradient',{id:'pg',x1:0,y1:0,x2:0,y2:1});
-  grad.appendChild(el('stop',{offset:'0%','stop-color':C.greenFill,'stop-opacity':'.16'}));
-  grad.appendChild(el('stop',{offset:'100%','stop-color':C.greenFill,'stop-opacity':'0'}));
+  grad.appendChild(el('stop',{offset:'0%','stop-color':C.accentFill,'stop-opacity':'.16'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color':C.accentFill,'stop-opacity':'0'}));
   svg.appendChild(grad);
   svg.appendChild(el('path',{d:d+' L'+X(tMax)+' '+(T+ph)+' L'+L+' '+(T+ph)+' Z',fill:'url(#pg)'}));
-  svg.appendChild(el('path',{d,fill:'none',stroke:C.green,'stroke-width':'2.5','stroke-linejoin':'round'}));
+  svg.appendChild(el('path',{d,fill:'none',stroke:C.accent,'stroke-width':'2.5','stroke-linejoin':'round'}));
   const fx=X(tMax),fy=Y(last.pos);
-  svg.appendChild(el('circle',{cx:fx,cy:fy,r:6,fill:C.green,stroke:C.paper,'stroke-width':'2.5'}));
-  svg.appendChild(el('rect',{x:fx-56,y:fy-32,width:48,height:22,rx:2,fill:C.green}));
+  svg.appendChild(el('circle',{cx:fx,cy:fy,r:6,fill:C.accent,stroke:C.paper,'stroke-width':'2.5'}));
+  svg.appendChild(el('rect',{x:fx-56,y:fy-32,width:48,height:22,rx:2,fill:C.accent}));
   const fl=el('text',{x:fx-32,y:fy-16,'text-anchor':'middle','font-family':MONO,'font-size':'14','font-weight':'700',fill:'#ffffff'}); fl.textContent='P'+last.pos; svg.appendChild(fl);
   svg.appendChild(el('circle',{cx:X(pos[0].min),cy:Y(pos[0].pos),r:3.5,fill:C.dim}));
 }
@@ -338,8 +404,10 @@ function drawLap(laps, st){
     const tx=el('text',{x:L-10,y:Y(v)+4,class:'axlab','text-anchor':'end'}); tx.textContent=v.toFixed((yMax-yMin)>3?0:1)+'s'; svg.appendChild(tx);
   });
   if(st.avg){
-    svg.appendChild(el('line',{x1:L,y1:Y(st.avg),x2:W-R,y2:Y(st.avg),stroke:C.blue,'stroke-width':'1.5','stroke-dasharray':'5 5',opacity:'.8'}));
-    const at=el('text',{x:W-R,y:Y(st.avg)-6,class:'axlab','text-anchor':'end',fill:C.blue}); at.textContent='media '+st.avg.toFixed(2); svg.appendChild(at);
+    // la media va en azul, salvo que el acento sea azul: ahí pasa a gris para no confundirse con la línea de ritmo
+    const meanColor = curAccent==='blue' ? '#64748b' : C.blue;
+    svg.appendChild(el('line',{x1:L,y1:Y(st.avg),x2:W-R,y2:Y(st.avg),stroke:meanColor,'stroke-width':'1.5','stroke-dasharray':'5 5',opacity:'.8'}));
+    const at=el('text',{x:W-R,y:Y(st.avg)-6,class:'axlab','text-anchor':'end',fill:meanColor}); at.textContent='media '+st.avg.toFixed(2); svg.appendChild(at);
   }
   pits.forEach(p=>{
     svg.appendChild(el('line',{x1:X(p.min),y1:T,x2:X(p.min),y2:T+ph,stroke:C.purple,'stroke-width':'1.5','stroke-dasharray':'2 4',opacity:'.5'}));
@@ -348,11 +416,11 @@ function drawLap(laps, st){
   let d='';
   racing.forEach((l,i)=>{ d+=(i?' L':'M')+X(l.min)+' '+Y(l.s); });
   const grad=el('linearGradient',{id:'lg',x1:0,y1:0,x2:0,y2:1});
-  grad.appendChild(el('stop',{offset:'0%','stop-color':C.greenFill,'stop-opacity':'.13'}));
-  grad.appendChild(el('stop',{offset:'100%','stop-color':C.greenFill,'stop-opacity':'0'}));
+  grad.appendChild(el('stop',{offset:'0%','stop-color':C.accentFill,'stop-opacity':'.13'}));
+  grad.appendChild(el('stop',{offset:'100%','stop-color':C.accentFill,'stop-opacity':'0'}));
   svg.appendChild(grad);
   svg.appendChild(el('path',{d:d+' L'+X(racing[racing.length-1].min)+' '+(T+ph)+' L'+X(racing[0].min)+' '+(T+ph)+' Z',fill:'url(#lg)'}));
-  svg.appendChild(el('path',{d,fill:'none',stroke:C.green,'stroke-width':'2','stroke-linejoin':'round','stroke-linecap':'round'}));
+  svg.appendChild(el('path',{d,fill:'none',stroke:C.accent,'stroke-width':'2','stroke-linejoin':'round','stroke-linecap':'round'}));
   const bl=racing.reduce((a,l)=>l.s<a.s?l:a,racing[0]);
   svg.appendChild(el('circle',{cx:X(bl.min),cy:Y(bl.s),r:5.5,fill:C.purple,stroke:C.paper,'stroke-width':'2'}));
   const bt=el('text',{x:X(bl.min),y:Y(bl.s)+22,'text-anchor':'middle','font-family':MONO,'font-size':'14','font-weight':'700',fill:C.purple}); bt.textContent=fmt(bl.s); svg.appendChild(bt);
@@ -362,20 +430,55 @@ function drawLap(laps, st){
 function fit(){
   const outer=$('stageOuter'); if(!outer.classList.contains('show')) return;
   const s=Math.min(1, outer.clientWidth/1080);
-  $('stage').style.transform='scale('+s+')'; outer.style.height=(1350*s)+'px';
+  $('stage').style.transform='scale('+s+')'; outer.style.height=(FORMATS[curFmt].h*s)+'px';
 }
 window.addEventListener('resize',fit);
 
+/* ── acento de color: reescribe variables CSS + paleta de gráficas y re-renderiza ── */
+function applyAccent(name){
+  const a=ACCENTS[name]; if(!a) return;
+  curAccent=name;
+  const stage=$('stage');
+  stage.style.setProperty('--accent', a.accent);
+  stage.style.setProperty('--accentBright', a.bright);
+  C.accent=a.accent; C.accentFill=a.bright;
+  if(lastData){ drawPos(lastData.posSeries, lastData.stats); drawLap(lastData.lapSeries, lastData.stats); }
+  document.querySelectorAll('#swatches .sw').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.accent===name)));
+  try{ localStorage.setItem('sp_accent', name); }catch(e){}
+}
+
+/* ── formato de salida: vertical 4:5 ↔ cuadrado 1:1 ── */
+function applyFormat(name){
+  if(!FORMATS[name]) return;
+  curFmt=name;
+  $('stage').classList.toggle('square', name==='square');
+  document.querySelectorAll('#fmtSeg button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.fmt===name)));
+  const f=FORMATS[name];
+  $('dl').textContent=`⬇ Descargar PNG (${f.w}×${f.h})`;
+  fit();
+  try{ localStorage.setItem('sp_format', name); }catch(e){}
+}
+
+$('swatches').addEventListener('click', e=>{ const b=e.target.closest('.sw'); if(b) applyAccent(b.dataset.accent); });
+$('fmtSeg').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) applyFormat(b.dataset.fmt); });
+
+/* preferencias recordadas (acento + formato) */
+try{
+  const savedA=localStorage.getItem('sp_accent'); if(savedA && ACCENTS[savedA]) curAccent=savedA;
+  const savedF=localStorage.getItem('sp_format'); if(savedF && FORMATS[savedF]) curFmt=savedF;
+}catch(e){}
+applyAccent(curAccent); applyFormat(curFmt);
+
 /* ── descargar PNG a 1080×1350 ── */
 $('dl').addEventListener('click', async ()=>{
-  const stage=$('stage'), outer=$('stageOuter');
+  const stage=$('stage'), outer=$('stageOuter'), f=FORMATS[curFmt];
   const prev=stage.style.transform, prevH=outer.style.height;
-  stage.style.transform='none'; outer.style.height='1350px';
+  stage.style.transform='none'; outer.style.height=f.h+'px';
   try{
-    const url=await htmlToImage.toPng(stage,{width:1080,height:1350,pixelRatio:2,backgroundColor:'#ffffff',cacheBust:true});
+    const url=await htmlToImage.toPng(stage,{width:f.w,height:f.h,pixelRatio:2,backgroundColor:'#ffffff',cacheBust:true});
     const a=document.createElement('a');
     const k=$('kartInput').value.trim();
-    a.download=`stintpro-informe-dorsal${k}.png`; a.href=url; a.click();
+    a.download=`stintpro-informe-dorsal${k}-${curFmt}.png`; a.href=url; a.click();
   }catch(e){ $('status').className='status err'; $('status').textContent='No se pudo generar el PNG: '+e.message; }
   finally{ stage.style.transform=prev; outer.style.height=prevH; fit(); }
 });
