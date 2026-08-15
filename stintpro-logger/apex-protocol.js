@@ -656,7 +656,12 @@
             lastLapKind: k.lastLapKind || null, // 'purple'=mejor absoluta · 'green'=mejor personal
             bestOverall: !!k.bestOverall,        // este kart tiene la mejor vuelta absoluta de la sesión
             state: k.state || 'sr', s1: k.s1, s2: k.s2, s3: k.s3,
-            tours: Math.max(k.tours || 0, (k.lapHistory || []).length), standsCount: k.standsCount || 0, stops: k.stops || 0,
+            // Contador de vueltas: la columna oficial de Apex (lc/tlp → k.tours) es la
+            // fuente de verdad; coincide con lo que Apex muestra. NO usar max con
+            // lapHistory: la celda llp se reenvía con el mismo tiempo al cambiar el color
+            // (ti/tb) e infla lapHistory, lo que hacía mostrar vueltas de más y de forma
+            // dispareja entre karts. Solo se cae a lapHistory si no hay columna oficial.
+            tours: (k.tours || 0) > 0 ? k.tours : (k.lapHistory || []).length, standsCount: k.standsCount || 0, stops: k.stops || 0,
             checkered: !!k.checkered, gapMs: k.gapMs || 0,
             lapFlash: !!(k._lapFlash && (now - k._lapFlash) < 2000),
             posChange: k._posChange && (now - k._posChange.time) < 5000 ? k._posChange : null,

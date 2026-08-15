@@ -501,3 +501,23 @@ describe('dorsal: fallback rowId solo con columna "no" mapeada', () => {
     expect(eq.lapHistory.length).toBe(2);                      // conservó las vueltas
   });
 });
+
+// ── Contador de vueltas: la columna oficial de Apex manda sobre lapHistory ─────
+// (mismo fix que ya vive en el parser del app, ver src/apex-protocol.js)
+describe('contador de vueltas: la columna oficial de Apex manda', () => {
+  test('columna oficial MENOR que lapHistory inflado: gana la oficial', () => {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2', llp: 'c3', tlp: 'c4' },
+      colByNum: { c1: 'no', c2: 'dr', c3: 'llp', c4: 'tlp' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }],
+    });
+    p.parse('r1c3|tn|1:05.000');   // vuelta 1 (por columna llp)
+    p.parse('r1c3|tn|1:05.200');   // vuelta 2
+    p.parse('r1c3|ti|1:05.200');   // REENVÍO mismo tiempo + color → vuelta fantasma en lapHistory
+    p.parse('r1c4||2');            // columna oficial de Apex: 2 vueltas
+    const e = p.getState().equipos.find(x => x.dorsal === '7');
+    expect(e.lapHistory.length).toBe(3);   // lapHistory se infla con el reenvío
+    expect(e.tours).toBe(2);               // el contador sigue la columna oficial, no el historial
+  });
+});
