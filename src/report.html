@@ -272,7 +272,16 @@ const ACCENTS = {
 const FORMATS = { vertical:{w:1080,h:1350}, square:{w:1080,h:1080} };
 let curAccent='red', curFmt='vertical', lastData=null;
 function el(tag, attrs){ const e=document.createElementNS(svgNS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
-function fmt(s){ return s==null?'—':s.toFixed(3); }
+// tiempo de vuelta: en m:ss.decimales si ≥60s, en s.decimales si <60s.
+// redondea en unidades de 10^-dec para no producir "1:60.00" en el borde.
+function fmtT(s, dec){
+  if(s==null) return '—';
+  if(s<60) return s.toFixed(dec);
+  const f=Math.pow(10,dec), total=Math.round(s*f), secU=60*f;
+  const m=Math.floor(total/secU), sec=(total-m*secU)/f;
+  return m+':'+sec.toFixed(dec).padStart(dec>0?3+dec:2,'0');
+}
+function fmt(s){ return fmtT(s, 3); }
 function monthName(ms){ if(!ms) return ''; const d=new Date(ms); const m=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']; return String(d.getDate()).padStart(2,'0')+' '+m[d.getMonth()]+' '+d.getFullYear(); }
 function dateCode(ms){ if(!ms) return '—·—'; const d=new Date(ms); return String(d.getDate()).padStart(2,'0')+'·'+String(d.getMonth()+1).padStart(2,'0'); }
 // nombre de carrera: primer segmento del título de Apex (descarta "· ENDURO", "· CARRERA", etc.)
@@ -348,7 +357,7 @@ function render(d){
   $('cField').textContent=st.fieldSize?('/ '+st.fieldSize):'';
   $('cBest').textContent=fmt(st.bestLap);
   $('cLaps').textContent=st.totalLaps??'—';
-  $('cAvg').textContent=st.avg!=null?st.avg.toFixed(2):'—';
+  $('cAvg').textContent=fmtT(st.avg,2);
   $('cStops').textContent=st.stops??'0';
   $('cPosNote').textContent=[st.worstPos&&('mínimo P'+st.worstPos), st.finalPos&&('meta P'+st.finalPos)].filter(Boolean).join(' · ');
   const pits=d.lapSeries.filter(l=>l.pit).length;
@@ -401,13 +410,14 @@ function drawLap(laps, st){
   const X=m=>L+(m/tMax)*pw, Y=s=>{const c=Math.max(yMin,Math.min(yMax,s));return T+((c-yMin)/(yMax-yMin))*ph;};
   ticks(yMin,yMax,(yMax-yMin)>3?1:0.5).forEach(v=>{
     svg.appendChild(el('line',{x1:L,y1:Y(v),x2:W-R,y2:Y(v),class:'gl2'}));
-    const tx=el('text',{x:L-10,y:Y(v)+4,class:'axlab','text-anchor':'end'}); tx.textContent=v.toFixed((yMax-yMin)>3?0:1)+'s'; svg.appendChild(tx);
+    const dec=(yMax-yMin)>3?0:1;
+    const tx=el('text',{x:L-10,y:Y(v)+4,class:'axlab','text-anchor':'end'}); tx.textContent=v>=60?fmtT(v,dec):v.toFixed(dec)+'s'; svg.appendChild(tx);
   });
   if(st.avg){
     // la media va en azul, salvo que el acento sea azul: ahí pasa a gris para no confundirse con la línea de ritmo
     const meanColor = curAccent==='blue' ? '#64748b' : C.blue;
     svg.appendChild(el('line',{x1:L,y1:Y(st.avg),x2:W-R,y2:Y(st.avg),stroke:meanColor,'stroke-width':'1.5','stroke-dasharray':'5 5',opacity:'.8'}));
-    const at=el('text',{x:W-R,y:Y(st.avg)-6,class:'axlab','text-anchor':'end',fill:meanColor}); at.textContent='media '+st.avg.toFixed(2); svg.appendChild(at);
+    const at=el('text',{x:W-R,y:Y(st.avg)-6,class:'axlab','text-anchor':'end',fill:meanColor}); at.textContent='media '+fmtT(st.avg,2); svg.appendChild(at);
   }
   pits.forEach(p=>{
     svg.appendChild(el('line',{x1:X(p.min),y1:T,x2:X(p.min),y2:T+ph,stroke:C.purple,'stroke-width':'1.5','stroke-dasharray':'2 4',opacity:'.5'}));
