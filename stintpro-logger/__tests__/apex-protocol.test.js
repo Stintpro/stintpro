@@ -460,3 +460,24 @@ describe('tokens no catalogados en la columna de estado', () => {
     expect(kart7(p).state).toBe('si');
   });
 });
+
+// ── Dorsal: no contaminar con el rowId (transponder) sin colMap ────────────────
+describe('dorsal: fallback rowId solo con columna "no" mapeada', () => {
+  // Reproduce la corrupción de la COPA PISTON (sesión 1075): las celdas de vuelta
+  // llegan sin colMap (grid perdido en una reconexión). El data-id de fila de Apex
+  // es el nº de TRANSPONDER (r8676), NO el dorsal; el dorsal real (6) solo viaja en
+  // la columna 'no' del grid. Sin esa columna mapeada, el fallback NO debe usar el
+  // rowId, o grabaría un dorsal falso de 4 cifras (8676).
+  test('sin colMap con "no", no emite vueltas con el rowId como dorsal', () => {
+    const onLap = jest.fn();
+    // onChange presente = flujo real: el monitor llama getState() tras cada parse,
+    // que es donde el fallback muta k.dorsal ← rowId.
+    const p = createParser({ onLap, onChange: () => {} });
+    // NO se procesa el grid → colMap vacío (sin 'no')
+    p.parse('r8676|*|36181|0');
+    p.parse('r8676|*|36087|0');
+    p.parse('r8676|*|36200|0');
+    const dorsalesEmitidos = onLap.mock.calls.map(c => c[0]);
+    expect(dorsalesEmitidos).not.toContain('8676');
+  });
+});
