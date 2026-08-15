@@ -31,6 +31,12 @@ async function loggerGet(path) {
 
 const norm = s => String(s == null ? '' : s).trim();
 
+// Un "dorsal" >= 1000 es en realidad un identificador interno de Apex (nº de
+// transponder), no un dorsal de carrera. Aparece en sesiones grabadas sin la
+// columna 'no' del grid (competición federada; ver fix del logger). El informe
+// no los ofrece ni genera tarjetas por ellos: no son dorsales reales.
+const isTransponder = d => { const n = parseInt(d, 10); return Number.isFinite(n) && n >= 1000; };
+
 // progressAt: nº de cruces de meta de un kart hasta el instante t (inclusive)
 function makeProgress(times) {
   // times: array ascendente de timestamps de cruce
@@ -99,18 +105,27 @@ module.exports = async (req, res) => {
     // Solo dorsal + nº de vueltas: sin nombre de piloto ni de equipo
     // (protección de datos — la identificación es siempre por dorsal).
     if (!q.kart) {
-      const karts = [...byKart.values()]
-        .map(k => ({ dorsal: k.dorsal, laps: k.laps.length }))
+      const all = [...byKart.values()].map(k => ({ dorsal: k.dorsal, laps: k.laps.length }));
+      // Ocultar los transponders: no son dorsales de carrera, no se ofrecen.
+      const karts = all.filter(k => !isTransponder(k.dorsal))
         .sort((a, b) => (parseInt(a.dorsal) || 999) - (parseInt(b.dorsal) || 999));
       return res.status(200).json({
         session: { id: sessionId, title: session.title || null, circuit: session.circuit_name || session.slug },
         karts,
+        hiddenAnomalous: all.length - karts.length,
       });
     }
 
     // ── 3) Informe completo de un kart ───────────────────────────────────
+    if (isTransponder(q.kart)) {
+      return res.status(422).json({ error: `El dorsal ${q.kart} es un identificador interno (transponder), no un dorsal de carrera. Esta sesión se grabó sin los dorsales reales, así que no se puede generar un informe fiable por dorsal.` });
+    }
     const target = byKart.get(norm(q.kart));
-    if (!target) return res.status(404).json({ error: `El kart ${q.kart} no está en esta sesión` });
+    if (!target) {
+      const anom = [...byKart.keys()].filter(isTransponder).length;
+      const hint = anom > 0 ? ' Esta sesión se grabó con identificadores internos (transponders) en vez de dorsales de carrera.' : '';
+      return res.status(404).json({ error: `El kart ${q.kart} no está en esta sesión.${hint}` });
+    }
 
     // t0 = primer cruce de la sesión (eje de minutos)
     let t0 = Infinity;

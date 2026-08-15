@@ -231,12 +231,20 @@ async function loadSessions(){
 /* ── al cambiar de sesión, ofrecer los dorsales como sugerencias ── */
 $('sessionSel').addEventListener('change', async ()=>{
   const id=$('sessionSel').value; $('gen').disabled=!id||!$('kartInput').value.trim();
-  $('kartList').innerHTML='';
+  $('kartList').innerHTML=''; $('status').textContent=''; $('status').className='status';
   if(!id) return;
   try{
     const r=await fetch(`${API}?session=${id}`); const j=await r.json();
     (j.karts||[]).forEach(k=>{ const o=document.createElement('option'); o.value=k.dorsal;
       o.label=`${k.laps} vueltas`; $('kartList').appendChild(o); });
+    // Aviso si la sesión tiene "dorsales" que son transponders (competición sin dorsal real).
+    if(j.hiddenAnomalous>0){
+      const soloAnom = !(j.karts||[]).length;
+      $('status').className = soloAnom ? 'status err' : 'status';
+      $('status').textContent = soloAnom
+        ? '⚠ Esta sesión se grabó con identificadores internos (transponders), no con dorsales de carrera: no se puede generar un informe fiable por dorsal.'
+        : `Nota: ${j.hiddenAnomalous} kart(s) de esta sesión se grabaron con transponders y no aparecen en las sugerencias.`;
+    }
   }catch(e){/* opcional */}
 });
 $('kartInput').addEventListener('input', ()=>{ $('gen').disabled=!$('sessionSel').value||!$('kartInput').value.trim(); });
