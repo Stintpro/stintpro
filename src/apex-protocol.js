@@ -99,6 +99,7 @@
     let _karts           = {};
     let _colMap          = {};
     let _colByNum        = {};
+    let _lastGridTime    = 0;      // cuándo pobló karts la última parrilla (ver _maybeNewSessionByTitle)
     let _sessionActive   = false;
     let _sessionFinished = false;
     let _leaderLap       = 0;
@@ -180,6 +181,14 @@
     // juntos) y en la primera conexión.
     function _maybeNewSessionByTitle() {
       if (!(_sessionActive && Object.keys(_karts).length > 0)) return;
+      // Una parrilla recién recibida ES la sesión nueva, y es la fuente autoritativa
+      // de los dorsales. Apex manda a veces el title1 de la carrera DESPUÉS del
+      // init|r|+grid| (40s en la COPA PISTON 2026), cuando todavía no ha rodado
+      // ninguna vuelta: sin este guard, ese título borra los karts que el grid
+      // acaba de poblar y el resto de la carrera se lee con el rowId (nº de
+      // transponder) como dorsal. Excepción: con bandera a cuadros ya dada, el
+      // título nuevo SÍ abre sesión.
+      if (!_sessionFinished && _lastGridTime && Date.now() - _lastGridTime < 120000) return;
       const lapFlowing = _lastLapTime && (Date.now() - _lastLapTime) < 60000;
       if (lapFlowing && !_sessionFinished) return;   // parpadeo/inyección → no borrar
       _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
@@ -599,7 +608,12 @@
       const equipos = Object.values(_karts)
         .filter(k => k.dorsal || k._rowId)
         .map(k => {
-          if (!k.dorsal) k.dorsal = k._rowId.replace('r', '');
+          // El data-id de fila de Apex es un ID interno (nº de transponder en
+          // competición), NO el dorsal. Solo es fiable como dorsal si el grid mapeó
+          // la columna 'no' (donde vive el dorsal real). Sin 'no' mapeado (grid
+          // perdido en una reconexión) NO se inventa dorsal desde el rowId, o se
+          // leerían transponders de 4 cifras como dorsal (bug COPA PISTON, sesión 1075).
+          if (!k.dorsal && _colMap.no) k.dorsal = k._rowId.replace('r', '');
           return {
             dorsal: k.dorsal, name: k.name || `#${k.dorsal}`, teamName: k.teamName || null,
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
@@ -669,6 +683,8 @@
           }
         }
 
+        if ((gridKarts || []).length) _lastGridTime = Date.now();
+
         for (const kg of (gridKarts || [])) {
           const k = _kart(kg.rowId);
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
@@ -693,7 +709,7 @@
 
       getState,
       reset() {
-        _karts = {}; _colMap = {}; _colByNum = {};
+        _karts = {}; _colMap = {}; _colByNum = {}; _lastGridTime = 0;
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
         _otrIsPit = false; _pitDurations = [];

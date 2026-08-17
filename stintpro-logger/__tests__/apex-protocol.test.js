@@ -502,6 +502,72 @@ describe('dorsal: fallback rowId solo con columna "no" mapeada', () => {
   });
 });
 
+// ── Título tardío tras el grid: NO puede borrar la parrilla recién poblada ────
+// Reproduce la corrupción REAL de la COPA PISTON 2026 (sesión 1075, 4735 vueltas
+// con dorsales-transponder 8674-8736). Secuencia medida en el raw log:
+//   19:23:43  init|r| + grid|  → 28 karts con su dorsal real (columna 'no')
+//   19:24:23  title1||COPA PISTON 2026   ← llega 40s DESPUÉS, y es el PRIMER title1
+//                                          de la carrera (el init solo traía title2)
+// Como aún no había rodado ninguna vuelta de la sesión nueva, `lapFlowing` era
+// falso y el borrado por cambio de título vaciaba los 28 karts —perdiendo sus
+// dorsales— justo después de que el grid los hubiera fijado. Apex no vuelve a
+// mandar grid mientras la conexión aguante (2h), así que los karts se recreaban
+// desde celdas sin dorsal y caían al fallback rowId → transponder.
+describe('título tardío tras el grid', () => {
+  const gridDeCarrera = p => p.setGrid({
+    colMap:   { no: 'c3', dr: 'c4' },
+    colByNum: { c3: 'no', c4: 'dr' },
+    karts: [
+      { rowId: 'r8676', dorsal: '6',  name: 'JAVIER ICOY' },
+      { rowId: 'r8677', dorsal: '7',  name: 'PILOTO 7' },
+      { rowId: 'r8678', dorsal: '12', name: 'PILOTO 12' },
+    ],
+  });
+
+  test('un title1 posterior al grid, sin vueltas aún, NO borra los karts', () => {
+    const onNewSession = jest.fn();
+    const p = createParser({ onLap: () => {}, onChange: () => {}, onNewSession, onGrid: () => gridDeCarrera(p) });
+
+    p.parse('title1||INDIVIDUAL 1H');   // título de la sesión anterior (cronos)
+    p.parse('grid|<tbody></tbody>');    // init|r| + grid de la CARRERA → puebla dorsales
+    expect(p.getState().equipos.map(e => e.dorsal).sort()).toEqual(['12', '6', '7']);
+
+    p.parse('title1||COPA PISTON 2026'); // 40s después, aún sin vueltas rodadas
+
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(p.getState().equipos.map(e => e.dorsal).sort()).toEqual(['12', '6', '7']);
+  });
+
+  test('tras el borrado, las celdas sin dorsal NO deben emitir el rowId', () => {
+    const onLap = jest.fn();
+    const p = createParser({ onLap, onChange: () => {}, onGrid: () => gridDeCarrera(p) });
+
+    p.parse('title1||INDIVIDUAL 1H');
+    p.parse('grid|<tbody></tbody>');
+    p.parse('title1||COPA PISTON 2026');
+    p.parse('r8676|*|36181|0');
+    p.parse('r8676|*|36087|0');
+
+    const emitidos = onLap.mock.calls.map(c => String(c[0]));
+    expect(emitidos).not.toContain('8676');   // nunca el transponder
+    expect(emitidos).toEqual(['6', '6']);     // el dorsal real sobrevive al título
+  });
+
+  // La protección anti-parpadeo original sigue viva: un cambio de título con la
+  // carrera ya rodando no borra nada (caso Los Santos IRONMAN→ENTRENOS→IRONMAN).
+  test('el guard anti-parpadeo con vueltas fluyendo sigue funcionando', () => {
+    const onNewSession = jest.fn();
+    const p = createParser({ onLap: () => {}, onChange: () => {}, onNewSession, onGrid: () => gridDeCarrera(p) });
+
+    p.parse('title1||INDIVIDUAL 1H');
+    p.parse('grid|<tbody></tbody>');
+    p.parse('r8676|*|36181|0');          // vueltas fluyendo
+    p.parse('title1||OTRA COSA');
+
+    expect(onNewSession).not.toHaveBeenCalled();
+  });
+});
+
 // ── Contador de vueltas: la columna oficial de Apex manda sobre lapHistory ─────
 // (mismo fix que ya vive en el parser del app, ver src/apex-protocol.js)
 describe('contador de vueltas: la columna oficial de Apex manda', () => {

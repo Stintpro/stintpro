@@ -915,6 +915,55 @@ group('tours reconciliado con lapHistory.length', () => {
   });
 });
 
+// ── Título tardío tras el grid (modo "Directo a Apex") ────────────────────────
+// Mismo fallo que corrompió la COPA PISTON 2026 en el logger (sesión 1075): Apex
+// manda el title1 de la carrera ~40s DESPUÉS del init|r|+grid|, antes de que ruede
+// ninguna vuelta. Sin protección, ese título borra los karts que el grid acababa
+// de poblar y el resto de la carrera se lee con el rowId (transponder) como dorsal
+// — en la app eso significa no encontrar tu propio kart.
+group('título tardío tras el grid', () => {
+  const gridDeCarrera = p => p.setGrid({
+    colMap:   { no: 'c3', dr: 'c4' },
+    colByNum: { c3: 'no', c4: 'dr' },
+    karts: [
+      { rowId: 'r8676', dorsal: '6',  name: 'JAVIER ICOY' },
+      { rowId: 'r8677', dorsal: '7',  name: 'PILOTO 7' },
+      { rowId: 'r8678', dorsal: '12', name: 'PILOTO 12' },
+    ],
+  });
+
+  test('un title1 posterior al grid, sin vueltas aún, NO borra los karts', () => {
+    let nuevas = 0;
+    const p = createParser({ onChange: () => {}, onNewSession: () => nuevas++, onGrid: () => gridDeCarrera(p) });
+    p.parse('title1||INDIVIDUAL 1H');
+    p.parse('grid|<tbody></tbody>');
+    p.parse('title1||COPA PISTON 2026');
+    assert.equal(nuevas, 0);
+    assert.deepEqual(p.getState().equipos.map(e => e.dorsal).sort(), ['12', '6', '7']);
+  });
+
+  test('las vueltas siguientes llevan el dorsal real, no el transponder', () => {
+    const emitidos = [];
+    const p = createParser({ onChange: () => {}, onGrid: () => gridDeCarrera(p),
+                             onLap: d => emitidos.push(String(d)) });
+    p.parse('title1||INDIVIDUAL 1H');
+    p.parse('grid|<tbody></tbody>');
+    p.parse('title1||COPA PISTON 2026');
+    p.parse('r8676|*|36181|0');
+    p.parse('r8676|*|36087|0');
+    assert.ok(!emitidos.includes('8676'), `emitió el transponder: ${emitidos.join(',')}`);
+    assert.deepEqual(emitidos, ['6', '6']);
+  });
+
+  test('sin columna "no" mapeada no se inventa dorsal desde el rowId', () => {
+    const emitidos = [];
+    const p = createParser({ onChange: () => {}, onLap: d => emitidos.push(String(d)) });
+    p.parse('r8676|*|36181|0');   // sin grid → colMap vacío
+    p.parse('r8676|*|36087|0');
+    assert.ok(!emitidos.includes('8676'), `emitió el transponder: ${emitidos.join(',')}`);
+  });
+});
+
 // ── Results ───────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);

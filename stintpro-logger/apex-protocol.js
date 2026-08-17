@@ -124,6 +124,7 @@
     let _colMap          = {};
     let _colByNum        = {};
     let _catCol          = null;   // columna de categoría/cilindrada (si el circuito la manda)
+    let _lastGridTime    = 0;      // cuándo pobló karts la última parrilla (ver _maybeNewSessionByTitle)
     let _sessionActive   = false;
     let _sessionFinished = false;
     let _leaderLap       = 0;
@@ -205,6 +206,17 @@
     // juntos) y en la primera conexión.
     function _maybeNewSessionByTitle() {
       if (!(_sessionActive && Object.keys(_karts).length > 0)) return;
+      // Una parrilla recién recibida ES la sesión nueva, y es la fuente autoritativa
+      // de los dorsales. Apex manda a veces el title1 de la carrera DESPUÉS del
+      // init|r|+grid| (40s en la COPA PISTON 2026), cuando todavía no ha rodado
+      // ninguna vuelta: sin este guard, ese título borraba los karts que el grid
+      // acababa de poblar y la carrera entera se grababa con el rowId (nº de
+      // transponder) como dorsal — sesión 1075, 4735 vueltas corruptas.
+      // Una sesión nueva de verdad trae SIEMPRE su propio grid, y la detección por
+      // grid (solapamiento de dorsales / inactividad) ya la caza.
+      // Excepción: con bandera a cuadros ya dada, el título nuevo SÍ abre sesión
+      // (misma escapatoria que usa el guard anti-parpadeo de abajo).
+      if (!_sessionFinished && _lastGridTime && Date.now() - _lastGridTime < 120000) return;
       const lapFlowing = _lastLapTime && (Date.now() - _lastLapTime) < 60000;
       if (lapFlowing && !_sessionFinished) return;   // parpadeo/inyección → no borrar
       _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
@@ -711,6 +723,8 @@
           }
         }
 
+        if ((gridKarts || []).length) _lastGridTime = Date.now();
+
         for (const kg of (gridKarts || [])) {
           const k = _kart(kg.rowId);
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
@@ -736,7 +750,7 @@
 
       getState,
       reset() {
-        _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null;
+        _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null; _lastGridTime = 0;
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
         _otrIsPit = false; _pitDurations = [];
