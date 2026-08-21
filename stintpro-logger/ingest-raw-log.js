@@ -201,6 +201,14 @@ function ingestRawLog(file, opts = {}) {
   return summary;
 }
 
+// Dos parrillas mezcladas en un mismo estado: pasa cuando un raw log contiene dos
+// sesiones que el parser no llegó a separar. Se delata porque la clasificación
+// repite posiciones — en una carrera real cada posición es única.
+function hasMergedGrid(snapshot) {
+  const pos = (snapshot.equipos || []).filter(Boolean).map(k => k.pos).filter(p => p > 0);
+  return pos.length !== new Set(pos).size;
+}
+
 // ── Regeneración de snapshot ────────────────────────────────────────────────
 // Para sesiones YA grabadas cuyo snapshot quedó vacío: el parser limpiaba la
 // parrilla antes de disparar onNewSession, así que circuit-monitor persistía un
@@ -222,6 +230,9 @@ function regenerateSnapshot(file, opts = {}) {
   const karts = (snap.equipos || []).filter(Boolean).length;
   const out   = { ...base, sessionId: target.id, karts, title: replay.title };
   if (!karts) return { ...out, reason: 'el replay no produce clasificación' };
+  if (hasMergedGrid(snap)) {
+    return { ...out, reason: `parrilla fusionada (${karts} karts con posiciones repetidas): el log trae más de una sesión` };
+  }
 
   // Nunca degradar: si ya hay clasificación guardada, no se toca.
   const actual = db.getSnapshot(target.id);
@@ -301,4 +312,4 @@ if (require.main === module) {
   main().catch(err => { console.error('Error:', err.message); process.exit(1); });
 }
 
-module.exports = { ingestRawLog, regenerateSnapshot, readFrames, slugFromFilename, parseArgs, formatSummary };
+module.exports = { ingestRawLog, regenerateSnapshot, hasMergedGrid, readFrames, slugFromFilename, parseArgs, formatSummary };

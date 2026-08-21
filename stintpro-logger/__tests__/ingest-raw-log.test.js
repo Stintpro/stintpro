@@ -14,7 +14,7 @@ const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'stintpro-ingest-'));
 process.env.STINTPRO_DB_PATH = path.join(TMP_DIR, 'test.db');
 
 const db = require('../db');
-const { ingestRawLog, parseArgs, regenerateSnapshot } = require('../ingest-raw-log');
+const { ingestRawLog, parseArgs, regenerateSnapshot, hasMergedGrid } = require('../ingest-raw-log');
 
 const FIXTURE = path.join(__dirname, 'fixtures', 'recordings', 'ariza-q1.ndjson');
 
@@ -181,5 +181,24 @@ describe('regenerar snapshot de una sesión existente', () => {
 
     expect(res.skipped).toBe(true);
     expect(db.getSnapshot(id).equipos[0].name).toBe('YA ESTABA');
+  });
+});
+
+// Algunos raw logs contienen DOS sesiones sin que el parser las separase: su estado
+// final mezcla las dos parrillas y la clasificación sale con cada posición repetida
+// (P1 dos veces, P2 dos veces...). Medido en los logs de Lucas Guerrero del 15-ago:
+// 80 karts, 40 posiciones duplicadas, posición máxima 40. Guardar eso es peor que
+// dejar el snapshot vacío, porque el informe se lo creería.
+describe('parrilla fusionada', () => {
+  test('una clasificación normal no se marca como fusionada', () => {
+    expect(hasMergedGrid({ equipos: [{ pos: 1 }, { pos: 2 }, { pos: 3 }] })).toBe(false);
+  });
+
+  test('posiciones repetidas delatan dos parrillas mezcladas', () => {
+    expect(hasMergedGrid({ equipos: [{ pos: 1 }, { pos: 2 }, { pos: 1 }, { pos: 2 }] })).toBe(true);
+  });
+
+  test('los karts sin posición asignada no cuentan como duplicado', () => {
+    expect(hasMergedGrid({ equipos: [{ pos: 1 }, { pos: 0 }, { pos: null }, { pos: 2 }] })).toBe(false);
   });
 });
