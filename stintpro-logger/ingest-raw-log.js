@@ -46,18 +46,23 @@ function setSessionTimes(sessionId, startedAt, endedAt) {
 //      del primer frame, así que es reproducible bit a bit).
 //   2. vueltas dentro de la ventana → alguien ya grabó esa franja, típicamente el
 //      logger en vivo. Es la guarda que impide pisar una sesión buena.
+// La sesión de ese circuito con más vueltas dentro de la ventana del log.
+function findSessionInWindow(slug, startedAt, endedAt) {
+  return aux().prepare(`
+    SELECT se.id AS id, COUNT(l.id) AS c
+      FROM laps l JOIN sessions se ON se.id = l.session_id
+     WHERE se.slug = ? AND l.timestamp BETWEEN ? AND ?
+     GROUP BY se.id ORDER BY c DESC LIMIT 1
+  `).get(slug, startedAt, endedAt) || null;
+}
+
 function findConflict(slug, startedAt, endedAt) {
   const exact = aux()
     .prepare('SELECT id FROM sessions WHERE slug=? AND started_at=?')
     .get(slug, startedAt);
   if (exact) return { sessionId: exact.id, reason: `ya ingerido como sesión #${exact.id}` };
 
-  const overlap = aux().prepare(`
-    SELECT se.id AS id, COUNT(l.id) AS c
-      FROM laps l JOIN sessions se ON se.id = l.session_id
-     WHERE se.slug = ? AND l.timestamp BETWEEN ? AND ?
-     GROUP BY se.id ORDER BY c DESC LIMIT 1
-  `).get(slug, startedAt, endedAt);
+  const overlap = findSessionInWindow(slug, startedAt, endedAt);
   if (overlap) {
     return {
       sessionId: overlap.id,
@@ -86,17 +91,13 @@ function slugFromFilename(file) {
   return path.basename(file).split('_')[0];
 }
 
-// ── Ingesta ─────────────────────────────────────────────────────────────────
+// ── Replay ──────────────────────────────────────────────────────────────────
 
-function ingestRawLog(file, opts = {}) {
-  const slug        = opts.slug || slugFromFilename(file);
-  const circuitName = opts.circuitName || slug;
-  const write       = opts.write === true;
-
+// Reproduce el log entero y devuelve lo que salió: vueltas y pits ya con su hora
+// real, el título y el parser (cuyo estado final ES la clasificación de la sesión).
+function replayLog(file) {
   const frames = readFrames(file);
-  if (!frames.length) {
-    return { file, slug, laps: 0, pits: 0, sessionId: null, skipped: true, reason: 'fichero vacío' };
-  }
+  if (!frames.length) return null;
 
   const laps = [];
   const pits = [];
@@ -123,8 +124,38 @@ function ingestRawLog(file, opts = {}) {
     parser.parse(frame.raw);
   }
 
-  const startedAt = laps.length ? laps[0].ts : frames[0].t;
-  const endedAt   = frames[frames.length - 1].t;
+  return {
+    parser, laps, pits, title,
+    startedAt: laps.length ? laps[0].ts : frames[0].t,
+    endedAt:   frames[frames.length - 1].t,
+  };
+}
+
+// Snapshot con la misma forma que escribe circuit-monitor en vivo: estado final del
+// parser + los pit events. Es lo que sirve /api/snapshot/:id al informe de carrera.
+// Quedan fuera raceStart/raceEvents/raceStopped, que viven en trackers del monitor
+// y no en el parser — el informe usa la clasificación, no esos campos.
+function buildSnapshot(replay) {
+  return {
+    ...replay.parser.getState(),
+    pitEvents: replay.pits.map(p => ({ dorsal: p.dorsal, event: p.eventType, time: p.ts, standsCount: p.standsCount })),
+  };
+}
+
+// ── Ingesta ─────────────────────────────────────────────────────────────────
+
+function ingestRawLog(file, opts = {}) {
+  const slug        = opts.slug || slugFromFilename(file);
+  const circuitName = opts.circuitName || slug;
+  const write       = opts.write === true;
+
+  const replay = replayLog(file);
+  if (!replay) {
+    return { file, slug, laps: 0, pits: 0, sessionId: null, skipped: true, reason: 'fichero vacío' };
+  }
+  const { laps, pits, title } = replay;
+
+  const { startedAt, endedAt } = replay;
 
   const summary = {
     file: path.basename(file),
@@ -164,17 +195,45 @@ function ingestRawLog(file, opts = {}) {
     db.insertPitEvent(sessionId, p.dorsal, p.eventType, p.standsCount, p.ts);
   }
 
-  // Misma forma que el snapshot que escribe circuit-monitor en vivo: estado final del
-  // parser + los pit events. Es lo que sirve /api/snapshot/:id al informe de carrera.
-  // Quedan fuera raceStart/raceEvents/raceStopped, que viven en trackers del monitor
-  // y no en el parser — el informe usa la clasificación, no esos campos.
-  db.saveSnapshot(sessionId, {
-    ...parser.getState(),
-    pitEvents: pits.map(p => ({ dorsal: p.dorsal, event: p.eventType, time: p.ts, standsCount: p.standsCount })),
-  });
+  db.saveSnapshot(sessionId, buildSnapshot(replay));
 
   summary.sessionId = sessionId;
   return summary;
+}
+
+// ── Regeneración de snapshot ────────────────────────────────────────────────
+// Para sesiones YA grabadas cuyo snapshot quedó vacío: el parser limpiaba la
+// parrilla antes de disparar onNewSession, así que circuit-monitor persistía un
+// estado sin karts y el informe de carrera perdía la clasificación oficial.
+// Aquí no se crea ni se toca ninguna sesión: solo se recalcula su snapshot.
+function regenerateSnapshot(file, opts = {}) {
+  const slug  = opts.slug || slugFromFilename(file);
+  const write = opts.write === true;
+
+  const base = { file: path.basename(file), slug, sessionId: null, karts: 0, skipped: true, reason: null };
+
+  const replay = replayLog(file);
+  if (!replay) return { ...base, reason: 'fichero vacío' };
+
+  const target = findSessionInWindow(slug, replay.startedAt, replay.endedAt);
+  if (!target) return { ...base, reason: 'sin sesión en BD para esa franja' };
+
+  const snap  = buildSnapshot(replay);
+  const karts = (snap.equipos || []).filter(Boolean).length;
+  const out   = { ...base, sessionId: target.id, karts, title: replay.title };
+  if (!karts) return { ...out, reason: 'el replay no produce clasificación' };
+
+  // Nunca degradar: si ya hay clasificación guardada, no se toca.
+  const actual = db.getSnapshot(target.id);
+  const yaTiene = actual && Array.isArray(actual.equipos) ? actual.equipos.filter(Boolean).length : 0;
+  if (yaTiene > 0 && opts.force !== true) {
+    return { ...out, reason: `la sesión #${target.id} ya tiene clasificación (${yaTiene} karts)` };
+  }
+
+  if (!write) return { ...out, skipped: false, reason: 'simulación' };
+
+  db.saveSnapshot(target.id, snap);
+  return { ...out, skipped: false };
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
@@ -182,11 +241,12 @@ function ingestRawLog(file, opts = {}) {
 // `write` arranca en false a propósito: escribir en la BD de producción tiene que
 // costar un flag explícito, y lo normal es mirar el informe antes.
 function parseArgs(argv) {
-  const opts = { files: [], write: false, force: false, slug: null, circuitName: null };
+  const opts = { files: [], write: false, force: false, onlySnapshot: false, slug: null, circuitName: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--write')      opts.write = true;
-    else if (a === '--force') opts.force = true;
+    if (a === '--write')         opts.write = true;
+    else if (a === '--force')    opts.force = true;
+    else if (a === '--snapshot') opts.onlySnapshot = true;
     else if (a === '--slug')  opts.slug = argv[++i];
     else if (a === '--name')  opts.circuitName = argv[++i];
     else if (!a.startsWith('--')) opts.files.push(a);
@@ -198,6 +258,9 @@ function formatSummary(s) {
   const hora = t => new Date(t).toISOString().slice(11, 16);
   const cab  = `${s.file}\n  ${s.title || '(sin título)'} · ${s.slug}`;
   if (s.skipped) return `${cab}\n  ↷ SALTADO: ${s.reason}`;
+  if (s.startedAt === undefined) {   // modo --snapshot
+    return `${cab}\n  snapshot de la sesión #${s.sessionId} regenerado con ${s.karts} karts`;
+  }
   const destino = s.sessionId ? `sesión #${s.sessionId}` : 'simulación (usa --write)';
   return `${cab}\n  ${s.laps} vueltas · ${s.karts} karts · ${s.pits} pit events` +
          `\n  ${hora(s.startedAt)}–${hora(s.endedAt)} UTC → ${destino}`;
@@ -209,8 +272,9 @@ async function main() {
     console.log([
       'Uso: node ingest-raw-log.js <fichero.ndjson> [...] [opciones]',
       '',
-      '  --write   escribe en la BD (por defecto solo simula)',
-      '  --force   ingiere aunque solape con una sesión ya grabada',
+      '  --write     escribe en la BD (por defecto solo simula)',
+      '  --force     ingiere aunque solape / pisa un snapshot que ya tiene clasificación',
+      '  --snapshot  NO crea sesión: solo regenera el snapshot de la sesión ya existente',
       '  --slug X  fuerza el slug del circuito (por defecto, del nombre del fichero)',
       '  --name X  nombre legible del circuito',
     ].join('\n'));
@@ -222,17 +286,19 @@ async function main() {
 
   let escritas = 0, saltadas = 0, vueltas = 0;
   for (const file of opts.files) {
-    const s = ingestRawLog(file, opts);
+    const s = opts.onlySnapshot ? regenerateSnapshot(file, opts) : ingestRawLog(file, opts);
     console.log(formatSummary(s));
     console.log('');
     if (s.skipped) saltadas++;
-    else if (s.sessionId) { escritas++; vueltas += s.laps; }
+    else if (s.sessionId) { escritas++; vueltas += (s.laps || 0); }
   }
-  console.log(`Total: ${escritas} sesiones escritas (${vueltas} vueltas), ${saltadas} saltadas.`);
+  console.log(opts.onlySnapshot
+    ? `Total: ${escritas} snapshots regenerados, ${saltadas} saltados.`
+    : `Total: ${escritas} sesiones escritas (${vueltas} vueltas), ${saltadas} saltadas.`);
 }
 
 if (require.main === module) {
   main().catch(err => { console.error('Error:', err.message); process.exit(1); });
 }
 
-module.exports = { ingestRawLog, readFrames, slugFromFilename, parseArgs, formatSummary };
+module.exports = { ingestRawLog, regenerateSnapshot, readFrames, slugFromFilename, parseArgs, formatSummary };

@@ -495,11 +495,14 @@ class CircuitMonitor {
     this._flagTracker.reset();
   }
 
-  _onNewSession() {
+  // `saliente` es el estado del parser JUSTO ANTES de que limpiara la parrilla:
+  // sin él, el snapshot final de la sesión que termina se guardaba vacío y el
+  // informe de carrera perdía la clasificación oficial de Apex.
+  _onNewSession(saliente) {
     console.log(`[${this.slug}] Nueva sesión detectada`);
     this._closeSessionRawLog();   // finaliza el .ndjson de la sesión anterior
     if (this.sessionId) {
-      this._saveSnapshot();
+      this._saveSnapshot(saliente);
       db.endSession(this.sessionId);
     }
     this.sessionId = null;
@@ -657,9 +660,9 @@ class CircuitMonitor {
     this._broadcast({ type: 'status', slug: this.slug, status });
   }
 
-  _saveSnapshot() {
+  _saveSnapshot(state = null) {
     if (!this.sessionId) return;
-    const state = this.parser.getState();
+    if (!state) state = this.parser.getState();
     const snap  = { ...state, pitEvents: this.pitEvents, raceEvents: this.raceEvents };
     if (this._raceTracker.raceStart) snap.raceStart = this._raceTracker.raceStart;
     snap.raceStopped = this._flagTracker.stopped;

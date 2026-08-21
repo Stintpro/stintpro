@@ -603,4 +603,32 @@ describe('integración de extremo a extremo', () => {
     expect(laps).toHaveLength(1);
     expect(laps[0]).toMatchObject({ dorsal: '7', name: 'JAVIER' });
   });
+
+  // El parser borra sus karts ANTES de disparar onNewSession, así que un
+  // _saveSnapshot() que lea getState() en ese momento persiste una parrilla
+  // vacía encima de la sesión que acaba de terminar — y el informe de carrera
+  // pierde la clasificación oficial de Apex.
+  test('al detectar sesión nueva, el snapshot conserva la clasificación de la que termina', () => {
+    const m = createMonitor();
+    m.start();
+    const ws = WebSocket.instances[0];
+    ws.emit('open');
+
+    ws.emit('message', Buffer.from(buildGrid(kartRow('r1', '7', 'JAVIER') + kartRow('r2', '9', 'ANA'))));
+    ws.emit('message', Buffer.from('r1c3|llp|1:05.234'));
+    ws.emit('message', Buffer.from('r2c3|llp|1:06.100'));
+    const sesionA = m.sessionId;
+    expect(sesionA).not.toBeNull();
+
+    // Bandera a cuadros y, acto seguido, la parrilla de la sesión siguiente.
+    ws.emit('message', Buffer.from('light|lf'));
+    ws.emit('message', Buffer.from(buildGrid(kartRow('r1', '21', 'LUIS') + kartRow('r2', '22', 'MARIA'))));
+
+    expect(m.sessionId).not.toBe(sesionA); // se cerró la anterior
+
+    const snap = db.getSnapshot(sesionA);
+    expect(snap).toBeTruthy();
+    const dorsales = (snap.equipos || []).filter(Boolean).map(k => k.dorsal).sort();
+    expect(dorsales).toEqual(['7', '9']);
+  });
 });

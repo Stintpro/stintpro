@@ -587,3 +587,28 @@ describe('contador de vueltas: la columna oficial de Apex manda', () => {
     expect(e.tours).toBe(2);               // el contador sigue la columna oficial, no el historial
   });
 });
+
+// ── Contrato de onNewSession ────────────────────────────────────────────────
+// El parser limpia su estado al detectar una sesión nueva. Quien escucha necesita
+// la parrilla SALIENTE para poder persistirla (el logger guarda ahí el snapshot
+// final). Este contrato vive por duplicado: la misma prueba está en
+// tests/apex-protocol.test.js para la copia de src/.
+
+describe('onNewSession entrega el estado saliente', () => {
+  test('el callback recibe los karts de la sesión que termina, no la parrilla ya vacía', () => {
+    let saliente = null;
+    const p = createParser({ onNewSession: (estado) => { saliente = estado; } });
+
+    p.parse('grid|<html>');
+    p.parse('r1|*|65000|');
+    p.parse('r2|*|66000|');
+    expect(p.getState().equipos.filter(Boolean)).toHaveLength(2);
+
+    p.parse('light|lf');      // bandera a cuadros
+    p.parse('grid|<html>');   // parrilla de la sesión siguiente → limpia el estado
+
+    expect(p.getState().equipos.filter(Boolean)).toHaveLength(0);  // el parser sí queda limpio
+    expect(saliente).toBeTruthy();
+    expect(saliente.equipos.filter(Boolean)).toHaveLength(2);      // pero el callback vio los 2
+  });
+});

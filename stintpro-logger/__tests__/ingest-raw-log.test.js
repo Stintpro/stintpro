@@ -14,7 +14,7 @@ const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'stintpro-ingest-'));
 process.env.STINTPRO_DB_PATH = path.join(TMP_DIR, 'test.db');
 
 const db = require('../db');
-const { ingestRawLog, parseArgs } = require('../ingest-raw-log');
+const { ingestRawLog, parseArgs, regenerateSnapshot } = require('../ingest-raw-log');
 
 const FIXTURE = path.join(__dirname, 'fixtures', 'recordings', 'ariza-q1.ndjson');
 
@@ -130,6 +130,11 @@ describe('CLI', () => {
     expect(parseArgs(['fichero.ndjson', '--write']).write).toBe(true);
   });
 
+  test('--snapshot selecciona el modo de solo regenerar snapshot', () => {
+    expect(parseArgs(['f.ndjson']).onlySnapshot).toBe(false);
+    expect(parseArgs(['f.ndjson', '--snapshot']).onlySnapshot).toBe(true);
+  });
+
   test('una simulación no toca la BD', () => {
     const slug = 'dryrun-test';
     const res = ingestRawLog(FIXTURE, { slug, write: false });
@@ -137,5 +142,44 @@ describe('CLI', () => {
     expect(res.laps).toBeGreaterThan(0);   // sí informa de lo que haría
     expect(res.sessionId).toBeNull();      // pero no crea nada
     expect(db.getAllSessions().filter(s => s.slug === slug)).toHaveLength(0);
+  });
+});
+
+// Un bug del logger en vivo dejó ~1.000 sesiones con el snapshot vacío: el parser
+// limpiaba la parrilla antes de avisar, así que se persistía un estado sin karts.
+// Para las que conservan su raw log, la clasificación se puede recalcular.
+describe('regenerar snapshot de una sesión existente', () => {
+  test('rellena el snapshot vacío de una sesión ya grabada, sin crear otra', () => {
+    const slug = 'regen-test';
+    const { first, last } = fixtureWindow();
+
+    // Sesión ya en BD, con vueltas y el snapshot vacío que dejó el bug.
+    const id = db.createSession(slug, 'Circuito Test', 'R1');
+    db.insertLap(id, '38', 'VICTOR NEVADO', null, 44286, 1,
+                 first + Math.floor((last - first) / 2), null);
+    db.saveSnapshot(id, { equipos: [], sessionFinished: false });
+
+    const res = regenerateSnapshot(FIXTURE, { slug, write: true });
+
+    expect(res.sessionId).toBe(id);
+    expect(res.skipped).toBe(false);
+    expect(db.getAllSessions().filter(s => s.slug === slug)).toHaveLength(1); // no crea sesión
+    const snap = db.getSnapshot(id);
+    expect((snap.equipos || []).filter(Boolean)).toHaveLength(25);
+    expect(snap.equipos.find(k => k && k.name === 'VICTOR NEVADO').pos).toBe(2);
+  });
+
+  test('no machaca un snapshot que ya tiene clasificación', () => {
+    const slug = 'regen-bueno-test';
+    const { first, last } = fixtureWindow();
+    const id = db.createSession(slug, 'Circuito Test', 'R1');
+    db.insertLap(id, '38', 'VICTOR NEVADO', null, 44286, 1,
+                 first + Math.floor((last - first) / 2), null);
+    db.saveSnapshot(id, { equipos: [{ dorsal: '99', name: 'YA ESTABA' }] });
+
+    const res = regenerateSnapshot(FIXTURE, { slug, write: true });
+
+    expect(res.skipped).toBe(true);
+    expect(db.getSnapshot(id).equipos[0].name).toBe('YA ESTABA');
   });
 });

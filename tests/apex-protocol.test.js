@@ -329,6 +329,24 @@ group('session lifecycle', () => {
     assert.ok(!p.sessionFinished, 'sessionFinished should be cleared');
   });
 
+  // Mismo contrato que __tests__/apex-protocol.test.js del logger: las dos copias
+  // del parser deben entregar la parrilla saliente, no el estado ya vaciado.
+  test('onNewSession receives the outgoing state, not the wiped one', () => {
+    let saliente = null;
+    const p = createParser({ onNewSession: (estado) => { saliente = estado; } });
+    p.parse('grid|<html>');
+    p.parse('r1|*|65000|');
+    p.parse('r2|*|66000|');
+    assert.equal(p.getState().equipos.filter(Boolean).length, 2);
+
+    p.parse('light|lf');
+    p.parse('grid|<html>');
+
+    assert.equal(p.getState().equipos.filter(Boolean).length, 0, 'parser should be wiped');
+    assert.ok(saliente, 'callback should receive the outgoing state');
+    assert.equal(saliente.equipos.filter(Boolean).length, 2, 'outgoing state should keep both karts');
+  });
+
   test('second grid| without sessionFinished → does NOT reset or fire onNewSession', () => {
     let newSessionCount = 0;
     const p = createParser({ onNewSession: () => newSessionCount++ });
