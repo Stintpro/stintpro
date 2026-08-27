@@ -191,8 +191,12 @@
       if (!_sessionFinished && _lastGridTime && Date.now() - _lastGridTime < 120000) return;
       const lapFlowing = _lastLapTime && (Date.now() - _lastLapTime) < 60000;
       if (lapFlowing && !_sessionFinished) return;   // parpadeo/inyección → no borrar
+      // La parrilla saliente ES la clasificación final de la sesión que termina: se
+      // captura ANTES de limpiar para que el consumidor pueda persistirla (el logger
+      // guarda con ella el snapshot). Si no, solo vería el estado ya vaciado.
+      const _saliente = callbacks.onNewSession ? getState() : null;
       _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
-      if (callbacks.onNewSession) callbacks.onNewSession();
+      if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
     }
 
     function _applyCell(k, col, type, val) {
@@ -507,8 +511,12 @@
       if (line.startsWith('grid|')) {
         const inactiveTooLong = _lastLapTime && (Date.now() - _lastLapTime) > 600000;
         if (_sessionActive && (_sessionFinished || inactiveTooLong)) {
+          // La parrilla saliente ES la clasificación final de la sesión que termina: se
+          // captura ANTES de limpiar para que el consumidor pueda persistirla (el logger
+          // guarda con ella el snapshot). Si no, solo vería el estado ya vaciado.
+          const _saliente = callbacks.onNewSession ? getState() : null;
           _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
-          if (callbacks.onNewSession) callbacks.onNewSession();
+          if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
         }
         _sessionActive = true;
         if (callbacks.onGrid) callbacks.onGrid(line.substring(5));
@@ -677,8 +685,12 @@
           if (_curDorsals.length >= 3) {
             const _overlap = _curDorsals.filter(d => _newDorsals.has(d)).length;
             if (_overlap < _curDorsals.length * 0.4) {
+              // La parrilla saliente ES la clasificación final de la sesión que termina: se
+              // captura ANTES de limpiar para que el consumidor pueda persistirla (el logger
+              // guarda con ella el snapshot). Si no, solo vería el estado ya vaciado.
+              const _saliente = callbacks.onNewSession ? getState() : null;
               _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
-              if (callbacks.onNewSession) callbacks.onNewSession();
+              if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
             }
           }
         }

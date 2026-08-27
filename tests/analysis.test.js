@@ -300,35 +300,42 @@ group('_enMergeLapHistory (historial acumulado + ventana live)', () => {
   });
 });
 
-// ── _enOrderEstimated (orden con deferral a Apex) ──────────────────────────────
+// ── _enOrderEstimated (defiere SIEMPRE a Apex) ────────────────────────────────
+// El orden por `estimatedGap` (normalización por paradas) se retiró el 2026-08-27:
+// perdió contra la posición cruda de Apex en las 4 carreras medidas (IRONMAN −0.044,
+// 3H por equipos −0.265, RKC 2h 0.744 vs 0.824; la única victoria era artefacto de
+// dos categorías). Apex conoce el gap al segundo; reordenar por vueltas enteras mete
+// ruido sobre una señal ya buena. `estimatedGap` sobrevive como INFORMACIÓN (deuda de
+// paradas y penalización en segundos), nunca como criterio de orden.
 
 group('_enOrderEstimated', () => {
   const ord = items => _enOrderEstimated(items).map(i => i.dorsal);
 
-  test('paradas pendientes (diff>0) → ordena por estimatedGap, no por pos', () => {
-    // El kart "b" va peor en pos de Apex pero mejor normalizado (menos gap estimado)
+  test('con paradas pendientes (diff>0) defiere a Apex, NO ordena por estimatedGap', () => {
+    // "b" tiene mucho menos gap estimado, pero Apex lo pone 2º: manda Apex.
     const items = [
       { dorsal:'a', pos:1, diff:1, estimatedGap:120 },
       { dorsal:'b', pos:2, diff:0, estimatedGap:10 },
       { dorsal:'c', pos:3, diff:1, estimatedGap:130 },
     ];
-    assert.deepEqual(ord(items), ['b','a','c']);
+    assert.deepEqual(ord(items), ['a','b','c']);
   });
 
-  test('caso Ariza: ganador oculto (paró antes, peor pos) sube al normalizar', () => {
-    // "win" tiene peor posición cruda de Apex (P4) por haber parado ya,
-    // pero su estimatedGap es el menor → debe quedar primero.
+  test('caso Ariza: el "ganador oculto" ya NO se promueve', () => {
+    // Este caso fundó el diseño antiguo: "win" había parado antes, Apex lo tenía P4
+    // y la normalización lo subía a P1. Pero aquel 7/7 era UN instante (min 75), no
+    // la media: en la carrera completa el estimador perdía 0.725 vs 0.853 de Apex.
+    // Se conserva el escenario como regresión de que ya no reordenamos.
     const items = [
-      { dorsal:'r1', pos:1, diff:1, estimatedGap:118 },
-      { dorsal:'r2', pos:2, diff:1, estimatedGap:119 },
-      { dorsal:'r3', pos:3, diff:1, estimatedGap:120 },
-      { dorsal:'win', pos:4, diff:0, estimatedGap:5 },
+      { dorsal:'r1',  pos:1, diff:1, estimatedGap:118 },
+      { dorsal:'r2',  pos:2, diff:1, estimatedGap:119 },
+      { dorsal:'r3',  pos:3, diff:1, estimatedGap:120 },
+      { dorsal:'win', pos:4, diff:0, estimatedGap:5   },
     ];
-    assert.equal(ord(items)[0], 'win');
+    assert.deepEqual(ord(items), ['r1','r2','r3','win']);
   });
 
-  test('nadie con paradas pendientes (diff==0 para todos) → defiere a pos de Apex', () => {
-    // estimatedGap desordenado (gap contaminado) pero pos de Apex es la buena
+  test('nadie con paradas pendientes → defiere a pos de Apex (sin cambios)', () => {
     const items = [
       { dorsal:'a', pos:1, diff:0, estimatedGap:102 },
       { dorsal:'b', pos:2, diff:0, estimatedGap:10 },
@@ -337,21 +344,23 @@ group('_enOrderEstimated', () => {
     assert.deepEqual(ord(items), ['a','b','c']);
   });
 
-  test('deferral con pos nula → la trata como cola (99)', () => {
+  test('pos nula → la trata como cola (99)', () => {
     const items = [
-      { dorsal:'a', pos:2, diff:0, estimatedGap:5 },
-      { dorsal:'b', pos:null, diff:0, estimatedGap:1 },
-      { dorsal:'c', pos:1, diff:0, estimatedGap:9 },
+      { dorsal:'a', pos:2,    diff:0, estimatedGap:5 },
+      { dorsal:'b', pos:null, diff:1, estimatedGap:1 },
+      { dorsal:'c', pos:1,    diff:0, estimatedGap:9 },
     ];
     assert.deepEqual(ord(items), ['c','a','b']);
   });
 
-  test('un solo diff>0 basta para NO deferir (usa estimatedGap)', () => {
+  test('estimatedGap no altera el orden en ningún caso', () => {
+    // Mismo orden de Apex, gaps estimados deliberadamente invertidos.
     const items = [
-      { dorsal:'a', pos:1, diff:0, estimatedGap:50 },
-      { dorsal:'b', pos:2, diff:1, estimatedGap:5 },
+      { dorsal:'a', pos:1, diff:2, estimatedGap:999 },
+      { dorsal:'b', pos:2, diff:1, estimatedGap:500 },
+      { dorsal:'c', pos:3, diff:0, estimatedGap:1   },
     ];
-    assert.deepEqual(ord(items), ['b','a']);
+    assert.deepEqual(ord(items), ['a','b','c']);
   });
 
   test('array vacío y de un elemento no rompen', () => {

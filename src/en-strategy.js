@@ -625,7 +625,7 @@ function _enRenderStrategy(eq, trackAvg){
 
   // ── Botón clasificación estimada ──
   html+=`<div style="text-align:center;margin:10px 0">
-    <button onclick="_enShowEstimatedClassification()" style="padding:10px 24px;border-radius:8px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:13.5px;font-weight:500;cursor:pointer;font-family:sans-serif;transition:all .15s">📊 Clasificación estimada</button>
+    <button onclick="_enShowEstimatedClassification()" style="padding:10px 24px;border-radius:8px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:13.5px;font-weight:500;cursor:pointer;font-family:sans-serif;transition:all .15s">📊 Deuda de paradas</button>
   </div>`;
 
 
@@ -745,9 +745,16 @@ function _enComputeEstimatedClassification(){
       gapFromApex, gapFromLaps, lapHistory:e.lapHistory,
     };
   });
-  // Orden con deferral a Apex cuando nadie tiene paradas pendientes (ver
-  // _enOrderEstimated en analysis.js). Validado con post-mortem IRONMAN+Ariza.
+  // El orden lo manda SIEMPRE Apex (ver _enOrderEstimated en analysis.js): su
+  // posición es la verdad de carrera y reordenar por paradas la degradaba.
   _enOrderEstimated(estimated);
+
+  // What-if informativo: en qué puesto quedaría cada uno SI todos completaran las
+  // paradas que deben. No altera el orden mostrado — es la lectura estratégica
+  // ("el que va delante todavía debe una parada"), etiquetada como hipótesis.
+  const porDeuda=[...estimated].sort((a,b)=>a.estimatedGap-b.estimatedGap);
+  porDeuda.forEach((e,i)=>{e.whatIfRank=i+1;});
+  estimated.forEach((e,i)=>{e.shownRank=i+1;});
 
   // ── Tiers de densidad ("posiciones en juego") ────────────────────────────
   // Agrupa posiciones consecutivas cuya diferencia estimada cabe dentro del
@@ -786,11 +793,13 @@ function _enShowEstimatedClassification(){
     const inTier=tiers?tierSizes[tiers[i]]>1:false;
     const estGapStr=i===0?'—':(inTier?'≈':'+')+e.estimatedGap.toFixed(1)+'s';
     const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapReal>0?'+'+e.gapReal.toFixed(1)+'s':'—';
-    const posChange=e.pos-(i+1);
-    const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:var(--text-2)">=</span>';
+    // Δ = movimiento HIPOTÉTICO si todos completaran sus paradas pendientes.
+    // No es nuestro orden ni una predicción: es lo que vale la deuda de paradas.
+    const whatIf=(e.shownRank||i+1)-(e.whatIfRank||i+1);
+    const posStr=whatIf>0?`<span style="color:#22c55e">↑${whatIf}</span>`:whatIf<0?`<span style="color:#ef4444">↓${Math.abs(whatIf)}</span>`:'<span style="color:var(--text-2)">=</span>';
 
     rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px;${inTier?'box-shadow:inset 3px 0 0 #F5A623;':''}">
-      <span style="font-size:13.5px;font-weight:600;color:var(--text-1);text-align:center">${i+1}</span>
+      <span style="font-size:13.5px;font-weight:600;color:var(--text-1);text-align:center">${e.pos!=null&&e.pos<99?e.pos:'—'}</span>
       <div style="position:relative;width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${_esc(e.dorsal)}${e.diff>0?'':'<span style="position:absolute;top:-4px;right:-4px;font-size:9px;line-height:1">★</span>'}</div>
       <span style="font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
       <span style="font-size:13.5px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}</span>
@@ -805,22 +814,23 @@ function _enShowEstimatedClassification(){
     <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:700px;width:95%;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
-          <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Clasificación estimada</div>
-          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Normalizada a ${maxStops} paradas · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource}) · Gap: ${hasApexGap?'Apex':'vueltas×ritmo'}</div>
+          <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Deuda de paradas</div>
+          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Orden oficial de Apex · Normalizado a ${maxStops} paradas · Coste pit: ${avgPitCost.toFixed(1)}s (${costSource}) · Gap: ${hasApexGap?'Apex':'vueltas×ritmo'}</div>
+          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">La columna Δ es una <b>hipótesis</b>: dónde quedaría cada uno si todos completaran las paradas que deben. No reordena la lista.</div>
           ${!usingOfficial?'<div style="font-size:11.5px;color:#fbbf24;font-family:sans-serif;margin-top:2px">⚠ Conteo de paradas observado localmente — puede estar incompleto si conectaste a mitad de carrera</div>':''}
           ${anyTier?'<div style="font-size:11.5px;color:#F5A623;font-family:sans-serif;margin-top:2px">≈ y barra ámbar: posiciones en juego — la diferencia estimada cabe dentro del ruido de ritmo sobre las vueltas restantes</div>':''}
         </div>
         <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
       <div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;padding:4px 0;border-bottom:0.5px solid #2a2b2e;gap:8px;margin-bottom:4px">
-        <span style="font-size:11.5px;color:var(--text-2);text-align:center">EST</span>
+        <span style="font-size:11.5px;color:var(--text-2);text-align:center">POS</span>
         <span style="font-size:11.5px;color:var(--text-2)">KART</span>
         <span style="font-size:11.5px;color:var(--text-2)">EQUIPO</span>
         <span style="font-size:11.5px;color:var(--text-2);text-align:center">PITS</span>
         <span style="font-size:11.5px;color:var(--text-2);text-align:right">GAP</span>
-        <span style="font-size:11.5px;color:#F5A623;text-align:right">EST</span>
+        <span style="font-size:11.5px;color:#F5A623;text-align:right">C/PITS</span>
         <span style="font-size:11.5px;color:var(--text-2);text-align:right">PENALIZ.</span>
-        <span style="font-size:11.5px;color:var(--text-2);text-align:center">Δ</span>
+        <span style="font-size:11.5px;color:var(--text-2);text-align:center">Δ?</span>
       </div>
       ${rows}
     </div>`;

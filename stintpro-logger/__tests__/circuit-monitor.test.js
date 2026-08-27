@@ -603,4 +603,108 @@ describe('integración de extremo a extremo', () => {
     expect(laps).toHaveLength(1);
     expect(laps[0]).toMatchObject({ dorsal: '7', name: 'JAVIER' });
   });
+
+  // El parser borra sus karts ANTES de disparar onNewSession, así que un
+  // _saveSnapshot() que lea getState() en ese momento persiste una parrilla
+  // vacía encima de la sesión que acaba de terminar — y el informe de carrera
+  // pierde la clasificación oficial de Apex.
+  test('al detectar sesión nueva, el snapshot conserva la clasificación de la que termina', () => {
+    const m = createMonitor();
+    m.start();
+    const ws = WebSocket.instances[0];
+    ws.emit('open');
+
+    ws.emit('message', Buffer.from(buildGrid(kartRow('r1', '7', 'JAVIER') + kartRow('r2', '9', 'ANA'))));
+    ws.emit('message', Buffer.from('r1c3|llp|1:05.234'));
+    ws.emit('message', Buffer.from('r2c3|llp|1:06.100'));
+    const sesionA = m.sessionId;
+    expect(sesionA).not.toBeNull();
+
+    // Bandera a cuadros y, acto seguido, la parrilla de la sesión siguiente.
+    ws.emit('message', Buffer.from('light|lf'));
+    ws.emit('message', Buffer.from(buildGrid(kartRow('r1', '21', 'LUIS') + kartRow('r2', '22', 'MARIA'))));
+
+    expect(m.sessionId).not.toBe(sesionA); // se cerró la anterior
+
+    const snap = db.getSnapshot(sesionA);
+    expect(snap).toBeTruthy();
+    const dorsales = (snap.equipos || []).filter(Boolean).map(k => k.dorsal).sort();
+    expect(dorsales).toEqual(['7', '9']);
+  });
+});
+
+// ── Raw log de sesión: grid de apertura ───────────────────────────────────────
+//
+// Apex solo manda `grid|` al conectar. En una sesión larga sin reconexión (un 24h)
+// el grid puede quedar FUERA de la ventana de prólogo (15 min) y el .ndjson nace
+// sin él → al reproducirlo no hay colMap y se pierde la mayoría de las vueltas.
+
+describe('raw log de sesión', () => {
+  const fs   = require('fs');
+  const path = require('path');
+  const RECORDINGS = path.join(__dirname, '..', 'recordings');
+
+  function limpiarGrabaciones() {
+    if (!fs.existsSync(RECORDINGS)) return;
+    fs.readdirSync(RECORDINGS)
+      .filter(f => f.startsWith(SLUG + '_'))
+      .forEach(f => { try { fs.unlinkSync(path.join(RECORDINGS, f)); } catch(e) {} });
+  }
+
+  afterEach(limpiarGrabaciones);
+
+  // Abre monitor con raw log armado, manda el grid, deja pasar `minutosDespues`
+  // de reloj simulado CON TRÁFICO (como el feed real, que nunca calla: es ese
+  // tráfico el que poda el búfer de prólogo) y manda una vuelta, que confirma la
+  // sesión y abre el fichero. Devuelve las líneas ya volcadas a disco.
+  // `filaEnVivo` permite simular una sesión cuyos rowId NO son los del grid
+  // cacheado (evento distinto): Apex asigna rowId nuevos en cada evento.
+  async function grabarSesion(minutosDespues, filaEnVivo = 'r1') {
+    let ahora = Date.parse('2026-08-22T12:00:00Z');
+    const spy = jest.spyOn(Date, 'now').mockImplementation(() => ahora);
+    try {
+      const m  = createMonitor({ rawLog: true, recording: false });
+      m.start();
+      const ws = WebSocket.instances[0];
+      ws.emit('open');
+      ws.emit('message', buildGrid(kartRow('r1', '7', 'JAVIER')));
+
+      for (let min = 1; min <= minutosDespues; min++) {
+        ahora += 60 * 1000;
+        ws.emit('message', `${filaEnVivo}c9|in|${min}`);
+      }
+      ws.emit('message', `${filaEnVivo}c3|tn|1:04.893`);
+
+      expect(m._rawLogPath).not.toBeNull();
+      await new Promise(res => m._rawLog.end(res));
+      const contenido = fs.readFileSync(m._rawLogPath, 'utf8');
+      return contenido.trim().split('\n').map(JSON.parse);
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  test('el .ndjson arranca con el grid cuando la vuelta llega dentro de la ventana', async () => {
+    const lineas = await grabarSesion(1);
+    expect(lineas[0].raw).toContain('grid|');
+  });
+
+  test('el .ndjson arranca con el grid aunque sea más viejo que la ventana de prólogo', async () => {
+    const lineas = await grabarSesion(20); // > RAW_PRELUDE_WINDOW_MS (15 min)
+    expect(lineas[0].raw).toContain('grid|');
+  });
+
+  test('no duplica el grid cuando el prólogo aún lo conserva', async () => {
+    const lineas = await grabarSesion(1);
+    expect(lineas.filter(l => l.raw.includes('grid|'))).toHaveLength(1);
+  });
+
+  // Apex reasigna los rowId en cada evento. Anteponer el grid de un evento
+  // anterior sería peor que no poner ninguno: al reproducirlo habría colMap
+  // pero ningún kart casaría con su fila, y los dorsales se leerían del rowId
+  // (transponders de 5 cifras — el bug de la sesión 1075).
+  test('no antepone un grid cuyas filas no son las de la sesión en curso', async () => {
+    const lineas = await grabarSesion(20, 'r2');
+    expect(lineas.some(l => l.raw.includes('grid|'))).toBe(false);
+  });
 });
