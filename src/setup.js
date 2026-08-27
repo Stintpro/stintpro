@@ -439,8 +439,11 @@ function _updateOffsetBadge(circ) {
   if(!circ){badge.style.display='none';if(reset)reset.style.display='none';return;}
   const key=window.CircuitDB.pitOffsetKey(circ.slug,_trackDirection);
   const own=localStorage.getItem(key);
-  const saved=own ?? window.CircuitDB.getKnownOffset(circ.slug,_trackDirection);
-  if(saved){badge.textContent='✓ offset '+parseFloat(saved).toFixed(0)+'s';badge.style.display='';}
+  // Misma resolución que usan la carrera y el toggle de sentido (analysis.js): si
+  // el valor propio no pasa el rango de cordura, el badge debe enseñar el que se
+  // va a usar de verdad —el de fábrica— y no mentir con la calibración corrupta.
+  const saved=_enResolveDirectionOffset(own, window.CircuitDB.getKnownOffset(circ.slug,_trackDirection));
+  if(saved!=null){badge.textContent='✓ offset '+saved.toFixed(0)+'s';badge.style.display='';}
   else{badge.style.display='none';}
   // Solo se ofrece recalibrar cuando hay una medición propia de ESTE dispositivo
   // guardada (no tiene sentido "recalibrar" el valor de fábrica de solo lectura).
@@ -668,9 +671,12 @@ function startEndurance() {
   // y sentido — así queda listo desde la vuelta 1 aunque sea la primera vez
   // en este dispositivo/navegador.
   const offsetKey=slug&&slug!=='replay'?window.CircuitDB.pitOffsetKey(slug,trackDirection):null;
-  const localOffset=offsetKey?parseFloat(localStorage.getItem(offsetKey)):NaN;
-  const savedOffset=!isNaN(localOffset)?localOffset:(slug&&slug!=='replay'?window.CircuitDB.getKnownOffset(slug,trackDirection):undefined);
-  if(savedOffset!=null&&savedOffset>3&&savedOffset<300){
+  const known=slug&&slug!=='replay'?window.CircuitDB.getKnownOffset(slug,trackDirection):undefined;
+  // Misma regla que el toggle de sentido de la pestaña Avanzado (analysis.js):
+  // lo calibrado en este dispositivo manda sobre el valor de fábrica, y ambos
+  // pasan el mismo rango de cordura.
+  const savedOffset=_enResolveDirectionOffset(offsetKey?localStorage.getItem(offsetKey):null, known);
+  if(savedOffset!=null){
     EnSession.pitOutCalibration=[savedOffset, savedOffset];
   }
   window.showEnduranceDashboard(cfg);

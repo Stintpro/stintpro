@@ -176,6 +176,44 @@ function _enOrderEstimated(items){
   return items.sort((a,b)=>(a.pos==null?99:a.pos)-(b.pos==null?99:b.pos));
 }
 
+// ── Offset del túnel según el sentido de pista ─────────────────────────────
+// Un circuito puede correrse en los dos sentidos y el offset pit-exit→meta cambia
+// radicalmente (Henakart: 39.5s normal vs 20.0s inverso). Apex no dice el sentido
+// en el feed, así que lo elige el usuario — en el setup o, si cambia a mitad de
+// carrera, desde el toggle de la pestaña Avanzado.
+//
+// `own`  = lo calibrado en ESTE dispositivo para ese sentido (localStorage).
+// `known`= el valor de fábrica medido en sesiones reales (CircuitDB.knownOffsets).
+// Lo propio manda por ser más reciente y afinado, pero solo si es creíble: el mismo
+// rango de cordura (>3s y <300s) que ya aplicaba el setup. Devuelve null cuando no
+// hay valor utilizable — ese sentido se calibra en vivo (p.ej. Ariza en normal,
+// que nunca se ha medido).
+function _enSaneOffset(v){
+  const n=parseFloat(v);
+  return (!isNaN(n)&&n>3&&n<300)?n:null;
+}
+function _enResolveDirectionOffset(own, known){
+  const propio=_enSaneOffset(own);
+  if(propio!=null)return propio;
+  return _enSaneOffset(known);
+}
+
+// Estado de calibración tras cambiar de sentido A MITAD DE CARRERA.
+// Además de recargar el offset del nuevo sentido, **descarta las mediciones en
+// vuelo**: el offset se sella al salir de boxes y se resuelve en el siguiente paso
+// por meta, así que una medición que cruza el cambio salió en un sentido y cruzó
+// meta en el otro — incoherente. Antes se guardaba en la clave del sentido NUEVO y
+// lo contaminaba. En Henakart el sentido se invierte en una parada SINCRONIZADA de
+// toda la parrilla, con lo que ese caso no es la excepción sino la norma.
+// `pitOutPending` se recibe solo para dejar explícito que se tira.
+function _enDirectionSwitchState(own, known, pitOutPending){
+  const off=_enResolveDirectionOffset(own, known);
+  return {
+    pitOutCalibration: off!=null?[off,off]:[],
+    pitOutPending: {},
+  };
+}
+
 // ── Merge del historial de vueltas (modo logger) ──────────────────────────
 // Los updates live del logger llevan solo las últimas N vueltas (ventana) más
 // el contador total del parser (lapHistoryTotal). Se añaden al historial
@@ -199,4 +237,4 @@ function _enMergeLapHistory(prevHist, prevTotal, window, total){
   return merged.length>1500?merged.slice(-1500):merged;
 }
 
-if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap,_enOrderEstimated,_enMergeLapHistory};
+if(typeof module!=='undefined')module.exports={_enFmt,_enFmtGap,_enFmtDelta,_enFmtStint,_enDeltaColor,_enCleanLaps,_enCons,_enAvg5,_enTrend,_enPaceStd,_enDensityTiers,_enResolveGap,_enOrderEstimated,_enMergeLapHistory,_enResolveDirectionOffset,_enDirectionSwitchState};

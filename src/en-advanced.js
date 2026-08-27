@@ -56,9 +56,17 @@ function _enSetTrackDirection(dir){
   if(!slug||!window.CircuitDB?.hasDirectionVariants?.(slug))return;
   if(cfg.trackDirection===dir)return;
   cfg.trackDirection=dir;
-  const own=parseFloat(localStorage.getItem(window.CircuitDB.pitOffsetKey(slug,dir)));
-  const off=!isNaN(own)?own:window.CircuitDB.getKnownOffset(slug,dir);
-  EnSession.pitOutCalibration=(off!=null&&!isNaN(off))?[off,off]:[];
+  // Recarga el offset del nuevo sentido y DESCARTA las mediciones en vuelo: una
+  // que cruce el cambio salió de boxes en un sentido y cruzó meta en el otro, y
+  // acabaría guardada en la clave del sentido nuevo, contaminándolo. Ver
+  // _enDirectionSwitchState en analysis.js (misma regla que usa el setup).
+  const st=_enDirectionSwitchState(
+    localStorage.getItem(window.CircuitDB.pitOffsetKey(slug,dir)),
+    window.CircuitDB.getKnownOffset(slug,dir),
+    EnSession.pitOutPending
+  );
+  EnSession.pitOutCalibration=st.pitOutCalibration;
+  EnSession.pitOutPending=st.pitOutPending;
   const advTunnel=document.getElementById('en-adv-tunnel');
   if(advTunnel){
     const calibrated=EnSession.pitOutCalibration.length>=2;

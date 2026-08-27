@@ -4,6 +4,7 @@ const {
   _enFmt, _enFmtGap, _enFmtDelta, _enFmtStint,
   _enDeltaColor, _enCleanLaps, _enCons, _enAvg5, _enTrend,
   _enPaceStd, _enDensityTiers, _enResolveGap, _enOrderEstimated, _enMergeLapHistory,
+  _enResolveDirectionOffset, _enDirectionSwitchState,
 } = require('../src/analysis');
 
 const assert = require('assert');
@@ -366,6 +367,81 @@ group('_enOrderEstimated', () => {
   test('array vacío y de un elemento no rompen', () => {
     assert.deepEqual(_enOrderEstimated([]), []);
     assert.deepEqual(ord([{ dorsal:'x', pos:1, diff:0, estimatedGap:0 }]), ['x']);
+  });
+});
+
+// ── Offset del túnel al elegir/cambiar el sentido de pista ────────────────────
+// Un mismo circuito puede correrse en los dos sentidos y el offset pit-exit→meta
+// cambia radicalmente (Henakart: 39.5s normal vs 20.0s inverso). El setup y el
+// toggle de la pestaña Avanzado resolvían el offset por su cuenta y con criterios
+// DISTINTOS: el setup filtraba por rango de cordura y el toggle no. Ahora comparten
+// esta función.
+
+group('_enResolveDirectionOffset', () => {
+  test('la calibración propia del dispositivo gana al valor de fábrica', () => {
+    assert.equal(_enResolveDirectionOffset(21.4, 39.5), 21.4);
+  });
+
+  test('sin calibración propia usa el valor de fábrica', () => {
+    assert.equal(_enResolveDirectionOffset(NaN, 39.5), 39.5);
+    assert.equal(_enResolveDirectionOffset(null, 20.0), 20.0);
+  });
+
+  test('descarta valores propios fuera del rango de cordura (>3s y <300s)', () => {
+    assert.equal(_enResolveDirectionOffset(0.5, 39.5), 39.5);   // absurdo por abajo
+    assert.equal(_enResolveDirectionOffset(5000, 39.5), 39.5);  // absurdo por arriba
+  });
+
+  test('descarta también un valor de fábrica fuera de rango', () => {
+    assert.equal(_enResolveDirectionOffset(NaN, 0.2), null);
+  });
+
+  test('sentido sin medir (Ariza normal) → null, se calibra en vivo', () => {
+    assert.equal(_enResolveDirectionOffset(NaN, undefined), null);
+    assert.equal(_enResolveDirectionOffset(NaN, null), null);
+  });
+
+  test('los límites del rango son exclusivos', () => {
+    assert.equal(_enResolveDirectionOffset(3, 39.5), 39.5);
+    assert.equal(_enResolveDirectionOffset(300, 39.5), 39.5);
+    assert.equal(_enResolveDirectionOffset(3.1, 39.5), 3.1);
+  });
+});
+
+// ── Estado tras cambiar de sentido A MITAD DE CARRERA ─────────────────────────
+// El offset se mide en dos tiempos: se sella al salir de boxes y se resuelve en el
+// siguiente paso por meta. Una medición que cruza el cambio de sentido es
+// físicamente incoherente —sale de boxes en un sentido y cruza meta en el otro— y
+// antes se guardaba en la clave del sentido NUEVO, contaminándolo. En Henakart el
+// sentido se invierte en una parada SINCRONIZADA de toda la parrilla, así que ese
+// caso no es raro: es el normal.
+
+group('_enDirectionSwitchState', () => {
+  test('descarta SIEMPRE las mediciones en vuelo', () => {
+    const st = _enDirectionSwitchState(NaN, 20.0, { 7: 1000, 14: 2000 });
+    assert.deepEqual(st.pitOutPending, {});
+  });
+
+  test('con offset conocido deja la calibración lista (2 muestras)', () => {
+    const st = _enDirectionSwitchState(NaN, 20.0, {});
+    assert.deepEqual(st.pitOutCalibration, [20.0, 20.0]);
+  });
+
+  test('sin offset para ese sentido arranca sin calibrar', () => {
+    const st = _enDirectionSwitchState(NaN, undefined, { 7: 1000 });
+    assert.deepEqual(st.pitOutCalibration, []);
+    assert.deepEqual(st.pitOutPending, {});
+  });
+
+  test('un valor propio corrupto no se cuela en la calibración', () => {
+    const st = _enDirectionSwitchState(0.4, 20.0, {});
+    assert.deepEqual(st.pitOutCalibration, [20.0, 20.0]);
+  });
+
+  test('sin mediciones en vuelo no rompe', () => {
+    const st = _enDirectionSwitchState(NaN, 39.5, undefined);
+    assert.deepEqual(st.pitOutPending, {});
+    assert.deepEqual(st.pitOutCalibration, [39.5, 39.5]);
   });
 });
 
