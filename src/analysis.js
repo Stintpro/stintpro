@@ -153,25 +153,27 @@ function _enResolveGap(opts){
   return Math.max(apexGap, lapsGap);
 }
 
-// ── Orden de la clasificación estimada (deferral a Apex) ───────────────────
-// Ordena los items del estimador. Regla, validada con post-mortem de dos
-// carreras reales (IRONMAN Los Santos + Ariza 2h):
-//  - Si ALGÚN kart tiene paradas pendientes (diff>0) → ordenar por estimatedGap:
-//    la normalización por paradas manda, y revela el orden oculto cuando las
-//    paradas divergen (caso Ariza: ganador escondido por haber parado antes).
-//  - Si NADIE tiene paradas pendientes (diff==0 para todos) → deferir a la
-//    posición de Apex: la normalización aporta cero (penalty=0) y el estimatedGap
-//    se reduce a un gapReal re-derivado del gap de Apex, que viene contaminado
-//    (el líder marca "+Nvueltas", los grupos a una vuelta reinician el conteo) y
-//    es más grosero que la propia pos de Apex, que conoce el gap al segundo.
-// Mutación in situ (Array.sort) sobre el array recibido; ambos comparadores son
-// órdenes totales → transitivo y estable. Ver [[project-stintpro-ironman-postmortem]].
+// ── Orden de la clasificación estimada: SIEMPRE la posición de Apex ────────
+// Apex es la fuente del dato y su posición es la verdad de carrera; conoce el gap
+// al segundo. Reordenar por `estimatedGap` (gap normalizado por paradas pendientes,
+// que se mueve en vueltas enteras) mete ruido sobre una señal ya buena.
+//
+// Medido en 4 carreras reales (2026-07-31, concordancia de pares vs clasificación
+// final): Apex gana SIEMPRE en enduro de alquiler de una categoría —
+//   IRONMAN Los Santos  0.829 vs 0.784  (−0.044)
+//   3H por equipos      0.733 vs 0.468  (−0.265, el caso más limpio y el peor)
+//   RKC 2 HEURES        0.824 vs 0.744
+// La única victoria (Le Mans 6H) era artefacto de tener dos categorías en pista.
+// El "7/7 de Ariza" que fundó el diseño anterior era UN instante (min 75), no la
+// media: en la carrera completa ya perdía 0.725 vs 0.853.
+//
+// `estimatedGap` NO se tira: sigue siendo información útil (deuda de paradas y lo
+// que vale en segundos) y lo consume el detector "closing" de en-ai-alerts.js como
+// valor numérico. Lo que se retira es su papel de criterio de ORDEN.
+// Mutación in situ (Array.sort); orden total → transitivo y estable.
 function _enOrderEstimated(items){
   if(!Array.isArray(items)||items.length===0)return items;
-  const allStopsSettled=items.every(e=>(e.diff||0)===0);
-  return items.sort(allStopsSettled
-    ? (a,b)=>((a.pos==null?99:a.pos)-(b.pos==null?99:b.pos))
-    : (a,b)=>a.estimatedGap-b.estimatedGap);
+  return items.sort((a,b)=>(a.pos==null?99:a.pos)-(b.pos==null?99:b.pos));
 }
 
 // ── Merge del historial de vueltas (modo logger) ──────────────────────────
