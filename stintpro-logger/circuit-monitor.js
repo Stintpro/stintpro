@@ -52,6 +52,8 @@ const APEX_RECONNECT_MS       = 5000;
 const RAW_PRELUDE_WINDOW_MS = 15 * 60 * 1000;  // ventana de apertura conservada (últimos 15 min)
 const RAW_PRELUDE_MAX       = 5000;            // tope duro de líneas (backstop de memoria)
 const RAW_IDLE_CLOSE_MS     = 30 * 60 * 1000;  // cierra el fichero si el feed calla (tanda acabada sin bandera)
+const RAW_GRID_RE           = /(^|\n)grid\|/;  // mensaje que trae la parrilla completa
+const RAW_GRID_MATCH_MIN    = 0.4;             // solape de filas exigido para dar el grid por válido
 
 class CircuitMonitor {
   constructor(cfg, computeRatings) {
@@ -92,6 +94,7 @@ class CircuitMonitor {
     this._rawLogEnabled = cfg.rawLog || !!process.env.STINTPRO_RAW_LOG; // "armado"
     this._rawLogPath    = null;   // ruta del fichero abierto
     this._rawPrelude    = [];     // ráfaga init/grid/título acumulada antes de la 1ª vuelta
+    this._lastGridRaw   = null;   // último mensaje con grid| recibido, SIN caducidad (ver _openSessionRawLog)
 
     // Muestreo del canal HTTP request.php (investigación .P — ver apex-http-sampler.js)
     this._apexSampleEnabled = cfg.apexHttpSample || !!process.env.STINTPRO_APEX_HTTP_SAMPLE;
@@ -346,6 +349,10 @@ class CircuitMonitor {
   // sesión real y no arrastra la cháchara del silencio previo.
   _rawCapture(raw) {
     if (!this._rawLogEnabled) return;
+    // El grid se cachea aparte y sin caducidad: Apex solo lo manda al conectar y
+    // una sesión larga sin reconexión (un 24h) lo deja fuera de la ventana de
+    // prólogo. Ver _openSessionRawLog.
+    if (RAW_GRID_RE.test(raw)) this._lastGridRaw = raw;
     const now  = Date.now();
     const line = JSON.stringify({ t: now, raw }) + '\n';
     if (this._rawLog) {
@@ -358,6 +365,31 @@ class CircuitMonitor {
       // Backstop de memoria por si un burst inunda dentro de la ventana.
       while (this._rawPrelude.length > RAW_PRELUDE_MAX) this._rawPrelude.shift();
     }
+  }
+
+  // rowIds (r91327) que aparecen en un texto crudo de Apex, sea el grid o una
+  // línea ya serializada del prólogo.
+  _rawRowIds(text, out = new Set()) {
+    const re = /\br(\d+)c\d+/g;
+    let m;
+    while ((m = re.exec(text))) out.add(m[1]);
+    return out;
+  }
+
+  // ¿El grid cacheado describe la sesión que está en curso? Apex reasigna los
+  // rowId en cada evento: un grid ajeno daría colMap pero ninguna fila casaría,
+  // y el dorsal se leería del propio rowId (transponders de 5 cifras, el bug de
+  // la sesión 1075) — peor que no tener grid. Se exige el mismo solape que usa
+  // el parser para dar dos parrillas por la misma sesión.
+  _cachedGridFitsSession() {
+    if (!this._lastGridRaw) return false;
+    const enVivo = new Set();
+    for (const e of this._rawPrelude) this._rawRowIds(e.line, enVivo);
+    if (!enVivo.size) return false;   // sin tráfico reciente no hay contra qué contrastar
+    const enGrid = this._rawRowIds(this._lastGridRaw);
+    let comunes = 0;
+    for (const r of enVivo) if (enGrid.has(r)) comunes++;
+    return comunes >= enVivo.size * RAW_GRID_MATCH_MIN;
   }
 
   // Título de sesión → parte de nombre de fichero segura (sin acentos, espacios ni
@@ -381,6 +413,13 @@ class CircuitMonitor {
       const file  = path.join(dir, `${this.slug}_${this._rawTitleSlug(title)}_${stamp}.ndjson`);
       this._rawLog     = fs.createWriteStream(file, { flags: 'a' });
       this._rawLogPath = file;
+      // Sin grid, el .ndjson no es reproducible: al releerlo no hay colMap y la
+      // mayoría de las vueltas se pierden. Si la ventana de prólogo ya lo podó,
+      // se antepone el último grid conocido —siempre que sea de esta sesión—,
+      // sellado a la hora de apertura para no falsear la línea temporal.
+      if (!this._rawPrelude.some(e => e.line.includes('grid|')) && this._cachedGridFitsSession()) {
+        try { this._rawLog.write(JSON.stringify({ t: Date.now(), raw: this._lastGridRaw }) + '\n'); } catch(e) {}
+      }
       if (this._rawPrelude.length) {
         try { this._rawLog.write(this._rawPrelude.map(e => e.line).join('')); } catch(e) {}
       }
