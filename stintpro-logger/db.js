@@ -129,8 +129,12 @@ function createSession(slug, circuitName, title) {
   return id;
 }
 
-function endSession(sessionId) {
-  db.prepare('UPDATE sessions SET ended_at=?, is_active=0 WHERE id=?').run(Date.now(), sessionId);
+// `endedAt` permite cerrar con la hora REAL de la última actividad en vez de la de
+// ahora. Importa al limpiar sesiones que quedaron colgadas por un reinicio: sellarlas
+// con Date.now() diría que una carrera de hace semanas terminó hoy.
+function endSession(sessionId, endedAt) {
+  const at = Number.isFinite(endedAt) ? endedAt : Date.now();
+  db.prepare('UPDATE sessions SET ended_at=?, is_active=0 WHERE id=?').run(at, sessionId);
 }
 
 function updateSessionTitle(sessionId, title) {
@@ -204,6 +208,20 @@ function getAllSessions() {
     FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
     GROUP BY s.id ORDER BY s.id DESC LIMIT 200
   `).all();
+}
+
+// Sesión de este circuito que quedó ABIERTA (is_active=1). Tras un reinicio del
+// logger es la candidata a reanudar — quién decide si de verdad lo es está en
+// CircuitMonitor.canResumeSession, que exige evidencia de que la carrera es la
+// misma. Se devuelve con su nº de vueltas para restaurar el contador en memoria.
+function getResumableSession(slug) {
+  return db.prepare(
+    `SELECT s.id, s.slug, s.title, s.started_at, COUNT(l.id) AS lap_count,
+            MAX(l.timestamp) AS last_lap_at
+     FROM sessions s LEFT JOIN laps l ON l.session_id=s.id
+     WHERE s.slug=? AND s.is_active=1
+     GROUP BY s.id ORDER BY s.id DESC LIMIT 1`
+  ).get(slug) || null;
 }
 
 function getCircuitSessions(slug, limit = 50) {
@@ -282,6 +300,7 @@ function getBestLapsByCircuit(slug) {
 module.exports = {
   init,
   createSession, endSession, updateSessionTitle, cleanupEmptySessions, deleteSession,
+  getResumableSession,
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
   saveSnapshot, getSnapshot,

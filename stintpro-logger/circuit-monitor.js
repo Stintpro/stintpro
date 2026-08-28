@@ -52,8 +52,47 @@ const APEX_RECONNECT_MS       = 5000;
 const RAW_PRELUDE_WINDOW_MS = 15 * 60 * 1000;  // ventana de apertura conservada (últimos 15 min)
 const RAW_PRELUDE_MAX       = 5000;            // tope duro de líneas (backstop de memoria)
 const RAW_IDLE_CLOSE_MS     = 30 * 60 * 1000;  // cierra el fichero si el feed calla (tanda acabada sin bandera)
+// ── Reanudar una sesión tras un reinicio del logger ────────────────────────
+// `sessionId` vive en memoria, así que un reinicio a mitad de carrera creaba una
+// sesión NUEVA y la partía en dos. Se intenta reanudar la que quedó abierta, pero
+// solo con evidencia fuerte, y el criterio es asimétrico a propósito: partir una
+// carrera es recuperable (ingest-raw-log) y fusionar dos NO lo es → ante la duda,
+// partir. Título y cercanía temporal NO valen como prueba: en alquiler se corren
+// tandas seguidas con el mismo título y los mismos karts (medido en la BD: 191
+// pares consecutivos así, casi todos legítimamente distintos).
+const RESUME_MAX_AGE_MS  = 30 * 60 * 1000; // snapshot más viejo que esto → no reanudar
+const RESUME_MIN_OVERLAP = 0.4;            // mismo umbral que usa el parser para "misma parrilla"
+const RESUME_MIN_KARTS   = 3;              // por debajo no hay evidencia suficiente
+const RESUME_MIN_TOURS   = 3;              // sesión apenas arrancada → partirla no cuesta nada
 const RAW_GRID_RE           = /(^|\n)grid\|/;  // mensaje que trae la parrilla completa
 const RAW_GRID_MATCH_MIN    = 0.4;             // solape de filas exigido para dar el grid por válido
+
+// ¿El snapshot de la sesión abierta describe la carrera que está rodando AHORA?
+// El discriminador es `tours`, el contador oficial de vueltas de Apex: no lo lleva
+// nuestro parser, así que un reinicio del logger no lo reinicia. Si ha retrocedido,
+// lo que hay en pista es otra tanda, no la misma carrera.
+function canResumeSession(snap, live, now, opts = {}) {
+  if (!snap || !Array.isArray(snap.equipos) || !snap.equipos.length) return false;
+  if (!live || !Array.isArray(live.equipos) || !live.equipos.length) return false;
+  if (!snap.timestamp) return false;
+  if (now - snap.timestamp > (opts.maxAgeMs ?? RESUME_MAX_AGE_MS)) return false;
+
+  const antes = new Map(), ahora = new Map();
+  for (const e of snap.equipos) if (e && e.dorsal != null) antes.set(String(e.dorsal), e.tours || 0);
+  for (const e of live.equipos) if (e && e.dorsal != null) ahora.set(String(e.dorsal), e.tours || 0);
+  if (!antes.size || !ahora.size) return false;
+
+  // Una sesión que apenas había rodado no merece el riesgo de fusionar.
+  if (Math.max(...antes.values()) < RESUME_MIN_TOURS) return false;
+
+  const comunes = [...antes.keys()].filter(d => ahora.has(d));
+  if (comunes.length < RESUME_MIN_KARTS) return false;
+  if (comunes.length / antes.size < (opts.minOverlap ?? RESUME_MIN_OVERLAP)) return false;
+
+  // El contador oficial no retrocede dentro de una misma sesión.
+  for (const d of comunes) if (ahora.get(d) < antes.get(d)) return false;
+  return true;
+}
 
 class CircuitMonitor {
   constructor(cfg, computeRatings) {
@@ -83,6 +122,7 @@ class CircuitMonitor {
 
     // Estado de sesión
     this.sessionId  = null;
+    this._resumeChecked = false;  // el intento de reanudar es una sola vez por arranque
     this.pitEvents  = [];   // eventos de pit de la sesión actual (para snapshot)
     this.raceEvents = [];   // eventos de bandera roja detenida/reanudada (para snapshot)
     this._lapCount  = 0;
@@ -448,6 +488,14 @@ class CircuitMonitor {
 
     if (!this.recording) return;
     if (!this.sessionId) {
+      // Primera vuelta real. Antes de crear sesión, mirar si esto es la
+      // continuación de una que quedó abierta por un reinicio del proceso.
+      if (!this._resumeChecked) {
+        this._resumeChecked = true;
+        this._tryResumeSession();
+      }
+    }
+    if (!this.sessionId) {
       // Primera vuelta real → crear sesión
       const { title1, title2 } = this.parser.getState();
       const title = [title1, title2].filter(Boolean).join(' · ') || null;
@@ -461,6 +509,38 @@ class CircuitMonitor {
     this._lapCount++;
     const cleanName = (name || '').replace(/\s*\[\d+:\d+\]\s*$/, '').trim();
     db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp, category || null);
+  }
+
+  // Se ejecuta UNA vez por arranque, en la primera vuelta. Si hay una sesión
+  // abierta de este circuito y el estado en pista demuestra que es la misma
+  // carrera, se continúa escribiendo en ella. Si no lo demuestra, se cierra
+  // (evita que se acumulen sesiones colgadas con is_active=1, que es lo que
+  // dejaba cada reinicio) y se crea una nueva como siempre.
+  // El ancla de inicio de carrera NO se restaura a mano: el tracker la
+  // reconstruye sola del histórico que Apex reenvía en el primer `com|`.
+  _tryResumeSession() {
+    let cand = null;
+    try { cand = db.getResumableSession(this.slug); } catch (e) { return false; }
+    if (!cand) return false;
+
+    const snap = db.getSnapshot(cand.id);
+    if (!canResumeSession(snap, this.parser.getState(), Date.now())) {
+      // Se cierra con su ÚLTIMA actividad real, no con la hora de ahora: estas
+      // sesiones pueden llevar semanas colgadas y sellarlas hoy sería mentir.
+      const fin = cand.last_lap_at || (snap && snap.timestamp) || cand.started_at || undefined;
+      try { db.endSession(cand.id, fin); } catch (e) {}
+      console.log(`[${this.slug}] Sesión abierta #${cand.id} no continúa la de ahora → cerrada`);
+      return false;
+    }
+
+    this.sessionId  = cand.id;
+    this.pitEvents  = Array.isArray(snap.pitEvents)  ? snap.pitEvents  : [];
+    this.raceEvents = Array.isArray(snap.raceEvents) ? snap.raceEvents : [];
+    this._lapCount  = cand.lap_count || 0;
+    if (this._saveTimer) clearInterval(this._saveTimer);
+    this._saveTimer = setInterval(() => this._saveSnapshot(), 10000);
+    console.log(`[${this.slug}] Reanudada sesión #${cand.id} tras reinicio (${this._lapCount} vueltas ya grabadas)`);
+    return true;
   }
 
   _onPit(dorsal, eventType, standsCount, timestamp, pitDurationSec) {
@@ -735,3 +815,4 @@ class CircuitMonitor {
 }
 
 module.exports = CircuitMonitor;
+module.exports.canResumeSession = canResumeSession;

@@ -635,6 +635,156 @@ describe('integración de extremo a extremo', () => {
 
 // ── Raw log de sesión: grid de apertura ───────────────────────────────────────
 //
+// ── Reanudar la sesión tras un reinicio del logger ────────────────────────────
+// `sessionId` vive en memoria: un reinicio a mitad de carrera creaba una sesión
+// NUEVA y partía la carrera en dos. Ahora se intenta reanudar la que quedó activa,
+// pero solo con evidencia fuerte. El criterio es asimétrico a propósito: partir una
+// carrera es recuperable (ingest-raw-log), fusionar dos NO lo es → ante la duda,
+// partir. El discriminador es `tours`, el contador oficial de Apex, que no se
+// reinicia con nuestro proceso: si ha retrocedido es otra tanda, no la misma carrera.
+
+describe('canResumeSession', () => {
+  const AHORA = 1700000000000;
+  const snap = (pares, ts = AHORA - 60000) =>
+    ({ timestamp: ts, equipos: pares.map(([dorsal, tours]) => ({ dorsal, tours })) });
+  const vivo = pares => ({ equipos: pares.map(([dorsal, tours]) => ({ dorsal, tours })) });
+  const puede = (sn, lv, now = AHORA) => CircuitMonitor.canResumeSession(sn, lv, now);
+
+  test('reanuda: misma parrilla y las vueltas siguen avanzando', () => {
+    expect(puede(
+      snap([['6', 40], ['14', 39], ['23', 40]]),
+      vivo([['6', 41], ['14', 40], ['23', 41]]),
+    )).toBe(true);
+  });
+
+  test('reanuda aunque algún kart se haya retirado (solape suficiente)', () => {
+    expect(puede(
+      snap([['6', 40], ['14', 39], ['23', 40], ['9', 38]]),
+      vivo([['6', 41], ['14', 40], ['23', 41]]),
+    )).toBe(true);
+  });
+
+  test('NO reanuda si las vueltas han retrocedido: es una tanda nueva', () => {
+    // El caso real de Cabanillas: dos tandas seguidas, mismos karts, mismo título.
+    expect(puede(
+      snap([['6', 40], ['14', 39], ['23', 40]]),
+      vivo([['6', 2], ['14', 1], ['23', 2]]),
+    )).toBe(false);
+  });
+
+  test('NO reanuda si el grid aún no ha llegado (contadores a cero)', () => {
+    expect(puede(
+      snap([['6', 40], ['14', 39], ['23', 40]]),
+      vivo([['6', 0], ['14', 0], ['23', 0]]),
+    )).toBe(false);
+  });
+
+  test('NO reanuda si el snapshot es viejo', () => {
+    expect(puede(
+      snap([['6', 40], ['14', 39], ['23', 40]], AHORA - 45 * 60000),
+      vivo([['6', 41], ['14', 40], ['23', 41]]),
+    )).toBe(false);
+  });
+
+  test('NO reanuda si la parrilla apenas coincide', () => {
+    expect(puede(
+      snap([['6', 40], ['14', 39], ['23', 40], ['9', 40], ['5', 40]]),
+      vivo([['6', 41], ['77', 12], ['88', 12], ['99', 12]]),
+    )).toBe(false);
+  });
+
+  test('NO reanuda si la sesión anterior apenas había arrancado', () => {
+    // Partirla no cuesta casi nada y evita fusionar por error.
+    expect(puede(
+      snap([['6', 1], ['14', 1], ['23', 1]]),
+      vivo([['6', 2], ['14', 2], ['23', 2]]),
+    )).toBe(false);
+  });
+
+  test('NO reanuda sin snapshot o sin parrilla', () => {
+    expect(puede(null, vivo([['6', 41]]))).toBe(false);
+    expect(puede(snap([['6', 40], ['14', 40], ['23', 40]]), { equipos: [] })).toBe(false);
+    expect(puede({ timestamp: AHORA, equipos: [] }, vivo([['6', 41]]))).toBe(false);
+  });
+});
+
+describe('_onLap tras un reinicio', () => {
+  // La parrilla estándar de estos tests no trae columna de vueltas, y `tours` —el
+  // contador oficial de Apex— es justo el discriminador. Aquí se usa una con `lc`.
+  const COLS_LC = STANDARD_COLS + '<td data-id="c4" data-type="lc"></td>';
+  const gridLc = rows => 'grid|<table><tbody>' + `<tr data-id="r0">${COLS_LC}</tr>` + rows + '</tbody></table>';
+  const filaLc = (rowId, dorsal, name, vueltas) =>
+    `<tr data-id="${rowId}">` +
+    `<td data-id="${rowId}c1"><div>${dorsal}</div></td>` +
+    `<td data-id="${rowId}c2"><div>${name}</div></td>` +
+    `<td data-id="${rowId}c3"></td>` +
+    `<td data-id="${rowId}c4">${vueltas}</td>` +
+    '</tr>';
+  const PARRILLA = v => gridLc(
+    filaLc('r1', '6', 'JAVIER', v) + filaLc('r2', '14', 'ANA', v) + filaLc('r3', '23', 'LUIS', v));
+
+  // Deja una sesión grabando y "muere" sin cerrarla, como un systemctl restart.
+  function sesionEnCurso() {
+    const m1 = createMonitor();
+    m1.parser.parse(PARRILLA(40));
+    m1._onLap('6',  'JAVIER', null, 64000, 1, Date.now());
+    m1._onLap('14', 'ANA',    null, 64500, 1, Date.now());
+    m1._saveSnapshot();   // el snapshot periódico es lo que deja el rastro
+    return m1.sessionId;
+  }
+
+  test('reanuda la sesión que quedó abierta en vez de crear otra', () => {
+    const sid = sesionEnCurso();
+
+    const m2 = createMonitor();          // proceso nuevo: sessionId=null
+    m2.parser.parse(PARRILLA(41));       // misma parrilla, contadores avanzados
+    m2._onLap('6', 'JAVIER', null, 63800, 2, Date.now());
+
+    expect(m2.sessionId).toBe(sid);
+    expect(db.getLapsBySession(sid)).toHaveLength(3);   // 2 de antes + 1 de ahora
+    expect(db.getAllSessions().filter(x => x.slug === SLUG)).toHaveLength(1);
+  });
+
+  test('restaura el contador de vueltas ya grabadas', () => {
+    sesionEnCurso();
+    const m2 = createMonitor();
+    m2.parser.parse(PARRILLA(41));
+    m2._onLap('6', 'JAVIER', null, 63800, 2, Date.now());
+    expect(m2.getInfo().lapCount).toBe(3);
+  });
+
+  test('una tanda NUEVA crea sesión aparte y cierra la que quedó colgada', () => {
+    const sid = sesionEnCurso();
+
+    const m2 = createMonitor();
+    m2.parser.parse(PARRILLA(1));        // contadores reiniciados → otra carrera
+    m2._onLap('6', 'JAVIER', null, 64100, 1, Date.now());
+
+    expect(m2.sessionId).not.toBe(sid);
+    expect(db.getAllSessions().filter(x => x.slug === SLUG)).toHaveLength(2);
+    // La vieja se cierra: así no se acumulan sesiones con is_active=1
+    const vieja = db.getAllSessions().find(x => x.id === sid);
+    expect(vieja.is_active).toBe(0);
+    // ...y se sella con su última actividad real, no con la hora de ahora: hay
+    // sesiones colgadas desde hace semanas y fecharlas hoy sería falsear el dato.
+    expect(vieja.ended_at).toBeLessThanOrEqual(Date.now());
+    expect(vieja.ended_at).toBeGreaterThan(0);
+  });
+
+  test('solo se intenta reanudar una vez por arranque', () => {
+    sesionEnCurso();
+    const m2 = createMonitor();
+    m2.parser.parse(PARRILLA(41));
+    m2._onLap('6', 'JAVIER', null, 63800, 2, Date.now());
+    const sid2 = m2.sessionId;
+    const spy = jest.spyOn(db, 'getResumableSession');
+    m2._onLap('14', 'ANA', null, 64200, 2, Date.now());
+    expect(spy).not.toHaveBeenCalled();
+    expect(m2.sessionId).toBe(sid2);
+    spy.mockRestore();
+  });
+});
+
 // Apex solo manda `grid|` al conectar. En una sesión larga sin reconexión (un 24h)
 // el grid puede quedar FUERA de la ventana de prólogo (15 min) y el .ndjson nace
 // sin él → al reproducirlo no hay colMap y se pierde la mayoría de las vueltas.

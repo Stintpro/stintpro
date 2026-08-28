@@ -1122,13 +1122,32 @@ async function start() {
     }
   });
 
+  server._monitors = monitors;   // para el apagado limpio (shutdown)
   return server;
 }
 
 module.exports = { createServer, start, verifySupabaseJwt, _injectJwksForTest };
 
+// Apagado limpio. systemctl restart manda SIGTERM y el proceso moría sin más, así
+// que el último snapshot podía tener hasta 10s de antigüedad. Se fuerza uno final
+// para que la reanudación tras el reinicio arranque del estado más fresco posible.
+// Las sesiones NO se cierran a propósito: quedan is_active=1 para poder reanudarlas
+// (CircuitMonitor._tryResumeSession cierra las que resulten no ser la misma carrera).
+function shutdown(signal, monitors) {
+  console.log(`[Logger] ${signal} recibido — guardando snapshots de las sesiones activas`);
+  let n = 0;
+  for (const mon of monitors.values()) {
+    try { if (mon.sessionId && mon._saveSnapshot) { mon._saveSnapshot(); n++; } } catch (e) {}
+  }
+  console.log(`[Logger] ${n} sesión(es) con snapshot al día — saliendo`);
+  process.exit(0);
+}
+
 if (require.main === module) {
-  start().catch(e => {
+  start().then(server => {
+    const monitors = server && server._monitors ? server._monitors : new Map();
+    for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => shutdown(sig, monitors));
+  }).catch(e => {
     console.error('[Logger] Error de arranque:', e);
     process.exit(1);
   });
