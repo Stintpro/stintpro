@@ -1102,6 +1102,10 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
         EnSession.data.sessionMode=data.sessionMode||'';
+        // colMap: qué columnas manda Apex en esta sesión. Se acumula porque el
+        // parser lo vacía al resetear y una reconexión dejaría la tabla coja.
+        EnSession.colMapSeen = EnColumns.mergeColMap(EnSession.colMapSeen, data.colMap);
+        EnSession.data.colMap = EnSession.colMapSeen;
         if(data.sessionFinished)EnSession._finished=true;
 
         // ── Salida oficial (com|): ancla del arranque de carrera ──────────────
@@ -1364,6 +1368,7 @@ window._enGoBack=function(){
   if(_enBarTimer){clearInterval(_enBarTimer);_enBarTimer=null;}
   _enStopAdvRaf();
   EnSession.data={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
+  EnSession.colMapSeen = {};
   EnSession.lastTrackAvg=null;
   EnSession.stintStart=null;
   EnSession.stintFrozen=null;

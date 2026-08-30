@@ -154,6 +154,12 @@
     },
   ];
 
+  // Unión de colMaps de la sesión. El parser vacía su colMap al resetear, y una
+  // reconexión dejaría la tabla sin columnas hasta que Apex reenvíe el grid.
+  function mergeColMap(prev, next) {
+    return Object.assign({}, prev || {}, next || {});
+  }
+
   function isAvailable(col, colMap) {
     if (!col.requires) return true;
     return !!col.requires(colMap || {});
@@ -225,5 +231,5 @@
   }
 
   return { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells,
-           defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY };
+           defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY, mergeColMap };
 });

@@ -5,6 +5,7 @@
 // ── Estado de sesión (se resetea entre carreras) ──────────────────────────
 const EnSession = {
   data:             { equipos:[], leaderLap:0 }, // datos en vivo del conector
+  colMapSeen:       {},   // unión de los colMap de Apex vistos en esta sesión
   stintStart:       null,   // timestamp inicio stint de mi equipo
   stintFrozen:      null,   // ms congelados cuando acaba sesión
   _myPitInDetected: false,  // el freeze de stintFrozen viene de un pit-in real (no de fin de sesión)
