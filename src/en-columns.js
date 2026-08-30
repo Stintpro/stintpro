@@ -55,7 +55,7 @@
       cell: (e, d) => `<div class="sp-pos">${e.pos === 99 ? '—' : e.pos}${d.arrow}</div>`,
     },
     {
-      id: 'kart', label: 'Kart', align: 'center',
+      id: 'kart', label: 'Kart', align: 'right',
       width: '42px', widthNarrow: '34px',
       source: 'apex', fixed: true,
       requires: cm => !!cm.no,
