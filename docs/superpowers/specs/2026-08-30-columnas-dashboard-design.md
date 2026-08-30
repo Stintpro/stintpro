@@ -271,3 +271,20 @@ Cómo se garantiza:
   hizo con la meteo (que resultó estar vacía).
 - Sincronizar la preferencia entre dispositivos.
 - Unificar `src/apex-protocol.js` con `stintpro-logger/apex-protocol.js`.
+
+## Verificación pendiente en la app real
+
+Requiere sesión iniciada (el arranque consulta Supabase). A comprobar por
+Javier antes de fusionar a `main`:
+
+- [ ] Con la selección por defecto, la tabla se ve **igual que antes**.
+- [ ] El botón "⚙ Columnas" abre el panel y las casillas responden.
+- [ ] Desmarcar una columna la quita de cabecera y filas a la vez, sin
+      descuadrar la rejilla.
+- [ ] La selección sobrevive a recargar la página.
+- [ ] En un circuito sin columna de vueltas, "Vtas" no aparece (antes salía un
+      número inventado).
+- [ ] En un circuito con categorías, "Clase" se puede marcar y muestra el valor.
+- [ ] En iPad: si las columnas no caben, la tabla scrollea en horizontal y la
+      cabecera acompaña al cuerpo.
+- [ ] Una reconexión a mitad de sesión no hace desaparecer columnas.
