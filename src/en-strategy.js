@@ -1007,6 +1007,7 @@ window.showEnduranceDashboard=function(cfg){
   el.classList.add('active');
   el.innerHTML=''; // Limpiar dashboard anterior
   _enInjectSetupBtn();
+  _enInjectColumnsBtn();
 
   // Renderizar dashboard completo inmediatamente (vacío pero navegable)
   _enRender();
@@ -1360,8 +1361,25 @@ function _enInjectSetupBtn() {
   nav.appendChild(btn);
 }
 
+// El selector de columnas vive en la barra superior, junto a Setup. Conserva el
+// id 'en-col-bar' porque _enSetTab lo oculta fuera de Clasificación, y arrastra
+// consigo el contenedor del panel para que este se despliegue bajo el botón.
+function _enInjectColumnsBtn() {
+  const nav = document.getElementById('sp-topnav');
+  if (!nav || document.getElementById('en-col-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'en-col-bar';
+  bar.className = 'en-col-bar';
+  bar.innerHTML =
+    '<button class="sp-nav-btn en-col-btn" onclick="_enToggleColumnPanel()" ' +
+    'title="Elegir qué columnas se ven">⚙ Columnas</button>' +
+    '<div id="en-col-panel-wrap"></div>';
+  nav.appendChild(bar);
+}
+
 window._enGoBack=function(){
   document.querySelector('.sp-nav-setup')?.remove();
+  document.getElementById('en-col-bar')?.remove();   // vive en la barra superior
   _enClearRaceState();
   document.getElementById('en-reconcile-banner')?.remove();
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();

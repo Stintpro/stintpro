@@ -14,6 +14,21 @@ function _enActiveColumns(){
   return EnColumns.visibleColumns(EnSession.colMapSeen, _enSelectionCache);
 }
 
+// La cabecera se pinta UNA vez, dentro del esqueleto, y en ese momento todavía
+// no ha llegado ningún colMap: solo sobreviven las columnas que no dependen de
+// Apex (Equipo, M5v, Δ Pista, Score), así que sus rótulos se reparten por los
+// primeros carriles de una rejilla que un instante después ya tiene los 14.
+// Resultado: cabecera descolocada hasta que algo la repintaba (tocar M5v).
+// Aquí se resincroniza en cuanto cambia el juego de columnas visibles.
+let _enLastColIds=null;
+function _enSyncThead(cols){
+  const ids=cols.map(c=>c.id).join(',');
+  if(ids===_enLastColIds)return;
+  _enLastColIds=ids;
+  const thead=document.getElementById('en-thead');
+  if(thead)thead.innerHTML=_enTheadHtml();
+}
+
 // El grid-template-columns deja de estar cableado en el CSS: se calcula desde
 // los anchos del catálogo. Dos reglas, una por breakpoint, en un <style> propio.
 // Se escribe en el DOM solo si el texto cambia: cada asignación a textContent
@@ -224,10 +239,6 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div class="en-tab ${EnUi.tab==='team'?'active':''}" onclick="_enSetTab('team')">👥 Mi equipo</div>
     <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
     <div class="en-tab ${EnUi.tab==='adv'?'active':''}" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
-  </div>
-  <div class="en-col-bar" id="en-col-bar" style="${EnUi.tab==='grid'?'':'display:none'}">
-    <span class="en-col-btn" onclick="_enToggleColumnPanel()" title="Elegir columnas">⚙ Columnas</span>
-    <div id="en-col-panel-wrap"></div>
   </div>
   <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
   <div class="sp-body" id="en-grid-body" style="${EnUi.tab==='grid'?'':'display:none'}"></div>
@@ -460,6 +471,7 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
   let html='';
   const cols=_enActiveColumns();
   _enApplyColumnStyle(cols);
+  _enSyncThead(cols);
 
   if(EnUi.sortMode==='m5v'){
     eq=[...eq].sort((a,b)=>{

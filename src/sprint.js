@@ -466,6 +466,7 @@ window.showSprintDashboard=function(cfg){
 
 window._spGoBack=function(){
   document.querySelector('.sp-nav-setup')?.remove();
+  document.getElementById('en-col-bar')?.remove();   // por si se vino del endurance
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();
   if(window.ApexClock)window.ApexClock.reset();
   if(_spTimer)clearTimeout(_spTimer);
