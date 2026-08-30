@@ -303,9 +303,14 @@ group('persistencia', () => {
 });
 
 group('panel de selección', () => {
-  test('lista todas las columnas del catálogo', () => {
+  test('lista todas las columnas con nombre', () => {
     const html = panelHtml(FULL_COLMAP, DEFAULT_SEL);
-    COLUMNS.forEach(c => ok(html.includes(`data-col="${c.id}"`), `falta ${c.id}`));
+    COLUMNS.filter(c => c.label).forEach(c => ok(html.includes(`data-col="${c.id}"`), `falta ${c.id}`));
+  });
+
+  test('las columnas sin nombre no salen en el panel (el punto de estado)', () => {
+    const html = panelHtml(FULL_COLMAP, DEFAULT_SEL);
+    COLUMNS.filter(c => !c.label).forEach(c => ok(!html.includes(`data-col="${c.id}"`), `sobra ${c.id}`));
   });
 
   test('agrupa en De Apex y De StintPro', () => {
@@ -326,7 +331,8 @@ group('panel de selección', () => {
     const html = panelHtml({ rk: 'c1', no: 'c2', dr: 'c3' }, DEFAULT_SEL);
     const fila = html.split('data-col="gap"')[1].split('</label>')[0];
     ok(fila.includes('disabled'));
-    ok(html.includes('este circuito no la manda'));
+    // El motivo va en el title: como texto suelto rompía el panel en varias líneas
+    ok(fila.includes('title="Apex no manda esta columna'));
   });
 
   test('Vueltas nunca sale deshabilitada, ni sin contador oficial', () => {

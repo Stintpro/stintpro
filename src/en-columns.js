@@ -214,18 +214,22 @@
       const disponible = isAvailable(c, colMap);
       const marcada    = c.fixed || (sel.has(c.id) && disponible);
       const bloqueada  = c.fixed || !disponible;
-      const motivo     = c.fixed ? 'siempre visible'
-                       : !disponible ? 'este circuito no la manda' : '';
-      return `<label class="en-col-item${bloqueada ? ' en-col-off' : ''}" data-col="${c.id}">`
+      // El motivo va en el title, no en el cuerpo del panel: como texto suelto
+      // partía las filas en varias líneas y el panel se volvía ilegible.
+      const motivo     = c.fixed ? 'Siempre visible: sin ella la tabla no identifica a nadie'
+                       : !disponible ? 'Apex no manda esta columna en la sesión actual' : '';
+      return `<label class="en-col-item${bloqueada ? ' en-col-off' : ''}" data-col="${c.id}"`
+           + (motivo ? ` title="${motivo}"` : '') + `>`
            + `<input type="checkbox"${marcada ? ' checked' : ''}${bloqueada ? ' disabled' : ''}`
            + ` onchange="_enSetColumn('${c.id}',this.checked)">`
-           + `<span>${c.label || '·'}</span>`
-           + (motivo ? `<em class="en-col-why">${motivo}</em>` : '')
+           + `<span>${c.label}</span>`
            + `</label>`;
     };
+    // Sin etiqueta no hay nada que ofrecer al usuario (el punto de estado), así
+    // que esas columnas no salen en el panel.
     const grupo = (titulo, src) =>
       `<div class="en-col-group"><div class="en-col-title">${titulo}</div>`
-      + COLUMNS.filter(c => c.source === src).map(fila).join('')
+      + COLUMNS.filter(c => c.source === src && c.label).map(fila).join('')
       + `</div>`;
     return `<div class="en-col-panel" id="en-col-panel">`
          + grupo('De Apex', 'apex')
