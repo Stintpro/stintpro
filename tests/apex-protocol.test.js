@@ -982,6 +982,48 @@ group('título tardío tras el grid', () => {
   });
 });
 
+group('categoría / clase', () => {
+  function parserConClase() {
+    const p = createParser({});
+    p.setGrid({
+      colMap:   { no: 'c1', dr: 'c2', class: 'c4', llp: 'c3' },
+      colByNum: { c1: 'no', c2: 'dr', c4: 'class', c3: 'llp' },
+      catCol:   'c4',
+      karts: [{ rowId: 'r1', pos: 1, dorsal: '7', name: 'TEAM A' }],
+    });
+    return p;
+  }
+
+  test('la celda de la columna class llega como category', () => {
+    const p = parserConClase();
+    p.parse('r1c4|tn|390');
+    assert.equal(p.getState().equipos[0].category, '390');
+  });
+
+  test('un código de estado colado en esa columna no es categoría', () => {
+    const p = parserConClase();
+    p.parse('r1c4|tn|sr');
+    assert.equal(p.getState().equipos[0].category, null);
+  });
+
+  test('un tiempo colado en esa columna no es categoría', () => {
+    const p = parserConClase();
+    p.parse('r1c4|tn|1:04.500');
+    assert.equal(p.getState().equipos[0].category, null);
+  });
+
+  test('un nombre largo colado al reordenar el grid no es categoría', () => {
+    const p = parserConClase();
+    p.parse('r1c4|tn|Moises Morales Gonzalez');
+    assert.equal(p.getState().equipos[0].category, null);
+  });
+
+  test('sin columna class, category es null', () => {
+    const p = parserWithLlp();
+    assert.equal(p.getState().equipos[0].category, null);
+  });
+});
+
 // ── Results ───────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);

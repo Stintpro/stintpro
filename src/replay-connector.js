@@ -2,6 +2,14 @@
 // Misma interfaz que ApexConnector: connect(slug, onData, onStatus, onComment, port)
 // Controles: pause() / resume() / setSpeed(n)
 
+// Cabeceras que delatan una columna de categoría/cilindrada
+// var (no const): apex-connector.js y replay-connector.js son <script> clásicos
+// cargados en el mismo scope global de index.html — un `const` duplicado entre
+// ambos lanza "Identifier ha sido declarado" y aborta el segundo script entero.
+var CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
+// dtypes que ya tienen significado propio: nunca son la columna de categoría
+var RESERVED_DTYPES = new Set(['rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr','s1','s2','s3','grp','sta','nat','rku']);
+
 window.ReplayConnector = {
   _lines:      [],
   _playing:    false,
@@ -235,6 +243,7 @@ window.ReplayConnector = {
     try {
       const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
       const colMap = {}, colByNum = {};
+      let catCol = null;
 
       const r0 = doc.querySelector('tr[data-id="r0"]');
       if (r0) {
@@ -242,6 +251,9 @@ window.ReplayConnector = {
           const cid   = td.getAttribute('data-id');
           const dtype = (td.getAttribute('data-type') || '').trim();
           if (cid && dtype) { colMap[dtype] = cid; colByNum[cid] = dtype; }
+
+          if (dtype === 'class') catCol = cid;
+          else if (!catCol && CAT_HEADER.test(td.textContent || '') && !RESERVED_DTYPES.has(dtype)) catCol = cid;
         });
       }
 
@@ -288,7 +300,7 @@ window.ReplayConnector = {
         gridKarts.push(kg);
       });
 
-      this._parser.setGrid({ colMap, colByNum, karts: gridKarts });
+      this._parser.setGrid({ colMap, colByNum, karts: gridKarts, catCol });
     } catch(e) { console.error('[ReplayConnector] parseGrid:', e); }
   },
 

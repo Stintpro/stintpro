@@ -6,6 +6,14 @@
 // la app Electron (origen file://), que no puede resolver rutas relativas.
 const APEX_PROXY_URL = 'https://stintpro.vercel.app/api/apex-proxy';
 
+// Cabeceras que delatan una columna de categoría/cilindrada
+// var (no const): apex-connector.js y replay-connector.js son <script> clásicos
+// cargados en el mismo scope global de index.html — un `const` duplicado entre
+// ambos lanza "Identifier ha sido declarado" y aborta el segundo script entero.
+var CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
+// dtypes que ya tienen significado propio: nunca son la columna de categoría
+var RESERVED_DTYPES = new Set(['rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr','s1','s2','s3','grp','sta','nat','rku']);
+
 window.ApexConnector = {
   ws: null, slug: null, port: 7913, connected: false,
   onData: null, onStatus: null, onComment: null, onTitle: null,
@@ -114,6 +122,7 @@ window.ApexConnector = {
       const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
       const colMap = {}, colByNum = {};
       let otrIsPit = false;
+      let catCol = null;
 
       const r0 = doc.querySelector('tr[data-id="r0"]');
       if (r0) {
@@ -124,6 +133,9 @@ window.ApexConnector = {
           // otr = "Tiempo en PIT" en unos circuitos, "tiempo en pista" en otros:
           // se discrimina por el texto de la cabecera.
           if (dtype === 'otr' && /\b(pit|box)\b/i.test(td.textContent || '')) otrIsPit = true;
+
+          if (dtype === 'class') catCol = cid;
+          else if (!catCol && CAT_HEADER.test(td.textContent || '') && !RESERVED_DTYPES.has(dtype)) catCol = cid;
         });
       }
 
@@ -173,7 +185,7 @@ window.ApexConnector = {
         gridKarts.push(kg);
       });
 
-      this._parser.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit });
+      this._parser.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit, catCol });
       if (!this._historyFetched) this._fetchLapHistories();
     } catch(e) { console.error('[ApexConnector] parseGrid:', e); }
   },
