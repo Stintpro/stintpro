@@ -253,7 +253,17 @@ window.ReplayConnector = {
           if (cid && dtype) { colMap[dtype] = cid; colByNum[cid] = dtype; }
 
           if (dtype === 'class') catCol = cid;
-          else if (!catCol && CAT_HEADER.test(td.textContent || '') && !RESERVED_DTYPES.has(dtype)) catCol = cid;
+          else if (!catCol && CAT_HEADER.test(td.textContent || '') && !RESERVED_DTYPES.has(dtype)) {
+            catCol = cid;
+            // Solo colMap.class, NUNCA colByNum[cid]: colByNum fija el dtype que usa
+            // _applyCell para decidir el parseo de la celda (estado, tiempos...), y no
+            // debe cambiar solo porque el texto de cabecera delate una categoría. Aquí
+            // únicamente se alimenta `requires: cm => !!cm.class` del catálogo de
+            // columnas (en-columns.js), para que la columna Clase se pueda marcar como
+            // disponible también cuando la categoría se detectó por texto y no por
+            // data-type="class" — si no, el dato llegaría pero la columna seguiría oculta.
+            colMap.class = cid;
+          }
         });
       }
 
