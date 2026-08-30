@@ -159,5 +159,26 @@
     return !!col.requires(colMap || {});
   }
 
-  return { COLUMNS, isAvailable };
+  // Una columna se ve si el usuario la marcó (o es fija) Y Apex da su dato.
+  function visibleColumns(colMap, selectedIds) {
+    const sel = new Set(selectedIds || []);
+    return COLUMNS.filter(c => (c.fixed || sel.has(c.id)) && isAvailable(c, colMap));
+  }
+
+  function gridTemplate(cols, narrow) {
+    return cols.map(c => (narrow ? c.widthNarrow : c.width)).join(' ');
+  }
+
+  function theadHtml(cols, sortMode) {
+    return cols.map(c => {
+      const inner = c.head ? c.head(sortMode) : c.label;
+      return `<span style="text-align:${c.align}">${inner}</span>`;
+    }).join('');
+  }
+
+  function rowCells(cols, e, d) {
+    return cols.map(c => c.cell(e, d)).join('');
+  }
+
+  return { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells };
 });

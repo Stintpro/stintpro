@@ -3,7 +3,7 @@
 'use strict';
 
 const { strictEqual, deepStrictEqual, ok } = require('assert/strict');
-const { COLUMNS, isAvailable } = require('../src/en-columns');
+const { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells } = require('../src/en-columns');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -17,6 +17,36 @@ function col(id) {
   if (!c) throw new Error(`columna '${id}' no existe en el catálogo`);
   return c;
 }
+
+// Stubs de los globales que usan las funciones `cell` (en el navegador los
+// aportan analysis.js / en-grid.js). Se definen en `global` para que las
+// referencias sueltas dentro de en-columns.js resuelvan.
+global._esc            = s => String(s == null ? '' : s);
+global._enFmt          = t => (t == null ? '—' : String(t));
+global._enPilotHistory = {};
+global._enPilotRatings = {};
+global._enScoreColor   = () => '#fff';
+
+// Equipo y derivados mínimos para pintar una fila
+function fakeEquipo(over) {
+  return Object.assign({
+    dorsal: '7', name: 'PILOTO A', teamName: 'EQUIPO A', pos: 1,
+    tours: 42, lastLap: 47.2, bestLap: 46.9, interval: '+1.203',
+    standsCount: 2, category: 'PRO',
+  }, over);
+}
+function fakeDerived() {
+  return {
+    kc: { bg: '#000', text: '#fff' }, kartBorder: '#22c55e', tooltip: '', qualityBadge: '',
+    dotColor: '#22c55e', arrow: '', chkBadge: '', pitBadge: '', fixBadge: '',
+    lastCol: '#fff', bestCol: '#fff', m5Col: '#fff', avg5: 47.0,
+    trend: { color: '#fff', arrow: '→' }, deltaCol: '#fff', deltaStr: '+0.100',
+    gapHtml: '—', barPct: 0, barClass: '', flash: '', pinned: false, isMe: false,
+  };
+}
+
+const FULL_COLMAP = { rk: 'c1', no: 'c2', dr: 'c3', lc: 'c6', llp: 'c7', blp: 'c8', gap: 'c9', int: 'c10', pit: 'c11' };
+const DEFAULT_SEL = COLUMNS.filter(c => c.default !== false).map(c => c.id);
 
 group('catálogo', () => {
   test('tiene 15 columnas (las 14 de hoy + Clase)', () => {
@@ -99,6 +129,95 @@ group('isAvailable', () => {
   test('colMap undefined no revienta', () => {
     strictEqual(isAvailable(col('tours'), undefined), false);
     strictEqual(isAvailable(col('m5v'), undefined), true);
+  });
+});
+
+group('visibleColumns', () => {
+  test('selección por defecto + colMap completo = las 14 de hoy, en orden', () => {
+    deepStrictEqual(visibleColumns(FULL_COLMAP, DEFAULT_SEL).map(c => c.id), [
+      'dot', 'pos', 'kart', 'driver', 'team', 'tours',
+      'last', 'best', 'm5v', 'delta', 'gap', 'int', 'score', 'pit',
+    ]);
+  });
+
+  test('sin lc ni tlp, Vueltas desaparece — el bug original', () => {
+    const cm = Object.assign({}, FULL_COLMAP); delete cm.lc;
+    ok(!visibleColumns(cm, DEFAULT_SEL).some(c => c.id === 'tours'));
+  });
+
+  test('desmarcada pero disponible → no se ve', () => {
+    const sel = DEFAULT_SEL.filter(id => id !== 'gap');
+    ok(!visibleColumns(FULL_COLMAP, sel).some(c => c.id === 'gap'));
+  });
+
+  test('marcada pero no disponible → no se ve', () => {
+    const cm = Object.assign({}, FULL_COLMAP); delete cm.gap;
+    ok(!visibleColumns(cm, DEFAULT_SEL).some(c => c.id === 'gap'));
+  });
+
+  test('marcada y disponible → se ve', () => {
+    ok(visibleColumns(FULL_COLMAP, DEFAULT_SEL).some(c => c.id === 'gap'));
+  });
+
+  test('las fijas se ven aunque no estén en la selección', () => {
+    const ids = visibleColumns(FULL_COLMAP, []).map(c => c.id);
+    ok(ids.includes('dot') && ids.includes('pos') && ids.includes('kart') && ids.includes('driver'));
+  });
+
+  test('Clase solo si se marca Y Apex la manda', () => {
+    const conClase = DEFAULT_SEL.concat('class');
+    ok(!visibleColumns(FULL_COLMAP, conClase).some(c => c.id === 'class'));
+    ok(visibleColumns(Object.assign({ class: 'c4' }, FULL_COLMAP), conClase).some(c => c.id === 'class'));
+  });
+});
+
+group('gridTemplate', () => {
+  test('reproduce exactamente el grid-template-columns actual de escritorio', () => {
+    strictEqual(gridTemplate(visibleColumns(FULL_COLMAP, DEFAULT_SEL), false),
+      '20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px');
+  });
+
+  test('reproduce exactamente el de ≤900px', () => {
+    strictEqual(gridTemplate(visibleColumns(FULL_COLMAP, DEFAULT_SEL), true),
+      '16px 30px 34px 1fr minmax(0,60px) 30px 62px 62px 56px 44px 46px 44px 48px 30px');
+  });
+
+  test('quitar una columna quita su tramo', () => {
+    const sel = DEFAULT_SEL.filter(id => id !== 'pit');
+    strictEqual(gridTemplate(visibleColumns(FULL_COLMAP, sel), false).split(' ').length, 13);
+  });
+});
+
+group('theadHtml / rowCells', () => {
+  test('la cabecera tiene un span por columna visible', () => {
+    const cols = visibleColumns(FULL_COLMAP, DEFAULT_SEL);
+    strictEqual((theadHtml(cols, 'pos').match(/<span style="text-align:/g) || []).length, cols.length);
+  });
+
+  test('cada celda produce HTML no vacío y la fila las concatena todas', () => {
+    const cols = visibleColumns(FULL_COLMAP, DEFAULT_SEL);
+    const trozos = cols.map(c => c.cell(fakeEquipo(), fakeDerived()));
+    trozos.forEach((t, i) => ok(t.length > 0, `${cols[i].id} pinta vacío`));
+    strictEqual(rowCells(cols, fakeEquipo(), fakeDerived()), trozos.join(''));
+  });
+
+  test('cabecera y fila tienen SIEMPRE el mismo recuento — si no, la rejilla se descuadra', () => {
+    [DEFAULT_SEL, DEFAULT_SEL.filter(id => id !== 'gap'), []].forEach(sel => {
+      const cols = visibleColumns(FULL_COLMAP, sel);
+      const heads = (theadHtml(cols, 'pos').match(/<span style="text-align:/g) || []).length;
+      strictEqual(heads, cols.length);
+      cols.forEach(c => ok(typeof c.cell(fakeEquipo(), fakeDerived()) === 'string'));
+    });
+  });
+
+  test('el toggle de orden sigue estando en Pos y en M5v', () => {
+    const html = theadHtml(visibleColumns(FULL_COLMAP, DEFAULT_SEL), 'pos');
+    strictEqual((html.match(/_enToggleSort\(\)/g) || []).length, 2);
+  });
+
+  test('sin la columna Vueltas, la cabecera no dice Vtas', () => {
+    const cm = Object.assign({}, FULL_COLMAP); delete cm.lc;
+    ok(!theadHtml(visibleColumns(cm, DEFAULT_SEL), 'pos').includes('Vtas'));
   });
 });
 
