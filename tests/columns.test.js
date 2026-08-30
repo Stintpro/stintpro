@@ -3,7 +3,7 @@
 'use strict';
 
 const { strictEqual, deepStrictEqual, ok } = require('assert/strict');
-const { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells } = require('../src/en-columns');
+const { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells, defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY } = require('../src/en-columns');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -218,6 +218,81 @@ group('theadHtml / rowCells', () => {
   test('sin la columna Vueltas, la cabecera no dice Vtas', () => {
     const cm = Object.assign({}, FULL_COLMAP); delete cm.lc;
     ok(!theadHtml(visibleColumns(cm, DEFAULT_SEL), 'pos').includes('Vtas'));
+  });
+});
+
+// localStorage de mentira: en Node no existe
+function fakeStorage() {
+  const store = {};
+  return {
+    getItem: k => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: k => { delete store[k]; },
+    _store: store,
+  };
+}
+
+group('persistencia', () => {
+  test('sin nada guardado, la selección por defecto son las 14 de hoy', () => {
+    deepStrictEqual(defaultSelection(), [
+      'dot', 'pos', 'kart', 'driver', 'team', 'tours',
+      'last', 'best', 'm5v', 'delta', 'gap', 'int', 'score', 'pit',
+    ]);
+  });
+
+  test('guardar y releer devuelve lo mismo', () => {
+    global.localStorage = fakeStorage();
+    const sel = defaultSelection().filter(id => id !== 'gap');
+    saveSelection(sel);
+    deepStrictEqual(loadSelection(), sel);
+  });
+
+  test('lo guardado incluye versión y catálogo conocido', () => {
+    global.localStorage = fakeStorage();
+    saveSelection(['pos', 'kart']);
+    const raw = JSON.parse(global.localStorage.getItem(STORAGE_KEY));
+    strictEqual(raw.v, 1);
+    deepStrictEqual(raw.cols, ['pos', 'kart']);
+    deepStrictEqual(raw.known, COLUMNS.map(c => c.id));
+  });
+
+  test('sin localStorage disponible no revienta: cae al defecto', () => {
+    delete global.localStorage;
+    deepStrictEqual(loadSelection(), defaultSelection());
+    saveSelection(['pos']); // no debe lanzar
+  });
+
+  test('JSON corrupto cae al defecto', () => {
+    global.localStorage = fakeStorage();
+    global.localStorage.setItem(STORAGE_KEY, '{esto no es json');
+    deepStrictEqual(loadSelection(), defaultSelection());
+  });
+
+  test('migración: los ids desconocidos se descartan', () => {
+    deepStrictEqual(
+      migrate({ v: 1, cols: ['pos', 'kart', 'columna_fantasma'], known: COLUMNS.map(c => c.id) }),
+      ['pos', 'kart']);
+  });
+
+  test('migración: una columna nueva del catálogo entra visible', () => {
+    // 'score' no existía cuando se guardó → no está en known → entra
+    const known = COLUMNS.map(c => c.id).filter(id => id !== 'score');
+    ok(migrate({ v: 1, cols: ['pos', 'kart'], known }).includes('score'));
+  });
+
+  test('migración: una columna que el usuario desmarcó NO reaparece', () => {
+    // 'gap' ya existía cuando se guardó (está en known) y no está en cols
+    const known = COLUMNS.map(c => c.id);
+    ok(!migrate({ v: 1, cols: ['pos', 'kart'], known }).includes('gap'));
+  });
+
+  test('migración: una columna nueva con default:false NO entra sola', () => {
+    const known = COLUMNS.map(c => c.id).filter(id => id !== 'class');
+    ok(!migrate({ v: 1, cols: ['pos'], known }).includes('class'));
+  });
+
+  test('migración: guardado antiguo sin `known` se trata como catálogo completo', () => {
+    ok(!migrate({ v: 1, cols: ['pos', 'kart'] }).includes('gap'));
   });
 });
 

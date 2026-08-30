@@ -180,5 +180,50 @@
     return cols.map(c => c.cell(e, d)).join('');
   }
 
-  return { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells };
+  const STORAGE_KEY = 'stintpro_columns';
+  const VERSION     = 1;
+
+  function defaultSelection() {
+    return COLUMNS.filter(c => c.default !== false).map(c => c.id);
+  }
+
+  // Reconcilia lo guardado con el catálogo actual:
+  //  · ids que ya no existen  → fuera
+  //  · columnas añadidas al catálogo desde el último guardado (no están en
+  //    `known`) → entran visibles salvo que su default sea false
+  //  · columnas que el usuario desmarcó (sí están en `known`) → siguen fuera
+  function migrate(stored) {
+    if (!stored || !Array.isArray(stored.cols)) return defaultSelection();
+    const catalogo = new Set(COLUMNS.map(c => c.id));
+    // Sin `known` (formato antiguo) se asume que conocía todo el catálogo: así
+    // no se le reactivan al usuario columnas que había quitado.
+    const conocidas = new Set(Array.isArray(stored.known) ? stored.known : COLUMNS.map(c => c.id));
+    const kept  = stored.cols.filter(id => catalogo.has(id));
+    const nuevas = COLUMNS
+      .filter(c => c.default !== false && !conocidas.has(c.id))
+      .map(c => c.id);
+    return Array.from(new Set(kept.concat(nuevas)));
+  }
+
+  function loadSelection() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultSelection();
+      return migrate(JSON.parse(raw));
+    } catch (e) {
+      // Sin localStorage (Node, modo privado) o JSON corrupto → defecto
+      return defaultSelection();
+    }
+  }
+
+  function saveSelection(ids) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        v: VERSION, cols: ids, known: COLUMNS.map(c => c.id),
+      }));
+    } catch (e) { /* preferencia visual: si no se puede guardar, se sigue */ }
+  }
+
+  return { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells,
+           defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY };
 });
