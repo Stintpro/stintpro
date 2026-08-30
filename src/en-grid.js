@@ -211,6 +211,10 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
     <div class="en-tab ${EnUi.tab==='adv'?'active':''}" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
   </div>
+  <div class="en-col-bar" style="${EnUi.tab==='grid'?'':'display:none'}">
+    <span class="en-col-btn" onclick="_enToggleColumnPanel()" title="Elegir columnas">⚙ Columnas</span>
+    <div id="en-col-panel-wrap"></div>
+  </div>
   <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
   <div class="sp-body" id="en-grid-body" style="${EnUi.tab==='grid'?'':'display:none'}"></div>
   <div class="en-team" id="en-team-body" style="${EnUi.tab==='team'?'':'display:none'}">
@@ -640,6 +644,23 @@ function _enShowPilotHistory(name, evt) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+// ── Panel de selección de columnas ───────────────────────────────────────
+function _enToggleColumnPanel(){
+  const cont=document.getElementById('en-col-panel-wrap');
+  if(!cont)return;
+  const abierto=cont.innerHTML!=='';
+  cont.innerHTML=abierto?'':EnColumns.panelHtml(EnSession.colMapSeen, EnColumns.loadSelection());
+}
+
+function _enSetColumn(id,on){
+  const sel=new Set(EnColumns.loadSelection());
+  if(on)sel.add(id); else sel.delete(id);
+  EnColumns.saveSelection(EnColumns.COLUMNS.filter(c=>sel.has(c.id)).map(c=>c.id));
+  const thead=document.getElementById('en-thead');
+  if(thead)thead.innerHTML=_enTheadHtml();
+  _enRender();
 }
 
 // ── Filtro media pista ──────────────────────────────────────────────────

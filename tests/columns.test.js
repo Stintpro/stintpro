@@ -3,7 +3,7 @@
 'use strict';
 
 const { strictEqual, deepStrictEqual, ok } = require('assert/strict');
-const { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells, defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY } = require('../src/en-columns');
+const { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells, defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY, panelHtml } = require('../src/en-columns');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -293,6 +293,40 @@ group('persistencia', () => {
 
   test('migración: guardado antiguo sin `known` se trata como catálogo completo', () => {
     ok(!migrate({ v: 1, cols: ['pos', 'kart'] }).includes('gap'));
+  });
+});
+
+group('panel de selección', () => {
+  test('lista todas las columnas del catálogo', () => {
+    const html = panelHtml(FULL_COLMAP, DEFAULT_SEL);
+    COLUMNS.forEach(c => ok(html.includes(`data-col="${c.id}"`), `falta ${c.id}`));
+  });
+
+  test('agrupa en De Apex y De StintPro', () => {
+    const html = panelHtml(FULL_COLMAP, DEFAULT_SEL);
+    ok(html.includes('De Apex'));
+    ok(html.includes('De StintPro'));
+  });
+
+  test('las fijas salen marcadas y deshabilitadas', () => {
+    const html = panelHtml(FULL_COLMAP, []);
+    const fila = html.split('data-col="pos"')[1].split('</label>')[0];
+    ok(fila.includes('checked'));
+    ok(fila.includes('disabled'));
+  });
+
+  test('una columna que Apex no manda sale deshabilitada y con el motivo', () => {
+    const html = panelHtml({ rk: 'c1', no: 'c2', dr: 'c3' }, DEFAULT_SEL);
+    const fila = html.split('data-col="tours"')[1].split('</label>')[0];
+    ok(fila.includes('disabled'));
+    ok(html.includes('este circuito no la manda'));
+  });
+
+  test('una columna disponible y marcada sale marcada y habilitada', () => {
+    const html = panelHtml(FULL_COLMAP, DEFAULT_SEL);
+    const fila = html.split('data-col="gap"')[1].split('</label>')[0];
+    ok(fila.includes('checked'));
+    ok(!fila.includes('disabled'));
   });
 });
 

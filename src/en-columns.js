@@ -191,6 +191,34 @@
     return cols.map(c => c.cell(e, d)).join('');
   }
 
+  // HTML del panel de selección. Función pura: el cableado de eventos vive en
+  // en-grid.js. Las no disponibles salen deshabilitadas CON el motivo, para que
+  // la ausencia no parezca un bug de la app.
+  function panelHtml(colMap, selectedIds) {
+    const sel = new Set(selectedIds || []);
+    const fila = c => {
+      const disponible = isAvailable(c, colMap);
+      const marcada    = c.fixed || (sel.has(c.id) && disponible);
+      const bloqueada  = c.fixed || !disponible;
+      const motivo     = c.fixed ? 'siempre visible'
+                       : !disponible ? 'este circuito no la manda' : '';
+      return `<label class="en-col-item${bloqueada ? ' en-col-off' : ''}" data-col="${c.id}">`
+           + `<input type="checkbox"${marcada ? ' checked' : ''}${bloqueada ? ' disabled' : ''}`
+           + ` onchange="_enSetColumn('${c.id}',this.checked)">`
+           + `<span>${c.label || '·'}</span>`
+           + (motivo ? `<em class="en-col-why">${motivo}</em>` : '')
+           + `</label>`;
+    };
+    const grupo = (titulo, src) =>
+      `<div class="en-col-group"><div class="en-col-title">${titulo}</div>`
+      + COLUMNS.filter(c => c.source === src).map(fila).join('')
+      + `</div>`;
+    return `<div class="en-col-panel" id="en-col-panel">`
+         + grupo('De Apex', 'apex')
+         + grupo('De StintPro', 'stintpro')
+         + `</div>`;
+  }
+
   const STORAGE_KEY = 'stintpro_columns';
   const VERSION     = 1;
 
@@ -236,5 +264,6 @@
   }
 
   return { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells,
-           defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY, mergeColMap };
+           defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY, mergeColMap,
+           panelHtml };
 });
