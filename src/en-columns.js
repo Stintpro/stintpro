@@ -86,12 +86,26 @@
       id: 'tours', label: 'Vtas', align: 'right',
       width: '44px', widthNarrow: '30px',
       source: 'apex',
-      // La columna oficial de Apex es la ÚNICA fuente válida: k.tours solo se
-      // rellena desde los dtype lc/tlp (src/apex-protocol.js:398). Sin ella, el
-      // snapshot cae a contar lapHistory, que son las vueltas vistas desde que
-      // conectamos — un número más bajo que el real si se conecta tarde.
-      requires: cm => !!(cm.lc || cm.tlp),
-      cell: (e, d) => `<div class="sp-vtas">${e.tours}</div>`,
+      // Esta columna NO se oculta nunca, y la razón está medida sobre los raw
+      // logs del VPS (rkc, agosto 2026): Apex manda el contador oficial en 11 de
+      // 13 layouts, pero lo quita justo en las CARRERAS —cambia "Tours" por
+      // "Péna."— y además conmuta de layout a mitad de sesión (init|r| ↔ init|p|)
+      // con el mismo título. Ocultarla haría que parpadease en plena carrera, y
+      // en esas carreras nuestro conteo es el único número que existe: en las 24h
+      // de rkc ni el propio Apex enseñaba vueltas.
+      // Lo que cambia es la FUENTE, no la existencia: d.toursSrc dice cuál es.
+      requires: null,
+      cell: (e, d) => {
+        // 'apex': contador oficial → se pinta exactamente como siempre.
+        if (d.toursSrc === 'apex') return `<div class="sp-vtas">${e.tours}</div>`;
+        // 'suelo': directo a Apex con la sesión ya rodando. Solo hemos visto las
+        // vueltas desde que conectamos, así que el número es un mínimo, no un total.
+        const suelo = d.toursSrc === 'suelo';
+        const aviso = suelo
+          ? 'Apex no manda contador y conectamos con la sesión empezada · mínimo de vueltas vistas por StintPro'
+          : 'Apex no manda contador en esta sesión · vueltas contadas por StintPro';
+        return `<div class="sp-vtas sp-vtas-prop" title="${aviso}">${suelo ? '≥' : ''}${e.tours}</div>`;
+      },
     },
     {
       id: 'last', label: 'Última', align: 'right',

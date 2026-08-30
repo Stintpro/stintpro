@@ -1111,6 +1111,16 @@ window.showEnduranceDashboard=function(cfg){
         // el grid completo nuevo (sustituye entero, ver EnColumns.mergeColMap).
         EnSession.colMapSeen = EnColumns.mergeColMap(EnSession.colMapSeen, data.colMap);
         EnSession.data.colMap = EnSession.colMapSeen;
+
+        // ¿Nuestro conteo de vueltas es un total o solo un mínimo? Vía logger el
+        // snapshot inicial trae el historial completo desde la BD (_isHistory),
+        // así que es un total. Directo a Apex, si al conectar los karts ya están
+        // rodando, solo veremos las vueltas de aquí en adelante: es un suelo.
+        // Se evalúa una vez por sesión; _enClearRaceState lo deja indefinido.
+        if(data._isHistory)EnSession._toursCompleto=true;
+        if(EnSession._toursSuelo===undefined&&!EnSession._toursCompleto){
+          EnSession._toursSuelo=(data.equipos||[]).some(e=>e.lastLap);
+        }
         if(data.sessionFinished)EnSession._finished=true;
 
         // ── Salida oficial (com|): ancla del arranque de carrera ──────────────
@@ -1391,6 +1401,8 @@ window._enGoBack=function(){
   _enStopAdvRaf();
   EnSession.data={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
   EnSession.colMapSeen = {};
+  EnSession._toursCompleto = false;   // ¿el historial de vueltas viene entero del logger?
+  EnSession._toursSuelo = undefined;  // sin evaluar hasta el primer snapshot de la sesión
   EnSession.lastTrackAvg=null;
   EnSession.stintStart=null;
   EnSession.stintFrozen=null;

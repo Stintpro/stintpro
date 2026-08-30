@@ -92,16 +92,17 @@ group('isAvailable', () => {
     strictEqual(isAvailable(col('score'), {}), true);
   });
 
-  test('Vueltas necesita la columna oficial de Apex: lc', () => {
+  // Vueltas ya NO se oculta: medido sobre los raw logs del VPS (rkc, ago-2026),
+  // Apex quita el contador justo en las carreras y conmuta de layout a mitad de
+  // sesión, así que ocultarla la haría parpadear en carrera. Lo que cambia es la
+  // fuente del número (d.toursSrc), no si la columna existe.
+  test('Vueltas está disponible con contador oficial', () => {
     strictEqual(isAvailable(col('tours'), { lc: 'c6' }), true);
-  });
-
-  test('Vueltas también vale con tlp', () => {
     strictEqual(isAvailable(col('tours'), { tlp: 'c6' }), true);
   });
 
-  test('Vueltas NO está disponible sin lc ni tlp — el bug del dato inventado', () => {
-    strictEqual(isAvailable(col('tours'), { rk: 'c1', no: 'c2', dr: 'c3' }), false);
+  test('Vueltas SIGUE disponible sin lc ni tlp — se pinta nuestro conteo, marcado', () => {
+    strictEqual(isAvailable(col('tours'), { rk: 'c1', no: 'c2', dr: 'c3' }), true);
   });
 
   test('Gap, Int, Mejor, Última y Pit dependen de su dtype', () => {
@@ -127,7 +128,7 @@ group('isAvailable', () => {
   });
 
   test('colMap undefined no revienta', () => {
-    strictEqual(isAvailable(col('tours'), undefined), false);
+    strictEqual(isAvailable(col('gap'), undefined), false);
     strictEqual(isAvailable(col('m5v'), undefined), true);
   });
 });
@@ -140,9 +141,9 @@ group('visibleColumns', () => {
     ]);
   });
 
-  test('sin lc ni tlp, Vueltas desaparece — el bug original', () => {
+  test('sin lc ni tlp, Vueltas sigue en la tabla (cambia la fuente, no la columna)', () => {
     const cm = Object.assign({}, FULL_COLMAP); delete cm.lc;
-    ok(!visibleColumns(cm, DEFAULT_SEL).some(c => c.id === 'tours'));
+    ok(visibleColumns(cm, DEFAULT_SEL).some(c => c.id === 'tours'));
   });
 
   test('desmarcada pero disponible → no se ve', () => {
@@ -215,9 +216,14 @@ group('theadHtml / rowCells', () => {
     strictEqual((html.match(/_enToggleSort\(\)/g) || []).length, 2);
   });
 
-  test('sin la columna Vueltas, la cabecera no dice Vtas', () => {
+  test('una columna que Apex no manda desaparece de la cabecera', () => {
+    const cm = Object.assign({}, FULL_COLMAP); delete cm.gap;
+    ok(!theadHtml(visibleColumns(cm, DEFAULT_SEL), 'pos').includes('Gap'));
+  });
+
+  test('Vtas se queda en la cabecera aunque no haya contador oficial', () => {
     const cm = Object.assign({}, FULL_COLMAP); delete cm.lc;
-    ok(!theadHtml(visibleColumns(cm, DEFAULT_SEL), 'pos').includes('Vtas'));
+    ok(theadHtml(visibleColumns(cm, DEFAULT_SEL), 'pos').includes('Vtas'));
   });
 });
 
@@ -316,10 +322,17 @@ group('panel de selección', () => {
   });
 
   test('una columna que Apex no manda sale deshabilitada y con el motivo', () => {
+    // 'gap' sí depende de Apex; 'tours' ya no (siempre disponible, cambia la fuente)
     const html = panelHtml({ rk: 'c1', no: 'c2', dr: 'c3' }, DEFAULT_SEL);
-    const fila = html.split('data-col="tours"')[1].split('</label>')[0];
+    const fila = html.split('data-col="gap"')[1].split('</label>')[0];
     ok(fila.includes('disabled'));
     ok(html.includes('este circuito no la manda'));
+  });
+
+  test('Vueltas nunca sale deshabilitada, ni sin contador oficial', () => {
+    const html = panelHtml({ rk: 'c1', no: 'c2', dr: 'c3' }, DEFAULT_SEL);
+    const fila = html.split('data-col="tours"')[1].split('</label>')[0];
+    ok(!fila.includes('disabled'));
   });
 
   test('una columna disponible y marcada sale marcada y habilitada', () => {
@@ -327,6 +340,29 @@ group('panel de selección', () => {
     const fila = html.split('data-col="gap"')[1].split('</label>')[0];
     ok(fila.includes('checked'));
     ok(!fila.includes('disabled'));
+  });
+});
+
+group('fuente del contador de vueltas', () => {
+  const celda = src => col('tours').cell(fakeEquipo({ tours: 1182 }), Object.assign(fakeDerived(), { toursSrc: src }));
+
+  test('con contador oficial se pinta exactamente como siempre (paridad)', () => {
+    strictEqual(celda('apex'), '<div class="sp-vtas">1182</div>');
+  });
+
+  test('sin contador oficial, el número sigue ahí pero marcado como nuestro', () => {
+    const html = celda('propio');
+    ok(html.includes('1182'), 'el número no puede perderse');
+    ok(html.includes('sp-vtas-prop'), 'debe distinguirse del oficial');
+    ok(html.includes('vueltas contadas por StintPro'));
+    ok(!html.includes('≥'), 'con historial completo es un total, no un mínimo');
+  });
+
+  test('directo a Apex con la sesión empezada, el número es un mínimo', () => {
+    const html = celda('suelo');
+    ok(html.includes('≥1182'), 'debe leerse como suelo, no como total');
+    ok(html.includes('sp-vtas-prop'));
+    ok(html.includes('sesión empezada'));
   });
 });
 

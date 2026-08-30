@@ -193,6 +193,10 @@ function _enInjectStyles(){
     .sp-out-b{background:#f97316;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
     .sp-fix-b{font-size:10.5px;color:#F5A623;border:0.5px solid #F5A623;padding:1px 5px;border-radius:3px;flex-shrink:0;}
     .sp-vtas{font-size:13.5px;color:var(--text-2);text-align:right;font-family:monospace;}
+    /* Vueltas contadas por StintPro (Apex no manda contador en esta sesión):
+       mismo gris apagado que las columnas calculadas, para que no se confunda
+       con el dato oficial de un vistazo. */
+    .sp-vtas-prop{color:var(--text-3);}
     .sp-t{font-size:14.5px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums;}
     .en-m5{font-size:13.5px;text-align:right;font-family:monospace;color:var(--text-3);}
     .en-delta{font-size:12.5px;text-align:right;font-family:monospace;}

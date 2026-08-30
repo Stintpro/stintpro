@@ -24,6 +24,10 @@ const e = {
   lastLap: 47.2, bestLap: 46.9, interval: '+1.203', standsCount: 2,
 };
 const d = {
+  // Contador oficial de Apex: es el caso que debe ser byte a byte idéntico
+  // al HTML de antes del refactor. Las otras fuentes (propio/suelo) pintan
+  // distinto a propósito y se prueban en columns.test.js.
+  toursSrc: 'apex',
   kc: { bg: '#111', text: '#eee' }, kartBorder: '#22c55e', tooltip: 'tt', qualityBadge: '',
   dotColor: '#22c55e', arrow: '', chkBadge: '', pitBadge: '', fixBadge: '',
   lastCol: '#aaa', bestCol: '#bbb', m5Col: '#ccc', avg5: 47.05,

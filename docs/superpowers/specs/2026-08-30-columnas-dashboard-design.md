@@ -43,7 +43,7 @@ Esto produce dos defectos:
 | Reordenar | No: solo mostrar/ocultar |
 | Persistencia | Global, en `localStorage`, por dispositivo |
 | Columnas nuevas en catálogo | Solo Clase/categoría (fuera sectores S1-3, `otr`, nacionalidad) |
-| Vueltas sin columna oficial | Ocultar la columna entera |
+| Vueltas sin columna oficial | Mostrar nuestro conteo, marcado (revisado 2026-08-30, ver §5) |
 | Pantalla estrecha | Una sola selección; anchos reducidos y scroll horizontal si no cabe |
 | Columnas fijas | Pos, Kart y Piloto no se pueden desmarcar |
 
@@ -151,7 +151,35 @@ Disponible = `requires === null` o `requires(colMap)` es cierto.
 Consecuencia directa: sin `lc` ni `tlp`, Vueltas desaparece. No hay celda que
 rellenar, así que no hay nada que inventar.
 
-### 5. Vueltas: arreglar la UI sin romper la estrategia
+### 5. Vueltas: la columna no se oculta, cambia de fuente
+
+**Revisado el 2026-08-30 sobre datos reales, después de implementarlo.** La
+decisión original era ocultar la columna cuando Apex no manda contador. Medido
+sobre los raw logs del VPS resultó ser peor que el problema que arreglaba:
+
+- El contador **no es una propiedad del circuito, va por sesión**. En rkc está
+  en 11 de 13 layouts; en Campillos, en 7 de 12.
+- Falta justo **en las carreras**: el layout de competición cambia "Tours" por
+  "Péna." y añade "Interv." y "Stands". En las 24h de rkc ni el propio Apex
+  mostraba vueltas a nadie — el número que veía el usuario era el nuestro, y
+  sobre 24 h grabadas enteras era correcto (1182).
+- El layout **cambia a mitad de sesión**: en `ENT-24HR-15H00`, con el mismo
+  título, Apex conmuta `init|r|` ↔ `init|p|` y la columna entra y sale. Ocultarla
+  la haría parpadear en plena carrera.
+
+Regla vigente: la columna **está siempre**; lo que cambia es la fuente, en
+`d.toursSrc`:
+
+| toursSrc | Cuándo | Cómo se pinta |
+|---|---|---|
+| `apex` | Apex manda `lc`/`tlp` | igual que siempre (paridad byte a byte) |
+| `propio` | no lo manda, historial completo (vía logger) | gris apagado + aviso |
+| `suelo` | no lo manda y conectamos directos con la sesión rodando | `≥N`, gris + aviso |
+
+Así el conmutado de layout a mitad de carrera es invisible: la columna sigue
+ahí y solo cambia de color.
+
+### 5b. Por qué el fallback interno se queda como está
 
 `tours` no alimenta solo la celda. De él dependen las vueltas del stint
 (`src/en-state.js:257`), la estrategia y la ventana de paradas. Vaciarlo

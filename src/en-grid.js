@@ -439,7 +439,16 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
     gapHtml=`<span style="color:#f97316">+${d}v</span>`;
   }
 
+  // De dónde sale el contador de vueltas de esta fila:
+  //   'apex'  → Apex manda la columna oficial (lc/tlp); es el número bueno
+  //   'propio'→ no la manda, contamos nosotros con historial completo (vía logger)
+  //   'suelo' → no la manda y conectamos directos con la sesión ya rodando:
+  //             solo vemos las vueltas desde que entramos, es un mínimo
+  const _cm=EnSession.colMapSeen||{};
+  const toursSrc=(_cm.lc||_cm.tlp)?'apex':(EnSession._toursSuelo?'suelo':'propio');
+
   return{
+    toursSrc,
     kc, avg5, quality, trend, cons,
     lastCol, bestCol, delta, deltaStr, deltaCol, m5Col,
     arrow, dotColor, pitBadge, fixBadge, chkBadge,
