@@ -211,7 +211,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
     <div class="en-tab ${EnUi.tab==='adv'?'active':''}" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
   </div>
-  <div class="en-col-bar" style="${EnUi.tab==='grid'?'':'display:none'}">
+  <div class="en-col-bar" id="en-col-bar" style="${EnUi.tab==='grid'?'':'display:none'}">
     <span class="en-col-btn" onclick="_enToggleColumnPanel()" title="Elegir columnas">⚙ Columnas</span>
     <div id="en-col-panel-wrap"></div>
   </div>
@@ -485,11 +485,17 @@ function _enSetTab(tab){
   const team=document.getElementById('en-team-body');
   const strat=document.getElementById('en-strat-body');
   const adv=document.getElementById('en-adv-body');
+  const colBar=document.getElementById('en-col-bar');
   if(thead)thead.style.display=tab==='grid'?'':'none';
   if(grid)grid.style.display=tab==='grid'?'':'none';
   if(team)team.style.display=tab==='team'?'':'none';
   if(strat)strat.style.display=tab==='strat'?'':'none';
   if(adv)adv.style.display=tab==='adv'?'':'none';
+  if(colBar)colBar.style.display=tab==='grid'?'':'none';
+  if(tab!=='grid'){
+    const panelWrap=document.getElementById('en-col-panel-wrap');
+    if(panelWrap)panelWrap.innerHTML='';
+  }
   if(tab!=='adv')_enStopAdvRaf(); else _enStartAdvRaf();
   // Entrar en Avanzado apaga el parpadeo de alertas del ingeniero de pista
   if(tab==='adv'&&typeof _enClearAlertBlink==='function')_enClearAlertBlink();
