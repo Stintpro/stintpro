@@ -157,15 +157,24 @@ rellenar, así que no hay nada que inventar.
 (`src/en-state.js:257`), la estrategia y la ventana de paradas. Vaciarlo
 rompería esas tres cosas.
 
-Por eso **el fallback de `apex-protocol.js:645` se queda como está**. Lo que se
-añade es una bandera al snapshot:
+Por eso **el fallback de `apex-protocol.js:645` se queda como está**. Por dentro
+seguimos contando; lo que cambia es que la columna solo se pinta cuando el dato
+es oficial.
 
-```js
-toursOfficial: (k.tours || 0) > 0
-```
+Y no hace falta ninguna bandera nueva para saberlo: `k.tours` únicamente se
+rellena desde los `dtype` `tlp`/`lc` (`src/apex-protocol.js:398`), así que
+`colMap.lc || colMap.tlp` es exactamente equivalente a "el número es oficial".
 
-La columna Vueltas exige `toursOfficial` para pintarse. Por dentro seguimos
-contando; por fuera no se enseña un número que no es el oficial de Apex.
+Esto importa más de lo que parece: una bandera en el snapshot habría que
+calcularla también en el parser del logger, y eso obliga a desplegar el VPS.
+Usando `colMap` —que el logger ya reenvía— **la feature entera se queda en el
+cliente**.
+
+Riesgo asociado: `colMap` se vacía en el `_reset()` del parser, y una
+reconexión a mitad de carrera dejaría la columna desaparecida hasta que Apex
+reenvíe el grid. Para evitar ese parpadeo, la disponibilidad se calcula sobre
+la **unión de los `colMap` vistos en la sesión** (`EnSession.colMapSeen`), que
+se limpia solo al empezar sesión nueva.
 
 ### 6. Panel de selección
 
@@ -215,8 +224,10 @@ Sobre la suite existente (222 tests verdes):
 - La regla `seleccionada ∧ disponible`, en sus cuatro combinaciones.
 - Sin `lc` ni `tlp`, la cabecera no contiene "Vtas" y la fila no tiene celda de
   vueltas — el caso del bug original.
-- `toursOfficial` es falso cuando el fallback entra en juego, y las vueltas del
-  stint (`en-state.js:257`) siguen funcionando en ese caso.
+- Con el fallback en juego (sin `lc` ni `tlp`), las vueltas del stint
+  (`en-state.js:257`) siguen funcionando aunque la columna no se pinte.
+- `colMapSeen` es la unión de los `colMap` de la sesión: una reconexión con
+  `colMap` vacío no hace desaparecer columnas.
 - Persistencia: guardar, releer, y migrar desde una versión con ids que ya no
   existen.
 - El `grid-template-columns` generado tiene tantos tramos como columnas
@@ -243,9 +254,10 @@ Cómo se garantiza:
 - Todo el trabajo va en una rama (`feat/columnas-dashboard`). `main` conserva
   el comportamiento actual hasta que la feature se valide en una carrera real,
   y hasta ese momento volver atrás es no fusionar.
-- El fallback de `tours` (`src/apex-protocol.js:645`) **no se elimina**, solo se
-  acompaña de `toursOfficial`. Nada del resto de la app pierde su fuente de
-  datos, así que revertir la UI no arrastra a la estrategia.
+- El fallback de `tours` (`src/apex-protocol.js:645`) **no se toca**. Nada del
+  resto de la app pierde su fuente de datos, así que revertir la UI no arrastra
+  a la estrategia.
+- No se despliega nada al VPS: todo el cambio vive en el cliente.
 - `_enDeriveRow()` no se toca. La reversión afecta a cómo se pinta, nunca a
   qué se calcula.
 - La selección por defecto reproduce exactamente las 14 columnas actuales. Si
