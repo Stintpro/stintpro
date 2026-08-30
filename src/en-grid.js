@@ -1,4 +1,11 @@
 // ── en-grid.js — fragmento de endurance.js ──
+
+// Columnas visibles ahora mismo: selección del usuario ∩ lo que manda Apex.
+// Se recalcula en cada render porque el colMap cambia al empezar sesión.
+function _enActiveColumns(){
+  return EnColumns.visibleColumns(EnSession.colMapSeen, EnColumns.loadSelection());
+}
+
 // ── Barra de progreso ─────────────────────────────────────────────────────
 function _enUpdateBars(){
   const now=Date.now();
@@ -402,24 +409,11 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
 
 // ── Renderiza el HTML de una fila a partir de los valores derivados ────────
 // Solo construye strings — sin cálculos, sin lógica condicional de negocio.
-function _enRenderRow(e, d){
+function _enRenderRow(e, d, cols){
   return`
   <div class="sp-rowwrap">
     <div class="en-row ${d.flash}${d.pinned?' sp-pinned':''}${d.isMe?' en-myrow':''}" onclick="_enPin('${e.dorsal}')">
-      <div class="sp-dot" style="background:${d.dotColor}"></div>
-      <div class="sp-pos">${e.pos===99?'—':e.pos}${d.arrow}</div>
-      <div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>
-      <div class="sp-name">${d.chkBadge}${_esc(e.name)}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name]?`<span class="en-info-btn" onclick="_enShowPilotHistory(${_esc(JSON.stringify(e.name||''))},event)" title="Ver historial">ℹ</span>`:''}</div>
-      <div class="sp-name" style="font-size:12px;color:var(--text-3)">${(()=>{const tn=(e.teamName&&e.teamName!==e.name)?e.teamName:null;return tn?_esc(tn):'—';})()}</div>
-      <div class="sp-vtas">${e.tours}</div>
-      <div class="sp-t" style="color:${e.lastLap?d.lastCol:'#2d2f38'}">${_enFmt(e.lastLap)}</div>
-      <div class="sp-t" style="color:${e.bestLap?d.bestCol:'#2d2f38'}">${_enFmt(e.bestLap)}</div>
-      <div class="en-m5" style="color:${d.m5Col}">${d.avg5?_enFmt(d.avg5):'—'}<span style="color:${d.trend.color};font-size:10px;margin-left:2px">${d.trend.arrow}</span></div>
-      <div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>
-      <div class="sp-gap">${d.gapHtml}</div>
-      <div class="sp-gap">${e.interval||'—'}</div>
-      <div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)" title="Ver vueltas de la sesión">${(()=>{const r=_enPilotRatings[e.name];const s=typeof r==='object'?r?.score:r;return s!=null?`<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>`:'<span style="color:#2d2f38">—</span>';})()}</div>
-      <div class="sp-pitc">${e.standsCount||0}</div>
+      ${EnColumns.rowCells(cols, e, d)}
       <div class="sp-lapbar ${d.barClass}" id="en-bar-${e.dorsal}" style="width:${d.barPct}%"></div>
     </div>
   </div>`;
@@ -430,6 +424,7 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
   if(!eq.length)return`<div class="sp-empty" style="color:#333;font-size:12px;padding:20px">Sin datos — esperando conexión</div>`;
 
   let html='';
+  const cols=_enActiveColumns();
 
   if(EnUi.sortMode==='m5v'){
     eq=[...eq].sort((a,b)=>{
@@ -447,7 +442,7 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
 
   eq.forEach(e=>{
     try{
-      html+=_enRenderRow(e, _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal));
+      html+=_enRenderRow(e, _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal), cols);
     }catch(err){
       console.error('[StintPro] Error en fila kart',e.dorsal,err);
       html+=`<div class="sp-rowwrap"><div class="en-row"><div class="sp-dot"></div><div class="sp-pos">${e.pos||'?'}</div><div></div><div class="sp-name">${e.dorsal}</div></div></div>`;
@@ -640,15 +635,6 @@ function _enToggleSort(){
 }
 
 function _enTheadHtml(){
-  return `<span></span><span style="cursor:pointer;color:${EnUi.sortMode==='pos'?'#F5A623':'#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${EnUi.sortMode==='pos'?' ▼':''}</span><span>Kart</span>
-    <span style="text-align:left">Piloto</span>
-    <span style="text-align:left">Equipo</span>
-    <span>Vtas</span><span>Última</span><span>Mejor</span>
-    <span style="cursor:pointer;color:${EnUi.sortMode==='m5v'?'#F5A623':'rgba(245,166,35,0.55)'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${EnUi.sortMode==='m5v'?' ▼':''}</span>
-    <span>Δ Pista</span>
-    <span>Gap</span>
-    <span>Int</span>
-    <span>Score</span>
-    <span>Pit</span>`;
+  return EnColumns.theadHtml(_enActiveColumns(), EnUi.sortMode);
 }
 
