@@ -6,6 +6,18 @@ function _enActiveColumns(){
   return EnColumns.visibleColumns(EnSession.colMapSeen, EnColumns.loadSelection());
 }
 
+// El grid-template-columns deja de estar cableado en el CSS: se calcula desde
+// los anchos del catálogo. Dos reglas, una por breakpoint, en un <style> propio.
+function _enApplyColumnStyle(cols){
+  let el=document.getElementById('en-col-style');
+  if(!el){ el=document.createElement('style'); el.id='en-col-style'; document.head.appendChild(el); }
+  const ancho=EnColumns.gridTemplate(cols,false);
+  const estrecho=EnColumns.gridTemplate(cols,true);
+  el.textContent=
+    `.en-thead,.en-row{grid-template-columns:${ancho};}`+
+    `@media (max-width:900px){.en-thead,.en-row{grid-template-columns:${estrecho};}}`;
+}
+
 // ── Barra de progreso ─────────────────────────────────────────────────────
 function _enUpdateBars(){
   const now=Date.now();
@@ -221,6 +233,10 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div class="sp-fl"><div class="sp-fldot" style="background:#f97316"></div>Saliendo pit</div>
     <div class="sp-fl" style="margin-left:8px">Click kart = 🟢 → 🟡 → 🔴 → auto · Click fila = fijar</div>
   </div>`;
+
+  // Cabecera y cuerpo scrollean juntos en horizontal
+  const _b=el.querySelector('#en-grid-body'), _h=el.querySelector('#en-thead');
+  if(_b&&_h)_b.addEventListener('scroll',()=>{ _h.scrollLeft=_b.scrollLeft; });
 }
 
 function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
@@ -425,6 +441,7 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
 
   let html='';
   const cols=_enActiveColumns();
+  _enApplyColumnStyle(cols);
 
   if(EnUi.sortMode==='m5v'){
     eq=[...eq].sort((a,b)=>{

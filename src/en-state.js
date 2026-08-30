@@ -5,7 +5,7 @@
 // ── Estado de sesión (se resetea entre carreras) ──────────────────────────
 const EnSession = {
   data:             { equipos:[], leaderLap:0 }, // datos en vivo del conector
-  colMapSeen:       {},   // unión de los colMap de Apex vistos en esta sesión
+  colMapSeen:       {},   // último colMap no vacío recibido de Apex (uno vacío conserva el actual, uno no vacío lo sustituye entero)
   stintStart:       null,   // timestamp inicio stint de mi equipo
   stintFrozen:      null,   // ms congelados cuando acaba sesión
   _myPitInDetected: false,  // el freeze de stintFrozen viene de un pit-in real (no de fin de sesión)
@@ -152,20 +152,20 @@ function _enInjectStyles(){
     .sp-kpi-lbl{font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-family:sans-serif;}
     .sp-kpi-val{font-size:23.5px;font-weight:500;font-family:monospace;line-height:1.1;letter-spacing:-0.5px;}
     .sp-kpi-sub{font-size:11.5px;color:var(--text-3);margin-top:3px;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .en-thead{display:grid;grid-template-columns:20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:5px 14px;border-bottom:0.5px solid #1a1b20;flex-shrink:0;}
+    .en-thead{display:grid;column-gap:10px;padding:5px 14px;border-bottom:0.5px solid #1a1b20;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
+    .en-thead::-webkit-scrollbar{display:none;}
     .en-thead span{font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
-    .en-thead span:nth-child(4),.en-thead span:nth-child(5){text-align:left;}
-    .en-thead span:nth-child(1),.en-thead span:nth-child(2){text-align:center;}
-    .sp-body{overflow-y:auto;flex:1;}
+    .sp-body{overflow-y:auto;overflow-x:auto;flex:1;}
     .sp-rowwrap{position:relative;}
-    .en-row{display:grid;grid-template-columns:20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px;column-gap:10px;padding:4px 14px;border-bottom:0.5px solid #111213;align-items:center;cursor:pointer;position:relative;}
+    .en-row{display:grid;column-gap:10px;padding:4px 14px;border-bottom:0.5px solid #111213;align-items:center;cursor:pointer;position:relative;}
     .en-row:nth-child(odd){background:rgba(255,255,255,0.01);}
     .en-row:hover{background:#15161d!important;}
+    .sp-cls{font-size:12px;color:var(--text-3);text-align:center;}
     /* Pantallas estrechas (iPad y similares, no afecta a Electron/desktop ≥1100px):
        columnas y fuentes del grid de clasificación reducidas para que las 13
        quepan sin solaparse ni cortarse fuera de la pantalla. */
     @media (max-width:900px){
-      .en-thead,.en-row{grid-template-columns:16px 30px 34px 1fr minmax(0,60px) 30px 62px 62px 56px 44px 46px 44px 48px 30px;column-gap:4px;padding-left:8px;padding-right:8px;}
+      .en-thead,.en-row{column-gap:4px;padding-left:8px;padding-right:8px;}
       .en-thead span{font-size:10px;}
       .sp-pos{font-size:12.5px;}
       .en-kart{width:26px;height:20px;font-size:12px;}
