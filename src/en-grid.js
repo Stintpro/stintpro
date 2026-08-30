@@ -1,21 +1,35 @@
 // ── en-grid.js — fragmento de endurance.js ──
 
+// Caché de la selección del usuario: localStorage + JSON.parse + migrate()
+// son baratos una vez, pero el render se dispara varios veces por segundo en
+// vivo durante horas. Se rellena perezosamente al primer uso y solo se
+// invalida en _enSetColumn, el único sitio que cambia la selección guardada.
+let _enSelectionCache=null;
+
 // Columnas visibles ahora mismo: selección del usuario ∩ lo que manda Apex.
-// Se recalcula en cada render porque el colMap cambia al empezar sesión.
+// Se recalcula en cada render porque el colMap cambia al empezar sesión
+// (la selección en sí solo cambia al tocar una casilla, ver _enSelectionCache).
 function _enActiveColumns(){
-  return EnColumns.visibleColumns(EnSession.colMapSeen, EnColumns.loadSelection());
+  if(_enSelectionCache===null)_enSelectionCache=EnColumns.loadSelection();
+  return EnColumns.visibleColumns(EnSession.colMapSeen, _enSelectionCache);
 }
 
 // El grid-template-columns deja de estar cableado en el CSS: se calcula desde
 // los anchos del catálogo. Dos reglas, una por breakpoint, en un <style> propio.
+// Se escribe en el DOM solo si el texto cambia: cada asignación a textContent
+// fuerza un reparse de CSSOM, y en vivo esto se evalúa varias veces por segundo.
+let _enLastColStyle=null;
 function _enApplyColumnStyle(cols){
   let el=document.getElementById('en-col-style');
   if(!el){ el=document.createElement('style'); el.id='en-col-style'; document.head.appendChild(el); }
   const ancho=EnColumns.gridTemplate(cols,false);
   const estrecho=EnColumns.gridTemplate(cols,true);
-  el.textContent=
+  const css=
     `.en-thead,.en-row{grid-template-columns:${ancho};}`+
     `@media (max-width:900px){.en-thead,.en-row{grid-template-columns:${estrecho};}}`;
+  if(css===_enLastColStyle)return;
+  el.textContent=css;
+  _enLastColStyle=css;
 }
 
 // ── Barra de progreso ─────────────────────────────────────────────────────
@@ -664,6 +678,7 @@ function _enSetColumn(id,on){
   const sel=new Set(EnColumns.loadSelection());
   if(on)sel.add(id); else sel.delete(id);
   EnColumns.saveSelection(EnColumns.COLUMNS.filter(c=>sel.has(c.id)).map(c=>c.id));
+  _enSelectionCache=null; // la selección guardada cambió: invalidar la caché de _enActiveColumns
   const thead=document.getElementById('en-thead');
   if(thead)thead.innerHTML=_enTheadHtml();
   _enRender();
