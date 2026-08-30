@@ -173,8 +173,14 @@ cliente**.
 Riesgo asociado: `colMap` se vacía en el `_reset()` del parser, y una
 reconexión a mitad de carrera dejaría la columna desaparecida hasta que Apex
 reenvíe el grid. Para evitar ese parpadeo, la disponibilidad se calcula sobre
-la **unión de los `colMap` vistos en la sesión** (`EnSession.colMapSeen`), que
-se limpia solo al empezar sesión nueva.
+`EnSession.colMapSeen`, que **no es una unión**: un `colMap` entrante vacío o
+`undefined` conserva el que ya teníamos, y uno no vacío lo sustituye entero
+(`EnColumns.mergeColMap`). Apex siempre construye el `colMap` desde el grid
+completo en `setGrid` (`src/apex-protocol.js:709`), así que cualquier `colMap`
+no vacío ya es completo por sí solo — mezclarlo con el anterior arrastraría
+columnas de la sesión previa, y la detección automática de sesión nueva del
+parser nunca vacía `colMap` para evitarlo. `colMapSeen` se limpia solo al
+empezar sesión nueva.
 
 ### 6. Panel de selección
 
@@ -226,8 +232,9 @@ Sobre la suite existente (222 tests verdes):
   vueltas — el caso del bug original.
 - Con el fallback en juego (sin `lc` ni `tlp`), las vueltas del stint
   (`en-state.js:257`) siguen funcionando aunque la columna no se pinte.
-- `colMapSeen` es la unión de los `colMap` de la sesión: una reconexión con
-  `colMap` vacío no hace desaparecer columnas.
+- `mergeColMap`: un `colMap` vacío o `undefined` conserva el `colMapSeen`
+  anterior (una reconexión no hace desaparecer columnas); uno no vacío lo
+  sustituye entero, sin mezclar con el previo.
 - Persistencia: guardar, releer, y migrar desde una versión con ids que ya no
   existen.
 - El `grid-template-columns` generado tiene tantos tramos como columnas
