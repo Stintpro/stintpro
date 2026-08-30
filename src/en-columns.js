@@ -154,10 +154,15 @@
     },
   ];
 
-  // Unión de colMaps de la sesión. El parser vacía su colMap al resetear, y una
-  // reconexión dejaría la tabla sin columnas hasta que Apex reenvíe el grid.
+  // Una reconexión manda un colMap vacío (el parser lo vacía al resetear) y hay
+  // que conservar el anterior hasta que Apex reenvíe el grid. Pero un colMap NO
+  // vacío es siempre el grid completo de la sesión (setGrid lo construye entero
+  // de una vez) — nunca es parcial, así que sustituye sin mezclar. Esto es lo
+  // que hace desaparecer las columnas de la sesión anterior cuando Apex arranca
+  // una sesión nueva con menos dtypes.
   function mergeColMap(prev, next) {
-    return Object.assign({}, prev || {}, next || {});
+    if (next && Object.keys(next).length) return next;
+    return prev || {};
   }
 
   function isAvailable(col, colMap) {

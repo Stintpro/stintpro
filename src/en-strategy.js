@@ -877,6 +877,9 @@ function _enInitSim(){
   const bases=[67.2,67.8,68.1,68.5,69.0,69.3,69.8,70.2,71.0,72.5];
   const now=Date.now();
   EnSession.stintStart=now;
+  // Grid falso de la simulación: los dtypes que sus equipos realmente rellenan,
+  // para que la tabla muestre las mismas columnas que en una sesión real.
+  EnSession.colMapSeen={rk:'c1',no:'c2',dr:'c3',llp:'c4',blp:'c5',gap:'c6',int:'c7',lc:'c8',pit:'c9'};
   EnSession.data.equipos=nombres.map((name,i)=>({
     dorsal:dorsales[i], name, pos:i+1,
     lastLap:null, bestLap:bases[i],
@@ -1102,8 +1105,9 @@ window.showEnduranceDashboard=function(cfg){
         EnSession.data.equipos=data.equipos||[];
         EnSession.data.leaderLap=data.leaderLap||0;
         EnSession.data.sessionMode=data.sessionMode||'';
-        // colMap: qué columnas manda Apex en esta sesión. Se acumula porque el
-        // parser lo vacía al resetear y una reconexión dejaría la tabla coja.
+        // colMap: qué columnas manda Apex en esta sesión. Una reconexión manda
+        // un colMap vacío (se conserva el anterior); un cambio de sesión manda
+        // el grid completo nuevo (sustituye entero, ver EnColumns.mergeColMap).
         EnSession.colMapSeen = EnColumns.mergeColMap(EnSession.colMapSeen, data.colMap);
         EnSession.data.colMap = EnSession.colMapSeen;
         if(data.sessionFinished)EnSession._finished=true;
