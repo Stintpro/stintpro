@@ -1,3 +1,14 @@
+> **SUPERADO (2026-08-31).** Este documento orienta la entrega 2 hacia selectores
+> como `.dash-topbar`, `.dash-nav`, `.dash-wrap`, `.setup-root`, `.dialog-box`,
+> `.dialog-overlay`, `.modal-box`, `.modal-row`, `.stop-light`, `.sl-bulb`,
+> `.live-badge` y `.f-indicator` que **ya no existen**: eran CSS muerto (ninguna
+> vista real los usaba) y la rama `estetica-cristal` los borró de `styles.css`.
+> El panel real se pinta desde JS (`en-grid.js`/`sprint.js`) con clases
+> `sp-*`/`en-*`, no con estas. La referencia vigente para la entrega 2 es
+> `docs/superpowers/specs/2026-08-31-stintpro-liquid-glass-design.md`. Se
+> conserva este fichero sin borrar porque la decisión de borrarlo es de Javier,
+> no de esta rama.
+
 # Estética «cristal de instrumento» — criterios para StintPro
 
 Guía para llevar a StintPro el material que ya está en producción en Track
