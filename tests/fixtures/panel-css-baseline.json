@@ -22,7 +22,7 @@
     },
     {
       "selector": ".sp-session",
-      "body": "font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:fixed;left:0;right:0;text-align:center;pointer-events:none;"
+      "body": "font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:absolute;left:0;right:0;text-align:center;pointer-events:none;"
     },
     {
       "selector": ".sp-clock",
@@ -404,7 +404,7 @@
     },
     {
       "selector": ".sp-session",
-      "body": "font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:fixed;left:0;right:0;text-align:center;pointer-events:none;"
+      "body": "font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:absolute;left:0;right:0;text-align:center;pointer-events:none;"
     },
     {
       "selector": ".sp-clock",

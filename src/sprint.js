@@ -29,7 +29,11 @@ function _spInjectStyles(){
     .sp-topbar{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-left:270px;padding-right:16px;}
     .sp-topbar>*{-webkit-app-region:no-drag;}
     .sp-wdot{width:11px;height:11px;border-radius:50%;}
-    .sp-session{font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:fixed;left:0;right:0;text-align:center;pointer-events:none;}
+    /* absolute, no fixed: en cuanto .sp-header estrene backdrop-filter (entrega 2)
+       se convertiría en bloque contenedor de los fixed que cuelgan de él y este
+       cartel dejaría de centrarse contra la ventana. .sp-topbar ya es relative y
+       el padding de .sp-header es simétrico, así que el centro no se mueve. */
+    .sp-session{font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:absolute;left:0;right:0;text-align:center;pointer-events:none;}
     .sp-clock{text-align:right;margin-left:auto;}
     .sp-clock-val{font-size:27.5px;font-weight:500;color:#fff;font-family:monospace;letter-spacing:-1px;line-height:1;}
     .sp-clock-lbl{font-size:11.5px;color:var(--text-3);margin-top:1px;}
