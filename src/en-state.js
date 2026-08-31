@@ -158,13 +158,17 @@ function _enInjectStyles(){
     /* Pantallas estrechas (iPad y similares, no afecta a Electron/desktop ≥1100px):
        columnas y fuentes del grid de clasificación reducidas para que las 13
        quepan sin solaparse ni cortarse fuera de la pantalla. */
+    /* Un selector movido a un fichero que carga antes (panel.css) invierte su orden
+       respecto a un @media que lo redeclara aquí: el @media y el selector base tienen
+       que vivir en el mismo fichero, o el @media empieza a ganar donde antes perdía.
+       .sp-pos, .sp-name, .sp-t y .sp-gap viven ahora en panel.css: sus reglas quedan
+       fuera de este bloque a propósito, para no reactivar un tamaño que era letra
+       muerta antes de esta rama. */
     @media (max-width:900px){
       .en-thead,.en-row{column-gap:4px;padding-left:8px;padding-right:8px;}
       .en-thead span{font-size:10px;}
-      .sp-pos{font-size:12.5px;}
       .en-kart{width:26px;height:20px;font-size:12px;}
-      .sp-name{font-size:12.5px;gap:4px;}
-      .sp-vtas,.sp-t,.en-m5,.en-delta,.sp-gap,.sp-pitc{font-size:12px;}
+      .sp-vtas,.en-m5,.en-delta,.sp-pitc{font-size:12px;}
     }
     .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;cursor:pointer;position:relative;}
     .en-kart-q{position:absolute;top:-3px;right:-3px;font-size:8.5px;line-height:1;}
