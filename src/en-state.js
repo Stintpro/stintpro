@@ -138,24 +138,9 @@ function _enInjectStyles(){
   const s=document.createElement('style');
   s.id='en-styles';
   s.textContent=`
-    #screen-dash{background:#0e0f11;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
-    .sp-header{background:#13141a;border-bottom:0.5px solid #252630;padding:12px 18px;flex-shrink:0;-webkit-app-region:drag;}
-    .sp-topbar{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-left:270px;padding-right:16px;}
-    .sp-topbar>*{-webkit-app-region:no-drag;}
-    .sp-wdot{width:11px;height:11px;border-radius:50%;}
-    /* absolute, no fixed: en cuanto .sp-header estrene backdrop-filter (entrega 2)
-       se convertiría en bloque contenedor de los fixed que cuelgan de él y este
-       cartel dejaría de centrarse contra la ventana. .sp-topbar ya es relative y
-       el padding de .sp-header es simétrico, así que el centro no se mueve. */
-    .sp-session{font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:absolute;left:0;right:0;text-align:center;pointer-events:none;}
-    .sp-clock{text-align:right;margin-left:auto;}
-    .sp-clock-val{font-size:27.5px;font-weight:500;color:#fff;font-family:monospace;letter-spacing:-1px;line-height:1;}
-    .sp-clock-lbl{font-size:11.5px;color:var(--text-3);margin-top:1px;}
+    /* El chrome compartido con el otro modo vive en src/panel.css.
+       Aquí solo lo específico de endurance. */
     .en-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;width:100%;-webkit-app-region:no-drag;}
-    .sp-kpi{background:#0e0f11;border-radius:8px;padding:10px 14px;border:0.5px solid #1e1f25;}
-    .sp-kpi-lbl{font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-family:sans-serif;}
-    .sp-kpi-val{font-size:23.5px;font-weight:500;font-family:monospace;line-height:1.1;letter-spacing:-0.5px;}
-    .sp-kpi-sub{font-size:11.5px;color:var(--text-3);margin-top:3px;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .en-thead{display:grid;column-gap:10px;padding:5px 14px;border-bottom:0.5px solid #1a1b20;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
     .en-thead::-webkit-scrollbar{display:none;}
     .en-thead span{font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
@@ -166,7 +151,6 @@ function _enInjectStyles(){
     .en-col-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);padding:3px 0;cursor:pointer;white-space:nowrap;}
     .en-col-item.en-col-off{opacity:.45;cursor:default;}
     .sp-body{overflow-y:auto;overflow-x:auto;flex:1;}
-    .sp-rowwrap{position:relative;}
     .en-row{display:grid;column-gap:10px;padding:4px 14px;border-bottom:0.5px solid #111213;align-items:center;cursor:pointer;position:relative;}
     .en-row:nth-child(odd){background:rgba(255,255,255,0.01);}
     .en-row:hover{background:#15161d!important;}
@@ -182,43 +166,18 @@ function _enInjectStyles(){
       .sp-name{font-size:12.5px;gap:4px;}
       .sp-vtas,.sp-t,.en-m5,.en-delta,.sp-gap,.sp-pitc{font-size:12px;}
     }
-    @keyframes spFlash{0%{background:rgba(251,146,60,0.2);}100%{background:transparent;}}
-    .sp-flash{animation:spFlash 2s ease-out forwards;}
-    .sp-pinned{border-left:2px solid #F5A623!important;background:#1a1500!important;}
-    .sp-dot{width:8px;height:8px;border-radius:50%;margin:auto;}
-    .sp-pos{font-size:14.5px;font-weight:500;color:#bbb;text-align:center;}
     .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;cursor:pointer;position:relative;}
     .en-kart-q{position:absolute;top:-3px;right:-3px;font-size:8.5px;line-height:1;}
-    .sp-name{font-size:14.5px;color:var(--text-1);font-family:sans-serif;display:flex;align-items:center;gap:7px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
     .en-info-btn{flex-shrink:0;font-size:11px;font-weight:700;color:#F5A623;background:#1a1500;border:1px solid #3a2800;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;font-style:normal;}
     .en-info-btn:hover{background:#1a2d4a;}
-    .sp-pit-b{background:#ef4444;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
-    .sp-out-b{background:#f97316;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
-    .sp-fix-b{font-size:10.5px;color:#F5A623;border:0.5px solid #F5A623;padding:1px 5px;border-radius:3px;flex-shrink:0;}
     .sp-vtas{font-size:13.5px;color:var(--text-2);text-align:right;font-family:monospace;}
     /* Vueltas contadas por StintPro (Apex no manda contador en esta sesión):
        mismo gris apagado que las columnas calculadas, para que no se confunda
        con el dato oficial de un vistazo. */
     .sp-vtas-prop{color:var(--text-3);}
-    .sp-t{font-size:14.5px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums;}
     .en-m5{font-size:13.5px;text-align:right;font-family:monospace;color:var(--text-3);}
     .en-delta{font-size:12.5px;text-align:right;font-family:monospace;}
-    .sp-cons{font-size:11.5px;text-align:center;}
-    .sp-gap{font-size:13.5px;text-align:right;font-family:monospace;color:var(--text-3);}
     .sp-pitc{font-size:13.5px;color:var(--text-2);text-align:right;font-family:monospace;}
-    .sp-au{color:#22c55e;font-size:11.5px;font-weight:700;margin-left:2px;}
-    .sp-ad{color:#ef4444;font-size:11.5px;font-weight:700;margin-left:2px;}
-    .sp-footer{padding:7px 14px;display:flex;gap:16px;border-top:0.5px solid #181920;flex-shrink:0;}
-    .sp-fl{font-size:11.5px;color:#2d2f38;display:flex;align-items:center;gap:4px;}
-    .sp-fldot{width:7px;height:7px;border-radius:50%;}
-    .sp-back{font-size:12.5px;padding:4px 12px;border-radius:6px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;}
-    .sp-back:hover{color:var(--text-2);border-color:var(--text-3);}
-    .sp-empty{color:var(--text-3);padding:60px;text-align:center;font-family:sans-serif;}
-    .sp-sim-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(34,197,94,0.1);color:#22c55e;border:0.5px solid #22c55e;margin-left:6px;}
-    .sp-phase-badge{font-size:10.5px;padding:2px 7px;border-radius:20px;background:rgba(91,141,238,0.12);color:#5b8dee;border:0.5px solid #5b8dee;margin-left:6px;letter-spacing:0.5px;}
-    .sp-lapbar{position:absolute;bottom:0;left:0;height:2px;background:rgba(245,166,35,0.4);transition:width 0.1s linear;pointer-events:none;}
-    .sp-lapbar.fast{background:rgba(34,197,94,0.5);}
-    .sp-lapbar.slow{background:rgba(239,68,68,0.4);}
     .en-myrow{background:linear-gradient(90deg,rgba(245,166,35,0.28),rgba(245,166,35,0.07) 55%,transparent)!important;box-shadow:inset 4px 0 0 0 #F5A623;}
     .en-myrow:nth-child(odd){background:linear-gradient(90deg,rgba(245,166,35,0.32),rgba(245,166,35,0.08) 55%,transparent)!important;}
     /* Pestañas */
