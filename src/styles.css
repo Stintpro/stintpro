@@ -26,9 +26,13 @@
   --blue-txt:   #ffd09e;
   --gold:       #d4a843;
   /* Superficies del panel de carrera. Valores idénticos a los hex que había
-   * escritos a mano en los <style> de en-state.js y sprint.js: tokenizarlos NO
-   * cambia ningún color. Existen para que la entrega 2 (cristal) pueda cambiar
-   * el material desde un solo sitio, y para que body.hc llegue por fin al panel.
+   * escritos a mano: los 8 en panel.css (#screen-dash, .sp-header, .sp-kpi,
+   * .sp-footer, .sp-back), y 3 de ellos (--panel-surface, --panel-line,
+   * --panel-line-soft) repetidos también en el <style> de en-state.js
+   * (.en-col-panel, .en-team-card, .en-strat-card). sprint.js no tenía
+   * ninguno de estos hex. Tokenizarlos NO cambia ningún color. Existen para
+   * que la entrega 2 (cristal) pueda cambiar el material desde un solo sitio,
+   * y para que body.hc llegue por fin al panel.
    * Ver docs/superpowers/specs/2026-08-31-stintpro-liquid-glass-design.md */
   --panel-bg:        #0e0f11;   /* fondo de #screen-dash */
   --panel-surface:   #13141a;   /* .sp-header, .en-col-panel, tarjetas */

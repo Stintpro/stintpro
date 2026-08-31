@@ -3,6 +3,7 @@ stintpro-logger/data/
 stintpro-logger/tools/*.log
 .DS_Store
 .claude/
+!.claude/launch.json
 
 # Mockups de brainstorming (herramienta local, no forma parte del producto)
 .superpowers/
