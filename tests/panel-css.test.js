@@ -25,6 +25,17 @@ const sprint   = rulesOf(extractInjectedCss(leer('src/sprint.js')));
 const sel = rs => rs.map(r => r.selector);
 const dups = xs => xs.filter((x, i) => xs.indexOf(x) !== i);
 
+// Un selector puede venir en grupo ("`.a,.b{…}`"): lo partimos para comparar
+// selector individual contra selector individual.
+const selectoresIndividuales = rs => rs.flatMap(r => r.selector.split(',').map(s => s.trim()));
+
+// Las at-rules (@media, @keyframes) se cuentan como UNA regla cuyo body es su
+// bloque entero (ver tools/css-extract.js): para mirar dentro basta con volver
+// a pasar ese body por rulesOf.
+const selectoresDentroDeMedia = rs => rs
+  .filter(r => r.selector.trim().startsWith('@'))
+  .flatMap(r => selectoresIndividuales(rulesOf(r.body)));
+
 group('nada se ha perdido', () => {
   test('endurance conserva todos sus selectores (panel.css + su bloque)', () => {
     deepStrictEqual(
@@ -67,6 +78,38 @@ group('lo compartido es lo que se ha extraído', () => {
   test('cada regla de panel.css conserva su cuerpo original', () => {
     for (const regla of panel) {
       const orig = base.endurance.find(r => r.selector === regla.selector);
+      strictEqual(regla.body, orig.body, `cambió el cuerpo de ${regla.selector}`);
+    }
+  });
+});
+
+group('un @media vive en el mismo fichero que su selector base', () => {
+  test('ningún selector declarado dentro de un @media de los bloques inyectados está en panel.css', () => {
+    // Trampa real (C1): un selector movido a panel.css, que carga ANTES que
+    // los <style> inyectados, invierte su orden respecto a un @media que lo
+    // siga redeclarando aquí — ese @media pasa de perder a ganar. El @media y
+    // el selector base tienen que vivir siempre en el mismo fichero.
+    const panelIndividual = selectoresIndividuales(panel);
+    const dentroDeMedia = [...selectoresDentroDeMedia(endur), ...selectoresDentroDeMedia(sprint)];
+    const fuga = dentroDeMedia.filter(s => panelIndividual.includes(s));
+    deepStrictEqual(fuga, []);
+  });
+});
+
+group('los bloques inyectados no se han desviado de la línea base', () => {
+  // panel-css.test.js hasta ahora solo comparaba CONJUNTOS de selectores entre
+  // ficheros; nada comprobaba que el CUERPO de una regla que se queda en un
+  // bloque inyectado (56 en endurance, 13 en sprint) siga siendo el mismo. Una
+  // mutación como cambiar el column-gap de .en-row pasaba desapercibida.
+  test('cada regla del bloque de endurance conserva el cuerpo de la línea base', () => {
+    for (const regla of endur) {
+      const orig = base.endurance.find(r => r.selector === regla.selector);
+      strictEqual(regla.body, orig.body, `cambió el cuerpo de ${regla.selector}`);
+    }
+  });
+  test('cada regla del bloque de sprint conserva el cuerpo de la línea base', () => {
+    for (const regla of sprint) {
+      const orig = base.sprint.find(r => r.selector === regla.selector);
       strictEqual(regla.body, orig.body, `cambió el cuerpo de ${regla.selector}`);
     }
   });
