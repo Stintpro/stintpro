@@ -42,6 +42,7 @@ for (const [token, valor] of Object.entries(ESPERADOS)) {
 
 console.log('\nlas superficies usan el token, no el hex');
 const SUPERFICIES = [
+  ['panel.css', panel, '#screen-dash',   '--panel-bg'],
   ['panel.css', panel, '.sp-header',     '--panel-surface'],
   ['panel.css', panel, '.sp-kpi',        '--panel-inset'],
   ['panel.css', panel, '.sp-footer',     '--panel-line-dim'],
