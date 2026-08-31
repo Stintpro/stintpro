@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>StintPro · banco de pruebas del panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/styles.css">
+  <!-- A partir de la tarea 4 se añade aquí: <link rel="stylesheet" href="../src/panel.css"> -->
+</head>
+<body>
+  <div id="screen-setup" class="screen"></div>
+  <div id="screen-dash" class="screen"></div>
+
+  <script>
+    // Suplantamos lo que index.html obtiene de Supabase. El banco NO se
+    // despliega: vercel.json sirve outputDirectory "src", y esto vive en tools/.
+    window._spUserRole = 'admin';
+    window._spRolePromise = Promise.resolve('admin');
+    window.supabaseClient = { auth: { getSession: () => Promise.resolve({ data: { session: null } }) } };
+    window.AppState = { config: {} };
+  </script>
+
+  <script src="../src/circuits.js"></script>
+  <script src="../src/state.js"></script>
+  <script src="../src/clock.js"></script>
+  <script src="../src/apex-protocol.js"></script>
+  <script src="../src/apex-connector.js"></script>
+  <script src="../src/logger-connector.js"></script>
+  <script src="../src/replay-connector.js"></script>
+  <script src="../src/helpers.js"></script>
+  <script src="../src/analysis.js"></script>
+  <script src="../src/sprint.js"></script>
+  <script src="../src/en-state.js"></script>
+  <script src="../src/en-stint-machine.js"></script>
+  <script src="../src/en-persist.js"></script>
+  <script src="../src/en-columns.js"></script>
+  <script src="../src/en-grid.js"></script>
+  <script src="../src/en-advanced.js"></script>
+  <script src="../src/en-team.js"></script>
+  <script src="../src/en-strategy.js"></script>
+  <script src="../src/en-ai-engineer.js"></script>
+  <script src="../src/en-ai-alerts.js"></script>
+
+  <script>
+    // ?modo=sprint para el otro panel · ?hc=1 para el modo alto contraste
+    const q = new URLSearchParams(location.search);
+    if (q.get('hc') === '1') document.body.classList.add('hc');
+    const esSprint = q.get('modo') === 'sprint';
+
+    const cfg = {
+      name: esSprint ? 'Banco · Sprint' : 'Banco · Endurance',
+      raceType: esSprint ? 'sprint' : 'endurance',
+      simMode: false, _noPersist: true,
+      stintMin: 10, stintMax: 45, stops: 0, pitMinTime: 3,
+      myDorsal: '1', nKarts: 4, pitLayout: 'libre',
+      slug: 'replay', port: null, trackDirection: null, pilotos: [], duration: 0
+    };
+
+    (async () => {
+      await window.ReplayConnector.loadUrl('../src/demo/demo-race.ndjson');
+      window.ReplayConnector.loopMode = true;
+      window.ReplayConnector.speed = 1;
+      window.ApexConnector = window.ReplayConnector;
+      window.AppState.config = cfg;
+      // OJO: NO llamamos aquí a ReplayConnector.connect(...). showEnduranceDashboard/
+      // showSprintDashboard ya lo hacen internamente (cfg.simMode=false ⇒
+      // ApexConnector.connect(cfg.slug, ...) con los callbacks reales que alimentan
+      // EnSession/_spData — ver en-strategy.js y sprint.js). Llamarlo aquí también
+      // sobrescribiría this.onData con un wrapper que se referencia a sí mismo
+      // (window.ApexConnector.onData ya sería ese mismo wrapper) y entra en
+      // recursión infinita en cuanto llega el primer dato. El propio modo demo de
+      // producción (app.js:_startDemoNow) sigue este mismo patrón: nunca llama a
+      // connect() a mano, deja que el dashboard lo haga.
+      if (esSprint) window.showSprintDashboard(cfg);
+      else window.showEnduranceDashboard(cfg);
+    })();
+  </script>
+</body>
+</html>
