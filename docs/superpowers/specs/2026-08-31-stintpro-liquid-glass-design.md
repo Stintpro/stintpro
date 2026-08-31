@@ -34,8 +34,10 @@ Verificado por búsqueda de cada nombre en todos los `.js` y `.html`. **Decisió
 esta entrega**, comprobando una por una antes de quitarla.
 
 **2.2 · El panel real se pinta desde JS.** Lo generan `en-grid.js` y `sprint.js` con clases
-`sp-*` / `en-*`, y sus estilos son dos bloques `<style>` inyectados —387 líneas en
-`en-state.js` y 455 en `sprint.js`— **casi copia el uno del otro**: `.sp-topbar`,
+`sp-*` / `en-*`, y sus estilos son dos bloques `<style>` inyectados —111 líneas en
+`en-state.js` y 53 en `sprint.js` (95 y 52 reglas CSS respectivamente, contadas con
+`tools/css-extract.js`: descarta comentarios y cuenta el bloque `@media (max-width:900px)`
+como una sola regla)— **casi copia el uno del otro**: `.sp-topbar`,
 `.sp-header`, `.sp-clock`, `.sp-session`, `.sp-wdot` son idénticos en ambos.
 
 **2.3 · Ese CSS no usa los tokens.** 209 colores hex escritos a mano (`#0e0f11`, `#13141a`,

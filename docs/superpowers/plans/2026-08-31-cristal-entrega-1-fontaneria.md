@@ -151,8 +151,11 @@ console.log('endurance:',rulesOf(en).length,'reglas · sprint:',rulesOf(sp).leng
 "
 ```
 
-Esperado: `endurance: 111 reglas · sprint: 53 reglas`. Si los números no salen, **para**: el
-extractor no está viendo lo que crees.
+Esperado: `endurance: 95 reglas · sprint: 52 reglas`. Ojo, no confundir con las **líneas** del
+bloque `<style>` (111 en `en-state.js`, 53 en `sprint.js`): `rulesOf` cuenta **reglas CSS**
+—descarta comentarios y cuenta el bloque `@media (max-width:900px)` como una sola regla—, que
+es una unidad distinta y menor. Si los números no salen, **para**: el extractor no está viendo
+lo que crees.
 
 - [ ] **Paso 4: escribir `tools/panel-preview.html`**
 
@@ -543,8 +546,9 @@ Va en su propio commit para poder revertirlo suelto."
 
 ### Task 4: extraer el chrome compartido a `panel.css`
 
-39 de las 111 reglas de `en-state.js` son idénticas a 39 de las 53 de `sprint.js`. Salen a un
-fichero real; cada bloque inyectado se queda con lo suyo.
+39 de las 95 reglas de `en-state.js` son idénticas a 39 de las 52 de `sprint.js` (los bloques
+`<style>` completos son de 111 y 53 líneas respectivamente, pero esa es la unidad de líneas,
+no de reglas). Salen a un fichero real; cada bloque inyectado se queda con lo suyo.
 
 **Files:**
 - Create: `src/panel.css`
@@ -959,7 +963,8 @@ llegue por fin al panel de carrera."
 - [ ] **Paso 1: corregir el dato equivocado del spec**
 
 El spec §2.2 dice "387 líneas en `en-state.js` y 455 en `sprint.js`". Es falso: son **111 y
-53**, con **39 reglas idénticas**. Corrígelo, y con él la frase de §2.2 que hable del tamaño.
+53 líneas** (95 y 52 reglas CSS, contadas con `tools/css-extract.js`), con **39 reglas
+idénticas**. Corrígelo, y con él la frase de §2.2 que hable del tamaño.
 
 - [ ] **Paso 2: barrido de `position:fixed`**
 
