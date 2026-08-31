@@ -146,7 +146,7 @@ function _enInjectStyles(){
     .en-thead span{font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
     .en-col-bar{position:relative;flex-shrink:0;}
     .en-col-btn{cursor:pointer;}
-    .en-col-panel{position:absolute;z-index:50;top:30px;left:0;background:#13141a;border:0.5px solid #252630;border-radius:10px;padding:10px 12px;display:flex;gap:18px;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+    .en-col-panel{position:absolute;z-index:50;top:30px;left:0;background:var(--panel-surface);border:0.5px solid var(--panel-line);border-radius:10px;padding:10px 12px;display:flex;gap:18px;box-shadow:0 8px 24px rgba(0,0,0,.5);}
     .en-col-title{font-size:10px;color:#F5A623;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;white-space:nowrap;}
     .en-col-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);padding:3px 0;cursor:pointer;white-space:nowrap;}
     .en-col-item.en-col-off{opacity:.45;cursor:default;}
@@ -187,7 +187,7 @@ function _enInjectStyles(){
     .en-tab.active{color:#F5A623;border-bottom-color:#F5A623;}
     /* Vista equipo */
     .en-team{padding:14px 18px;overflow-y:auto;flex:1;}
-    .en-team-card{background:#13141a;border:0.5px solid #1e1f25;border-radius:8px;padding:14px;margin-bottom:12px;}
+    .en-team-card{background:var(--panel-surface);border:0.5px solid var(--panel-line-soft);border-radius:8px;padding:14px;margin-bottom:12px;}
     .en-team-title{font-size:12.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;font-family:sans-serif;}
     .en-pilot-current{display:flex;align-items:center;gap:14px;margin-bottom:10px;}
     .en-pilot-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17.5px;font-weight:700;color:#fff;}
@@ -205,7 +205,7 @@ function _enInjectStyles(){
     .en-stint-head{color:#333;font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;}
     /* Estrategia */
     .en-strat{padding:14px 18px;overflow-y:auto;flex:1;}
-    .en-strat-card{background:#13141a;border:0.5px solid #1e1f25;border-radius:8px;padding:14px;margin-bottom:12px;}
+    .en-strat-card{background:var(--panel-surface);border:0.5px solid var(--panel-line-soft);border-radius:8px;padding:14px;margin-bottom:12px;}
     .en-strat-title{font-size:12.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;font-family:sans-serif;}
     .en-prob-bar{height:8px;border-radius:4px;background:#1e1f25;overflow:hidden;margin:8px 0;}
     .en-prob-fill{height:100%;border-radius:4px;transition:width 0.3s;}

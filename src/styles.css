@@ -25,6 +25,19 @@
   --blue-dim:   rgba(245,166,35,0.14);
   --blue-txt:   #ffd09e;
   --gold:       #d4a843;
+  /* Superficies del panel de carrera. Valores idénticos a los hex que había
+   * escritos a mano en los <style> de en-state.js y sprint.js: tokenizarlos NO
+   * cambia ningún color. Existen para que la entrega 2 (cristal) pueda cambiar
+   * el material desde un solo sitio, y para que body.hc llegue por fin al panel.
+   * Ver docs/superpowers/specs/2026-08-31-stintpro-liquid-glass-design.md */
+  --panel-bg:        #0e0f11;   /* fondo de #screen-dash */
+  --panel-surface:   #13141a;   /* .sp-header, .en-col-panel, tarjetas */
+  --panel-inset:     #0e0f11;   /* .sp-kpi */
+  --panel-line:      #252630;   /* borde de la cabecera y del panel de columnas */
+  --panel-line-soft: #1e1f25;   /* bordes de .sp-kpi y de las tarjetas */
+  --panel-line-dim:  #181920;   /* borde superior del pie */
+  --panel-btn:       #1a1b22;   /* fondo de .sp-back */
+  --panel-btn-line:  #2a2b2e;   /* borde de .sp-back */
   --r-sm:4px; --r-md:10px; --r-lg:14px;
 }
 body.hc {
