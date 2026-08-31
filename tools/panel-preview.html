@@ -11,6 +11,25 @@
   <div id="screen-setup" class="screen"></div>
   <div id="screen-dash" class="screen"></div>
 
+  <!-- Réplica mínima de #sp-topnav (src/index.html:12-38). El panel inyecta aquí dentro
+       el botón del selector de columnas (_enInjectColumnsBtn, en-strategy.js), así que sin
+       este nodo esa superficie sencillamente no existe en el banco. Solo se replica lo que
+       no depende de Supabase: el contenedor y el botón de contraste. -->
+  <style>
+    #sp-topnav { position:fixed;top:0;left:0;z-index:9999;display:flex;align-items:center;gap:10px;padding:12px 18px; }
+    #sp-topnav .sp-nav-btn { font-size:11px;color:#8A9AAE;background:none;border:1px solid #2A3848;border-radius:3px;padding:5px 12px;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:none; }
+    #sp-topnav .sp-nav-hc { color:#F5A623;border-color:#F5A623; }
+  </style>
+  <div id="sp-topnav">
+    <button class="sp-nav-btn" id="sp-hc-btn" onclick="_spToggleHC()">☀ Contraste</button>
+  </div>
+  <script>
+    function _spToggleHC() {
+      var on = document.body.classList.toggle('hc');
+      document.getElementById('sp-hc-btn').classList.toggle('sp-nav-hc', on);
+    }
+  </script>
+
   <script>
     // Suplantamos lo que index.html obtiene de Supabase. El banco NO se
     // despliega: vercel.json sirve outputDirectory "src", y esto vive en tools/.
@@ -44,7 +63,10 @@
   <script>
     // ?modo=sprint para el otro panel · ?hc=1 para el modo alto contraste
     const q = new URLSearchParams(location.search);
-    if (q.get('hc') === '1') document.body.classList.add('hc');
+    if (q.get('hc') === '1') {
+      document.body.classList.add('hc');
+      document.getElementById('sp-hc-btn').classList.add('sp-nav-hc');
+    }
     const esSprint = q.get('modo') === 'sprint';
 
     const cfg = {
