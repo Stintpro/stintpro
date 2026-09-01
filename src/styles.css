@@ -126,6 +126,20 @@ body.hc {
    * se le quita de en medio. Superficies opacas, sin desenfoque, sin luz de
    * fondo que recoger. */
   --glass-blur:     0px;
+  /* --glass-denso-blur (definida en :root, línea ~99) vale var(--glass-blur)
+   * pero una custom property hereda el valor ya COMPUTADO, no la fórmula: en
+   * :root, --glass-blur valía 28px en el momento de resolverla, así que
+   * --glass-denso-blur quedó fija en 28px para siempre y el --glass-blur:0px
+   * de aquí abajo NUNCA le llega. Resultado sin este arreglo: en ☀ el
+   * material denso sigue computando blur(28px) detrás de un fondo opaco —
+   * cero píxeles visibles, pero el compositor lo sigue pagando— y ☀ es justo
+   * el modo pensado para sol directo (dispositivo caliente, batería). Por
+   * eso se redeclara aquí a mano, junto con --glass-sat y --glass-bright,
+   * que tampoco toca --glass-blur:0px (R22, Tarea 6).
+   */
+  --glass-denso-blur: 0px;
+  --glass-sat:        100%;
+  --glass-bright:     100%;
   --glass-a:        var(--panel-surface);
   --glass-b:        var(--panel-surface);
   --glass-denso-a:  var(--panel-inset);

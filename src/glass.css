@@ -65,3 +65,17 @@
   border: 0.5px solid var(--glass-border);
   border-radius: 12px;
 }
+
+/* Pantallas pequeñas (el iPad que a veces se lleva al muro). El desenfoque es
+ * lo que más cuesta de este material y es lo primero que se quita si hace
+ * falta: lo que hace que esto se lea como vidrio son el canto y la sombra, no
+ * el blur.
+ * Esta palanca funciona porque este fichero CARGA DESPUÉS que styles.css —no
+ * porque comparta fichero con la declaración que redeclara. --glass-blur nace
+ * en el :root de styles.css; aquí se REDECLARA el mismo token en otro :root,
+ * y por orden de carga en la cascada, este valor gana. Lo que protege esa
+ * premisa es el test 'el orden de carga' de tests/glass.test.js (NO
+ * tests/panel-css.test.js, que ni siquiera lee glass.css). */
+@media (max-width:900px) {
+  :root { --glass-blur: 14px; }
+}

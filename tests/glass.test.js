@@ -260,6 +260,27 @@ group('el modo ☀ apaga el cristal', () => {
         `body.hc no apaga ${t}`);
     }
   });
+  test('body.hc pone a 0 el blur DENSO y a 100% saturación/brillo (R22)', () => {
+    // --glass-denso-blur hereda el valor COMPUTADO de --glass-blur declarado
+    // en :root (28px ya sustituidos), no la fórmula var(...) — así que el
+    // --glass-blur:0px de arriba no le llega y el material denso seguiría
+    // pagando blur(28px) en ☀ detrás de un fondo opaco. El test de arriba
+    // ('body.hc pone el desenfoque a 0') usa el regex /--glass-blur\s*:\s*0/,
+    // que NO casa con "--glass-denso-blur" —el prefijo "denso-" rompe el
+    // literal—, así que hace falta esta aserción aparte para --glass-denso-blur,
+    // --glass-sat y --glass-bright.
+    strictEqual(/--glass-denso-blur\s*:\s*0/.test(hc), true, 'body.hc no anula --glass-denso-blur');
+    strictEqual(/--glass-sat\s*:\s*100%/.test(hc), true, 'body.hc no anula --glass-sat');
+    strictEqual(/--glass-bright\s*:\s*100%/.test(hc), true, 'body.hc no anula --glass-bright');
+  });
+});
+
+group('la palanca de rendimiento', () => {
+  test('glass.css baja el desenfoque en pantallas pequeñas', () => {
+    const m = glass.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?)\}\s*\}/);
+    strictEqual(m !== null, true, 'no hay @media (max-width:900px) en glass.css');
+    strictEqual(/--glass-blur\s*:/.test(m[1]), true, 'el @media no toca --glass-blur');
+  });
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
