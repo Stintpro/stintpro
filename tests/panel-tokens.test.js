@@ -41,15 +41,13 @@ for (const [token, valor] of Object.entries(ESPERADOS)) {
 }
 
 console.log('\nlas superficies usan el token, no el hex');
+// El resto de superficies dejó de usar estos tokens al llegar el cristal: su
+// fondo lo pone ahora el material (src/glass.css). Los tokens siguen vivos
+// porque body.hc los usa para apagar el vidrio — ver el bloque body.hc de
+// styles.css y tests/glass.test.js.
 const SUPERFICIES = [
   ['panel.css', panel, '#screen-dash',   '--panel-bg'],
-  ['panel.css', panel, '.sp-header',     '--panel-surface'],
-  ['panel.css', panel, '.sp-kpi',        '--panel-inset'],
-  ['panel.css', panel, '.sp-footer',     '--panel-line-dim'],
-  ['panel.css', panel, '.sp-back',       '--panel-btn'],
   ['en-state.js', enSt, '.en-col-panel',  '--panel-surface'],
-  ['en-state.js', enSt, '.en-team-card',  '--panel-surface'],
-  ['en-state.js', enSt, '.en-strat-card', '--panel-surface'],
 ];
 for (const [donde, fuente, selector, token] of SUPERFICIES) {
   test(`${selector} (${donde}) usa var(${token})`, () => {

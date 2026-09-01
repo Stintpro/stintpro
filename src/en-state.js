@@ -191,7 +191,7 @@ function _enInjectStyles(){
     .en-tab.active{color:#F5A623;border-bottom-color:#F5A623;}
     /* Vista equipo */
     .en-team{padding:14px 18px;overflow-y:auto;flex:1;}
-    .en-team-card{background:var(--panel-surface);border:0.5px solid var(--panel-line-soft);border-radius:8px;padding:14px;margin-bottom:12px;}
+    .en-team-card{border:0.5px solid var(--glass-border);border-radius:8px;padding:14px;margin-bottom:12px;}
     .en-team-title{font-size:12.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;font-family:sans-serif;}
     .en-pilot-current{display:flex;align-items:center;gap:14px;margin-bottom:10px;}
     .en-pilot-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17.5px;font-weight:700;color:#fff;}
@@ -209,7 +209,7 @@ function _enInjectStyles(){
     .en-stint-head{color:#333;font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;}
     /* Estrategia */
     .en-strat{padding:14px 18px;overflow-y:auto;flex:1;}
-    .en-strat-card{background:var(--panel-surface);border:0.5px solid var(--panel-line-soft);border-radius:8px;padding:14px;margin-bottom:12px;}
+    .en-strat-card{border:0.5px solid var(--glass-border);border-radius:8px;padding:14px;margin-bottom:12px;}
     .en-strat-title{font-size:12.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;font-family:sans-serif;}
     .en-prob-bar{height:8px;border-radius:4px;background:#1e1f25;overflow:hidden;margin:8px 0;}
     .en-prob-fill{height:100%;border-radius:4px;transition:width 0.3s;}

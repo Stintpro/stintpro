@@ -1,0 +1,47 @@
+/* Las DOS únicas definiciones del cristal de StintPro. Todo el chrome compone
+ * desde aquí: si el material cambia, cambia en este fichero y en ningún otro.
+ *
+ * ESTE FICHERO NO DECLARA `border` A PROPÓSITO. Cada superficie quiere un borde
+ * distinto —solo el inferior en .sp-header, los cuatro en .sp-kpi, solo el
+ * superior en .sp-footer— y si el material también pusiera uno, ambas reglas
+ * competirían por la misma propiedad y ganaría la que quedase después en el CSS
+ * final. Por eso el borde es cosa de cada consumidor, con var(--glass-border).
+ *
+ * `background` y `box-shadow` SÍ los declara el material —son el material— y
+ * por tanto SIGUEN compitiendo con cualquier regla que quiera pisarlos. Si una
+ * regla necesita pisarlos sobre el MISMO elemento (un estado "abierto", un
+ * "activo"), tiene que ganar por ESPECIFICIDAD: un selector compuesto como
+ * .card.abierto (0,2,0) le gana siempre a .sp-glass (0,1,0), pase lo que pase
+ * con el orden del fichero.
+ *
+ * ORDEN DE CARGA: styles.css → panel.css → glass.css → los <style> inyectados.
+ */
+
+/* La clase .sp-glass encabeza la lista porque la Tarea 3 la necesita para las
+ * cajas de modal, que llevan estilo inline y no tienen selector propio. Las
+ * demás se componen aquí, por selector, sin tocar el marcado. */
+.sp-glass,
+.sp-header, .sp-kpi, .sp-footer, .sp-back,
+.en-team-card, .en-strat-card,
+#screen-setup .card {
+  background: linear-gradient(158deg, var(--glass-a), var(--glass-b));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-low),
+    var(--glass-shadow);
+}
+
+/* Para lo que va ENCIMA DE LA PARRILLA: el selector de columnas y la caja de
+ * los modales. Detrás hay 28 filas de tiempos cambiando varias veces por
+ * segundo, así que el velo sube y se quita la subida de brillo: el texto no
+ * puede depender de lo que pase por debajo. */
+.sp-glass-denso {
+  background: linear-gradient(158deg, var(--glass-denso-a), var(--glass-denso-b));
+  -webkit-backdrop-filter: blur(var(--glass-denso-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-denso-blur)) saturate(var(--glass-sat));
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow);
+}
