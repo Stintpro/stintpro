@@ -276,10 +276,52 @@ group('el modo ☀ apaga el cristal', () => {
 });
 
 group('la palanca de rendimiento', () => {
+  const mMedia = glass.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?)\}\s*\}/);
+
   test('glass.css baja el desenfoque en pantallas pequeñas', () => {
-    const m = glass.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?)\}\s*\}/);
-    strictEqual(m !== null, true, 'no hay @media (max-width:900px) en glass.css');
-    strictEqual(/--glass-blur\s*:/.test(m[1]), true, 'el @media no toca --glass-blur');
+    strictEqual(mMedia !== null, true, 'no hay @media (max-width:900px) en glass.css');
+    strictEqual(/--glass-blur\s*:/.test(mMedia[1]), true, 'el @media no toca --glass-blur');
+  });
+
+  test('el valor del @media es MENOR que el de :root, no un número mágico (R25)', () => {
+    // Ronda de arreglo 1: el test de arriba solo comprobaba que el TOKEN
+    // --glass-blur aparecía dentro del @media, no que el VALOR bajara — un
+    // "--glass-blur: 40px" ahí dentro lo habría dejado en verde mientras el
+    // desenfoque SUBE, justo lo contrario de lo que promete el nombre del
+    // test. Aquí se comparan los dos valores numéricamente contra el
+    // --glass-blur base de :root en styles.css, sin clavar "14px": así la
+    // aserción vigila la intención real (bajar el desenfoque) y sigue
+    // valiendo si el número se recalibra mañana.
+    strictEqual(mMedia !== null, true, 'no hay @media (max-width:900px) en glass.css');
+
+    // :root en styles.css no anida reglas (solo custom properties), así que
+    // cortar en el primer "}" basta para aislar el bloque base —el mismo
+    // patrón que ya usa este fichero para aislar body.hc más abajo—.
+    const raizRoot = styles.match(/:root\s*\{([^}]*)\}/);
+    strictEqual(raizRoot !== null, true, 'no se encontró el :root base en styles.css');
+
+    // El regex exige ":" pegado a "--glass-blur" y "px" pegado al número: así
+    // no cuela un valor ausente/no numérico como NaN silencioso, y no se
+    // cruza con "--glass-denso-blur" (no contiene la subcadena literal
+    // "--glass-blur": es "--glass-DENSO-blur") ni con el "var(--glass-blur)"
+    // de la propia declaración de --glass-denso-blur (ahí "--glass-blur" va
+    // seguido de ")", no de ":").
+    const baseMatch = raizRoot[1].match(/--glass-blur\s*:\s*(-?\d+(?:\.\d+)?)px/);
+    strictEqual(baseMatch !== null, true,
+      '--glass-blur no tiene un valor numérico en px en el :root base de styles.css');
+    const mediaMatch = mMedia[1].match(/--glass-blur\s*:\s*(-?\d+(?:\.\d+)?)px/);
+    strictEqual(mediaMatch !== null, true,
+      '--glass-blur dentro del @media no tiene un valor numérico en px');
+
+    const base = Number(baseMatch[1]);
+    const media = Number(mediaMatch[1]);
+    // Number.isFinite(NaN) es false: si algún valor no numérico se colara
+    // pese a los regex de arriba, esto falla en vez de degradar a
+    // "NaN < 28" → false, que sería un falso verde silencioso.
+    strictEqual(Number.isFinite(base) && Number.isFinite(media), true,
+      `algún valor de --glass-blur no es numérico (base="${baseMatch[1]}", media="${mediaMatch[1]}")`);
+    strictEqual(media < base, true,
+      `el @media (${media}px) debería bajar el desenfoque respecto a :root (${base}px)`);
   });
 });
 
