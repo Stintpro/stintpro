@@ -94,7 +94,10 @@ el dato marcado, no en el vidrio. Las dos apps se leen como la misma familia.
 --glass-shadow: 0 16px 38px rgba(0,0,0,0.52);
 ```
 
-**La capa de profundidad** va **una sola vez**, en `#screen-dash` y en `.setup-root`: dos
+**La capa de profundidad** va **una sola vez**, en `#screen-dash` y en `#screen-setup`
+(corrección: la versión anterior de este párrafo decía `.setup-root`, un selector que no
+existe en `src/`, `tools/` ni `tests/` — la pantalla de configuración es `#screen-setup`, y
+`tests/glass.test.js` congela la lista exacta `['#screen-dash', '#screen-setup']`): dos
 manchas de luz radiales, fijas, sin animación. Es lo que el cristal recoge; sin ella el
 material no se ve, porque un vidrio sobre un fondo plano es solo un gris distinto. Nunca
 repetida por componente — así es como estas cosas acaban costando fotogramas.
@@ -104,25 +107,60 @@ repetida por componente — así es como estas cosas acaban costando fotogramas.
 --depth-cool: rgba(120,170,255,0.10);
 ```
 
+**Variante densa**, para lo que flota **sobre** la parrilla (el selector de columnas y las
+cajas de modal — ver §5): velo más alto y sin la subida de `brightness` de la variante
+normal, porque detrás hay filas de tiempos cambiando y el texto no puede depender de lo que
+pase por debajo.
+
+```css
+--glass-denso-a:    rgba(22, 26, 32, 0.86);
+--glass-denso-b:    rgba(7, 9, 13, 0.90);
+--glass-denso-blur: var(--glass-blur);
+```
+
+El color base de las dos paradas está al 45 % del original a propósito: es lo que hace falta
+para que el rojo de alerta `#ef4444` alcance el suelo de 4,5:1 sobre el material (el
+comentario de `src/styles.css` junto a estos tokens trae las medidas — 3,26:1 con el base
+original, 4,60:1 al 45 %). (Corrección: la palabra "denso" no aparecía en ninguna parte de
+este spec, y §5 hablaba de un solo material — ver ahí.)
+
 Lo que se lee como vidrio no es el desenfoque: es el canto especular de un píxel arriba y la
 sombra proyectada. Si algún día hay que quitar algo por rendimiento, **se quita el desenfoque
 antes que el canto**.
 
 ## 5. Qué superficies lo llevan
 
-**Cristal (9):**
+**Corrección: son dos materiales, no uno.** La versión anterior de esta sección los listaba
+juntos bajo "Cristal (9)". El normal —`--glass-a`/`--glass-b`, con subida de `brightness`
+(§4)— es el que lleva el chrome que no tapa datos en movimiento. El denso
+—`--glass-denso-a`/`--glass-denso-b`, velo más alto y sin esa subida de brillo (§4)— es el
+que llevan `.en-col-panel` y las cajas de modal, porque ambos flotan **sobre** la parrilla:
+detrás hay 28 filas de tiempos cambiando varias veces por segundo y el texto no puede
+depender de lo que pase por debajo.
+
+**Cristal normal (7):**
 
 | Superficie | Qué es |
 |---|---|
 | `.sp-header` | cabecera con reloj y KPIs |
 | `.sp-kpi` | las celdas de indicador (5 en endurance, 4 en sprint) |
 | `.sp-footer` | pie de banderas |
-| `.en-col-panel` | selector de columnas |
 | `.en-team-card` | tarjetas de la vista Equipo |
 | `.en-strat-card` | tarjetas de la vista Estrategia |
-| la caja de los 14 modales | **la caja, no el velo negro de fondo** |
-| `.card` | tarjetas de la pantalla de configuración |
-| `.sp-back` y botones de chrome | |
+| `#screen-setup .card` | tarjetas de la pantalla de configuración |
+| `.sp-glass` | clase genérica del normal, para cualquier caja futura sin selector propio — hoy ningún marcado la usa directamente |
+
+**Cristal denso (2 selectores, 12 superficies):**
+
+| Superficie | Qué es |
+|---|---|
+| `.en-col-panel` | selector de columnas, abierto sobre la parrilla |
+| `.sp-modal` | **las 11 cajas de modal** (corrección: no son 14 — ver §6), con estilo inline en 5 ficheros (`app.js` 1, `en-advanced.js` 1, `en-grid.js` 3, `en-team.js` 5, `en-strategy.js` 1), ahora unificadas bajo `class="sp-modal"`. **La caja, no el velo negro de fondo.** |
+
+`.sp-back` figuraba antes en esta tabla como superficie con cristal, y su CSS existe en
+`panel.css`/`glass.css`, pero `class="sp-back"` no aparece en ningún `.js` ni `.html` del
+repo: es CSS muerto desde la entrega 1, sin marcado que lo lleve hoy. Se anota aquí y no se
+toca — ese triaje es de la revisión final de rama, no de este spec.
 
 **Mate, intocable:** `.en-row`, `.en-thead`, los 15 colores de `.en-kart`, el degradado ámbar
 de `.en-myrow`, `.sp-lapbar`, los badges PIT/OUT/banderas y los números grandes del reloj y
@@ -145,9 +183,13 @@ compite por ninguna propiedad: **convierte al elemento en bloque contenedor de l
 descendientes `position: fixed`**. En Track Engineer dejó un modal saliéndose de la pantalla y
 ningún barrido de propiedades podía encontrarlo.
 
-**En StintPro ya está localizado.** Los 14 overlays modales se cuelgan de `document.body`
-(verificado: no hay ni un `appendChild(overlay)` que no sea a `body`), así que quedan fuera
-de cualquier subárbol con cristal y no les afecta. **El caso real es uno**:
+**En StintPro ya está localizado.** Los 11 overlays modales se cuelgan de `document.body`
+(corrección: la versión anterior decía 14 modales — ese número contaba también 3
+`body.appendChild` que no son cajas de modal: el mensaje de error de `app.js:69`, el banner
+de demo de `app.js:105` y el de reconciliación de `en-persist.js:131`; descontados esos tres
+quedan los mismos 11 de §5, verificado: no hay ni un `appendChild(overlay)` de modal que no
+sea a `body`), así que quedan fuera de cualquier subárbol con cristal y no les afecta. **El
+caso real es uno**:
 
 > `.sp-session` es `position: fixed` y vive dentro de `.sp-topbar` → `.sp-header`. En cuanto
 > `.sp-header` lleve `backdrop-filter`, dejará de posicionarse contra la ventana y pasará a
@@ -207,22 +249,34 @@ cristal. En sprint se reescriben 1 vez por segundo (`_spClockTimer`); en enduran
 desenfoque de esa franja.
 
 En Track Engineer, 28px de blur aguantaron sobre vídeo a 30 fps sin tirones, así que el
-riesgo es bajo — pero *bajo* no es *medido*. **Se mide con una sesión reproducida antes de
-dar esto por bueno.**
+riesgo era bajo — y ya está medido, no solo estimado (Tarea 6): banco con la parrilla llena
+a `10×`, GPU Apple M4, 5 s de `requestAnimationFrame` × 2 pasadas por modo → **60,0 FPS,
+16,67 ms de frame medio, 0 tareas largas**, y el modo ☀ (sin cristal) da lo mismo hasta la
+décima. Con esto, este spec deja de pedir una medición que ya está hecha.
 
 Dos palancas puestas por si acaso: el token `--glass-blur`, y una regla dentro del
-`@media (max-width:900px)` que ya existe para iPad, que baje o anule el desenfoque en
-pantallas pequeñas, que es donde más cuesta.
+`@media (max-width:900px)` que ya existe para iPad, que baja el desenfoque en pantallas
+pequeñas, que es donde más cuesta — implementada en `src/glass.css` (`--glass-blur` a
+14px bajo esa media query).
 
 ## 9. Verificación
 
-Sin build ni CI. Los tests son `node tests/x.test.js` con `assert`, como los ocho que ya hay.
+Sin build ni CI. Los tests son `node tests/x.test.js` con `assert` (corrección: la versión
+anterior decía "como los ocho que ya hay" — son **14 ficheros** de test, `ls tests/*.test.js
+| wc -l`).
 
 1. **`tests/contrast.test.js`** (nuevo, sin dependencias): compone la capa de profundidad y el
    cristal sobre el fondo y exige **4.5:1** a `--text-3`. **Si se pone rojo, se ajusta el
-   material — el umbral no se toca.**
-2. **Los 8 tests existentes en verde.** Este trabajo toca `en-state.js` y `sprint.js`, que
-   están cubiertos indirectamente.
+   material — el umbral no se toca.** (Corrección: hoy hace más que eso — también barre los
+   colores de texto **literales** escritos a mano en las 11 cajas de modal, y su lista de
+   excepciones está vacía a propósito (`EXCEPCIONES = {}`), es decir que hoy ningún color
+   queda dispensado del 4,5:1.)
+2. **La suite completa en verde: 14/14** (corrección, ruling R32: la ronda anterior decía
+   "Los 14 tests existentes", pero "existentes" ya no es un conjunto bien definido — esta
+   misma entrega añadió dos ficheros de test, `glass.test.js` y `contrast.test.js`, que el
+   punto 1 ya cuenta aparte; sumar "14 totales" + "1 nuevo aparte" + "14 existentes" no
+   cuadra. La cifra estable y verificable con un solo comando es la suite entera en verde).
+   Este trabajo toca `en-state.js` y `sprint.js`, que están cubiertos indirectamente.
 3. **Verificación visual con `replay-connector.js`**, reproduciendo una sesión ya grabada:
    es lo que permite ver el panel lleno de datos sin esperar a una carrera.
 4. **Los dos modos, obligatorio**: endurance y sprint son ficheros distintos y esto toca los
