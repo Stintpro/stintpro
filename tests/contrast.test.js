@@ -6,7 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { ok, deepStrictEqual } = require('assert/strict');
+const { ok, strictEqual, deepStrictEqual } = require('assert/strict');
 const { rulesOf } = require('../tools/css-extract');
 
 let passed = 0, failed = 0;
@@ -70,10 +70,27 @@ function contraste(a, b) {
   return (x + 0.05) / (y + 0.05);
 }
 
+// Ronda de arreglo 1, R1: el cristal NO descansa sobre una única base. Hay dos
+// fondos reales detrás del material, cada uno con sus propios consumidores:
+//   - var(--panel-bg) — #0e0f11 — en src/panel.css:18 (#screen-dash), donde
+//     vive la mayoría del cristal: la cabecera, los KPI, el pie,
+//     .en-team-card, .en-strat-card, .en-col-panel y las 11 cajas de modal.
+//   - var(--bg) — #07090F — en src/styles.css:117 (#screen-setup .card), el
+//     único consumidor que descansa sobre el fondo "normal".
+// Un test anclado solo a --bg mide un colchón que no es el real: --panel-bg es
+// más claro y, compuesto, deja MENOS margen sobre 4.5:1 (medido: 4,506:1 en
+// vez de 4,736:1 — seis milésimas de colchón, no 0,24). El test tiene que
+// comprobar el PEOR de los dos casos, no solo uno, para que un futuro retoque
+// del material o de --panel-bg no se coma ese margen sin que nada se entere.
+const BASES = [
+  { token: '--panel-bg', consumidor: '#screen-dash — src/panel.css:18' },
+  { token: '--bg', consumidor: '#screen-setup .card — src/styles.css:117' },
+];
+
 // El peor píxel real: el punto más claro de la capa de profundidad (la mancha
 // ámbar), que es donde el cristal recoge más luz y el texto menos contraste.
-function superficieDelCristal({ densa }) {
-  const fondo = hex(token('--bg'));
+function superficieDelCristal({ densa, base }) {
+  const fondo = hex(token(base));
   const calida = rgba(token('--depth-warm'));
   let detras = componer(fondo, calida.rgb, calida.a);
 
@@ -86,18 +103,34 @@ function superficieDelCristal({ densa }) {
   return componer(detras, velo.rgb, velo.a);
 }
 
+// Compone `colorHex` contra las DOS bases reales y devuelve el peor contraste
+// (el más bajo), junto con la base que lo produjo — para que el mensaje de
+// fallo diga contra qué fondo, no solo el número.
+function peorCasoDelCristal(colorHex, { densa }) {
+  let peor = Infinity, peorBase = null;
+  for (const b of BASES) {
+    const c = contraste(hex(colorHex), superficieDelCristal({ densa, base: b.token }));
+    if (c < peor) { peor = c; peorBase = b; }
+  }
+  return { contraste: peor, base: peorBase };
+}
+
 console.log('\ncontraste del texto secundario sobre el material');
 for (const densa of [false, true]) {
   const nombre = densa ? 'material denso' : 'material normal';
-  test(`--text-3 alcanza 4.5:1 sobre el ${nombre}`, () => {
-    const c = contraste(hex(token('--text-3')), superficieDelCristal({ densa }));
-    ok(c >= 4.5, `${c.toFixed(2)}:1 sobre el ${nombre} — ajusta el MATERIAL, no el umbral`);
+  test(`--text-3 alcanza 4.5:1 sobre el peor caso del ${nombre} (--panel-bg y --bg)`, () => {
+    const { contraste: c, base } = peorCasoDelCristal(token('--text-3'), { densa });
+    ok(c >= 4.5,
+      `${c.toFixed(3)}:1 sobre el ${nombre}, base ${base.token} (${base.consumidor}) — ajusta el MATERIAL, no el umbral`);
   });
 }
 
 console.log('\nel texto principal no puede estar peor que el secundario');
 test('--text-1 supera a --text-3', () => {
-  const s = superficieDelCristal({ densa: false });
+  // Comparación relativa: usa la base más exigente (--panel-bg) porque es
+  // donde vive la inmensa mayoría del cristal, incluidas las 11 cajas de
+  // modal — el orden entre --text-1 y --text-3 no depende de la base.
+  const s = superficieDelCristal({ densa: false, base: '--panel-bg' });
   const c1 = contraste(hex(token('--text-1')), s);
   const c3 = contraste(hex(token('--text-3')), s);
   ok(c1 > c3, `--text-1 da ${c1.toFixed(2)} y --text-3 da ${c3.toFixed(2)}`);
@@ -110,6 +143,10 @@ test('--text-1 supera a --text-3', () => {
 // y esos jamás pasan por un token — el grupo de arriba, que solo mira
 // --text-3, no los vería nunca. Este grupo barre esos literales.
 //
+// Las 11 cajas de modal son contenido de la pantalla endurance: componen
+// sobre --panel-bg (ver BASES arriba), no sobre --bg. Se comprueban contra
+// esa base — la real, y también la más exigente de las dos.
+//
 // ALCANCE de la extracción (documentado a propósito, en vez de fingir que es
 // completa):
 //   1. Solo mira los 5 ficheros donde viven las 11 cajas de modal (los mismos
@@ -120,12 +157,22 @@ test('--text-1 supera a --text-3', () => {
 //      anidados (incluidas plantillas DENTRO de un ${...}, como el
 //      `${pilotos.map(p=>\`...\`)}` de en-grid.js/en-team.js: un simple
 //      "busca el siguiente backtick" corta ahí a mitad de caja y se deja
-//      colores reales sin mirar).
-//   2. Solo ve colores hexadecimales LITERALES (color:#rrggbb). Un color que
-//      llega por interpolación —color:${col}, donde `col` se calculó antes en
-//      JS— es invisible para un test estático: no hay forma de saber qué
-//      valor tomará `col` sin ejecutar la app. NO se cubre y no se finge
-//      cubrirlo.
+//      colores reales sin mirar — comprobado: sin el escáner con pila, 4 de
+//      las 11 cajas se cortan a mitad y se pierden colores reales, por
+//      ejemplo color:#22c55e y color:#F5A623 en en-grid.js:655).
+//   2. Solo ve colores hexadecimales LITERALES dentro de un `color:#rrggbb`
+//      directo. Dentro de una caja de modal también hay colores que llegan
+//      por INTERPOLACIÓN JS (`color:${...}`), y este test NO los barre —
+//      pero no todos son igual de imposibles:
+//        - una variable opaca calculada antes (`color:${col}`) es invisible
+//          de verdad para un test estático: no hay forma de saber qué valor
+//          tomará sin ejecutar la app.
+//        - un ternario entre dos literales (`color:${excluded?'#333':'#9ca3af'}`,
+//          en-advanced.js:422) SÍ sería extraíble en principio con una regex
+//          algo más compleja. No barrerlo aquí es una decisión de ALCANCE de
+//          esta ronda, no una imposibilidad técnica — queda fuera a
+//          propósito (hoy los que caen dentro de una caja de modal son
+//          inocuos), no porque no se pueda.
 //   3. Si el mismo style="" que declara `color:` también declara un
 //      `background` (o `background-color`) OPACO con hex literal de 3 o 6
 //      dígitos (ej. background:#F5A623), ese color NO se compara contra el
@@ -140,7 +187,12 @@ test('--text-1 supera a --text-3', () => {
 //      translúcido el cristal se sigue viendo. Hoy ningún color que pasa el
 //      umbral depende de esta distinción fina (todos los que tienen fondo
 //      var() ya superan 4.5:1 igualmente), pero queda documentado por si deja
-//      de ser así.
+//      de ser así. Medir ese texto contra su PROPIO fondo local (en vez de
+//      simplemente excluirlo) es cobertura nueva, diferida.
+//   4. Solo mide hex de 3 y 6 dígitos: `hex()` no sabe expandir 4 u 8 dígitos
+//      (con alfa) y los leería mal en vez de fallar — ver el test dedicado
+//      más abajo, que hace que un hex de esa longitud falle RUIDOSAMENTE en
+//      vez de colarse sin medir.
 const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js'];
 
 // Encuentra el backtick de cierre de un template literal que empieza en
@@ -193,8 +245,8 @@ function cajasModalDe(src) {
   return cajas;
 }
 
-// Comprueba si un style="" declara un fondo local OPACO (hex de 3 u 8 dígitos
-// no cuenta: el de 8 lleva alfa y es translúcido).
+// Comprueba si un style="" declara un fondo local OPACO (hex de 8 dígitos no
+// cuenta: lleva alfa y es translúcido).
 function tieneFondoLocalOpaco(style) {
   const m = style.match(/(?:^|;)\s*background(?:-color)?\s*:\s*([^;]+)/);
   if (!m) return false;
@@ -202,33 +254,83 @@ function tieneFondoLocalOpaco(style) {
   return /^#[0-9a-fA-F]{3}$/.test(v) || /^#[0-9a-fA-F]{6}$/.test(v);
 }
 
-// Colores de texto literales de una caja: recorre cada style="" de la caja y
-// saca sus color:#rrggbb, salvo los que caen dentro de background-color/
-// border-color (que no son color de TEXTO) o los que tienen fondo local
-// opaco (ver comentario de alcance de arriba).
-function coloresLiteralesDeCaja(caja) {
-  const encontrados = new Set();
+// Todas las apariciones de `color:#hex` de un style="", SIN filtrar por
+// longitud — quien llama decide qué hacer con cada una. Descarta
+// background-color/border-color (que no son color de TEXTO), comprobando que
+// el carácter previo a "color" no sea una letra ni un guion.
+function coloresDeEstilo(style) {
+  const out = [];
+  const colorRe = /color\s*:\s*#([0-9a-fA-F]{3,8})\b/g;
+  let cm;
+  while ((cm = colorRe.exec(style))) {
+    const previo = style[cm.index - 1];
+    if (previo !== undefined && /[a-zA-Z-]/.test(previo)) continue; // background-color, border-color…
+    out.push(cm[1]);
+  }
+  return out;
+}
+
+// Recorre una caja y separa sus colores de texto en dos cubos: los que
+// hex() sabe leer (3 o 6 dígitos) y los que no (4 u 8, con alfa) — estos
+// últimos no se miden aquí, los caza el test dedicado de más abajo.
+// `ocurrencias` lleva CADA aparición sin deduplicar (para poder contar
+// "3 veces", no solo "existe") — `medibles` es el Set deduplicado que usan
+// los tests de "qué colores hay".
+function extraeColoresDeCaja(caja) {
+  const medibles = new Set();
+  const ocurrencias = [];
+  const noMedibles = [];
   const estiloRe = /style="([^"]*)"/g;
   let m;
   while ((m = estiloRe.exec(caja))) {
     const style = m[1];
-    const opaco = tieneFondoLocalOpaco(style);
-    if (opaco) continue;
-    const colorRe = /color\s*:\s*#([0-9a-fA-F]{3,8})\b/g;
-    let cm;
-    while ((cm = colorRe.exec(style))) {
-      const previo = style[cm.index - 1];
-      if (previo !== undefined && /[a-zA-Z-]/.test(previo)) continue; // background-color, border-color…
-      encontrados.add('#' + cm[1].toLowerCase());
+    if (tieneFondoLocalOpaco(style)) continue; // punto 3 del alcance: fondo propio, no compone con el cristal
+    for (const raw of coloresDeEstilo(style)) {
+      if (raw.length === 3 || raw.length === 6) {
+        const c = '#' + raw.toLowerCase();
+        medibles.add(c);
+        ocurrencias.push(c);
+      } else {
+        noMedibles.push('#' + raw.toLowerCase());
+      }
     }
   }
-  return encontrados;
+  return { medibles, ocurrencias, noMedibles };
 }
 
+// R1 (ronda de arreglo 1): antes, "se encuentran los N colores esperados"
+// interpolaba N del propio resultado — la única aserción real era size > 0,
+// así que si la extracción se quedaba corta (el modo de fallo que YA
+// documentamos arriba: el escáner ingenuo cortaba 4 de las 11 cajas), el
+// test seguía en verde con menos colores. Ahora la lista esperada es una
+// constante fija, comparada con deepStrictEqual: si mañana se añade o se
+// quita un color legítimo, hay que tocar esta lista A PROPÓSITO.
+const COLORES_ESPERADOS = [
+  '#22c55e', '#3a3b42', '#60a5fa', '#e4e6ed',
+  '#ef4444', '#f2f2f6', '#f5a623', '#fbbf24', '#fff',
+];
+const CAJAS_ESPERADAS = 11; // mismo número que vigila tests/glass.test.js
+
 const coloresEncontrados = new Set();
+const noMediblesEncontrados = [];
+// Cuenta apariciones por color Y por fichero — no solo si el color existe en
+// alguna parte. Lo usa el test de la lista de excepciones (R4, más abajo)
+// para que un color exceptuado reutilizado en un sitio NUEVO, o una vez de
+// más en el mismo sitio, también ponga el test en rojo.
+const contadorPorColorYFichero = {}; // { '#hex': { 'fichero.js': n } }
+let totalCajas = 0;
+
 for (const f of FICHEROS_MODAL) {
-  for (const caja of cajasModalDe(leer('src/' + f))) {
-    for (const c of coloresLiteralesDeCaja(caja)) coloresEncontrados.add(c);
+  const cajas = cajasModalDe(leer('src/' + f));
+  totalCajas += cajas.length;
+  for (const caja of cajas) {
+    const { medibles, ocurrencias, noMedibles } = extraeColoresDeCaja(caja);
+    for (const c of medibles) coloresEncontrados.add(c);
+    for (const c of ocurrencias) {
+      if (!contadorPorColorYFichero[c]) contadorPorColorYFichero[c] = {};
+      contadorPorColorYFichero[c][f] = (contadorPorColorYFichero[c][f] || 0) + 1;
+    }
+    noMediblesEncontrados.push(...noMedibles);
   }
 }
 
@@ -236,46 +338,69 @@ for (const f of FICHEROS_MODAL) {
 // backdrop-filter en tests/glass.test.js: un color aquí no es un permiso en
 // blanco, es una excepción NOMBRADA con su contraste medido y su motivo. Un
 // color literal nuevo que caiga por debajo de 4.5:1 y no esté en esta lista
-// pone el test rojo (lo comprueba el último test del grupo).
+// pone el test rojo (lo comprueba el test de más abajo). Y NO es un permiso
+// por color suelto: `apariciones` fija en qué fichero y cuántas veces se
+// espera cada uno — reutilizarlo en un sitio nuevo, o una vez de más,
+// también pone el test rojo (test "…no es una puerta abierta").
 const EXCEPCIONES = {
   '#ef4444': {
-    contraste: 3.30,
+    contraste: 3.26, // sobre --panel-bg denso, la base real de las cajas de modal
+    apariciones: { 'en-team.js': 3 }, // aviso "no se puede deshacer" + botón "Borrar" + cifra "Peor"
     motivo: 'Rojo de alerta: el aviso "Esta acción no se puede deshacer" y el ' +
       'botón "Borrar" del popup de borrar stint (en-team.js), y la cifra ' +
-      '"Peor" del detalle de stint (en-team.js). Arreglarlo exige o bien ' +
-      'oscurecer el material hasta matar el cristal (medido: haría falta ' +
-      'bajar el color base de --glass-denso-a al 50%, dejando la superficie ' +
-      'en rgb(26,28,32), que es prácticamente el fondo opaco que la Tarea 3 ' +
-      'acaba de quitar), o bien cambiar el rojo en 71 sitios repartidos por ' +
-      'la zona de datos. Decisión pendiente del dueño del proyecto — no es ' +
-      'tocable en esta tarea (que solo posee el token --text-3).',
+      '"Peor" del detalle de stint (en-team.js). Medido por este test sobre ' +
+      '--panel-bg (la base real de los modales): 3,26:1. Medido en vivo en el ' +
+      'navegador durante la Tarea 3, sobre el DOM real: 3,30:1. Arreglarlo ' +
+      'exige o bien oscurecer el material hasta matar el cristal (medido: ' +
+      'haría falta bajar el color base de --glass-denso-a al 50%, dejando la ' +
+      'superficie en rgb(26,28,32), que es prácticamente el fondo opaco que ' +
+      'la Tarea 3 acaba de quitar), o bien cambiar el rojo en 71 sitios ' +
+      'repartidos por la zona de datos. Decisión pendiente del dueño del ' +
+      'proyecto — no es tocable en esta tarea (que solo posee el token ' +
+      '--text-3).',
   },
   '#3a3b42': {
-    contraste: 1.11,
+    contraste: 1.10, // sobre --panel-bg denso
+    apariciones: { 'en-team.js': 1 }, // etiqueta "Listado de vueltas" del detalle de stint
     motivo: 'Hallazgo nuevo de este test, no anticipado en el pliego de la ' +
       'tarea: la etiqueta de sección "Listado de vueltas" del detalle de ' +
-      'stint (en-team.js) es un gris muy oscuro sin fondo propio — se compone ' +
-      'directamente contra el cristal denso y cae a 1,11:1, casi invisible. ' +
-      'No es --text-3 (es un literal aparte, así que el cambio de esta tarea ' +
-      'no lo toca) y no es un botón ni una alerta como #ef4444: es una ' +
-      'etiqueta de cabecera que antes del cristal descansaba sobre un fondo ' +
-      'sólido oscuro y probablemente se leía bien. Igual que #ef4444, ' +
-      'arreglarlo (aclarar este literal, o darle un fondo propio) es una ' +
-      'decisión pendiente del dueño del proyecto — fuera del alcance de esta ' +
-      'tarea, que solo posee --text-3.',
+      'stint (en-team.js:104) es un gris muy oscuro sin fondo propio — se ' +
+      'compone directamente contra el cristal denso y cae a 1,10:1, casi ' +
+      'invisible. NO es una regresión del cristal: ya era ilegible ANTES —' +
+      'medido en el navegador durante la Tarea 3 sobre el fondo opaco ' +
+      'antiguo: 1,65:1, bien por debajo de 4.5:1 también entonces. Es deuda ' +
+      'preexistente que el cristal agrava (de 1,65 a 1,10), no una regresión ' +
+      'que el cristal cause. No es --text-3 (es un literal aparte, así que el ' +
+      'cambio de esta tarea no lo toca) y no es un botón ni una alerta como ' +
+      '#ef4444: es una etiqueta de cabecera. Igual que #ef4444, arreglarlo ' +
+      '(aclarar este literal, o darle un fondo propio) es una decisión ' +
+      'pendiente del dueño del proyecto — fuera del alcance de esta tarea, ' +
+      'que solo posee --text-3.',
   },
 };
 
-console.log('\ncontraste de los colores de texto literales en las cajas de modal (material denso)');
-test(`se encuentran los ${coloresEncontrados.size} colores de texto literales esperados en las cajas de modal`, () => {
-  // No es un test de contraste — es una alarma temprana de que la extracción
-  // se ha quedado desactualizada (un color añadido o quitado del código) antes
-  // de que el test de abajo intente interpretar una lista que ya no encaja.
-  ok(coloresEncontrados.size > 0, 'la extracción no encontró ningún color literal — revisa cajasModalDe/coloresLiteralesDeCaja');
+console.log('\ncontraste de los colores de texto literales en las cajas de modal (--panel-bg denso)');
+
+test(`se encuentran las ${CAJAS_ESPERADAS} cajas de modal esperadas`, () => {
+  strictEqual(totalCajas, CAJAS_ESPERADAS,
+    `se han encontrado ${totalCajas} cajas sp-modal, se esperaban ${CAJAS_ESPERADAS} — ` +
+    `si es una caja NUEVA legítima, actualiza CAJAS_ESPERADAS a propósito`);
+});
+
+test('los colores de texto literales encontrados son exactamente los esperados', () => {
+  deepStrictEqual([...coloresEncontrados].sort(), [...COLORES_ESPERADOS].sort(),
+    'la lista de colores literales encontrados cambió respecto a COLORES_ESPERADOS — ' +
+    'si es un color NUEVO legítimo, añádelo a la constante a propósito (y decide si necesita entrar también en EXCEPCIONES)');
+});
+
+test('ningún color de texto usa un hex de 4 u 8 dígitos que hex() no sepa leer', () => {
+  ok(noMediblesEncontrados.length === 0,
+    `color(es) con hex de longitud no soportada: ${noMediblesEncontrados.join(', ')} — ` +
+    `hex() solo lee 3 o 6 dígitos; conviértelos a 6 dígitos o extiende hex() antes de que este test pueda fiarse de ellos`);
 });
 
 test('los únicos colores de texto literales por debajo de 4.5:1 son los de la lista de excepciones', () => {
-  const superficie = superficieDelCristal({ densa: true });
+  const superficie = superficieDelCristal({ densa: true, base: '--panel-bg' });
   const porDebajo = [...coloresEncontrados]
     .filter(c => contraste(hex(c), superficie) < 4.5)
     .sort();
@@ -283,6 +408,15 @@ test('los únicos colores de texto literales por debajo de 4.5:1 son los de la l
   deepStrictEqual(porDebajo, esperados,
     `colores por debajo de 4.5:1 = [${porDebajo}], excepciones documentadas = [${esperados}] — ` +
     `si hay un color NUEVO aquí, añádelo a EXCEPCIONES con su motivo, no bajes el umbral`);
+});
+
+test('los colores exceptuados aparecen solo donde y las veces documentadas — no es una puerta abierta', () => {
+  for (const [color, datos] of Object.entries(EXCEPCIONES)) {
+    const real = contadorPorColorYFichero[color] || {};
+    deepStrictEqual(real, datos.apariciones,
+      `${color} aparece hoy en ${JSON.stringify(real)}, pero la excepción documenta ${JSON.stringify(datos.apariciones)} — ` +
+      `si es un sitio o una cantidad NUEVA, decide a propósito si sigue justificado y actualiza "apariciones", no dejes que se cuele solo`);
+  }
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
