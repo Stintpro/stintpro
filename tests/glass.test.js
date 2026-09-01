@@ -69,9 +69,18 @@ group('el material vive en un solo sitio', () => {
 });
 
 group('el material no declara borde', () => {
-  test('ni .sp-glass ni .sp-glass-denso declaran border', () => {
+  test('ni .sp-glass ni .sp-glass-denso ni ninguna regla con backdrop-filter declaran border', () => {
+    // Ronda de arreglo 1, R11b: unión de los dos conjuntos, no sustitución.
+    // Antes esto solo miraba el selector (empieza por ".sp-glass"), así que
+    // .sp-modal —una regla de borde APARTE, sin material, añadida en la
+    // Tarea 3— quedaba fuera con razón, pero una futura regla de MATERIAL
+    // con un nombre que no empezara por ".sp-glass" se habría colado sin que
+    // este test la viera. Ahora se cazan las dos vías: por selector Y por
+    // llevar backdrop-filter en el cuerpo, sea cual sea su nombre.
     for (const r of rulesOf(glass)) {
-      if (!r.selector.startsWith('.sp-glass')) continue;
+      const porSelector = r.selector.startsWith('.sp-glass');
+      const porMaterial = /backdrop-filter/.test(r.body);
+      if (!porSelector && !porMaterial) continue;
       strictEqual(/(^|;)\s*border\s*:/.test(r.body), false,
         `${r.selector} declara border y competiría con cada superficie`);
     }
@@ -146,16 +155,45 @@ group('lo que flota sobre datos lleva el material denso', () => {
 
   test('ninguna caja de modal conserva un fondo, borde o sombra sólidos inline', () => {
     // No asume que class= va antes que style= en la etiqueta —el orden real de
-    // atributos varía en este repo (R3)— así que examina la etiqueta <div>
-    // completa y le extrae el style de dentro, en vez de encadenar un regex
-    // sobre una secuencia fija de atributos.
+    // atributos varía en este repo (R3).
+    //
+    // R13 (ronda de arreglo 1): la primera versión de este test cortaba la
+    // etiqueta con /<div\b[^>]*>/, que se para en el PRIMER `>` del texto. El
+    // idioma dominante de este repo mete ternarios dentro del style
+    // (`background:${excluded?'#0e0f11':'#13141a'}`, `score>=800?...`); si
+    // alguno lleva un `>` suelto ANTES del cierre real de la etiqueta, el
+    // regex se para ahí, el style queda sin cerrar, el match de style
+    // devuelve null, `style` cae a `''` y las tres aserciones de abajo pasan
+    // SIN HABER COMPROBADO NADA —el test falla en abierto—. Hoy ninguna de
+    // las 11 cajas tiene ese patrón, pero el test tiene que seguir cazándolo
+    // si aparece mañana.
+    //
+    // Arreglo: en vez de cortar por el primer `>`, se reconstruye la
+    // etiqueta emparejando pares atributo="valor" (cada uno cerrado por su
+    // propia comilla, ajena a cualquier `>` que haya dentro del valor) hasta
+    // el `>` que de verdad cierra la etiqueta. Y, sobre todo, se AFIRMA
+    // primero que la extracción tuvo éxito para cada caja sp-modal —si no,
+    // el test FALLA en vez de seguir con un style vacío— y solo después se
+    // examina el contenido.
+    const ATRIBUTOS = /(?:\s+[a-zA-Z-]+="[^"]*")*/.source;
     for (const f of FICHEROS_MODAL) {
       const src = leer('src/' + f);
-      const etiquetas = src.match(/<div\b[^>]*>/g) || [];
-      for (const tag of etiquetas) {
-        if (!/class="sp-modal"/.test(tag)) continue;
+      const anclaRe = /class="sp-modal"/g;
+      let ancla;
+      while ((ancla = anclaRe.exec(src))) {
+        const inicioDiv = src.lastIndexOf('<div', ancla.index);
+        strictEqual(inicioDiv !== -1, true,
+          `${f}: no se encontró el <div de apertura antes de una caja sp-modal (posición ${ancla.index})`);
+        const tagMatch = new RegExp(`^<div\\b${ATRIBUTOS}\\s*>`).exec(src.slice(inicioDiv));
+        strictEqual(tagMatch !== null, true,
+          `${f}: no se pudo reconstruir la etiqueta <div> de una caja sp-modal (posición ${inicioDiv}) — ` +
+          `¿un \`>\` suelto dentro de un ternario del style rompe el emparejado de atributos?`);
+        const tag = tagMatch[0];
         const styleMatch = tag.match(/style="([^"]*)"/);
-        const style = styleMatch ? styleMatch[1] : '';
+        strictEqual(styleMatch !== null, true,
+          `${f}: una caja sp-modal no tiene un style extraíble: ${tag}`);
+        const style = styleMatch[1];
+
         // Rechaza CUALQUIER valor de background, no solo la forma hexadecimal
         // #rrggbb —un background:var(--panel-surface) es igual de opaco y es
         // justo el fondo sólido que ya se coló dos veces en esta entrega (R9).

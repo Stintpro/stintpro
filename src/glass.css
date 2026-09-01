@@ -1,11 +1,17 @@
 /* Las DOS únicas definiciones del cristal de StintPro. Todo el chrome compone
  * desde aquí: si el material cambia, cambia en este fichero y en ningún otro.
  *
- * ESTE FICHERO NO DECLARA `border` A PROPÓSITO. Cada superficie quiere un borde
- * distinto —solo el inferior en .sp-header, los cuatro en .sp-kpi, solo el
- * superior en .sp-footer— y si el material también pusiera uno, ambas reglas
- * competirían por la misma propiedad y ganaría la que quedase después en el CSS
- * final. Por eso el borde es cosa de cada consumidor, con var(--glass-border).
+ * LAS REGLAS DEL MATERIAL —las que llevan `backdrop-filter`— NO DECLARAN
+ * `border` A PROPÓSITO. Cada superficie quiere un borde distinto —solo el
+ * inferior en .sp-header, los cuatro en .sp-kpi, solo el superior en
+ * .sp-footer— y si el material también pusiera uno, ambas reglas competirían
+ * por la misma propiedad y ganaría la que quedase después en el CSS final.
+ * Por eso el borde es cosa de cada consumidor, con var(--glass-border) —casi
+ * siempre en la hoja propia de ese consumidor (panel.css, styles.css…)—.
+ * `.sp-modal` es la excepción: es una clase que solo existe para el cristal,
+ * sin hoja propia donde poner su borde, así que el suyo vive aquí, en una
+ * regla APARTE que no declara `background` ni `box-shadow` y por tanto no
+ * compite con nada (Tarea 3, ronda de arreglo 1, R11).
  *
  * `background` y `box-shadow` SÍ los declara el material —son el material— y
  * por tanto SIGUEN compitiendo con cualquier regla que quiera pisarlos. Si una
@@ -17,9 +23,11 @@
  * ORDEN DE CARGA: styles.css → panel.css → glass.css → los <style> inyectados.
  */
 
-/* La clase .sp-glass encabeza la lista porque la Tarea 3 la necesita para las
- * cajas de modal, que llevan estilo inline y no tienen selector propio. Las
- * demás se componen aquí, por selector, sin tocar el marcado. */
+/* .sp-glass encabeza la lista como vía genérica para cualquier caja sin
+ * selector propio que quiera el material NORMAL con solo añadir esta clase
+ * —el mismo papel que cumple .sp-modal más abajo para el material DENSO—.
+ * Hoy ningún marcado la usa directamente: las demás superficies de esta
+ * lista sí tienen selector propio y se componen aquí sin tocar el marcado. */
 .sp-glass,
 .sp-header, .sp-kpi, .sp-footer, .sp-back,
 .en-team-card, .en-strat-card,
@@ -49,7 +57,10 @@
 
 /* Las 11 cajas de modal comparten borde y radio: el inline ya no los pone
  * (Tarea 3, Paso 2). Dos cajas quieren un radio distinto (16px, 10px) y lo
- * dejan en su propio style inline, que gana a esta clase por especificidad. */
+ * dejan en su propio style inline, que gana a esta clase por SER INLINE —por
+ * origen en la cascada, no por especificidad: un valor inline ni siquiera
+ * llega a compararse por especificidad con un selector, gana antes de esa
+ * comparación—. */
 .sp-modal {
   border: 0.5px solid var(--glass-border);
   border-radius: 12px;
