@@ -41,11 +41,15 @@ for (const [token, valor] of Object.entries(ESPERADOS)) {
 
 console.log('\nlas superficies usan el token, no el hex');
 // El resto de superficies dejó de usar estos tokens al llegar el cristal: su
-// fondo lo pone ahora el material (src/glass.css). Los tokens siguen vivos
-// porque body.hc los usa para apagar el vidrio — ver el bloque body.hc de
-// styles.css y tests/glass.test.js. .en-col-panel fue el último en pasarse
-// (Tarea 3 de la entrega 2): ya no usa var(--panel-surface), su fondo lo da
-// .sp-glass-denso.
+// fondo lo pone ahora el material (src/glass.css). Aparte de --panel-bg
+// (que sigue pintando #screen-dash, comprobado justo debajo), tres siguen
+// vivos porque body.hc los usa para apagar el vidrio: --panel-surface,
+// --panel-inset y --panel-line — ver el bloque body.hc de styles.css y
+// tests/glass.test.js (Tarea 5). Los otros cuatro (--panel-line-soft,
+// --panel-line-dim, --panel-btn, --panel-btn-line) quedan sin un solo
+// consumidor, a la espera de decidir si se borran; no borrarlos de tapadillo.
+// .en-col-panel fue el último en pasarse (Tarea 3 de la entrega 2): ya no
+// usa var(--panel-surface), su fondo lo da .sp-glass-denso.
 const SUPERFICIES = [
   ['panel.css', panel, '#screen-dash',   '--panel-bg'],
 ];

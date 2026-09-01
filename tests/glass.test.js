@@ -232,5 +232,35 @@ group('lo que flota sobre datos lleva el material denso', () => {
   });
 });
 
+group('el modo ☀ apaga el cristal', () => {
+  const hc = (styles.match(/body\.hc\s*\{([^}]*)\}/) || [])[1] || '';
+  test('body.hc pone el desenfoque a 0', () => {
+    strictEqual(/--glass-blur\s*:\s*0/.test(hc), true, 'body.hc no anula --glass-blur');
+  });
+  test('body.hc apunta las cuatro paradas del material a un color sólido', () => {
+    // En hc el material se apaga apuntando sus paradas a los tokens --panel-*,
+    // que son hex opacos. Así el modo contraste reutiliza el trabajo de la
+    // entrega 1 en vez de traer colores nuevos.
+    for (const t of ['--glass-a', '--glass-b', '--glass-denso-a', '--glass-denso-b']) {
+      const m = hc.match(new RegExp(`${t}\\s*:\\s*([^;]+);`));
+      strictEqual(m !== null, true, `body.hc no redefine ${t}`);
+      strictEqual(/var\(--panel-/.test(m[1]), true,
+        `${t} en hc vale ${m[1]}, debería apuntar a un token --panel-*`);
+    }
+  });
+  test('los tokens --panel-* que usa hc son hex opacos en el propio bloque hc', () => {
+    for (const t of ['--panel-surface', '--panel-inset', '--panel-line']) {
+      strictEqual(new RegExp(`${t}\\s*:\\s*#[0-9a-fA-F]{3,6}`).test(hc), true,
+        `body.hc no redefine ${t} con un hex opaco`);
+    }
+  });
+  test('body.hc apaga también la capa de profundidad', () => {
+    for (const t of ['--depth-warm', '--depth-cool']) {
+      strictEqual(new RegExp(`${t}\\s*:\\s*transparent`).test(hc), true,
+        `body.hc no apaga ${t}`);
+    }
+  });
+});
+
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);

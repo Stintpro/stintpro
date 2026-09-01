@@ -119,6 +119,29 @@ body.hc {
   --orange-txt: #FCD34D;
   --red-txt:    #FCA5A5;
   --blue-txt:   #ffd09e;
+
+  /* El cristal se APAGA en modo contraste. El vidrio y el alto contraste tiran
+   * en direcciones opuestas, y este modo es el refugio garantizado para sol
+   * directo en el circuito: no se le pide al material que aguante el peor caso,
+   * se le quita de en medio. Superficies opacas, sin desenfoque, sin luz de
+   * fondo que recoger. */
+  --glass-blur:     0px;
+  --glass-a:        var(--panel-surface);
+  --glass-b:        var(--panel-surface);
+  --glass-denso-a:  var(--panel-inset);
+  --glass-denso-b:  var(--panel-inset);
+  --glass-edge:     rgba(255,255,255,0.10);
+  --glass-edge-low: transparent;
+  --glass-border:   var(--panel-line);
+  --glass-shadow:   0 0 rgba(0,0,0,0); /* no-op; `none` dentro de la lista de sombras invalidaría la declaración entera y mataría también el canto */
+  --depth-warm:     transparent;
+  --depth-cool:     transparent;
+  /* Y los propios --panel-* suben a los valores de alto contraste. Este es el
+   * papel que les queda tras el cristal: ya no pintan el panel en modo normal,
+   * pintan el refugio de sol directo. */
+  --panel-surface:  #1A1E2E;
+  --panel-inset:    #111420;
+  --panel-line:     #3A4460;
 }
 html,body { width:100%;height:100%;background:var(--bg);color:var(--text-1);font-family:var(--font-sans);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased;user-select:none; }
 .screen { display:none;width:100%;height:100%; }
