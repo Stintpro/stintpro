@@ -13,20 +13,21 @@
   --text-2:     #b8b8cc;
   /* Aclarado de #7878a0 a #9aa5b4 al llegar el cristal: el material sube el
    * brillo del fondo y el texto secundario caía a 2,67:1 sobre el material
-   * normal (2,92:1 sobre el denso) — el PEOR caso real, compuesto sobre
-   * --panel-bg (#screen-dash, src/panel.css:18), que es más claro que --bg y
-   * es donde vive la inmensa mayoría del cristal (cabecera, KPI, pie, las 11
-   * cajas de modal…). NO se arregla oscureciendo el vidrio: en el denso,
-   * subir --glass-denso-a/-b hasta opacidad total ACERCA la superficie a su
-   * color base rgb(48,57,72) —medido: más CLARO que la superficie compuesta
-   * de hoy—, así que esa palanca empeora el contraste en vez de mejorarlo. La
-   * palanca que funciona es aclarar el texto. Con #9aa5b4 sube a 4,506:1 /
-   * 4,918:1 sobre --panel-bg (el margen real es de seis milésimas en el
-   * normal, no hay que aclarar más: el pliego avisa de que aclarar de más
-   * apaga la jerarquía entre texto principal y secundario). Sobre --bg (el
-   * único otro consumidor, #screen-setup .card) da 4,736:1 / 4,970:1, con más
-   * colchón. Es el mismo valor al que llegó Track Engineer. Ambas bases y el
-   * peor caso los vigila tests/contrast.test.js. */
+   * normal (4,12:1 sobre el denso de hoy, ya ahumado por la Tarea 4b) — el
+   * PEOR caso real, compuesto sobre --panel-bg (#screen-dash,
+   * src/panel.css:18), que es más claro que --bg y es donde vive la inmensa
+   * mayoría del cristal (cabecera, KPI, pie, las 11 cajas de modal…). NO se
+   * arregla oscureciendo el vidrio: en el denso, subir --glass-denso-a/-b
+   * hasta opacidad total ACERCA la superficie a su color base rgb(22,26,32)
+   * —medido: prácticamente idéntico a la superficie compuesta de hoy—, así
+   * que esa palanca ya no da nada. La palanca que funciona es aclarar el
+   * texto. Con #9aa5b4 sube a 4,506:1 / 6,936:1 sobre --panel-bg (el margen
+   * real es de seis milésimas en el normal, no hay que aclarar más: el
+   * pliego avisa de que aclarar de más apaga la jerarquía entre texto
+   * principal y secundario). Sobre --bg (el único otro consumidor,
+   * #screen-setup .card) da 4,736:1 / 6,988:1, con más colchón. Es el mismo
+   * valor al que llegó Track Engineer. Ambas bases y el peor caso los vigila
+   * tests/contrast.test.js. */
   --text-3:     #9aa5b4;
   --green:      #4caf6a;
   --green-dim:  rgba(76,175,106,0.14);
@@ -78,9 +79,23 @@
 
   /* Variante densa, para lo que flota SOBRE la parrilla: detrás hay filas de
    * tiempos cambiando, y el texto no puede depender de eso. Velo más alto y
-   * sin subida de brillo. */
-  --glass-denso-a:    rgba(48, 57, 72, 0.86);
-  --glass-denso-b:    rgba(16, 21, 28, 0.90);
+   * sin subida de brillo.
+   * El color base de las dos paradas bajó al 45% (de rgb(48,57,72) y
+   * rgb(16,21,28)) para que el rojo de alerta #ef4444 alcance el suelo de
+   * 4,5:1 sobre el material. Medido con el modelo de tests/contrast.test.js
+   * —el peor píxel real, con la mancha ámbar --depth-warm bajo el velo—:
+   * 3,26:1 con el base original, 4,48:1 al 50% (aún corto) y 4,60:1 al 45%
+   * (ruling R20 del ledger). El banco de capturas de la Tarea 4b daba
+   * 3,45 → 4,66, pero medía la superficie SIN el peor píxel: manda el modelo
+   * del test, que es el conservador. La palanca es el COLOR BASE y no la
+   * opacidad: con el base original, subirla acercaba la superficie a un base
+   * más CLARO y EMPEORABA el contraste; con el base ya ahumado apenas mueve
+   * nada (4,60 → 4,64 a opacidad total, a cambio de matar el vidrio). El
+   * desenfoque y la saturación no se tocan, así que la caja sigue leyéndose
+   * como cristal —la parrilla se sigue viendo desenfocada detrás—, solo que
+   * más ahumada. */
+  --glass-denso-a:    rgba(22, 26, 32, 0.86);
+  --glass-denso-b:    rgba(7, 9, 13, 0.90);
   --glass-denso-blur: var(--glass-blur);
 
   /* La luz que el cristal recoge. Sin ella el material no se ve: un vidrio

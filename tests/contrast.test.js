@@ -305,8 +305,11 @@ function extraeColoresDeCaja(caja) {
 // test seguía en verde con menos colores. Ahora la lista esperada es una
 // constante fija, comparada con deepStrictEqual: si mañana se añade o se
 // quita un color legítimo, hay que tocar esta lista A PROPÓSITO.
+// Tarea 4b: '#3a3b42' salió de esta lista A PROPÓSITO — la etiqueta
+// "Listado de vueltas" (en-team.js) pasó a color:var(--text-3), así que ya
+// no existe como literal y ahora lo vigila el grupo de --text-3 de arriba.
 const COLORES_ESPERADOS = [
-  '#22c55e', '#3a3b42', '#60a5fa', '#e4e6ed',
+  '#22c55e', '#60a5fa', '#e4e6ed',
   '#ef4444', '#f2f2f6', '#f5a623', '#fbbf24', '#fff',
 ];
 const CAJAS_ESPERADAS = 11; // mismo número que vigila tests/glass.test.js
@@ -335,49 +338,18 @@ for (const f of FICHEROS_MODAL) {
 }
 
 // Lista de excepciones explícita — mismo patrón que la lista blanca de
-// backdrop-filter en tests/glass.test.js: un color aquí no es un permiso en
-// blanco, es una excepción NOMBRADA con su contraste medido y su motivo. Un
-// color literal nuevo que caiga por debajo de 4.5:1 y no esté en esta lista
-// pone el test rojo (lo comprueba el test de más abajo). Y NO es un permiso
-// por color suelto: `apariciones` fija en qué fichero y cuántas veces se
-// espera cada uno — reutilizarlo en un sitio nuevo, o una vez de más,
-// también pone el test rojo (test "…no es una puerta abierta").
-const EXCEPCIONES = {
-  '#ef4444': {
-    contraste: 3.26, // sobre --panel-bg denso, la base real de las cajas de modal
-    apariciones: { 'en-team.js': 3 }, // aviso "no se puede deshacer" + botón "Borrar" + cifra "Peor"
-    motivo: 'Rojo de alerta: el aviso "Esta acción no se puede deshacer" y el ' +
-      'botón "Borrar" del popup de borrar stint (en-team.js), y la cifra ' +
-      '"Peor" del detalle de stint (en-team.js). Medido por este test sobre ' +
-      '--panel-bg (la base real de los modales): 3,26:1. Medido en vivo en el ' +
-      'navegador durante la Tarea 3, sobre el DOM real: 3,30:1. Arreglarlo ' +
-      'exige o bien oscurecer el material hasta matar el cristal (medido: ' +
-      'haría falta bajar el color base de --glass-denso-a al 50%, dejando la ' +
-      'superficie en rgb(26,28,32), que es prácticamente el fondo opaco que ' +
-      'la Tarea 3 acaba de quitar), o bien cambiar el rojo en 71 sitios ' +
-      'repartidos por la zona de datos. Decisión pendiente del dueño del ' +
-      'proyecto — no es tocable en esta tarea (que solo posee el token ' +
-      '--text-3).',
-  },
-  '#3a3b42': {
-    contraste: 1.10, // sobre --panel-bg denso
-    apariciones: { 'en-team.js': 1 }, // etiqueta "Listado de vueltas" del detalle de stint
-    motivo: 'Hallazgo nuevo de este test, no anticipado en el pliego de la ' +
-      'tarea: la etiqueta de sección "Listado de vueltas" del detalle de ' +
-      'stint (en-team.js:104) es un gris muy oscuro sin fondo propio — se ' +
-      'compone directamente contra el cristal denso y cae a 1,10:1, casi ' +
-      'invisible. NO es una regresión del cristal: ya era ilegible ANTES —' +
-      'medido en el navegador durante la Tarea 3 sobre el fondo opaco ' +
-      'antiguo: 1,65:1, bien por debajo de 4.5:1 también entonces. Es deuda ' +
-      'preexistente que el cristal agrava (de 1,65 a 1,10), no una regresión ' +
-      'que el cristal cause. No es --text-3 (es un literal aparte, así que el ' +
-      'cambio de esta tarea no lo toca) y no es un botón ni una alerta como ' +
-      '#ef4444: es una etiqueta de cabecera. Igual que #ef4444, arreglarlo ' +
-      '(aclarar este literal, o darle un fondo propio) es una decisión ' +
-      'pendiente del dueño del proyecto — fuera del alcance de esta tarea, ' +
-      'que solo posee --text-3.',
-  },
-};
+// backdrop-filter en tests/glass.test.js: una entrada aquí no es un permiso
+// en blanco, es una excepción NOMBRADA con su contraste medido, sus
+// apariciones fijadas por fichero ({ 'fichero.js': n }) y su motivo.
+//
+// VACÍA A PROPÓSITO desde la Tarea 4b, y eso es lo normal: las dos entradas
+// que la ocupaban se cerraron ahumando el material denso (#ef4444 pasó a
+// cumplir 4,5:1) y apuntando la etiqueta "Listado de vueltas" a var(--text-3)
+// (#3a3b42 dejó de existir como literal). Si algún día vuelve a tener
+// entradas, es que alguien metió un color que no cumple y decidió
+// documentarlo en vez de arreglarlo — eso es una decisión del dueño del
+// proyecto, no un atajo.
+const EXCEPCIONES = {};
 
 console.log('\ncontraste de los colores de texto literales en las cajas de modal (--panel-bg denso)');
 
@@ -399,17 +371,31 @@ test('ningún color de texto usa un hex de 4 u 8 dígitos que hex() no sepa leer
     `hex() solo lee 3 o 6 dígitos; conviértelos a 6 dígitos o extiende hex() antes de que este test pueda fiarse de ellos`);
 });
 
-test('los únicos colores de texto literales por debajo de 4.5:1 son los de la lista de excepciones', () => {
+// Con EXCEPCIONES vacía este test NO pasa "por vacío": la extracción que
+// alimenta coloresEncontrados está vigilada por los dos tests de arriba (11
+// cajas, 8 colores exactos), y aquí se mide CADA color contra la superficie
+// densa real. Lo que se afirma es que ninguno baja de 4,5:1; si alguno baja,
+// el mensaje dice cuál, cuánto da y en qué fichero(s) vive.
+test('ningún color de texto literal baja de 4.5:1 sobre el cristal denso (salvo excepción documentada)', () => {
   const superficie = superficieDelCristal({ densa: true, base: '--panel-bg' });
   const porDebajo = [...coloresEncontrados]
-    .filter(c => contraste(hex(c), superficie) < 4.5)
-    .sort();
+    .map(c => ({ color: c, contraste: contraste(hex(c), superficie) }))
+    .filter(x => x.contraste < 4.5)
+    .sort((a, b) => (a.color < b.color ? -1 : 1));
   const esperados = Object.keys(EXCEPCIONES).sort();
-  deepStrictEqual(porDebajo, esperados,
-    `colores por debajo de 4.5:1 = [${porDebajo}], excepciones documentadas = [${esperados}] — ` +
-    `si hay un color NUEVO aquí, añádelo a EXCEPCIONES con su motivo, no bajes el umbral`);
+  const detalle = porDebajo.map(x =>
+    `${x.color} da ${x.contraste.toFixed(3)}:1 (vive en ${Object.keys(contadorPorColorYFichero[x.color] || {}).join(', ') || 'fichero no localizado'})`
+  ).join('; ');
+  deepStrictEqual(porDebajo.map(x => x.color), esperados,
+    `color(es) por debajo de 4.5:1 sobre el cristal denso: ${detalle} — ` +
+    `se ajusta el MATERIAL o el color del texto, nunca el umbral; ` +
+    `documentarlo en EXCEPCIONES es el último recurso y lo decide el dueño del proyecto`);
 });
 
+// Mientras EXCEPCIONES está vacía este bucle da cero vueltas y no afirma
+// nada — la vigilancia real la lleva el test de arriba. Se conserva porque se
+// re-arma solo: en cuanto alguien documente una excepción, vuelve a fijar en
+// qué fichero y cuántas veces aparece, para que no sea un permiso en blanco.
 test('los colores exceptuados aparecen solo donde y las veces documentadas — no es una puerta abierta', () => {
   for (const [color, datos] of Object.entries(EXCEPCIONES)) {
     const real = contadorPorColorYFichero[color] || {};

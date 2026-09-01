@@ -101,7 +101,7 @@ function _enStintDetail(idx){
       </div>
 
       ${laps.length?`
-      <div style="font-size:11.5px;color:#3a3b42;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;padding-top:10px;border-top:0.5px solid #1a1b22">Listado de vueltas</div>
+      <div style="font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;padding-top:10px;border-top:0.5px solid #1a1b22">Listado de vueltas</div>
       <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:1px">
         ${lapRows}
       </div>
