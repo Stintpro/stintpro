@@ -11,7 +11,16 @@
   --border-md:  #242E40;
   --text-1:     #f0f0f4;
   --text-2:     #b8b8cc;
-  --text-3:     #7878a0;
+  /* Aclarado de #7878a0 a #9aa5b4 al llegar el cristal: el material sube el
+   * brillo del fondo y el texto secundario caía a 2,81:1 sobre el material
+   * normal (2,95:1 sobre el denso). NO se arregla oscureciendo el vidrio: en
+   * el denso, subir --glass-denso-a/-b hasta opacidad total ACERCA la
+   * superficie a su color base rgb(48,57,72) —medido: más CLARO que la
+   * superficie compuesta de hoy, rgb(47,53,63)—, así que esa palanca empeora
+   * el contraste en vez de mejorarlo. La palanca que funciona es aclarar el
+   * texto. Con #9aa5b4 sube a 4,74:1 / 4,97:1. Es el mismo valor al que
+   * llegó Track Engineer. Lo vigila tests/contrast.test.js. */
+  --text-3:     #9aa5b4;
   --green:      #4caf6a;
   --green-dim:  rgba(76,175,106,0.14);
   --green-txt:  #a8e6b8;
