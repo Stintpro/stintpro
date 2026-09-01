@@ -135,5 +135,64 @@ group('la zona de datos sigue mate', () => {
   });
 });
 
+group('lo que flota sobre datos lleva el material denso', () => {
+  const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js'];
+
+  test('las 11 cajas de modal llevan class="sp-modal"', () => {
+    let cajas = 0;
+    for (const f of FICHEROS_MODAL) cajas += (leer('src/' + f).match(/class="sp-modal"/g) || []).length;
+    strictEqual(cajas, 11, `esperaba 11 cajas con sp-modal, encontré ${cajas}`);
+  });
+
+  test('ninguna caja de modal conserva un fondo, borde o sombra sólidos inline', () => {
+    // No asume que class= va antes que style= en la etiqueta —el orden real de
+    // atributos varía en este repo (R3)— así que examina la etiqueta <div>
+    // completa y le extrae el style de dentro, en vez de encadenar un regex
+    // sobre una secuencia fija de atributos.
+    for (const f of FICHEROS_MODAL) {
+      const src = leer('src/' + f);
+      const etiquetas = src.match(/<div\b[^>]*>/g) || [];
+      for (const tag of etiquetas) {
+        if (!/class="sp-modal"/.test(tag)) continue;
+        const styleMatch = tag.match(/style="([^"]*)"/);
+        const style = styleMatch ? styleMatch[1] : '';
+        // Rechaza CUALQUIER valor de background, no solo la forma hexadecimal
+        // #rrggbb —un background:var(--panel-surface) es igual de opaco y es
+        // justo el fondo sólido que ya se coló dos veces en esta entrega (R9).
+        // Solo se toleran transparent/none.
+        const bg = style.match(/\bbackground\s*:\s*([^;]+)/);
+        if (bg) {
+          const valor = bg[1].trim().toLowerCase();
+          strictEqual(valor === 'transparent' || valor === 'none', true,
+            `${f} tiene una caja sp-modal con background inline no tolerado: ${bg[0]}`);
+        }
+        strictEqual(/\bborder\s*:/.test(style), false,
+          `${f} tiene una caja sp-modal con border inline: ${style}`);
+        strictEqual(/\bbox-shadow\s*:/.test(style), false,
+          `${f} tiene una caja sp-modal con box-shadow inline: ${style}`);
+      }
+    }
+  });
+
+  test('.sp-glass-denso lo componen el selector de columnas y las cajas de modal', () => {
+    const regla = rulesOf(glass).find(r => r.selector.includes('.sp-glass-denso'));
+    strictEqual(/\.en-col-panel/.test(regla.selector), true);
+    strictEqual(/\.sp-modal/.test(regla.selector), true);
+  });
+
+  test('.en-col-panel (panel del selector de columnas) no conserva fondo ni sombra propios', () => {
+    // R10: .en-col-panel vive en el <style> inyectado de en-state.js, que carga
+    // DESPUÉS de glass.css —si conservara su background/box-shadow de antes,
+    // ganaría por cargar más tarde y el material quedaría inútil detrás.
+    const inyectado = extractInjectedCss(leer('src/en-state.js'));
+    const regla = rulesOf(inyectado).find(r => r.selector === '.en-col-panel');
+    strictEqual(!!regla, true, 'no se encontró la regla .en-col-panel en el <style> inyectado de en-state.js');
+    strictEqual(/\bbackground\s*:/.test(regla.body), false,
+      `.en-col-panel declara background propio: ${regla.body}`);
+    strictEqual(/\bbox-shadow\s*:/.test(regla.body), false,
+      `.en-col-panel declara box-shadow propio: ${regla.body}`);
+  });
+});
+
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);

@@ -182,7 +182,7 @@
     },
     {
       "selector": ".en-col-panel",
-      "body": "position:absolute;z-index:50;top:30px;left:0;background:var(--panel-surface);border:0.5px solid var(--panel-line);border-radius:10px;padding:10px 12px;display:flex;gap:18px;box-shadow:0 8px 24px rgba(0,0,0,.5);"
+      "body": "position:absolute;z-index:50;top:30px;left:0;border:0.5px solid var(--glass-border);border-radius:10px;padding:10px 12px;display:flex;gap:18px;"
     },
     {
       "selector": ".en-col-title",

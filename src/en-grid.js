@@ -548,7 +548,7 @@ function _enSetTab(tab){
         overlay.id='en-pilot-overlay';
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
         overlay.innerHTML=`
-          <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:340px;width:90%;text-align:center">
+          <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:340px;width:90%;text-align:center">
             <div style="font-size:24px;margin-bottom:8px">⚙️</div>
             <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:8px;font-family:sans-serif">Configura la estrategia</div>
             <div style="font-size:12px;color:var(--text-2);margin-bottom:18px;font-family:sans-serif;line-height:1.5">Recuerda configurar el <b style="color:#fbbf24">stint mínimo y máximo</b> en la parte superior para que las previsiones y recomendaciones funcionen correctamente.</div>
@@ -584,7 +584,7 @@ function _enShowPilotSelect(auto){
   overlay.id='en-pilot-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
   overlay.innerHTML=`
-    <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:340px;width:90%;">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:340px;width:90%;">
       <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:4px;font-family:sans-serif">${auto?'🔄 Pit Out detectado':'🔄 Cambio de piloto'}</div>
       <div style="font-size:11px;color:var(--text-3);margin-bottom:18px;font-family:sans-serif">¿Quién está rodando ahora?</div>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -652,7 +652,7 @@ function _enShowPilotHistory(name, evt) {
   const scoreLabel = score>=800?'Elite':score>=600?'Avanzado':score>=400?'Intermedio':score>=200?'Novato':score!=null?'Principiante':'Sin datos';
 
   overlay.innerHTML = `
-    <div style="background:#0e0f11;border:1px solid #2a2d3a;border-radius:10px;width:min(500px,92vw);overflow:hidden">
+    <div class="sp-modal" style="border-radius:10px;width:min(500px,92vw);overflow:hidden">
       <div style="padding:14px 18px;border-bottom:1px solid #1e2130;display:flex;align-items:center;gap:10px">
         <span style="font-size:15px;font-weight:700;color:var(--text-1);flex:1">${_esc(name)}</span>
         ${score!=null?`<span style="font-size:20px;font-weight:700;color:${scoreColor};font-family:monospace">${score}</span><span style="font-size:11px;color:${scoreColor};opacity:.8">${scoreLabel}</span>`:''}

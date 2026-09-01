@@ -16,7 +16,6 @@ function test(name, fn) {
 const raiz = path.join(__dirname, '..');
 const styles = fs.readFileSync(path.join(raiz, 'src', 'styles.css'), 'utf8');
 const panel  = fs.readFileSync(path.join(raiz, 'src', 'panel.css'), 'utf8');
-const enSt   = fs.readFileSync(path.join(raiz, 'src', 'en-state.js'), 'utf8');
 
 // Valor exacto que tenía cada superficie ANTES de tokenizar. Si alguno de estos
 // cambia, la entrega 1 ha dejado de ser invisible y el test tiene que fallar.
@@ -44,10 +43,11 @@ console.log('\nlas superficies usan el token, no el hex');
 // El resto de superficies dejó de usar estos tokens al llegar el cristal: su
 // fondo lo pone ahora el material (src/glass.css). Los tokens siguen vivos
 // porque body.hc los usa para apagar el vidrio — ver el bloque body.hc de
-// styles.css y tests/glass.test.js.
+// styles.css y tests/glass.test.js. .en-col-panel fue el último en pasarse
+// (Tarea 3 de la entrega 2): ya no usa var(--panel-surface), su fondo lo da
+// .sp-glass-denso.
 const SUPERFICIES = [
   ['panel.css', panel, '#screen-dash',   '--panel-bg'],
-  ['en-state.js', enSt, '.en-col-panel',  '--panel-surface'],
 ];
 for (const [donde, fuente, selector, token] of SUPERFICIES) {
   test(`${selector} (${donde}) usa var(${token})`, () => {

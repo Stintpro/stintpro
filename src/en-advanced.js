@@ -426,7 +426,7 @@ function _enShowAvgFilter(){
   });
 
   overlay.innerHTML=`
-    <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:380px;width:90%;max-height:80vh;display:flex;flex-direction:column">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:380px;width:90%;max-height:80vh;display:flex;flex-direction:column">
       <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:4px;font-family:sans-serif">📊 Filtro media pista</div>
       <div style="font-size:11.5px;color:var(--text-3);margin-bottom:14px;font-family:sans-serif">Click para incluir/excluir del cálculo. Media actual: <span style="color:#60a5fa">${trackAvg?_enFmt(trackAvg):'—'}</span></div>
       <div style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px">

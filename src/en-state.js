@@ -146,7 +146,7 @@ function _enInjectStyles(){
     .en-thead span{font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
     .en-col-bar{position:relative;flex-shrink:0;}
     .en-col-btn{cursor:pointer;}
-    .en-col-panel{position:absolute;z-index:50;top:30px;left:0;background:var(--panel-surface);border:0.5px solid var(--panel-line);border-radius:10px;padding:10px 12px;display:flex;gap:18px;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+    .en-col-panel{position:absolute;z-index:50;top:30px;left:0;border:0.5px solid var(--glass-border);border-radius:10px;padding:10px 12px;display:flex;gap:18px;}
     .en-col-title{font-size:10px;color:#F5A623;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;white-space:nowrap;}
     .en-col-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);padding:3px 0;cursor:pointer;white-space:nowrap;}
     .en-col-item.en-col-off{opacity:.45;cursor:default;}

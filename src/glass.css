@@ -37,11 +37,20 @@
  * los modales. Detrás hay 28 filas de tiempos cambiando varias veces por
  * segundo, así que el velo sube y se quita la subida de brillo: el texto no
  * puede depender de lo que pase por debajo. */
-.sp-glass-denso {
+.sp-glass-denso,
+.en-col-panel, .sp-modal {
   background: linear-gradient(158deg, var(--glass-denso-a), var(--glass-denso-b));
   -webkit-backdrop-filter: blur(var(--glass-denso-blur)) saturate(var(--glass-sat));
   backdrop-filter: blur(var(--glass-denso-blur)) saturate(var(--glass-sat));
   box-shadow:
     inset 0 1px 0 var(--glass-edge),
     var(--glass-shadow);
+}
+
+/* Las 11 cajas de modal comparten borde y radio: el inline ya no los pone
+ * (Tarea 3, Paso 2). Dos cajas quieren un radio distinto (16px, 10px) y lo
+ * dejan en su propio style inline, que gana a esta clase por especificidad. */
+.sp-modal {
+  border: 0.5px solid var(--glass-border);
+  border-radius: 12px;
 }

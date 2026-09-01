@@ -811,7 +811,7 @@ function _enShowEstimatedClassification(){
   });
 
   overlay.innerHTML=`
-    <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:700px;width:95%;max-height:80vh;overflow-y:auto">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:700px;width:95%;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">📊 Deuda de paradas</div>

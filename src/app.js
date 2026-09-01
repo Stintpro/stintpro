@@ -28,7 +28,7 @@ function _showDemoModal() {
   overlay.id = 'demo-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(8,9,10,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(12px);';
   overlay.innerHTML = `
-    <div style="background:#13141a;border:0.5px solid #252630;border-radius:16px;padding:40px 36px;max-width:360px;width:90%;text-align:center;">
+    <div class="sp-modal" style="border-radius:16px;padding:40px 36px;max-width:360px;width:90%;text-align:center;">
       <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#F5A623;letter-spacing:0.15em;margin-bottom:20px;">STINTPRO DEMO</div>
       <div style="font-size:22px;font-weight:600;color:#f2f2f6;margin-bottom:8px;line-height:1.3;">Simulación de carrera real</div>
       <div style="font-size:13px;color:var(--text-3);margin-bottom:32px;line-height:1.6;">Reproducción en bucle de una carrera endurance grabada en vivo.</div>

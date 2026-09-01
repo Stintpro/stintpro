@@ -9,7 +9,7 @@ function _enDeleteStint(idx){
   overlay.id='en-pilot-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
   overlay.innerHTML=`
-    <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:320px;width:90%;text-align:center">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:320px;width:90%;text-align:center">
       <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:8px;font-family:sans-serif">🗑 Borrar stint #${idx+1}</div>
       <div style="font-size:11.5px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">${_esc(s.pilot)} · ${_enFmtStint(s.durationMs)}</div>
       <div style="font-size:11.5px;color:#ef4444;margin-bottom:18px;font-family:sans-serif">Esta acción no se puede deshacer</div>
@@ -61,7 +61,7 @@ function _enStintDetail(idx){
   const posStr=posChange>0?`<span style="color:#22c55e">↑${posChange}</span>`:posChange<0?`<span style="color:#ef4444">↓${Math.abs(posChange)}</span>`:'<span style="color:var(--text-3)">=</span>';
 
   overlay.innerHTML=`
-    <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:400px;width:95%;max-height:85vh;overflow-y:auto">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:400px;width:95%;max-height:85vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:14.5px;font-weight:600;color:var(--text-1);font-family:sans-serif">📊 Stint #${idx+1}</div>
@@ -131,7 +131,7 @@ function _enEditStintPilot(stintIdx){
   overlay.id='en-pilot-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
   overlay.innerHTML=`
-    <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:360px;width:90%;">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:360px;width:90%;">
       <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:14px;font-family:sans-serif">✏️ Editar stint #${stintIdx+1}</div>
       <div style="font-size:11.5px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">Piloto</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
@@ -201,7 +201,7 @@ function _enAddStint(){
   overlay.id='en-pilot-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
   overlay.innerHTML=`
-    <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:360px;width:90%;">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:360px;width:90%;">
       <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:14px;font-family:sans-serif">➕ Añadir stint manual</div>
       <div style="font-size:11.5px;color:var(--text-2);margin-bottom:6px;font-family:sans-serif">Piloto</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
@@ -310,7 +310,7 @@ function _enShowLapHistory(dorsal, ev){
   const qBadge=quality==='good'?'🟢':quality==='bad'?'🔴':'⚪';
 
   overlay.innerHTML=`
-    <div style="background:#1a1b22;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:320px;width:90%;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:320px;width:90%;max-height:80vh;display:flex;flex-direction:column;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <div style="width:32px;height:32px;border-radius:6px;background:${kc.bg};color:${kc.text};border:1.5px solid ${kc.border};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14.5px">${dorsal}</div>
         <div style="flex:1">
