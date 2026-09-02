@@ -87,6 +87,38 @@ group('el material no declara borde', () => {
   });
 });
 
+group('la cabecera es mate y sostiene las baldosas', () => {
+  // El fallo crítico de la entrega: .sp-header y .sp-kpi compartían la regla
+  // de material, y como la cabecera CONTIENE a las baldosas, el velo se
+  // componía dos veces sobre el mismo píxel. La baldosa acababa siendo la
+  // superficie más clara de la app —más clara que la cabecera que la
+  // contiene— y los siete colores de los KPI caían por debajo de 4,5:1
+  // (#ef4444, la llamada a boxes, en 2,41 sobre píxeles reales). Estos dos
+  // tests son lo que impide
+  // que vuelva: uno prohíbe el material en la cabecera, el otro exige que
+  // tenga fondo propio para no quedarse transparente al quitárselo.
+  test('.sp-header NO lleva material: contiene a .sp-kpi y el velo se compondría dos veces', () => {
+    const conMaterial = [...rulesOf(glass), ...rulesOf(panel)].filter(r => /backdrop-filter/.test(r.body));
+    for (const r of conMaterial) {
+      const individuales = r.selector.split(',').map(x => x.trim());
+      strictEqual(individuales.includes('.sp-header'), false,
+        `.sp-header está en la lista de "${r.selector}" y lleva material; como .sp-kpi cuelga ` +
+        `de ella, el velo se compone dos veces y la baldosa se dispara de brillo`);
+    }
+  });
+
+  test('.sp-header tiene fondo opaco propio en panel.css', () => {
+    const regla = rulesOf(panel).find(r => r.selector === '.sp-header');
+    strictEqual(!!regla, true, 'no se encuentra la regla .sp-header en panel.css');
+    const bg = regla.body.match(/(?:^|;)\s*background\s*:\s*([^;]+)/);
+    strictEqual(bg !== null, true,
+      '.sp-header no declara background: sin material y sin fondo propio quedaría transparente ' +
+      'sobre #screen-dash y las baldosas volverían a flotar sobre la capa de profundidad');
+    strictEqual(/^var\(--panel-/.test(bg[1].trim()), true,
+      `.sp-header pinta su fondo con "${bg[1].trim()}"; debe usar un token --panel-* para que body.hc lo alcance`);
+  });
+});
+
 group('la capa de profundidad va una sola vez por pantalla', () => {
   test('solo #screen-dash y #screen-setup la declaran', () => {
     // Incluye también los <style> inyectados de en-state.js y sprint.js: una
@@ -235,7 +267,10 @@ group('lo que flota sobre datos lleva el material denso', () => {
 group('el modo ☀ apaga el cristal', () => {
   const hc = (styles.match(/body\.hc\s*\{([^}]*)\}/) || [])[1] || '';
   test('body.hc pone el desenfoque a 0', () => {
-    strictEqual(/--glass-blur\s*:\s*0/.test(hc), true, 'body.hc no anula --glass-blur');
+    // El "0" tiene que ser el valor ENTERO, no su primer dígito: el regex de
+    // antes (/--glass-blur\s*:\s*0/) daba por bueno un "0.5px", que no es
+    // apagar nada, en un test que se llama justo "pone el desenfoque a 0".
+    strictEqual(/--glass-blur\s*:\s*0(?:px)?\s*;/.test(hc), true, 'body.hc no anula --glass-blur');
   });
   test('body.hc apunta las cuatro paradas del material a un color sólido', () => {
     // En hc el material se apaga apuntando sus paradas a los tokens --panel-*,
@@ -249,11 +284,48 @@ group('el modo ☀ apaga el cristal', () => {
     }
   });
   test('los tokens --panel-* que usa hc son hex opacos en el propio bloque hc', () => {
+    // OPACO = 3 o 6 dígitos exactos. {3,6} daba por bueno un #1a2b (4 dígitos),
+    // que es RGBA con alfa —translúcido— porque casaba sus tres primeros
+    // dígitos y se paraba ahí. La alternativa larga va primero y el
+    // (?![0-9a-fA-F]) impide que un hex de 4 u 8 cuele por la rama de 3.
+    const HEX_OPACO = '#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])';
     for (const t of ['--panel-surface', '--panel-inset', '--panel-line']) {
-      strictEqual(new RegExp(`${t}\\s*:\\s*#[0-9a-fA-F]{3,6}`).test(hc), true,
-        `body.hc no redefine ${t} con un hex opaco`);
+      strictEqual(new RegExp(`${t}\\s*:\\s*${HEX_OPACO}`).test(hc), true,
+        `body.hc no redefine ${t} con un hex opaco (3 o 6 dígitos)`);
     }
   });
+  test('en ☀ la cabecera y las baldosas NO resuelven al mismo color (I2)', () => {
+    // En ☀ el material se apaga: --glass-a/-b pasan a ser un color plano, así
+    // que la baldosa pinta EXACTAMENTE ese token. Mientras .sp-kpi compartía
+    // regla con .sp-header, ambas pintaban el mismo plano y la franja de KPIs
+    // desaparecía dentro de la cabecera — y ☀ es precisamente el modo para sol
+    // directo, donde la separación de bloques es lo primero que se pierde.
+    // Antes del cristal tenían separación tonal (#13141a contra #0e0f11).
+    const raiz = (styles.match(/:root\s*\{([^}]*)\}/) || [])[1] || '';
+    const valorEn = (bloque, t) => {
+      const m = bloque.match(new RegExp(`${t}\\s*:\\s*([^;]+);`));
+      return m ? m[1].trim() : null;
+    };
+    // Resuelve un token en el modo ☀: primero body.hc, si no el :root base, y
+    // sigue las cadenas var(--x) hasta llegar a un color.
+    const resolverHc = (t, saltos = 0) => {
+      strictEqual(saltos < 10, true, `cadena de var() sin fin resolviendo ${t}`);
+      const v = valorEn(hc, t) || valorEn(raiz, t);
+      strictEqual(v !== null, true, `el token ${t} no está declarado ni en body.hc ni en :root`);
+      const m = v.match(/^var\((--[\w-]+)\)$/);
+      return m ? resolverHc(m[1], saltos + 1) : v.toLowerCase();
+    };
+
+    const reglaHeader = rulesOf(panel).find(r => r.selector === '.sp-header');
+    const bgHeader = reglaHeader.body.match(/(?:^|;)\s*background\s*:\s*var\((--[\w-]+)\)/);
+    strictEqual(bgHeader !== null, true, '.sp-header no pinta su fondo con un token');
+    const cabecera = resolverHc(bgHeader[1]);
+    const baldosa = resolverHc('--glass-a');
+    strictEqual(cabecera !== baldosa, true,
+      `en body.hc la cabecera y las baldosas resuelven las dos a ${cabecera}: en ☀ la franja de ` +
+      `KPIs se funde con la cabecera. Dale a una de las dos su propio token --panel-*`);
+  });
+
   test('body.hc apaga también la capa de profundidad', () => {
     for (const t of ['--depth-warm', '--depth-cool']) {
       strictEqual(new RegExp(`${t}\\s*:\\s*transparent`).test(hc), true,
@@ -269,18 +341,34 @@ group('el modo ☀ apaga el cristal', () => {
     // que NO casa con "--glass-denso-blur" —el prefijo "denso-" rompe el
     // literal—, así que hace falta esta aserción aparte para --glass-denso-blur,
     // --glass-sat y --glass-bright.
-    strictEqual(/--glass-denso-blur\s*:\s*0/.test(hc), true, 'body.hc no anula --glass-denso-blur');
+    strictEqual(/--glass-denso-blur\s*:\s*0(?:px)?\s*;/.test(hc), true, 'body.hc no anula --glass-denso-blur');
     strictEqual(/--glass-sat\s*:\s*100%/.test(hc), true, 'body.hc no anula --glass-sat');
     strictEqual(/--glass-bright\s*:\s*100%/.test(hc), true, 'body.hc no anula --glass-bright');
   });
 });
 
 group('la palanca de rendimiento', () => {
-  const mMedia = glass.match(/@media\s*\(max-width:\s*900px\)\s*\{([\s\S]*?)\}\s*\}/);
+  // El corte NO está clavado en un número: se lee del propio fichero y se
+  // comprueba contra el caso de uso que el comentario de glass.css declara —el
+  // iPad en apaisado—. Con 900px la palanca no se disparaba en ninguno (mini
+  // 1024, 10.2" 1080, Air 1180, Pro 12.9" 1366): existía y estaba apagada.
+  // El ancho de referencia es el del iPad Air, el mayor de los tres que de
+  // verdad se llevan al muro; el Pro 12.9" queda fuera a propósito (ver el
+  // comentario de src/glass.css).
+  const ANCHO_IPAD_APAISADO = 1180; // iPad Air
+  const mMedia = glass.match(/@media\s*\(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\}\s*\}/);
 
   test('glass.css baja el desenfoque en pantallas pequeñas', () => {
-    strictEqual(mMedia !== null, true, 'no hay @media (max-width:900px) en glass.css');
-    strictEqual(/--glass-blur\s*:/.test(mMedia[1]), true, 'el @media no toca --glass-blur');
+    strictEqual(mMedia !== null, true, 'no hay @media (max-width:Npx) en glass.css');
+    strictEqual(/--glass-blur\s*:/.test(mMedia[2]), true, 'el @media no toca --glass-blur');
+  });
+
+  test('el corte alcanza al iPad en apaisado, que es el caso de uso declarado', () => {
+    strictEqual(mMedia !== null, true, 'no hay @media (max-width:Npx) en glass.css');
+    const corte = Number(mMedia[1]);
+    strictEqual(corte >= ANCHO_IPAD_APAISADO, true,
+      `el @media corta en ${corte}px y un iPad Air en apaisado mide ${ANCHO_IPAD_APAISADO}px: ` +
+      `la palanca existe pero no se dispara donde su propio comentario dice`);
   });
 
   test('el valor del @media es MENOR que el de :root, no un número mágico (R25)', () => {
@@ -292,7 +380,7 @@ group('la palanca de rendimiento', () => {
     // --glass-blur base de :root en styles.css, sin clavar "14px": así la
     // aserción vigila la intención real (bajar el desenfoque) y sigue
     // valiendo si el número se recalibra mañana.
-    strictEqual(mMedia !== null, true, 'no hay @media (max-width:900px) en glass.css');
+    strictEqual(mMedia !== null, true, 'no hay @media (max-width:Npx) en glass.css');
 
     // :root en styles.css no anida reglas (solo custom properties), así que
     // cortar en el primer "}" basta para aislar el bloque base —el mismo
@@ -309,7 +397,7 @@ group('la palanca de rendimiento', () => {
     const baseMatch = raizRoot[1].match(/--glass-blur\s*:\s*(-?\d+(?:\.\d+)?)px/);
     strictEqual(baseMatch !== null, true,
       '--glass-blur no tiene un valor numérico en px en el :root base de styles.css');
-    const mediaMatch = mMedia[1].match(/--glass-blur\s*:\s*(-?\d+(?:\.\d+)?)px/);
+    const mediaMatch = mMedia[2].match(/--glass-blur\s*:\s*(-?\d+(?:\.\d+)?)px/);
     strictEqual(mediaMatch !== null, true,
       '--glass-blur dentro del @media no tiene un valor numérico en px');
 

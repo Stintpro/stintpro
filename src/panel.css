@@ -16,14 +16,29 @@
    Va aquí UNA sola vez y NUNCA repetida por componente, que es como estas cosas
    acaban costando fotogramas. */
 #screen-dash{background:radial-gradient(58% 46% at 20% 6%, var(--depth-warm), transparent 70%),radial-gradient(66% 56% at 90% 94%, var(--depth-cool), transparent 70%),var(--panel-bg);display:flex;flex-direction:column;height:100vh;overflow:hidden;}
-.sp-header{border-bottom:0.5px solid var(--glass-border);padding:12px 18px;flex-shrink:0;-webkit-app-region:drag;}
+/* La cabecera es MATE: fondo opaco propio, sin material. Lleva dentro las
+   baldosas .sp-kpi, que SÍ son de cristal; si la cabecera también lo fuera, el
+   velo se compondría dos veces sobre el mismo píxel y la baldosa acabaría más
+   clara que la cabecera que la contiene (rgb(55,66,83) contra rgb(32,38,47),
+   medido sobre píxeles reales), que es justo lo que tumbaba el contraste de
+   los siete colores de los KPI.
+   Ver el comentario de la lista de selectores en src/glass.css.
+   El borde inferior y el canto se quedan: lo único que pierde es el
+   backdrop-filter y el gradiente del material. */
+.sp-header{background:var(--panel-bg);border-bottom:0.5px solid var(--glass-border);padding:12px 18px;flex-shrink:0;-webkit-app-region:drag;}
 .sp-topbar{position:relative;display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-left:270px;padding-right:16px;}
 .sp-topbar>*{-webkit-app-region:no-drag;}
 .sp-wdot{width:11px;height:11px;border-radius:50%;}
-/* absolute, no fixed: en cuanto .sp-header estrene backdrop-filter (entrega 2)
-   se convertiría en bloque contenedor de los fixed que cuelgan de él y este
-   cartel dejaría de centrarse contra la ventana. .sp-topbar ya es relative y
-   el padding de .sp-header es simétrico, así que el centro no se mueve. */
+/* absolute, no fixed: un fixed depende de que NINGÚN antecesor cree bloque
+   contenedor, y eso es justo lo que hace un backdrop-filter — por eso este
+   cartel nunca fue fixed.
+   Su bloque contenedor es el antecesor POSICIONADO más cercano. Mientras la
+   cabecera llevó material era .sp-header; ahora que es mate (ya no crea bloque
+   contenedor) pasa a ser .sp-topbar, que es position:relative. El cartel se
+   sigue centrando contra la ventana porque left:0/right:0 se miden contra la
+   CAJA DE RELLENO del contenedor: el padding-left:270px de .sp-topbar queda
+   DENTRO de esa caja y no descentra nada, y el padding de .sp-header sí es
+   simétrico (18px a cada lado). Verificado en el banco. */
 .sp-session{font-size:12.5px;color:var(--text-3);font-family:sans-serif;position:absolute;left:0;right:0;text-align:center;pointer-events:none;}
 .sp-clock{text-align:right;margin-left:auto;}
 .sp-clock-val{font-size:27.5px;font-weight:500;color:#fff;font-family:monospace;letter-spacing:-1px;line-height:1;}

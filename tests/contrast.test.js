@@ -87,12 +87,32 @@ const BASES = [
   { token: '--bg', consumidor: '#screen-setup .card — src/styles.css:117' },
 ];
 
-// El peor píxel real: el punto más claro de la capa de profundidad (la mancha
-// ámbar), que es donde el cristal recoge más luz y el texto menos contraste.
-function superficieDelCristal({ densa, base }) {
+// LAS DOS SUPERFICIES DEL MATERIAL NORMAL. Desde que .sp-header dejó de llevar
+// material (src/glass.css) y pasó a ser mate con fondo opaco var(--panel-bg)
+// (src/panel.css), el cristal ya no descansa sobre un único sitio:
+//
+//   conMancha:true  — el cristal apoyado en el FONDO DE PANTALLA, con la capa
+//     de profundidad debajo. Es el peor píxel real de ese caso: el punto más
+//     claro de la mancha ámbar, donde el cristal recoge más luz y el texto
+//     menos contraste. Lo usan .sp-footer, .en-team-card, .en-strat-card y
+//     #screen-setup .card — este último sin nada delante que tape la mancha.
+//     Es también el peor caso de los tokens (--text-1/--text-3), que viven en
+//     todas esas superficies, y por eso el grupo de tokens lo sigue usando.
+//
+//   conMancha:false — el cristal apoyado en la CABECERA MATE. Es el caso de
+//     .sp-kpi, y aquí NO es una simplificación: la cabecera es opaca, así que
+//     nada de la capa de profundidad llega a la baldosa. Es exacto, y es la
+//     superficie contra la que se mide el barrido de literales de más abajo.
+//
+// El material DENSO siempre compone con la mancha: flota sobre la parrilla,
+// dentro de #screen-dash.
+function superficieDelCristal({ densa, base, conMancha = true }) {
   const fondo = hex(token(base));
-  const calida = rgba(token('--depth-warm'));
-  let detras = componer(fondo, calida.rgb, calida.a);
+  let detras = fondo;
+  if (conMancha) {
+    const calida = rgba(token('--depth-warm'));
+    detras = componer(fondo, calida.rgb, calida.a);
+  }
 
   // backdrop-filter se aplica al FONDO, antes de pintar el velo encima.
   detras = saturar(detras, parseFloat(token('--glass-sat')) / 100);
@@ -404,6 +424,235 @@ test('los colores exceptuados aparecen solo donde y las veces documentadas — n
       `si es un sitio o una cantidad NUEVA, decide a propósito si sigue justificado y actualiza "apariciones", no dejes que se cuele solo`);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// BARRIDO DE LOS LITERALES DEL MATERIAL NORMAL — las baldosas .sp-kpi.
+//
+// Por qué existe: hasta la revisión final este fichero barría literales SOLO
+// dentro de las 11 cajas .sp-modal y SOLO contra el material denso. El
+// material normal no tenía barrido de literales ninguno, y ahí es justo donde
+// vivía el fallo crítico de la entrega: .sp-header y .sp-kpi compartían la
+// regla de material, el velo se componía DOS VECES sobre el mismo píxel y los
+// siete colores de la cabecera caían por debajo del suelo (#ef4444 —la llamada
+// a boxes— en 2,41:1 sobre píxeles reales). Ningún test lo vio. Este grupo
+// cierra ese agujero.
+//
+// Las baldosas se miden contra la superficie SIN mancha (conMancha:false), que
+// para ellas es exacta: cuelgan de .sp-header, que ahora es opaco.
+//
+// LAS DOS VÍAS por las que llega un color, y las dos están cubiertas:
+//   a) literal directo:      style="color:#c084fc"
+//   b) interpolación JS:     style="color:${...}"
+//      - ternario entre literales escrito ahí mismo
+//        (`${inPit>0?'#f87171':'#22c55e'}`), y
+//      - ternario entre literales asignado antes a una const del MISMO fichero
+//        y usado después (`const stintColor=stintPct>85?'#ef4444':…` en
+//        en-grid.js:279, usado como `color:${stintColor}` en :325).
+//        Esta segunda vía es la que el ledger tenía diferida —"el barrido no
+//        mira dentro de ternarios"— y es donde vive el color que fallaba, así
+//        que ya no es opcional.
+//
+// LO QUE SIGUE FUERA, a propósito y con su guardián:
+//   - Una interpolación que NO resuelve a literales (`${myTrend.color}`: viene
+//     de _enTrend, en otro fichero, y hay que ejecutar la app para saber su
+//     valor) es invisible para un test estático. No se mide — pero tampoco se
+//     ignora en silencio: la lista INTERPOLACIONES_OPACAS de abajo fija cuáles
+//     son, así que una interpolación NUEVA que no resuelva pone el test en rojo
+//     en vez de colarse sin medir.
+//   - Las tarjetas .en-strat-card / .en-team-card NO entran en este barrido.
+//     Llevan el mismo material normal, pero (1) su fondo real SÍ incluye la
+//     capa de profundidad —medido en el banco: la mancha fría llega al 0,092
+//     de 0,10 bajo los literales rojos de la esquina inferior derecha— y ahí
+//     este mismo modelo da #ef4444 = 4,14:1 (4,04 con la mancha ámbar a tope,
+//     frente a 2,99-3,49 antes de ahumar el material), y (2) su contenido
+//     mezcla colores deliberadamente apagados (#555, #333, #9ca3af, #2a2b2e)
+//     que son separadores y marcadores de "sin dato", no texto, y que ningún
+//     material arregla. Barrerlas exige
+//     antes triar esos apagados y una decisión sobre la capa de profundidad
+//     que NO es del test. Queda reportado con sus números, no exceptuado:
+//     EXCEPCIONES sigue vacía.
+const FICHEROS_BALDOSA = ['en-grid.js', 'sprint.js'];
+const BALDOSAS_ESPERADAS = { 'en-grid.js': 5, 'sprint.js': 4 };
+
+// Recorta el <div class="sp-kpi"> … </div> completo emparejando <div>/</div>.
+// No vale "hasta el siguiente </div>": cada baldosa lleva tres divs dentro
+// (etiqueta, valor y subtítulo) y ese corte se quedaría con la primera línea.
+function baldosasKpiDe(src) {
+  const cajas = [];
+  const anclaRe = /class="sp-kpi"/g;
+  let ancla;
+  while ((ancla = anclaRe.exec(src))) {
+    const inicio = src.lastIndexOf('<div', ancla.index);
+    if (inicio === -1) throw new Error('una baldosa sp-kpi no tiene un <div de apertura antes');
+    const tagRe = /<div\b|<\/div>/g;
+    tagRe.lastIndex = inicio;
+    let prof = 0, fin = -1, t;
+    while ((t = tagRe.exec(src))) {
+      if (t[0] === '</div>') { prof--; if (prof === 0) { fin = t.index + '</div>'.length; break; } }
+      else prof++;
+    }
+    if (fin === -1) throw new Error(`la baldosa sp-kpi que empieza en ${inicio} no cierra su <div>`);
+    const caja = src.slice(inicio, fin);
+    // Una baldosa no contiene otra: si el emparejado se descontrolara y se
+    // tragara varias, este test lo dice en vez de medir de más.
+    if ((caja.match(/class="sp-kpi"/g) || []).length !== 1)
+      throw new Error(`el recorte de una baldosa sp-kpi se ha tragado otra: ${caja.slice(0, 120)}…`);
+    cajas.push(caja);
+  }
+  return cajas;
+}
+
+// Hex entrecomillados dentro de una expresión JS: '#ef4444', "#22c55e"…
+function literalesDeExpresion(expr) {
+  return [...expr.matchAll(/['"](#[0-9a-fA-F]{3,8})['"]/g)].map(m => m[1].toLowerCase());
+}
+
+// Resuelve `${…}`: primero los literales escritos en la propia expresión; si
+// no hay ninguno y la expresión es un identificador simple, se busca su
+// declaración en el mismo fichero y se miran SUS literales. Si sigue sin
+// resolver, se devuelve como opaca (y la caza la lista de abajo).
+function resolverInterpolacion(expr, src) {
+  const directos = literalesDeExpresion(expr);
+  if (directos.length) return { colores: directos, opaca: null };
+  const id = expr.trim();
+  if (/^[A-Za-z_$][\w$]*$/.test(id)) {
+    const decl = src.match(new RegExp(`\\b(?:const|let|var)\\s+${id}\\s*=\\s*([^;]+);`));
+    if (decl) {
+      const colores = literalesDeExpresion(decl[1]);
+      if (colores.length) return { colores, opaca: null };
+    }
+  }
+  return { colores: [], opaca: id };
+}
+
+// Valores de `color:` de un style="", tal cual: o un #hex, o un ${…}.
+// Mismo guardia que coloresDeEstilo() para no confundir background-color ni
+// border-color con el color del TEXTO.
+function valoresDeColorDeEstilo(style) {
+  const out = [];
+  const re = /color\s*:\s*(#[0-9a-fA-F]{3,8}|\$\{[^}]*\})/g;
+  let m;
+  while ((m = re.exec(style))) {
+    const previo = style[m.index - 1];
+    if (previo !== undefined && /[a-zA-Z-]/.test(previo)) continue;
+    out.push(m[1]);
+  }
+  return out;
+}
+
+const coloresBaldosa = new Set();
+const noMediblesBaldosa = [];
+const interpolacionesOpacas = {}; // { 'fichero.js': ['expr', …] }
+const baldosasPorFichero = {};
+
+for (const f of FICHEROS_BALDOSA) {
+  const src = leer('src/' + f);
+  const baldosas = baldosasKpiDe(src);
+  baldosasPorFichero[f] = baldosas.length;
+  for (const caja of baldosas) {
+    const estiloRe = /style="([^"]*)"/g;
+    let m;
+    while ((m = estiloRe.exec(caja))) {
+      const style = m[1];
+      if (tieneFondoLocalOpaco(style)) continue; // fondo propio: no compone con el cristal
+      for (const valor of valoresDeColorDeEstilo(style)) {
+        const crudos = [];
+        if (valor.startsWith('${')) {
+          const { colores, opaca } = resolverInterpolacion(valor.slice(2, -1), src);
+          if (opaca !== null) {
+            (interpolacionesOpacas[f] = interpolacionesOpacas[f] || []).push(opaca);
+            continue;
+          }
+          crudos.push(...colores);
+        } else {
+          crudos.push(valor.toLowerCase());
+        }
+        for (const c of crudos) {
+          const dig = c.slice(1);
+          if (dig.length === 3 || dig.length === 6) coloresBaldosa.add(c);
+          else noMediblesBaldosa.push(c);
+        }
+      }
+    }
+  }
+}
+
+// Lista fija, igual que COLORES_ESPERADOS del grupo denso: si mañana aparece o
+// desaparece un color en una baldosa, hay que tocar esta constante A PROPÓSITO.
+const COLORES_BALDOSA_ESPERADOS = [
+  '#22c55e', '#60a5fa', '#c084fc', '#ef4444',
+  '#f5a623', '#f87171', '#f97316', '#fbbf24', '#fff',
+];
+// Interpolaciones que no resuelven a literales, por fichero. Ver el bloque de
+// alcance de arriba.
+const INTERPOLACIONES_OPACAS = { 'en-grid.js': ['myTrend.color'] };
+
+console.log('\ncontraste de los colores de texto literales de las baldosas .sp-kpi (velo normal sobre la cabecera mate)');
+
+test('se encuentran las baldosas .sp-kpi esperadas en cada fichero', () => {
+  deepStrictEqual(baldosasPorFichero, BALDOSAS_ESPERADAS,
+    'el número de baldosas sp-kpi cambió — si es una baldosa NUEVA legítima, ' +
+    'actualiza BALDOSAS_ESPERADAS a propósito');
+});
+
+test('los colores literales de las baldosas son exactamente los esperados', () => {
+  deepStrictEqual([...coloresBaldosa].sort(), [...COLORES_BALDOSA_ESPERADOS].sort(),
+    'la lista de colores de las baldosas cambió respecto a COLORES_BALDOSA_ESPERADOS — ' +
+    'si es un color NUEVO legítimo, añádelo a la constante a propósito');
+});
+
+test('el ternario de stintColor entra en el barrido (es donde vivía el fallo)', () => {
+  // Aserción explícita, no confiada al recuento: si un refactor rompiera la
+  // resolución de consts, la lista de arriba fallaría por otro motivo y este
+  // test dice exactamente cuál es la vía que se ha perdido.
+  for (const c of ['#ef4444', '#fbbf24', '#22c55e']) {
+    ok(coloresBaldosa.has(c),
+      `${c} es una de las ramas de stintColor (src/en-grid.js) y el barrido no lo ha visto — ` +
+      `¿ha dejado de resolver los ternarios asignados a una const?`);
+  }
+});
+
+test('las interpolaciones que no resuelven a literales son exactamente las documentadas', () => {
+  const real = {};
+  for (const [f, xs] of Object.entries(interpolacionesOpacas)) real[f] = [...new Set(xs)].sort();
+  deepStrictEqual(real, INTERPOLACIONES_OPACAS,
+    'ha aparecido (o desaparecido) una interpolación de color que el barrido no sabe resolver — ' +
+    'no se puede medir sin ejecutar la app, así que decide a propósito si se documenta aquí o ' +
+    'se reescribe como ternario entre literales');
+});
+
+test('ningún color de las baldosas usa un hex de 4 u 8 dígitos que hex() no sepa leer', () => {
+  ok(noMediblesBaldosa.length === 0,
+    `color(es) con hex de longitud no soportada: ${noMediblesBaldosa.join(', ')}`);
+});
+
+test('ningún color literal de las baldosas baja de 4.5:1 sobre el material normal', () => {
+  const superficie = superficieDelCristal({ densa: false, base: '--panel-bg', conMancha: false });
+  const porDebajo = [...coloresBaldosa]
+    .map(c => ({ color: c, contraste: contraste(hex(c), superficie) }))
+    .filter(x => x.contraste < 4.5)
+    .sort((a, b) => (a.color < b.color ? -1 : 1));
+  const detalle = porDebajo.map(x => `${x.color} da ${x.contraste.toFixed(3)}:1`).join('; ');
+  deepStrictEqual(porDebajo.map(x => x.color), Object.keys(EXCEPCIONES).sort(),
+    `color(es) por debajo de 4.5:1 sobre el material normal: ${detalle} — ` +
+    `la palanca es el COLOR BASE del material (--glass-a/--glass-b en src/styles.css), ` +
+    `nunca el umbral, ni la lista de excepciones, ni el color de marca`);
+});
+
+test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble velo)', () => {
+  // Quien caza el doble velo es el guardián por SELECTOR de glass.test.js
+  // ('.sp-header no lleva material'). Esto vigila lo otro: que ahumar el
+  // material no llegue tan lejos que la baldosa se funda con la cabecera y
+  // desaparezca la separación de bloques —el mismo defecto que la revisión
+  // encontró en modo ☀ (I2), aquí en modo normal—. Es la cota INFERIOR del
+  // ahumado, igual que el test de 4,5:1 de arriba es la superior: entre las
+  // dos queda el rango donde el material puede calibrarse.
+  const cabecera = hex(token('--panel-bg'));
+  const baldosa = superficieDelCristal({ densa: false, base: '--panel-bg', conMancha: false });
+  ok(luminancia(baldosa) > luminancia(cabecera),
+    `la baldosa (${baldosa.map(Math.round)}) no destaca sobre la cabecera (${cabecera})`);
+});
+
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);

@@ -2,9 +2,10 @@
  * desde aquí: si el material cambia, cambia en este fichero y en ningún otro.
  *
  * LAS REGLAS DEL MATERIAL —las que llevan `backdrop-filter`— NO DECLARAN
- * `border` A PROPÓSITO. Cada superficie quiere un borde distinto —solo el
- * inferior en .sp-header, los cuatro en .sp-kpi, solo el superior en
- * .sp-footer— y si el material también pusiera uno, ambas reglas competirían
+ * `border` A PROPÓSITO. Cada superficie quiere un borde distinto —los cuatro
+ * en .sp-kpi, solo el superior en .sp-footer, solo el inferior en .sp-header
+ * (que ya no lleva material, pero sigue poniendo su borde con el mismo token)—
+ * y si el material también pusiera uno, ambas reglas competirían
  * por la misma propiedad y ganaría la que quedase después en el CSS final.
  * Por eso el borde es cosa de cada consumidor, con var(--glass-border) —casi
  * siempre en la hoja propia de ese consumidor (panel.css, styles.css…)—.
@@ -28,8 +29,18 @@
  * —el mismo papel que cumple .sp-modal más abajo para el material DENSO—.
  * Hoy ningún marcado la usa directamente: las demás superficies de esta
  * lista sí tienen selector propio y se componen aquí sin tocar el marcado. */
+/* .sp-header NO ESTÁ EN ESTA LISTA, y no es un olvido: la cabecera CONTIENE
+ * las baldosas .sp-kpi, así que cuando llevaba material el velo se componía
+ * DOS VECES sobre el mismo píxel y la baldosa acababa siendo la superficie más
+ * clara de la app —más clara que la cabecera que la contiene: rgb(55,66,83)
+ * contra rgb(32,38,47), medido sobre píxeles reales—. Con eso, los siete
+ * colores de los KPI caían por debajo de 4,5:1 (el rojo #ef4444 de la llamada
+ * a boxes, en 2,41). La cabecera pasó a ser MATE, con fondo opaco propio
+ * var(--panel-bg) en
+ * src/panel.css; las baldosas siguen siendo de cristal, pero sobre un plano.
+ * Si alguien vuelve a meter .sp-header aquí, vuelve el doble velo. */
 .sp-glass,
-.sp-header, .sp-kpi, .sp-footer, .sp-back,
+.sp-kpi, .sp-footer, .sp-back,
 .en-team-card, .en-strat-card,
 #screen-setup .card {
   background: linear-gradient(158deg, var(--glass-a), var(--glass-b));
@@ -75,7 +86,22 @@
  * en el :root de styles.css; aquí se REDECLARA el mismo token en otro :root,
  * y por orden de carga en la cascada, este valor gana. Lo que protege esa
  * premisa es el test 'el orden de carga' de tests/glass.test.js (NO
- * tests/panel-css.test.js, que ni siquiera lee glass.css). */
-@media (max-width:900px) {
+ * tests/panel-css.test.js, que ni siquiera lee glass.css).
+ *
+ * EL CORTE ES 1200px Y NO 900px. Con 900px esta palanca NO se disparaba en
+ * NINGÚN iPad en apaisado —que es como se mira un panel de tiempos—: el mini
+ * mide 1024, el 10.2" 1080, el Air 1180 y el Pro 12.9" 1366. Solo entraba en
+ * vertical, así que el caso de uso que este mismo comentario declara estaba
+ * sin cubrir. 1200px cubre mini, 10.2" y Air —los que de verdad se llevan al
+ * muro— y deja fuera el Pro 12.9" a propósito: subirlo a 1400 para meterlo
+ * arrastraría también a los portátiles de 1366 de ancho, donde el material
+ * debe seguir completo, y el Pro 12.9" es justo el aparato con más músculo
+ * para pagar el desenfoque.
+ *
+ * NO LO UNIFIQUES con los otros @media (max-width:900px) del proyecto
+ * (src/en-grid.js:44 y src/en-state.js:167): esos estrechan las columnas de la
+ * parrilla, que es otra cosa y NO debe cambiar a 1200px. Coincidían en el
+ * número, no en el motivo. */
+@media (max-width:1200px) {
   :root { --glass-blur: 14px; }
 }

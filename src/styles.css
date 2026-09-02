@@ -61,14 +61,43 @@
   --panel-btn-line:  #2a2b2e;   /* borde de .sp-back */
 
   /* ── El material de cristal ────────────────────────────────────────────
-   * Los mismos valores que Track Engineer (frontend/src/styles/glass.module.css),
-   * elegidos sobre una comparativa de tres materiales: las dos apps se leen como
-   * la misma familia. Lo que hace que esto parezca vidrio NO es el desenfoque,
-   * son el canto especular de un píxel arriba y la sombra proyectada. Si algún
-   * día hay que quitar algo por rendimiento, se quita el desenfoque antes que
-   * el canto. */
-  --glass-a:        rgba(68, 79, 96, 0.50);
-  --glass-b:        rgba(26, 33, 44, 0.54);
+   * Salió de los mismos valores que Track Engineer
+   * (frontend/src/styles/glass.module.css), elegidos sobre una comparativa de
+   * tres materiales: las dos apps se leen como la misma familia. Lo único que
+   * ya no coincide es el COLOR BASE de las dos paradas, ahumado al 45% por
+   * contraste (ver el comentario justo debajo); el desenfoque, la saturación,
+   * el brillo, el canto y la sombra siguen siendo los de allí.
+   * Lo que hace que esto parezca vidrio NO es el desenfoque, son el canto
+   * especular de un píxel arriba y la sombra proyectada. Si algún día hay que
+   * quitar algo por rendimiento, se quita el desenfoque antes que el canto. */
+  /* El color base de las dos paradas bajó al 45% (de rgb(68,79,96) y
+   * rgb(26,33,44)) por el mismo motivo y con el mismo factor que el material
+   * denso: que los colores de marca alcancen el suelo de 4,5:1 SOBRE el
+   * material. El caso que lo forzó son las baldosas .sp-kpi —donde vive
+   * #ef4444, la llamada a boxes—, y va junto con que .sp-header dejara de
+   * llevar material (src/glass.css): con la cabecera de cristal el velo se
+   * componía dos veces y los siete colores de los KPI caían (el rojo, a
+   * 2,41:1 medido sobre píxeles reales en la revisión final). Números del
+   * MODELO DE tests/contrast.test.js sobre la baldosa ya corregida —velo
+   * normal sobre la cabecera mate—: 3,494:1 con el base original, 4,486:1 al
+   * 50% (que ni siquiera llega: el banco daba 4,50, el filo exacto, y manda
+   * el modelo del test, que es el conservador) y 4,581:1 al 45%. Los otros
+   * seis quedan entre 6,15 y 7,57. La palanca es el COLOR BASE y no la
+   * opacidad, que se queda en 0,50/0,54: con el base original, subir la
+   * opacidad ACERCA la superficie a un base más claro y EMPEORA el contraste
+   * (rulings R20 y R33). El desenfoque y la saturación no se tocan, así que
+   * el chrome se sigue leyendo como cristal, solo que más ahumado.
+   * Alcanza también a .sp-footer, .en-team-card, .en-strat-card, .sp-back y
+   * #screen-setup .card, y eso es deliberado. Ojo con lo que arregla y lo que
+   * NO: dentro de las tarjetas de Estrategia y Equipo este mismo #ef4444
+   * MEJORA mucho (de 2,99-3,49:1 a 4,04-4,58:1 según cuánta capa de
+   * profundidad tenga debajo) pero NO alcanza el suelo de 4,5:1 cuando la
+   * mancha está a tope: esas tarjetas descansan sobre el fondo de pantalla,
+   * no sobre la cabecera opaca. Ahí no llega ningún ahumado razonable —haría
+   * falta el 21%, y a ese nivel la baldosa se funde con la cabecera—, así que
+   * queda REPORTADO como decisión del dueño, no exceptuado. */
+  --glass-a:        rgba(31, 36, 43, 0.50);
+  --glass-b:        rgba(12, 15, 20, 0.54);
   --glass-blur:     28px;
   --glass-sat:      200%;
   --glass-bright:   122%;
