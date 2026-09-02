@@ -276,7 +276,15 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   const stintMaxMs=(stintCfg?.stintMax||999)*60*1000;
   const stintMinMs=(stintCfg?.stintMin||0)*60*1000;
   const stintPct=stintMaxMs>0?Math.min(100,stintMs/stintMaxMs*100):0;
-  const stintColor=stintPct>85?'#ef4444':stintPct>70?'#fbbf24':'#22c55e';
+  // Color del stint: por TOKEN, no por literal. El literal no pasa por ningún
+  // token y por eso el modo ☀ no tenía forma de aclararlo (#ef4444 daba 4,397:1
+  // sobre la baldosa de ☀, el único color del panel bajo el suelo de 4,5:1).
+  // Los tres valores viven en :root y body.hc de src/styles.css.
+  // Efecto lateral: el relleno del degradado de .sp-kpi-sub ya no puede usar el
+  // truco de pegarle el alfa al hex (`${stintColor}22`) —a un var() no se le
+  // concatena nada—, así que ese 0x22/0xff pasa a ser color-mix(… 13,33%,
+  // transparent), que da exactamente el mismo alfa.
+  const stintColor=stintPct>85?'var(--state-alert)':stintPct>70?'var(--state-warn)':'var(--state-ok)';
   const stintLaps=_enStintLaps(myKart);
 
   // Ventana de pit
@@ -289,7 +297,11 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     else pitWindow='🔴 Fuera de ventana';
   }
 
-  // Semáforo stint
+  // Semáforo stint. OJO: hoy solo se pinta el EMOJI (stintLight, en la etiqueta
+  // de la baldosa). stintLightCol no llega a ningún style="" —está asignado y
+  // nunca leído—, así que sus literales no tocan ninguna superficie y quedan
+  // fuera de la tokenización a propósito. Si algún día se pinta, tiene que
+  // pasar por --state-* como stintColor, o volverá a fallar el suelo en ☀.
   let stintLight='⚪'; let stintLightCol='#555';
   if(stintMinMs>0||stintMaxMs<999*60*1000){
     if(stintMs<stintMinMs){stintLight='🔴'; stintLightCol='#ef4444';}
@@ -323,7 +335,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">${stintLight} Stint · ${stintLaps}v</div>
     <div class="sp-kpi-val" style="color:${stintColor}">${stintStr}</div>
-    <div class="sp-kpi-sub" style="background:linear-gradient(90deg,${stintColor}22 ${stintPct}%,transparent ${stintPct}%);border-radius:2px;padding:1px 4px">${pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')}</div>
+    <div class="sp-kpi-sub" style="background:linear-gradient(90deg,color-mix(in srgb, ${stintColor} 13.33%, transparent) ${stintPct}%,transparent ${stintPct}%);border-radius:2px;padding:1px 4px">${pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')}</div>
   </div>
   <div class="sp-kpi" style="cursor:pointer" onclick="_enShowAvgFilter()">
     <div class="sp-kpi-lbl">Media pista ${Object.values(EnUi.excludedFromAvg).filter(Boolean).length?'<span style="color:#f97316">('+Object.values(EnUi.excludedFromAvg).filter(Boolean).length+' excl.)</span>':''}</div>
@@ -337,7 +349,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">En boxes</div>
-    <div class="sp-kpi-val" style="color:${inPit>0?'#f87171':'#22c55e'}">${inPit}</div>
+    <div class="sp-kpi-val" style="color:${inPit>0?'#f87171':'var(--state-ok)'}">${inPit}</div>
     <div class="sp-kpi-sub">karts actualmente</div>
   </div>`;
 }

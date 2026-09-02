@@ -197,7 +197,7 @@ function _spKpisHtml(leader, trackAvg, bestSess, inPit){
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">En boxes</div>
-    <div class="sp-kpi-val" style="color:${inPit>0?'#f87171':'#22c55e'}">${inPit}</div>
+    <div class="sp-kpi-val" style="color:${inPit>0?'#f87171':'var(--state-ok)'}">${inPit}</div>
     <div class="sp-kpi-sub">karts actualmente</div>
   </div>`;
 }

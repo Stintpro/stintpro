@@ -1,6 +1,9 @@
-// StintPro — contraste del texto secundario compuesto sobre el cristal.
-// Compone la capa de profundidad y el material sobre el fondo, y exige 4.5:1.
-// SI ESTE TEST SE PONE ROJO, SE AJUSTA EL MATERIAL — EL UMBRAL NO SE TOCA.
+// StintPro — contraste del texto sobre el cristal, EN LOS DOS MODOS.
+// En modo normal compone la capa de profundidad y el material sobre el fondo;
+// en modo ☀ (body.hc) el material está apagado y la superficie es un color
+// opaco. Los dos exigen 4.5:1.
+// SI ESTE TEST SE PONE ROJO, SE AJUSTA EL MATERIAL O EL TOKEN DEL COLOR —
+// EL UMBRAL NO SE TOCA.
 // Ejecutar: node tests/contrast.test.js
 'use strict';
 
@@ -33,11 +36,51 @@ const reglasStyles = rulesOf(styles);
 const bloqueRoot = reglasStyles.find(r => r.selector === ':root');
 if (!bloqueRoot) throw new Error('no se encontró el bloque :root en src/styles.css');
 
-function token(nombre) {
-  const m = bloqueRoot.body.match(new RegExp(`${nombre}\\s*:\\s*([^;]+);`));
-  if (!m) throw new Error(`el token ${nombre} no está declarado en :root`);
-  return m[1].trim();
+// R16, segundo juego. El modo ☀ (body.hc) redeclara sus propios valores para
+// varios de estos tokens, así que medirlo exige LEER ESE BLOQUE — pero sin
+// relajar el anclaje de :root, que es justo lo que R16 prohíbe: se aísla
+// body.hc con su PROPIO anclaje explícito, con el mismo extractor de reglas, y
+// cada modo lee solo de su bloque. Un token que body.hc no redeclara (p. ej.
+// --panel-bg) lo HEREDA de :root, igual que hace la cascada de verdad.
+const bloqueHc = reglasStyles.find(r => r.selector === 'body.hc');
+if (!bloqueHc) throw new Error('no se encontró el bloque body.hc en src/styles.css');
+
+function declaracion(bloque, nombre) {
+  const m = bloque.body.match(new RegExp(`${nombre}\\s*:\\s*([^;]+);`));
+  return m ? m[1].trim() : null;
 }
+function token(nombre) {
+  const v = declaracion(bloqueRoot, nombre);
+  if (v === null) throw new Error(`el token ${nombre} no está declarado en :root`);
+  return v;
+}
+function tokenHc(nombre) {
+  const v = declaracion(bloqueHc, nombre);
+  return v !== null ? v : token(nombre);
+}
+// Los dos modos, como pareja de lectores. `nombre` identifica el modo en los
+// mensajes de fallo; `leer` es el lector de tokens de ese modo.
+const MODOS = [
+  { nombre: 'normal', leer: token },
+  { nombre: '☀ contraste', leer: tokenHc },
+];
+
+// Sigue las cadenas var(--x) dentro de UN modo, hasta llegar a un valor que ya
+// no es una redirección. En body.hc el material se apaga apuntando --glass-a a
+// var(--panel-surface), así que sin esto no se llegaría al color real.
+function resolverToken(nombre, leer, saltos = 0) {
+  if (saltos > 10) throw new Error(`cadena de var() sin fin resolviendo ${nombre}`);
+  const v = leer(nombre);
+  const m = v.match(/^var\((--[\w-]+)\)$/);
+  return m ? resolverToken(m[1], leer, saltos + 1) : v;
+}
+// Un valor de color escrito en el marcado: o un #hex tal cual, o un var(--x)
+// que hay que resolver en el modo que toque.
+function resolverValor(valor, leer) {
+  const m = valor.match(/^var\((--[\w-]+)\)$/);
+  return m ? resolverToken(m[1], leer) : valor;
+}
+const HEX_OPACO = /^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
 
 function hex(c) {
   const s = c.replace('#', '');
@@ -135,6 +178,40 @@ function peorCasoDelCristal(colorHex, { densa }) {
   return { contraste: peor, base: peorBase };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// LA SUPERFICIE DEL MODO ☀. Hasta esta ronda, TODO este fichero medía solo el
+// juego de :root: el modo contraste —el refugio para sol directo en el
+// circuito, que es donde MÁS falta hace el suelo de 4,5:1— no lo comprobaba
+// nadie. Este es el segundo juego.
+//
+// Su modelo es mucho más simple que el del modo normal, y no por simplificar:
+// en body.hc el material se APAGA entero. El velo pasa a ser un hex opaco
+// (--glass-a → var(--panel-surface) para las baldosas, --glass-denso-a →
+// var(--panel-inset) para lo denso), el desenfoque va a 0, saturación y brillo
+// a 100% y la capa de profundidad a transparent. No queda nada que componer:
+// la superficie ES ese hex. Las tres premisas las comprueba el test de más
+// abajo, para que el día que alguna deje de ser cierta este modelo no siga
+// midiendo en verde un fondo que ya no existe.
+function superficieHc({ densa }) {
+  const velo = resolverToken(densa ? '--glass-denso-a' : '--glass-a', tokenHc);
+  if (!HEX_OPACO.test(velo))
+    throw new Error(`en ☀ el velo ${densa ? 'denso' : 'normal'} resuelve a "${velo}", que no es un hex opaco`);
+  return hex(velo);
+}
+
+console.log('\nel modelo del modo ☀ sigue siendo válido');
+test('en ☀ el material está apagado: velo opaco, sin desenfoque ni filtros ni profundidad', () => {
+  for (const densa of [false, true]) {
+    const velo = resolverToken(densa ? '--glass-denso-a' : '--glass-a', tokenHc);
+    ok(HEX_OPACO.test(velo),
+      `el velo ${densa ? 'denso' : 'normal'} de ☀ vale "${velo}": deja de ser opaco, así que ya no basta con medir contra él — hay que componerlo`);
+  }
+  strictEqual(parseFloat(tokenHc('--glass-sat')), 100, '--glass-sat ya no es 100% en ☀: el fondo se satura y el modelo simple deja de valer');
+  strictEqual(parseFloat(tokenHc('--glass-bright')), 100, '--glass-bright ya no es 100% en ☀');
+  for (const t of ['--depth-warm', '--depth-cool'])
+    strictEqual(tokenHc(t), 'transparent', `${t} ya no es transparent en ☀: la capa de profundidad vuelve a llegar al material`);
+});
+
 console.log('\ncontraste del texto secundario sobre el material');
 for (const densa of [false, true]) {
   const nombre = densa ? 'material denso' : 'material normal';
@@ -143,9 +220,20 @@ for (const densa of [false, true]) {
     ok(c >= 4.5,
       `${c.toFixed(3)}:1 sobre el ${nombre}, base ${base.token} (${base.consumidor}) — ajusta el MATERIAL, no el umbral`);
   });
+  test(`--text-3 alcanza 4.5:1 sobre el ${nombre} en ☀`, () => {
+    const c = contraste(hex(tokenHc('--text-3')), superficieHc({ densa }));
+    ok(c >= 4.5,
+      `${tokenHc('--text-3')} da ${c.toFixed(3)}:1 sobre el ${nombre} de ☀ — la palanca es el token de body.hc, nunca el umbral`);
+  });
 }
 
 console.log('\nel texto principal no puede estar peor que el secundario');
+test('--text-1 supera a --text-3 en ☀', () => {
+  const s = superficieHc({ densa: false });
+  const c1 = contraste(hex(tokenHc('--text-1')), s);
+  const c3 = contraste(hex(tokenHc('--text-3')), s);
+  ok(c1 > c3, `en ☀ --text-1 da ${c1.toFixed(2)} y --text-3 da ${c3.toFixed(2)}`);
+});
 test('--text-1 supera a --text-3', () => {
   // Comparación relativa: usa la base más exigente (--panel-bg) porque es
   // donde vive la inmensa mayoría del cristal, incluidas las 11 cajas de
@@ -412,6 +500,25 @@ test('ningún color de texto literal baja de 4.5:1 sobre el cristal denso (salvo
     `documentarlo en EXCEPCIONES es el último recurso y lo decide el dueño del proyecto`);
 });
 
+// El mismo barrido, en ☀. Los literales de las cajas de modal no cambian con el
+// modo (son literales: por definición no pasan por ningún token), pero la
+// superficie SÍ: en ☀ el denso deja de ser un velo compuesto y pasa a ser
+// --panel-inset opaco. Medirlo aquí es lo que cierra el agujero: hasta ahora
+// este fichero solo comprobaba el modo normal.
+test('ningún color de texto literal baja de 4.5:1 sobre el cristal denso de ☀', () => {
+  const superficie = superficieHc({ densa: true });
+  const porDebajo = [...coloresEncontrados]
+    .map(c => ({ color: c, contraste: contraste(hex(c), superficie) }))
+    .filter(x => x.contraste < 4.5)
+    .sort((a, b) => (a.color < b.color ? -1 : 1));
+  const detalle = porDebajo.map(x =>
+    `${x.color} da ${x.contraste.toFixed(3)}:1 (vive en ${Object.keys(contadorPorColorYFichero[x.color] || {}).join(', ') || 'fichero no localizado'})`
+  ).join('; ');
+  deepStrictEqual(porDebajo.map(x => x.color), Object.keys(EXCEPCIONES).sort(),
+    `color(es) por debajo de 4.5:1 sobre el cristal denso en ☀: ${detalle} — ` +
+    `en ☀ la palanca es --panel-inset (body.hc) o tokenizar ese color, nunca el umbral`);
+});
+
 // Mientras EXCEPCIONES está vacía este bucle da cero vueltas y no afirma
 // nada — la vigilancia real la lleva el test de arriba. Se conserva porque se
 // re-arma solo: en cuanto alguien documente una excepción, vuelve a fijar en
@@ -426,7 +533,7 @@ test('los colores exceptuados aparecen solo donde y las veces documentadas — n
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// BARRIDO DE LOS LITERALES DEL MATERIAL NORMAL — las baldosas .sp-kpi.
+// BARRIDO DE LOS COLORES DEL MATERIAL NORMAL — las baldosas .sp-kpi.
 //
 // Por qué existe: hasta la revisión final este fichero barría literales SOLO
 // dentro de las 11 cajas .sp-modal y SOLO contra el material denso. El
@@ -437,20 +544,31 @@ test('los colores exceptuados aparecen solo donde y las veces documentadas — n
 // a boxes— en 2,41:1 sobre píxeles reales). Ningún test lo vio. Este grupo
 // cierra ese agujero.
 //
-// Las baldosas se miden contra la superficie SIN mancha (conMancha:false), que
-// para ellas es exacta: cuelgan de .sp-header, que ahora es opaco.
+// Y lo mide en LOS DOS MODOS. El barrido nació midiendo solo el juego de
+// :root, así que el modo ☀ —el refugio para sol directo, donde el suelo de
+// 4,5:1 más falta hace— no lo comprobaba nadie: ahí #ef4444 daba 4,397:1 sobre
+// la baldosa opaca y era el único color del panel por debajo del suelo. Ese
+// color ya no es un literal: pasa por --state-alert, que body.hc aclara.
 //
-// LAS DOS VÍAS por las que llega un color, y las dos están cubiertas:
+// En modo normal las baldosas se miden contra la superficie SIN mancha
+// (conMancha:false), que para ellas es exacta: cuelgan de .sp-header, que
+// ahora es opaco. En ☀ se miden contra superficieHc(), donde no hay nada que
+// componer porque el material está apagado.
+//
+// LAS TRES VÍAS por las que llega un color, y las tres están cubiertas:
 //   a) literal directo:      style="color:#c084fc"
-//   b) interpolación JS:     style="color:${...}"
-//      - ternario entre literales escrito ahí mismo
-//        (`${inPit>0?'#f87171':'#22c55e'}`), y
-//      - ternario entre literales asignado antes a una const del MISMO fichero
-//        y usado después (`const stintColor=stintPct>85?'#ef4444':…` en
-//        en-grid.js:279, usado como `color:${stintColor}` en :325).
-//        Esta segunda vía es la que el ledger tenía diferida —"el barrido no
-//        mira dentro de ternarios"— y es donde vive el color que fallaba, así
-//        que ya no es opcional.
+//   b) token:                style="color:var(--state-ok)" — se resuelve en el
+//      bloque del modo que se está midiendo (:root o body.hc), siguiendo las
+//      cadenas var(--x) hasta el color.
+//   c) interpolación JS:     style="color:${...}"
+//      - ternario entre valores escrito ahí mismo
+//        (`${inPit>0?'#f87171':'var(--state-ok)'}`), y
+//      - ternario entre valores asignado antes a una const del MISMO fichero y
+//        usado después (`const stintColor=stintPct>85?'var(--state-alert)':…`
+//        en src/en-grid.js, usado como `color:${stintColor}` en la baldosa del
+//        stint). Esta segunda vía es la que el ledger tenía diferida —"el
+//        barrido no mira dentro de ternarios"— y es donde vive el color que
+//        fallaba, así que ya no es opcional.
 //
 // LO QUE SIGUE FUERA, a propósito y con su guardián:
 //   - Una interpolación que NO resuelve a literales (`${myTrend.color}`: viene
@@ -502,9 +620,11 @@ function baldosasKpiDe(src) {
   return cajas;
 }
 
-// Hex entrecomillados dentro de una expresión JS: '#ef4444', "#22c55e"…
+// Valores de color entrecomillados dentro de una expresión JS: '#ef4444',
+// "#22c55e"… y también 'var(--state-alert)', desde que los colores de estado
+// dejaron de ser literales para que el modo ☀ pueda aclararlos.
 function literalesDeExpresion(expr) {
-  return [...expr.matchAll(/['"](#[0-9a-fA-F]{3,8})['"]/g)].map(m => m[1].toLowerCase());
+  return [...expr.matchAll(/['"](#[0-9a-fA-F]{3,8}|var\(--[\w-]+\))['"]/g)].map(m => m[1].toLowerCase());
 }
 
 // Resuelve `${…}`: primero los literales escritos en la propia expresión; si
@@ -525,12 +645,14 @@ function resolverInterpolacion(expr, src) {
   return { colores: [], opaca: id };
 }
 
-// Valores de `color:` de un style="", tal cual: o un #hex, o un ${…}.
+// Valores de `color:` de un style="", tal cual: un #hex, un var(--x) o un ${…}.
 // Mismo guardia que coloresDeEstilo() para no confundir background-color ni
-// border-color con el color del TEXTO.
+// border-color con el color del TEXTO (y de paso, tampoco el color-mix() del
+// relleno del degradado de .sp-kpi-sub: ahí "color" va seguido de "-", no de
+// ":", así que no entra por este embudo — y no debe, porque es un fondo).
 function valoresDeColorDeEstilo(style) {
   const out = [];
-  const re = /color\s*:\s*(#[0-9a-fA-F]{3,8}|\$\{[^}]*\})/g;
+  const re = /color\s*:\s*(#[0-9a-fA-F]{3,8}|var\(--[\w-]+\)|\$\{[^}]*\})/g;
   let m;
   while ((m = re.exec(style))) {
     const previo = style[m.index - 1];
@@ -540,8 +662,10 @@ function valoresDeColorDeEstilo(style) {
   return out;
 }
 
-const coloresBaldosa = new Set();
-const noMediblesBaldosa = [];
+// Cada valor de color TAL CUAL está escrito en el marcado: '#f97316',
+// 'var(--state-ok)'… Se guarda SIN resolver a propósito, porque un var() vale
+// una cosa en modo normal y otra en ☀, y este barrido mide los dos modos.
+const valoresBaldosa = new Set();
 const interpolacionesOpacas = {}; // { 'fichero.js': ['expr', …] }
 const baldosasPorFichero = {};
 
@@ -556,38 +680,70 @@ for (const f of FICHEROS_BALDOSA) {
       const style = m[1];
       if (tieneFondoLocalOpaco(style)) continue; // fondo propio: no compone con el cristal
       for (const valor of valoresDeColorDeEstilo(style)) {
-        const crudos = [];
         if (valor.startsWith('${')) {
           const { colores, opaca } = resolverInterpolacion(valor.slice(2, -1), src);
           if (opaca !== null) {
             (interpolacionesOpacas[f] = interpolacionesOpacas[f] || []).push(opaca);
             continue;
           }
-          crudos.push(...colores);
+          for (const c of colores) valoresBaldosa.add(c);
         } else {
-          crudos.push(valor.toLowerCase());
-        }
-        for (const c of crudos) {
-          const dig = c.slice(1);
-          if (dig.length === 3 || dig.length === 6) coloresBaldosa.add(c);
-          else noMediblesBaldosa.push(c);
+          valoresBaldosa.add(valor.toLowerCase());
         }
       }
     }
   }
 }
 
+// Resuelve el juego entero de valores DENTRO DE UN MODO y separa lo medible de
+// lo que hex() no sabe leer: un hex de 4 u 8 dígitos (lleva alfa) o un token
+// que no acaba resolviendo a un color. Nada se descarta en silencio.
+function coloresDeBaldosaEn(leerToken) {
+  const medibles = [], raros = [];
+  for (const valor of valoresBaldosa) {
+    const resuelto = resolverValor(valor, leerToken).toLowerCase();
+    const dig = resuelto.startsWith('#') ? resuelto.slice(1) : '';
+    if (dig.length === 3 || dig.length === 6) medibles.push({ valor, color: resuelto });
+    else raros.push(valor === resuelto ? valor : `${valor} → ${resuelto}`);
+  }
+  return { medibles, raros };
+}
+// Etiqueta para los mensajes de fallo: si el color llegó por token, se nombran
+// el token Y el color al que resolvió. Sin esto, un fallo en ☀ diría
+// "var(--state-alert)" sin decir qué color se está midiendo.
+const etiquetaDeColor = x => (x.valor === x.color ? x.color : `${x.valor} → ${x.color}`);
+
+// Mide un juego de colores contra una superficie y devuelve los que no llegan
+// al suelo, ordenados. Lo comparten el modo normal y el ☀.
+function pordebajoDe45(medibles, superficie) {
+  return medibles
+    .map(x => ({ ...x, contraste: contraste(hex(x.color), superficie) }))
+    .filter(x => x.contraste < 4.5)
+    .sort((a, b) => (a.color < b.color ? -1 : 1));
+}
+
 // Lista fija, igual que COLORES_ESPERADOS del grupo denso: si mañana aparece o
-// desaparece un color en una baldosa, hay que tocar esta constante A PROPÓSITO.
-const COLORES_BALDOSA_ESPERADOS = [
-  '#22c55e', '#60a5fa', '#c084fc', '#ef4444',
-  '#f5a623', '#f87171', '#f97316', '#fbbf24', '#fff',
+// desaparece un valor de color en una baldosa, hay que tocar esta constante A
+// PROPÓSITO. Los tres 'var(--state-*)' sustituyen a los literales '#ef4444',
+// '#fbbf24' y '#22c55e' que estaban aquí antes de tokenizar los estados.
+const VALORES_BALDOSA_ESPERADOS = [
+  '#60a5fa', '#c084fc', '#f5a623', '#f87171', '#f97316', '#fff',
+  'var(--state-alert)', 'var(--state-ok)', 'var(--state-warn)',
 ];
 // Interpolaciones que no resuelven a literales, por fichero. Ver el bloque de
 // alcance de arriba.
 const INTERPOLACIONES_OPACAS = { 'en-grid.js': ['myTrend.color'] };
+// Tokenizar NO puede mover el modo normal ni un píxel: en :root los tres
+// tokens de estado valen EXACTAMENTE los literales que sustituyeron. Es el
+// mismo papel que cumple tests/panel-tokens.test.js con las superficies del
+// panel, y es lo que convierte "no cambia nada" en algo comprobable.
+const ESTADO_EN_NORMAL = {
+  '--state-alert': '#ef4444',
+  '--state-warn':  '#fbbf24',
+  '--state-ok':    '#22c55e',
+};
 
-console.log('\ncontraste de los colores de texto literales de las baldosas .sp-kpi (velo normal sobre la cabecera mate)');
+console.log('\ncolores de las baldosas .sp-kpi — modo normal (velo sobre la cabecera mate) y modo ☀ (superficie opaca)');
 
 test('se encuentran las baldosas .sp-kpi esperadas en cada fichero', () => {
   deepStrictEqual(baldosasPorFichero, BALDOSAS_ESPERADAS,
@@ -595,20 +751,27 @@ test('se encuentran las baldosas .sp-kpi esperadas en cada fichero', () => {
     'actualiza BALDOSAS_ESPERADAS a propósito');
 });
 
-test('los colores literales de las baldosas son exactamente los esperados', () => {
-  deepStrictEqual([...coloresBaldosa].sort(), [...COLORES_BALDOSA_ESPERADOS].sort(),
-    'la lista de colores de las baldosas cambió respecto a COLORES_BALDOSA_ESPERADOS — ' +
+test('los valores de color de las baldosas son exactamente los esperados', () => {
+  deepStrictEqual([...valoresBaldosa].sort(), [...VALORES_BALDOSA_ESPERADOS].sort(),
+    'la lista de valores de color de las baldosas cambió respecto a VALORES_BALDOSA_ESPERADOS — ' +
     'si es un color NUEVO legítimo, añádelo a la constante a propósito');
 });
 
-test('el ternario de stintColor entra en el barrido (es donde vivía el fallo)', () => {
+test('los tokens de estado valen en :root los literales que sustituyeron (el modo normal no se mueve)', () => {
+  for (const [t, valor] of Object.entries(ESTADO_EN_NORMAL))
+    strictEqual(token(t).toLowerCase(), valor,
+      `${t} vale ${token(t)} en :root y debería valer ${valor} — tokenizar los estados NO puede cambiar el modo normal; ` +
+      `si quieres cambiar el color del modo ☀, el sitio es body.hc`);
+});
+
+test('las tres ramas de stintColor entran en el barrido (es donde vivía el fallo)', () => {
   // Aserción explícita, no confiada al recuento: si un refactor rompiera la
   // resolución de consts, la lista de arriba fallaría por otro motivo y este
   // test dice exactamente cuál es la vía que se ha perdido.
-  for (const c of ['#ef4444', '#fbbf24', '#22c55e']) {
-    ok(coloresBaldosa.has(c),
-      `${c} es una de las ramas de stintColor (src/en-grid.js) y el barrido no lo ha visto — ` +
-      `¿ha dejado de resolver los ternarios asignados a una const?`);
+  for (const v of ['var(--state-alert)', 'var(--state-warn)', 'var(--state-ok)']) {
+    ok(valoresBaldosa.has(v),
+      `${v} es una de las ramas de stintColor (src/en-grid.js) y el barrido no lo ha visto — ` +
+      `¿ha dejado de resolver los ternarios asignados a una const, o ha vuelto a escribirse como literal?`);
   }
 });
 
@@ -621,22 +784,39 @@ test('las interpolaciones que no resuelven a literales son exactamente las docum
     'se reescribe como ternario entre literales');
 });
 
-test('ningún color de las baldosas usa un hex de 4 u 8 dígitos que hex() no sepa leer', () => {
-  ok(noMediblesBaldosa.length === 0,
-    `color(es) con hex de longitud no soportada: ${noMediblesBaldosa.join(', ')}`);
-});
+for (const { nombre, leer } of MODOS) {
+  test(`en modo ${nombre} todos los valores de las baldosas resuelven a un hex que hex() sabe leer`, () => {
+    const { raros } = coloresDeBaldosaEn(leer);
+    ok(raros.length === 0,
+      `valor(es) que no resuelven a un hex de 3 o 6 dígitos en modo ${nombre}: ${raros.join(', ')} — ` +
+      `hex() solo lee 3 o 6 dígitos; un token que resuelve a rgba() o a un hex con alfa se leería MAL en vez de fallar`);
+  });
+}
 
-test('ningún color literal de las baldosas baja de 4.5:1 sobre el material normal', () => {
+test('ningún color de las baldosas baja de 4.5:1 sobre el material normal', () => {
   const superficie = superficieDelCristal({ densa: false, base: '--panel-bg', conMancha: false });
-  const porDebajo = [...coloresBaldosa]
-    .map(c => ({ color: c, contraste: contraste(hex(c), superficie) }))
-    .filter(x => x.contraste < 4.5)
-    .sort((a, b) => (a.color < b.color ? -1 : 1));
-  const detalle = porDebajo.map(x => `${x.color} da ${x.contraste.toFixed(3)}:1`).join('; ');
+  const porDebajo = pordebajoDe45(coloresDeBaldosaEn(token).medibles, superficie);
+  const detalle = porDebajo.map(x => `${etiquetaDeColor(x)} da ${x.contraste.toFixed(3)}:1`).join('; ');
   deepStrictEqual(porDebajo.map(x => x.color), Object.keys(EXCEPCIONES).sort(),
     `color(es) por debajo de 4.5:1 sobre el material normal: ${detalle} — ` +
-    `la palanca es el COLOR BASE del material (--glass-a/--glass-b en src/styles.css), ` +
-    `nunca el umbral, ni la lista de excepciones, ni el color de marca`);
+    `la palanca es el COLOR BASE del material (--glass-a/--glass-b en src/styles.css) o el token ` +
+    `de estado en :root, nunca el umbral, ni la lista de excepciones`);
+});
+
+// EL GUARDIÁN QUE FALTABA. El modo ☀ es el refugio para sol directo en el
+// circuito y hasta esta ronda no lo medía nadie: por eso #ef4444 —la llamada a
+// boxes, el color más urgente del panel— llevaba 4,397:1 sobre la baldosa de ☀
+// sin que ningún test lo dijera. Aquí la superficie es --panel-surface opaco,
+// así que la palanca ya no es el material (en ☀ no hay material): es el token
+// de estado de body.hc.
+test('ningún color de las baldosas baja de 4.5:1 sobre la baldosa de ☀', () => {
+  const superficie = superficieHc({ densa: false });
+  const porDebajo = pordebajoDe45(coloresDeBaldosaEn(tokenHc).medibles, superficie);
+  const detalle = porDebajo.map(x => `${etiquetaDeColor(x)} da ${x.contraste.toFixed(3)}:1`).join('; ');
+  deepStrictEqual(porDebajo.map(x => x.color), Object.keys(EXCEPCIONES).sort(),
+    `color(es) por debajo de 4.5:1 sobre la baldosa del modo ☀ (${superficie.map(Math.round)}): ${detalle} — ` +
+    `la palanca es el token de estado en body.hc (src/styles.css), o --panel-surface; ` +
+    `nunca el umbral ni la lista de excepciones`);
 });
 
 test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble velo)', () => {

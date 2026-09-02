@@ -42,6 +42,28 @@
   --blue-dim:   rgba(245,166,35,0.14);
   --blue-txt:   #ffd09e;
   --gold:       #d4a843;
+
+  /* COLORES DE ESTADO DEL DATO. Los tres con los que las baldosas de KPI dicen
+   * en qué punto está el stint (alerta / aviso / todo bien) y si hay karts en
+   * boxes. Nacen aquí con EXACTAMENTE los literales que llevaban escritos a
+   * mano en src/en-grid.js y src/sprint.js: tokenizarlos no mueve ni un píxel
+   * del modo normal. Existen para que body.hc (el modo ☀) pueda ACLARARLOS,
+   * que es lo único que un literal escrito dentro del JS no permite hacer —y
+   * por eso #ef4444 se quedaba en 4,397:1 sobre la baldosa de ☀, el único
+   * color del panel por debajo del suelo de 4,5:1.
+   *
+   * NO SON --red-txt / --orange-txt / --green-txt, y no deben fusionarse con
+   * ellos. Aquellos visten BADGES con fondo propio —.kart-badge-box.bueno/
+   * .neutral/.malo, .b-bueno/.b-neutral/.b-malo, .ps-slot.front y el badge
+   * SIMULACIÓN de src/setup.js—, donde el texto se compone contra
+   * --green-dim/--orange-dim/--red-dim y no contra el material. Cambiarles el
+   * valor movería nueve consumidores que son otro frente y no están auditados.
+   * Estos de aquí son texto de dato SOBRE el material, y por eso van aparte.
+   * Los mide tests/contrast.test.js, en los dos modos. */
+  --state-alert: #ef4444;   /* stint > 85% — «⚠ Cambio pronto», la llamada a boxes */
+  --state-warn:  #fbbf24;   /* stint > 70% — «Atención» */
+  --state-ok:    #22c55e;   /* en stint · sin karts en boxes */
+
   /* Superficies del panel de carrera. Valores idénticos a los hex que había
    * escritos a mano: los 8 en panel.css (#screen-dash, .sp-header, .sp-kpi,
    * .sp-footer, .sp-back), y 3 de ellos (--panel-surface, --panel-line,
@@ -148,6 +170,15 @@ body.hc {
   --orange-txt: #FCD34D;
   --red-txt:    #FCA5A5;
   --blue-txt:   #ffd09e;
+
+  /* Los colores de estado, aclarados para el sol. Sobre la baldosa opaca de ☀
+   * (--panel-surface, #1A1E2E) dan 8,72:1, 11,48:1 y 11,79:1, frente a los
+   * 4,397:1 / 9,912:1 / 7,262:1 de los valores del modo normal. Son la misma
+   * familia clara que ya usa este bloque para el texto (#FCA5A5, #FCD34D,
+   * #86EFAC) pero declarada aparte a propósito: ver el comentario de :root. */
+  --state-alert: #FCA5A5;
+  --state-warn:  #FCD34D;
+  --state-ok:    #86EFAC;
 
   /* El cristal se APAGA en modo contraste. El vidrio y el alto contraste tiran
    * en direcciones opuestas, y este modo es el refugio garantizado para sol
