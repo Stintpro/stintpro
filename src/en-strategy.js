@@ -37,7 +37,7 @@ function _enRenderStratConfig(){
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Parada:</span>
         <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;EnBox._pitDurUserSet=true;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
         <span style="font-size:11.5px;color:var(--text-2)">s</span>
-        ${(EnSession._pitDurAuto&&!EnBox._pitDurUserSet)?`<span title="Detectada del cronómetro oficial de Apex" style="font-size:10.5px;color:#22c55e;font-weight:600">✓ Apex</span>`:''}
+        ${(EnSession._pitDurAuto&&!EnBox._pitDurUserSet)?`<span title="Detectada del cronómetro oficial de Apex" style="font-size:10.5px;color:var(--state-ok);font-weight:600">✓ Apex</span>`:''}
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Dorsal:</span>
@@ -128,10 +128,10 @@ function _enRenderStrategy(eq, trackAvg){
   let probColor='#9ca3af';
   let probLabel='';
   if(noBoxData){probColor='#555'; probLabel='';}
-  else if(probAcceso>=70){probColor='#22c55e'; probLabel='⚠ REVISAR BOX — alta probabilidad';}
+  else if(probAcceso>=70){probColor='var(--state-ok)'; probLabel='⚠ REVISAR BOX — alta probabilidad';}
   else if(probAcceso>=51){probColor='#60a5fa'; probLabel='📊 REVISAR BOX — probabilidad favorable';}
-  else if(probAcceso>=30){probColor='#fbbf24'; probLabel='';}
-  else if(totalInPit>0){probColor='#ef4444'; probLabel='🔴 Box desfavorable';}
+  else if(probAcceso>=30){probColor='var(--state-warn)'; probLabel='';}
+  else if(totalInPit>0){probColor='var(--state-alert)'; probLabel='🔴 Box desfavorable';}
 
   // Karts en pista por calidad
   // Techo del stint actual de cada rival: puede apurar al MÁXIMO mientras los stints
@@ -175,7 +175,7 @@ function _enRenderStrategy(eq, trackAvg){
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
       <div>
         <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">Acceso</div>
-        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:var(--text-2);font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>${partialData?`<span style="font-size:11px;color:#fbbf24;background:#fbbf2418;border:0.5px solid #fbbf2444;border-radius:4px;padding:2px 5px;margin-left:6px;font-family:sans-serif;vertical-align:middle">⚠ datos parciales (${knownCount}/${EnBox.queue.length})</span>`:''}`}
+        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:var(--text-2);font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>${partialData?`<span style="font-size:11px;color:var(--state-warn);background:#fbbf2418;border:0.5px solid #fbbf2444;border-radius:4px;padding:2px 5px;margin-left:6px;font-family:sans-serif;vertical-align:middle">⚠ datos parciales (${knownCount}/${EnBox.queue.length})</span>`:''}`}
       </div>
       <div title="% de karts buenos entre todos los que están físicamente en boxes ahora mismo (según cronometraje)">
         <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">En pit ahora</div>
@@ -219,7 +219,7 @@ function _enRenderStrategy(eq, trackAvg){
     const upper=e._minLeft+'m'+(e._debtLimited?'⚠':'');
     if(e._canPitNow===false&&e._minUntilCanPit>0){
       if(e._minLeft<=e._minUntilCanPit){
-        return {label:`🔴 ${e._minLeft}m!`, color:'#ef4444', title:`Atrapado por deuda de paradas: la organización exige esperar ${e._minUntilCanPit} min más para cumplir el stint mínimo, pero la deuda de paradas le obliga a salir en ${e._minLeft} min`};
+        return {label:`🔴 ${e._minLeft}m!`, color:'var(--state-alert)', title:`Atrapado por deuda de paradas: la organización exige esperar ${e._minUntilCanPit} min más para cumplir el stint mínimo, pero la deuda de paradas le obliga a salir en ${e._minLeft} min`};
       }
       return {label:`${e._minUntilCanPit}m→${upper}`, color:null, title:''};
     }
@@ -234,18 +234,18 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Buenos
   html+=`<div>
-    <div style="font-size:13.5px;color:#22c55e;margin-bottom:6px;font-weight:500">Buenos (${goodOnTrack.length})</div>`;
+    <div style="font-size:13.5px;color:var(--state-ok);margin-bottom:6px;font-weight:500">Buenos (${goodOnTrack.length})</div>`;
   if(goodOnTrack.length===0)html+=`<div style="font-size:13.5px;color:var(--text-3)">—</div>`;
   goodOnTrack.slice(0,8).forEach(e=>{
     const info=stintWindowInfo(e);
-    const minCol=info.color||(e._minLeft!==null?(e._minLeft<=2?'#22c55e':e._minLeft<=5?'#fbbf24':'#555'):'#555');
+    const minCol=info.color||(e._minLeft!==null?(e._minLeft<=2?'var(--state-ok)':e._minLeft<=5?'var(--state-warn)':'#555'):'#555');
     html+=kartRow(e, info.label, minCol, info.title);
   });
   html+=`</div>`;
 
   // Neutros
   html+=`<div>
-    <div style="font-size:13.5px;color:#fbbf24;margin-bottom:6px;font-weight:500">Neutros (${neutralOnTrack.length})</div>`;
+    <div style="font-size:13.5px;color:var(--state-warn);margin-bottom:6px;font-weight:500">Neutros (${neutralOnTrack.length})</div>`;
   if(neutralOnTrack.length===0)html+=`<div style="font-size:13.5px;color:var(--text-3)">—</div>`;
   neutralOnTrack.slice(0,8).forEach(e=>{
     const info=stintWindowInfo(e);
@@ -255,7 +255,7 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Malos
   html+=`<div>
-    <div style="font-size:13.5px;color:#ef4444;margin-bottom:6px;font-weight:500">Malos (${badOnTrack.length})</div>`;
+    <div style="font-size:13.5px;color:var(--state-alert);margin-bottom:6px;font-weight:500">Malos (${badOnTrack.length})</div>`;
   if(badOnTrack.length===0)html+=`<div style="font-size:13.5px;color:var(--text-3)">—</div>`;
   badOnTrack.slice(0,8).forEach(e=>{
     const info=stintWindowInfo(e);
@@ -298,7 +298,7 @@ function _enRenderStrategy(eq, trackAvg){
     const qNeutral=EnBox.queue.filter(k=>k.quality==='neutral').length;
     const qUnknown=EnBox.queue.filter(k=>k.quality==='unknown').length;
     html+=`<div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
-    html+=`<div style="font-size:11.5px;color:var(--text-2);margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'#22c55e':EnBox.queue[0]?.quality==='bad'?'#ef4444':EnBox.queue[0]?.quality==='neutral'?'#fbbf24':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
+    html+=`<div style="font-size:11.5px;color:var(--text-2);margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'var(--state-ok)':EnBox.queue[0]?.quality==='bad'?'var(--state-alert)':EnBox.queue[0]?.quality==='neutral'?'var(--state-warn)':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
     if(myQueueIdx>=0){
       const ahead=myQueueIdx;
       html+=`<div style="font-size:13.5px;color:#F5A623;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
@@ -370,7 +370,7 @@ function _enRenderStrategy(eq, trackAvg){
         html+=`</div>`;
         const goodBlocked=EnBox.queue.slice(nCols).filter(k=>k.quality==='good').length;
         if(goodBlocked>0){
-          html+=`<div style="text-align:center;font-size:11.5px;color:#fbbf24">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
+          html+=`<div style="text-align:center;font-size:11.5px;color:var(--state-warn)">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
         } else {
           html+=`<div style="text-align:center;font-size:11.5px;color:var(--text-2)">Fila 1: sorteo aleatorio entre columnas · Fila 2+: bloqueada hasta que se vacíe fila 1 · ${nRows} fila${nRows>1?'s':''}</div>`;
         }
@@ -392,7 +392,7 @@ function _enRenderStrategy(eq, trackAvg){
       const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
       let qBorder=quality==='good'?'#22c55e':quality==='bad'?'#ef4444':quality==='neutral'?'#fbbf24':kc.border;
       const stateLabel=e.pitState==='in'?'IN':e.pitState==='out'?'OUT':'PIT';
-      const stateCol=e.pitState==='in'?'#ef4444':e.pitState==='out'?'#f97316':'#555';
+      const stateCol=e.pitState==='in'?'var(--state-alert)':e.pitState==='out'?'#f97316':'#555';
       html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
         <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
         <span style="font-size:11.5px;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
@@ -461,7 +461,7 @@ function _enRenderStrategy(eq, trackAvg){
       const futureProb=simN>0?Math.round(Math.min(100,Math.max(0,(simG/simN)*100))):0;
       const delta=futureProb-probNow;
       const arrow=delta>0?'↑':delta<0?'↓':'→';
-      const evColor=p.quality==='good'?'#22c55e':p.quality==='bad'?'#ef4444':'#fbbf24';
+      const evColor=p.quality==='good'?'var(--state-ok)':p.quality==='bad'?'var(--state-alert)':'var(--state-warn)';
       timeline.push({
         min:`~${p.minLeft} min`,
         prob:futureProb,
@@ -474,14 +474,14 @@ function _enRenderStrategy(eq, trackAvg){
     // Renderizar timeline
     timeline.forEach((t,i)=>{
       const isNow=i===0;
-      const probCol=t.prob>=50?'#22c55e':t.prob>=25?'#fbbf24':'#ef4444';
+      const probCol=t.prob>=50?'var(--state-ok)':t.prob>=25?'var(--state-warn)':'var(--state-alert)';
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 0;${!isNow?'border-top:0.5px solid #111':''}">
         <span style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;width:55px;flex-shrink:0">${t.min}</span>
         <span style="font-size:18px;font-weight:600;color:${probCol};font-family:monospace;width:50px">${t.prob}%</span>
         <div style="flex:1">
           <span style="font-size:13.5px;color:${t.evColor||'#555'};font-family:sans-serif">${t.event}</span>
         </div>
-        ${t.delta!==undefined&&!isNow?`<span style="font-size:13.5px;color:${t.delta>0?'#22c55e':'#ef4444'};font-family:monospace;font-weight:600">${t.arrow}${Math.abs(t.delta)}%</span>`:''}
+        ${t.delta!==undefined&&!isNow?`<span style="font-size:13.5px;color:${t.delta>0?'var(--state-ok)':'var(--state-alert)'};font-family:monospace;font-weight:600">${t.arrow}${Math.abs(t.delta)}%</span>`:''}
       </div>`;
     });
 
@@ -489,13 +489,13 @@ function _enRenderStrategy(eq, trackAvg){
     const bestMoment=timeline.reduce((best,t)=>t.prob>best.prob?t:best,timeline[0]);
     if(bestMoment!==timeline[0]&&bestMoment.prob>probNow+5){
       html+=`<div style="margin-top:8px;padding:8px 12px;border-radius:6px;background:#22c55e11;border:0.5px solid #22c55e33">
-        <span style="font-size:13.5px;color:#22c55e;font-family:sans-serif">💡 Espera ${bestMoment.min} → probabilidad sube a <b>${bestMoment.prob}%</b></span>
+        <span style="font-size:13.5px;color:var(--state-ok);font-family:sans-serif">💡 Espera ${bestMoment.min} → probabilidad sube a <b>${bestMoment.prob}%</b></span>
       </div>`;
     } else if(probNow>0){
       const worstFuture=timeline.reduce((w,t)=>t.prob<w.prob?t:w,timeline[0]);
       if(worstFuture.prob<probNow-5){
         html+=`<div style="margin-top:8px;padding:8px 12px;border-radius:6px;background:#ef444411;border:0.5px solid #ef444433">
-          <span style="font-size:13.5px;color:#ef4444;font-family:sans-serif">⚠ Pool empeora en ${worstFuture.min} — considerar parar antes</span>
+          <span style="font-size:13.5px;color:var(--state-alert);font-family:sans-serif">⚠ Pool empeora en ${worstFuture.min} — considerar parar antes</span>
         </div>`;
       }
     }
@@ -564,13 +564,13 @@ function _enRenderStrategy(eq, trackAvg){
     // Si no puede parar (semáforo rojo), override cualquier sugerencia de parada
     if(!canPit){
       if(myQuality==='bad'){
-        tacticIcon='🔴'; tacticColor='#ef4444';
+        tacticIcon='🔴'; tacticColor='var(--state-alert)';
         tacticHtml=`Kart malo pero stint mínimo no cumplido — <b>faltan ${stintMinLeft} min para poder parar</b>`;
       } else if(myQuality==='good'){
-        tacticIcon='🏎'; tacticColor='#22c55e';
+        tacticIcon='🏎'; tacticColor='var(--state-ok)';
         tacticHtml=`Kart bueno · Stint mínimo en ${stintMinLeft} min → <b>Aprovecha el kart</b>`;
       } else {
-        tacticIcon='🔴'; tacticColor='#fbbf24';
+        tacticIcon='🔴'; tacticColor='var(--state-warn)';
         tacticHtml=`Stint mínimo no cumplido — <b>faltan ${stintMinLeft} min</b>`;
       }
     } else if(myQuality==='good'&&strategic>0&&(stintPct>=30||raceRemMin<stintMaxMin2*1.5)&&probAcceso>=70){
@@ -580,22 +580,22 @@ function _enRenderStrategy(eq, trackAvg){
       tacticIcon='🤔'; tacticColor='#60a5fa';
       tacticHtml=`Kart bueno (${stintPct}% stint) + pool favorable (${probAcceso}%) → <b>Valorar parada anticipada</b>`;
     } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso>=25){
-      tacticIcon='🎯'; tacticColor='#22c55e';
+      tacticIcon='🎯'; tacticColor='var(--state-ok)';
       tacticHtml=`Kart malo + pool ${probAcceso}% → <b>Oportunidad de caza</b>`;
     } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso<25&&bestFutureProb>=25){
-      tacticIcon='⏳'; tacticColor='#fbbf24';
+      tacticIcon='⏳'; tacticColor='var(--state-warn)';
       tacticHtml=`Kart malo + pool bajo (${probAcceso}%) pero sube a ${bestFutureProb}% en ${bestFutureMin} → <b>Espera ${bestFutureMin}</b>`;
     } else if(myQuality==='bad'&&(strategic>0||EnBox.totalStops===0)&&probAcceso<25){
-      tacticIcon='⏳'; tacticColor='#fbbf24';
+      tacticIcon='⏳'; tacticColor='var(--state-warn)';
       tacticHtml=`Kart malo + pool bajo (${probAcceso}%) → <b>Espera mejor momento</b>`;
     } else if(myQuality==='bad'&&strategic===0&&EnBox.totalStops>0){
-      tacticIcon='😤'; tacticColor='#ef4444';
+      tacticIcon='😤'; tacticColor='var(--state-alert)';
       tacticHtml=`Kart malo + sin paradas extra → <b>Apura stint, no puedes cazar</b>`;
     } else if(myQuality==='good'&&worstFutureProb<probAcceso-10){
-      tacticIcon='🏎'; tacticColor='#22c55e';
+      tacticIcon='🏎'; tacticColor='var(--state-ok)';
       tacticHtml=`Kart bueno → <b>Apura stint máximo</b> (pool empeora en ${worstFutureMin})`;
     } else if(myQuality==='good'){
-      tacticIcon='🏎'; tacticColor='#22c55e';
+      tacticIcon='🏎'; tacticColor='var(--state-ok)';
       tacticHtml=`Kart bueno → <b>Apura stint máximo, exprímelo</b>`;
     } else if(myQuality==='neutral'&&probAcceso>=40){
       tacticIcon='🤔'; tacticColor='#60a5fa';
@@ -604,10 +604,10 @@ function _enRenderStrategy(eq, trackAvg){
       tacticIcon='⏳'; tacticColor='#60a5fa';
       tacticHtml=`Kart neutro + pool sube a ${bestFutureProb}% en ${bestFutureMin} → <b>Espera y valora</b>`;
     } else if(myQuality==='bad'){
-      tacticIcon='📊'; tacticColor='#ef4444';
+      tacticIcon='📊'; tacticColor='var(--state-alert)';
       tacticHtml=`Kart malo · Pool ${probAcceso}%`;
     } else if(myQuality==='neutral'){
-      tacticIcon='📊'; tacticColor='#fbbf24';
+      tacticIcon='📊'; tacticColor='var(--state-warn)';
       tacticHtml=`Kart neutro · Pool ${probAcceso}%`;
     } else {
       tacticIcon='📊'; tacticColor='#9ca3af';
@@ -616,7 +616,7 @@ function _enRenderStrategy(eq, trackAvg){
 
     html+=`<div class="en-strat-card">
       <div class="en-strat-title">Recomendación táctica</div>
-      <div style="padding:8px 12px;border-radius:6px;background:${tacticColor}11;border:0.5px solid ${tacticColor}33">
+      <div style="padding:8px 12px;border-radius:6px;background:color-mix(in srgb, ${tacticColor} 6.67%, transparent);border:0.5px solid color-mix(in srgb, ${tacticColor} 20%, transparent)">
         <span style="font-size:13.5px;color:${tacticColor};font-family:sans-serif">${tacticIcon} ${tacticHtml}</span>
       </div>
       <div style="font-size:11.5px;color:var(--text-2);margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${probAcceso}% · Mi kart: ${myQuality||'sin info'}</div>

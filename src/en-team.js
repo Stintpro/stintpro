@@ -463,7 +463,7 @@ function _enRenderTeam(myKart, trackAvg){
     EnSession.stintHistory.forEach((s,i)=>{
       const col=colors[s.pilotIdx%colors.length];
       const posStr=s.posIn&&s.posOut?`P${s.posIn}→P${s.posOut}`:(s.posIn?`P${s.posIn}`:'—');
-      const posCol=s.posIn&&s.posOut?(s.posOut<s.posIn?'#22c55e':s.posOut>s.posIn?'#ef4444':'#6b7280'):'#6b7280';
+      const posCol=s.posIn&&s.posOut?(s.posOut<s.posIn?'var(--state-ok)':s.posOut>s.posIn?'var(--state-alert)':'#6b7280'):'#6b7280';
       const pitStr=s.pitStopMs?_enFmtStint(s.pitStopMs):'—';
       html+=`<div class="en-stint-row">
         <span style="color:${col};font-weight:600">${i+1}</span>
@@ -471,7 +471,7 @@ function _enRenderTeam(myKart, trackAvg){
         <span style="color:var(--text-3)">${_enFmtStint(s.durationMs)}</span>
         <span style="color:var(--text-3)">${pitStr}</span>
         <span style="color:var(--text-3)">${s.avg?_enFmt(s.avg):'—'}</span>
-        <span style="color:#22c55e">${s.best?_enFmt(s.best):'—'}</span>
+        <span style="color:var(--state-ok)">${s.best?_enFmt(s.best):'—'}</span>
         <span style="color:${posCol};font-size:11.5px">${posStr}</span>
         <span style="display:flex;gap:2px">
           <button onclick="_enStintDetail(${i})" style="font-size:11.5px;background:none;border:none;color:var(--blue);cursor:pointer;padding:2px" title="Detalle del stint">📊</button>
@@ -506,8 +506,8 @@ function _enRenderTeam(myKart, trackAvg){
     const avgStintNeeded=stopsRemaining>0?Math.round(raceRemainingMin/stopsRemaining):0;
 
     // Colores
-    const stratColor=strategic>0?'#22c55e':'#fbbf24';
-    const avgColor=avgStintNeeded<stintMaxMin*0.7?'#22c55e':avgStintNeeded<stintMaxMin?'#fbbf24':'#ef4444';
+    const stratColor=strategic>0?'var(--state-ok)':'var(--state-warn)';
+    const avgColor=avgStintNeeded<stintMaxMin*0.7?'var(--state-ok)':avgStintNeeded<stintMaxMin?'var(--state-warn)':'var(--state-alert)';
 
     html+=`<div class="en-team-card">
       <div class="en-strat-title">Estrategia de paradas</div>
@@ -531,9 +531,9 @@ function _enRenderTeam(myKart, trackAvg){
         </div>
       </div>
       ${strategic>0?`<div style="margin-top:10px;padding:6px 10px;border-radius:6px;background:#22c55e11;border:0.5px solid #22c55e33">
-        <span style="font-size:11.5px;color:#22c55e;font-family:sans-serif">🎯 Tienes <b>${strategic}</b> parada${strategic>1?'s':''} estratégica${strategic>1?'s':''} disponible${strategic>1?'s':''} para cazar kart bueno</span>
+        <span style="font-size:11.5px;color:var(--state-ok);font-family:sans-serif">🎯 Tienes <b>${strategic}</b> parada${strategic>1?'s':''} estratégica${strategic>1?'s':''} disponible${strategic>1?'s':''} para cazar kart bueno</span>
       </div>`:`<div style="margin-top:10px;padding:6px 10px;border-radius:6px;background:#fbbf2411;border:0.5px solid #fbbf2433">
-        <span style="font-size:11.5px;color:#fbbf24;font-family:sans-serif">⚠ Sin paradas estratégicas — apura cada stint al máximo</span>
+        <span style="font-size:11.5px;color:var(--state-warn);font-family:sans-serif">⚠ Sin paradas estratégicas — apura cada stint al máximo</span>
       </div>`}
     </div>`;
   }
@@ -563,8 +563,8 @@ function _enRenderTeam(myKart, trackAvg){
     let remainCol='#555';
     if(minMs>0){
       const remaining=minMs-totalMs;
-      if(remaining<=0){remainStr='✅ Mínimo cumplido'; remainCol='#22c55e';}
-      else{remainStr='Faltan '+_enFmtStint(remaining); remainCol='#ef4444';}
+      if(remaining<=0){remainStr='✅ Mínimo cumplido'; remainCol='var(--state-ok)';}
+      else{remainStr='Faltan '+_enFmtStint(remaining); remainCol='var(--state-alert)';}
     }
 
     // Barra de progreso hacia mínimo
@@ -576,7 +576,7 @@ function _enRenderTeam(myKart, trackAvg){
     const _scoreBadge=(val,max,label)=>{
       if(val==null) return '';
       const pct=val/max;
-      const c=pct>=0.8?'#22c55e':pct>=0.55?'#84cc16':pct>=0.35?'#fbbf24':pct>=0.15?'#f97316':'#ef4444';
+      const c=pct>=0.8?'var(--state-ok)':pct>=0.55?'#84cc16':pct>=0.35?'var(--state-warn)':pct>=0.15?'#f97316':'var(--state-alert)';
       return `<span style="font-size:11.5px;color:${c};font-family:monospace;font-weight:600" title="${label}: ${val}/${max}">${label} ${val}</span>`;
     };
     const _scoreRow=_prObj?`<div style="display:flex;gap:8px;margin-top:2px">${_scoreBadge(_prObj.pace_score,500,'Pace')}${_scoreBadge(_prObj.position_score,300,'Pos')}${_scoreBadge(_prObj.consistency_score,200,'Con')}</div>`:'';
@@ -589,7 +589,7 @@ function _enRenderTeam(myKart, trackAvg){
       </div>
       <div style="text-align:right;min-width:90px">
         <div style="font-size:14.5px;color:var(--text-3);font-family:monospace">${avgAll?_enFmt(avgAll):'—'}</div>
-        <div style="font-size:11.5px;color:#22c55e;font-family:monospace">${bestAll?_enFmt(bestAll):'—'}</div>
+        <div style="font-size:11.5px;color:var(--state-ok);font-family:monospace">${bestAll?_enFmt(bestAll):'—'}</div>
       </div>
       ${minMs>0?`<div style="width:100%;margin-top:4px">
         <div style="display:flex;justify-content:space-between;align-items:center">

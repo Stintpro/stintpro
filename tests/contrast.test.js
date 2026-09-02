@@ -45,9 +45,17 @@ if (!bloqueRoot) throw new Error('no se encontró el bloque :root en src/styles.
 const bloqueHc = reglasStyles.find(r => r.selector === 'body.hc');
 if (!bloqueHc) throw new Error('no se encontró el bloque body.hc en src/styles.css');
 
+// La ÚLTIMA declaración del token dentro del bloque, no la primera. Es la
+// última esquina viva de R16, y el modo de fallo que el ruling nombra: dentro
+// de un mismo bloque, un token declarado dos veces lo resuelve la cascada con
+// el ÚLTIMO valor, y `match()` sin flag global devuelve el PRIMERO. Con la
+// versión anterior bastaba con añadir un segundo `--state-alert: #ef4444;` al
+// final de body.hc para dejar el modo ☀ realmente roto con el test en verde —
+// ni el guardián de "el modo normal no se mueve" se enteraba. Con matchAll y
+// la última coincidencia, el test mide lo que el navegador pinta.
 function declaracion(bloque, nombre) {
-  const m = bloque.body.match(new RegExp(`${nombre}\\s*:\\s*([^;]+);`));
-  return m ? m[1].trim() : null;
+  const todas = [...bloque.body.matchAll(new RegExp(`${nombre}\\s*:\\s*([^;]+);`, 'g'))];
+  return todas.length ? todas[todas.length - 1][1].trim() : null;
 }
 function token(nombre) {
   const v = declaracion(bloqueRoot, nombre);
@@ -577,31 +585,39 @@ test('los colores exceptuados aparecen solo donde y las veces documentadas — n
 //     ignora en silencio: la lista INTERPOLACIONES_OPACAS de abajo fija cuáles
 //     son, así que una interpolación NUEVA que no resuelva pone el test en rojo
 //     en vez de colarse sin medir.
-//   - Las tarjetas .en-strat-card / .en-team-card NO entran en este barrido.
-//     Llevan el mismo material normal, pero (1) su fondo real SÍ incluye la
-//     capa de profundidad —medido en el banco: la mancha fría llega al 0,092
-//     de 0,10 bajo los literales rojos de la esquina inferior derecha— y ahí
-//     este mismo modelo da #ef4444 = 4,14:1 (4,04 con la mancha ámbar a tope,
-//     frente a 2,99-3,49 antes de ahumar el material), y (2) su contenido
-//     mezcla colores deliberadamente apagados (#555, #333, #9ca3af, #2a2b2e)
-//     que son separadores y marcadores de "sin dato", no texto, y que ningún
-//     material arregla. Barrerlas exige
-//     antes triar esos apagados y una decisión sobre la capa de profundidad
-//     que NO es del test. Queda reportado con sus números, no exceptuado:
-//     EXCEPCIONES sigue vacía.
+//   - Las tarjetas .en-strat-card / .en-team-card no entran en ESTE barrido:
+//     tienen el suyo al final del fichero (R39), que afirma otra cosa —que sus
+//     colores de ESTADO van por token— por dos motivos que siguen vigentes.
+//     (1) Su fondo real SÍ incluye la capa de profundidad —medido en el banco:
+//     la mancha fría llega al 0,092 de 0,10 bajo los literales rojos de la
+//     esquina inferior derecha— y ahí este mismo modelo da #ef4444 = 4,14:1
+//     (4,04 con la mancha ámbar a tope, frente a 2,99-3,49 antes de ahumar el
+//     material): en modo NORMAL siguen por debajo del suelo, y eso es anterior
+//     a la tokenización y no lo cambia (en :root el token vale el literal de
+//     siempre). (2) Su contenido mezcla colores deliberadamente apagados
+//     (#555, #333, #9ca3af, #2a2b2e) que son separadores y marcadores de "sin
+//     dato", no texto, y que ningún material arregla. Auditarlas entera exige
+//     triar esos apagados y una decisión sobre la capa de profundidad que NO
+//     es del test. Queda reportado con sus números, no exceptuado: EXCEPCIONES
+//     sigue vacía.
 const FICHEROS_BALDOSA = ['en-grid.js', 'sprint.js'];
 const BALDOSAS_ESPERADAS = { 'en-grid.js': 5, 'sprint.js': 4 };
 
-// Recorta el <div class="sp-kpi"> … </div> completo emparejando <div>/</div>.
+// Recorta el <div class="LA-CLASE"> … </div> completo emparejando <div>/</div>.
 // No vale "hasta el siguiente </div>": cada baldosa lleva tres divs dentro
-// (etiqueta, valor y subtítulo) y ese corte se quedaría con la primera línea.
-function baldosasKpiDe(src) {
+// (etiqueta, valor y subtítulo) y ese corte se quedaría con la primera línea;
+// las tarjetas llevan muchos más.
+// Devuelve {inicio, texto} y no solo el texto porque quien resuelve una
+// interpolación necesita saber DÓNDE se usa: una variable puede estar
+// declarada varias veces en el mismo fichero y la que vale es la última antes
+// del uso, no la primera del fichero.
+function cajasPorClase(src, clase) {
   const cajas = [];
-  const anclaRe = /class="sp-kpi"/g;
+  const anclaRe = new RegExp(`class="${clase}"`, 'g');
   let ancla;
   while ((ancla = anclaRe.exec(src))) {
     const inicio = src.lastIndexOf('<div', ancla.index);
-    if (inicio === -1) throw new Error('una baldosa sp-kpi no tiene un <div de apertura antes');
+    if (inicio === -1) throw new Error(`una caja ${clase} no tiene un <div de apertura antes`);
     const tagRe = /<div\b|<\/div>/g;
     tagRe.lastIndex = inicio;
     let prof = 0, fin = -1, t;
@@ -609,13 +625,13 @@ function baldosasKpiDe(src) {
       if (t[0] === '</div>') { prof--; if (prof === 0) { fin = t.index + '</div>'.length; break; } }
       else prof++;
     }
-    if (fin === -1) throw new Error(`la baldosa sp-kpi que empieza en ${inicio} no cierra su <div>`);
-    const caja = src.slice(inicio, fin);
-    // Una baldosa no contiene otra: si el emparejado se descontrolara y se
-    // tragara varias, este test lo dice en vez de medir de más.
-    if ((caja.match(/class="sp-kpi"/g) || []).length !== 1)
-      throw new Error(`el recorte de una baldosa sp-kpi se ha tragado otra: ${caja.slice(0, 120)}…`);
-    cajas.push(caja);
+    if (fin === -1) throw new Error(`la caja ${clase} que empieza en ${inicio} no cierra su <div>`);
+    const texto = src.slice(inicio, fin);
+    // Una caja no contiene otra de su misma clase: si el emparejado se
+    // descontrolara y se tragara varias, este test lo dice en vez de medir de más.
+    if ((texto.match(new RegExp(`class="${clase}"`, 'g')) || []).length !== 1)
+      throw new Error(`el recorte de una caja ${clase} se ha tragado otra: ${texto.slice(0, 120)}…`);
+    cajas.push({ inicio, texto });
   }
   return cajas;
 }
@@ -629,20 +645,37 @@ function literalesDeExpresion(expr) {
 
 // Resuelve `${…}`: primero los literales escritos en la propia expresión; si
 // no hay ninguno y la expresión es un identificador simple, se busca su
-// declaración en el mismo fichero y se miran SUS literales. Si sigue sin
-// resolver, se devuelve como opaca (y la caza la lista de abajo).
-function resolverInterpolacion(expr, src) {
+// declaración y se miran SUS literales. Si sigue sin resolver, se devuelve
+// como opaca (y la caza la lista de documentadas).
+//
+// Dos precisiones que las tarjetas obligaron a añadir, porque sin ellas el
+// barrido se creía resuelto y no lo estaba:
+//   - La declaración es la ÚLTIMA ANTES DEL USO, no la primera del fichero.
+//     src/en-team.js declara `col` tres veces con significados distintos (un
+//     color de dato, y dos veces el color de identidad del piloto): coger la
+//     primera es medir otra variable.
+//   - Cuentan también las REASIGNACIONES entre esa declaración y el uso. El
+//     patrón más común en estos ficheros es `let probColor='#9ca3af';` seguido
+//     de una escalera de `else if(...){probColor='#ef4444';}`: mirando solo la
+//     declaración, el barrido veía un gris inocuo y no veía ninguno de los
+//     colores de estado que esa variable acaba pintando.
+function resolverInterpolacion(expr, src, pos = src.length) {
   const directos = literalesDeExpresion(expr);
   if (directos.length) return { colores: directos, opaca: null };
   const id = expr.trim();
-  if (/^[A-Za-z_$][\w$]*$/.test(id)) {
-    const decl = src.match(new RegExp(`\\b(?:const|let|var)\\s+${id}\\s*=\\s*([^;]+);`));
-    if (decl) {
-      const colores = literalesDeExpresion(decl[1]);
-      if (colores.length) return { colores, opaca: null };
-    }
-  }
-  return { colores: [], opaca: id };
+  if (!/^[A-Za-z_$][\w$]*$/.test(id)) return { colores: [], opaca: id };
+  const declRe = new RegExp(`\\b(?:const|let|var)\\s+${id}\\s*=\\s*([^;]+);`, 'g');
+  let decl = null, m;
+  while ((m = declRe.exec(src)) !== null && m.index < pos) decl = m;
+  if (!decl) return { colores: [], opaca: id };
+  const colores = [...literalesDeExpresion(decl[1])];
+  // El guardia [^.\w$] delante del nombre evita confundir `t.evColor=` (otra
+  // cosa) con `evColor=`; el [^;=] del valor evita tragarse un `==`/`===`.
+  const asigRe = new RegExp(`(?:^|[^.\\w$])${id}\\s*=\\s*([^;=][^;]*);`, 'gm');
+  asigRe.lastIndex = decl.index + decl[0].length;
+  while ((m = asigRe.exec(src)) !== null && m.index < pos) colores.push(...literalesDeExpresion(m[1]));
+  const unicos = [...new Set(colores)];
+  return unicos.length ? { colores: unicos, opaca: null } : { colores: [], opaca: id };
 }
 
 // Valores de `color:` de un style="", tal cual: un #hex, un var(--x) o un ${…}.
@@ -669,30 +702,35 @@ const valoresBaldosa = new Set();
 const interpolacionesOpacas = {}; // { 'fichero.js': ['expr', …] }
 const baldosasPorFichero = {};
 
-for (const f of FICHEROS_BALDOSA) {
+// Recorre las cajas de una clase y reparte cada valor de `color:` en el
+// destino que le toque: los que resuelven, al Set; los que no, a la lista de
+// opacas de su fichero. Lo comparten el barrido de las baldosas y el de las
+// tarjetas, que solo se diferencian en QUÉ afirman después.
+function recogerColoresDeCajas(f, clase, destino, opacas) {
   const src = leer('src/' + f);
-  const baldosas = baldosasKpiDe(src);
-  baldosasPorFichero[f] = baldosas.length;
-  for (const caja of baldosas) {
+  const cajas = cajasPorClase(src, clase);
+  for (const { inicio, texto } of cajas) {
     const estiloRe = /style="([^"]*)"/g;
     let m;
-    while ((m = estiloRe.exec(caja))) {
+    while ((m = estiloRe.exec(texto))) {
       const style = m[1];
       if (tieneFondoLocalOpaco(style)) continue; // fondo propio: no compone con el cristal
       for (const valor of valoresDeColorDeEstilo(style)) {
         if (valor.startsWith('${')) {
-          const { colores, opaca } = resolverInterpolacion(valor.slice(2, -1), src);
-          if (opaca !== null) {
-            (interpolacionesOpacas[f] = interpolacionesOpacas[f] || []).push(opaca);
-            continue;
-          }
-          for (const c of colores) valoresBaldosa.add(c);
+          const { colores, opaca } = resolverInterpolacion(valor.slice(2, -1), src, inicio + m.index);
+          if (opaca !== null) { (opacas[f] = opacas[f] || []).push(opaca); continue; }
+          for (const c of colores) destino.add(c);
         } else {
-          valoresBaldosa.add(valor.toLowerCase());
+          destino.add(valor.toLowerCase());
         }
       }
     }
   }
+  return cajas.length;
+}
+
+for (const f of FICHEROS_BALDOSA) {
+  baldosasPorFichero[f] = recogerColoresDeCajas(f, 'sp-kpi', valoresBaldosa, interpolacionesOpacas);
 }
 
 // Resuelve el juego entero de valores DENTRO DE UN MODO y separa lo medible de
@@ -833,6 +871,124 @@ test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble 
     `la baldosa (${baldosa.map(Math.round)}) no destaca sobre la cabecera (${cabecera})`);
 });
 
+
+// ─────────────────────────────────────────────────────────────────────────
+// BARRIDO DE LAS TARJETAS .en-strat-card / .en-team-card (R39).
+//
+// Por qué existe: el mismo fallo que se arregló en las baldosas seguía vivo
+// dos pestañas más allá. Las tarjetas llevan el MISMO material normal, así que
+// en ☀ su fondo también resuelve a --panel-surface (#1A1E2E), y ahí los tres
+// literales de estado daban 4,397:1 (#ef4444), 9,912:1 (#fbbf24) y 7,262:1
+// (#22c55e) — el rojo, que es el que dice "esto va mal", por debajo del suelo,
+// en decenas de elementos de texto de la pestaña 🎯 Estrategia. Arreglar la
+// llamada a boxes en la cabecera y dejarla rota en las tarjetas era entregar
+// el arreglo a medias.
+//
+// LO QUE ESTE BARRIDO AFIRMA, Y SOLO ESO: que dentro de una tarjeta ningún
+// color de TEXTO es un literal de estado. Tienen que ir por --state-*, que es
+// lo que le da al modo ☀ la palanca para aclararlos.
+//
+// LO QUE NO AFIRMA, A PROPÓSITO: no audita todos los colores de las tarjetas.
+// Su contenido mezcla apagados deliberados —#555 (2,220:1 en ☀), #333 (1,310),
+// #2a2b2e (1,169), #6b7280 (3,423)— que son separadores y marcadores de "sin
+// dato", no texto, y que ningún material arregla. Triarlos es un frente aparte
+// y no se abre aquí. Al afirmar solo lo de los estados, esos apagados quedan
+// fuera SIN necesidad de una excepción: EXCEPCIONES sigue vacía.
+//
+// LO QUE EL BARRIDO NO PUEDE VER (documentado, no ignorado):
+//   - Un color que llega a la tarjeta a través de una función auxiliar
+//     definida FUERA del recorte (kartRow en src/en-strategy.js, que pinta
+//     `color:${minCol}` con el minCol que recibe). Se ha tokenizado igualmente
+//     —los píxeles son lo que importa— pero el recorte por tarjeta no alcanza
+//     a comprobarlo.
+//   - Una expresión que mezcla un literal con algo que no resuelve
+//     (`${t.evColor||'#555'}`): se queda con el '#555' y da la expresión por
+//     resuelta. El origen de t.evColor también se ha tokenizado a mano.
+//   - Las interpolaciones que no resuelven a nada, que sí quedan fijadas en
+//     INTERPOLACIONES_OPACAS_TARJETA: una nueva pone el test en rojo.
+const FICHEROS_TARJETA = { 'en-strategy.js': 'en-strat-card', 'en-team.js': 'en-team-card' };
+const TARJETAS_ESPERADAS = { 'en-strategy.js': 7, 'en-team.js': 6 };
+const INTERPOLACIONES_OPACAS_TARJETA = {
+  'en-strategy.js': ['kc.text'], // el color del dorsal, que sale de _enKartColor (otro fichero)
+  'en-team.js': ['col'],         // la paleta de identidad del piloto: colors[idx%colors.length]
+};
+
+const valoresTarjeta = new Set();
+const opacasTarjeta = {};
+const tarjetasPorFichero = {};
+for (const [f, clase] of Object.entries(FICHEROS_TARJETA)) {
+  tarjetasPorFichero[f] = recogerColoresDeCajas(f, clase, valoresTarjeta, opacasTarjeta);
+}
+
+console.log('\ncolores de estado de las tarjetas .en-strat-card / .en-team-card (R39)');
+
+test('se encuentran las tarjetas esperadas en cada fichero', () => {
+  deepStrictEqual(tarjetasPorFichero, TARJETAS_ESPERADAS,
+    'el número de tarjetas cambió — si es una tarjeta NUEVA legítima, actualiza ' +
+    'TARJETAS_ESPERADAS a propósito (y comprueba que sus colores de estado van por token)');
+});
+
+test('las interpolaciones de las tarjetas que no resuelven son exactamente las documentadas', () => {
+  const real = {};
+  for (const [f, xs] of Object.entries(opacasTarjeta)) real[f] = [...new Set(xs)].sort();
+  deepStrictEqual(real, INTERPOLACIONES_OPACAS_TARJETA,
+    'ha aparecido (o desaparecido) una interpolación de color en una tarjeta que el barrido no ' +
+    'sabe resolver — decide a propósito si se documenta aquí o se reescribe para que resuelva');
+});
+
+test('las tarjetas pintan los tres estados por token (el barrido no está vacío)', () => {
+  // Sin esto, el test de abajo pasaría igual de verde con las tarjetas
+  // vacías o con el recorte roto: afirma que NO hay literales de estado, y
+  // "no hay ninguno" es cierto también cuando no se ha mirado nada.
+  for (const v of ['var(--state-alert)', 'var(--state-warn)', 'var(--state-ok)']) {
+    ok(valoresTarjeta.has(v),
+      `${v} no aparece como color de texto en ninguna tarjeta — o el barrido ha dejado de ver ` +
+      `dentro de ellas, o alguien ha quitado el token de un estado que sí se pinta ahí`);
+  }
+});
+
+test('ningún color de texto de las tarjetas es un literal de estado (van por token)', () => {
+  const superficie = superficieHc({ densa: false });
+  const literalesDeEstado = Object.values(ESTADO_EN_NORMAL);
+  const crudos = [...valoresTarjeta]
+    .filter(v => literalesDeEstado.includes(v.toLowerCase()))
+    .sort();
+  const detalle = crudos.map(v =>
+    `${v} (da ${contraste(hex(v), superficie).toFixed(3)}:1 sobre la tarjeta en ☀)`
+  ).join('; ');
+  deepStrictEqual(crudos, [],
+    `las tarjetas pintan texto con literal(es) de estado: ${detalle} — ` +
+    `un literal no pasa por ningún token y el modo ☀ no lo puede aclarar; ` +
+    `escríbelo como var(--state-alert) / var(--state-warn) / var(--state-ok)`);
+});
+
+test('los colores de estado de las tarjetas llegan a 4.5:1 sobre la tarjeta de ☀', () => {
+  // El token ya resuelto, medido contra la superficie real de la tarjeta en ☀.
+  // Es la misma afirmación que en las baldosas: si mañana alguien recalibra
+  // --state-* en body.hc, esto lo dice también aquí.
+  //
+  // SOLO ☀, y no es un descuido. En modo NORMAL las tarjetas componen con la
+  // capa de profundidad (flotan sobre #screen-dash, no cuelgan de la cabecera
+  // mate) y ahí este mismo modelo da --state-alert = 4,036:1 con la mancha
+  // ámbar a tope. Eso es ANTERIOR a esta ronda y sigue exactamente igual: en
+  // :root el token vale el literal de siempre, así que no se ha movido ni un
+  // píxel. Ya estaba reportado con sus números en el bloque de alcance del
+  // barrido de baldosas —reportado, no exceptuado: EXCEPCIONES sigue vacía—, y
+  // arreglarlo exige una decisión sobre el material o sobre la capa de
+  // profundidad que no es de esta ronda. Afirmarlo aquí sería poner en rojo un
+  // frente que nadie ha abierto; callarlo sería peor, y por eso está escrito.
+  const usados = ['--state-alert', '--state-warn', '--state-ok']
+    .filter(t => valoresTarjeta.has(`var(${t})`));
+  strictEqual(usados.length, 3, 'las tarjetas deberían usar los tres estados');
+  const superficie = superficieHc({ densa: false });
+  for (const t of usados) {
+    const color = resolverToken(t, tokenHc);
+    const c = contraste(hex(color), superficie);
+    ok(c >= 4.5,
+      `${t} vale ${color} en ☀ y da ${c.toFixed(3)}:1 sobre la tarjeta — ` +
+      `la palanca es el token de body.hc, nunca el umbral`);
+  }
+});
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);
