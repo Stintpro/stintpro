@@ -83,8 +83,8 @@ materiales. Vidrio gris-azulado frío; el ámbar de StintPro aparece en la luz d
 el dato marcado, no en el vidrio. Las dos apps se leen como la misma familia.
 
 ```css
---glass-a: rgba(68, 79, 96, 0.50);
---glass-b: rgba(26, 33, 44, 0.54);
+--glass-a: rgba(31, 36, 43, 0.50);   /* 45 % de rgba(68, 79, 96, …) — ver abajo */
+--glass-b: rgba(12, 15, 20, 0.54);   /* 45 % de rgba(26, 33, 44, …) */
 --glass-blur: 28px;
 --glass-sat: 200%;
 --glass-bright: 122%;
@@ -93,6 +93,15 @@ el dato marcado, no en el vidrio. Las dos apps se leen como la misma familia.
 --glass-border: rgba(255,255,255,0.19);
 --glass-shadow: 0 16px 38px rgba(0,0,0,0.52);
 ```
+
+(Corrección: el color base de las dos paradas del material NORMAL también está al 45 % del
+original de Track Engineer, por el mismo motivo y con el mismo factor que el denso. Lo forzó
+la revisión final: con la cabecera ya mate —ver §5— las baldosas `.sp-kpi` dejan el rojo de
+alerta `#ef4444` en 3,49:1 con el base original y en 4,58:1 al 45 %. El resto de tokens —el
+desenfoque, la saturación, el brillo, el canto y la sombra— siguen siendo los de Track
+Engineer, así que la familia visual se mantiene. Las medidas están en el comentario de
+`src/styles.css` junto a los tokens, y las vigila el barrido de literales de
+`tests/contrast.test.js`.)
 
 **La capa de profundidad** va **una sola vez**, en `#screen-dash` y en `#screen-setup`
 (corrección: la versión anterior de este párrafo decía `.setup-root`, un selector que no
@@ -138,11 +147,10 @@ que llevan `.en-col-panel` y las cajas de modal, porque ambos flotan **sobre** l
 detrás hay 28 filas de tiempos cambiando varias veces por segundo y el texto no puede
 depender de lo que pase por debajo.
 
-**Cristal normal (7):**
+**Cristal normal (6):**
 
 | Superficie | Qué es |
 |---|---|
-| `.sp-header` | cabecera con reloj y KPIs |
 | `.sp-kpi` | las celdas de indicador (5 en endurance, 4 en sprint) |
 | `.sp-footer` | pie de banderas |
 | `.en-team-card` | tarjetas de la vista Equipo |
@@ -156,6 +164,18 @@ depender de lo que pase por debajo.
 |---|---|
 | `.en-col-panel` | selector de columnas, abierto sobre la parrilla |
 | `.sp-modal` | **las 11 cajas de modal** (corrección: no son 14 — ver §6), con estilo inline en 5 ficheros (`app.js` 1, `en-advanced.js` 1, `en-grid.js` 3, `en-team.js` 5, `en-strategy.js` 1), ahora unificadas bajo `class="sp-modal"`. **La caja, no el velo negro de fondo.** |
+
+**Corrección de la revisión final: `.sp-header` salió de esta tabla y la cabecera es MATE.**
+Figuraba aquí como superficie de cristal, y era un error de arquitectura, no de redacción: la
+cabecera **contiene** a `.sp-kpi`, así que el velo se componía **dos veces** sobre el mismo
+píxel y la baldosa acababa siendo la superficie más clara de la app —más clara que la
+cabecera que la contiene: rgb(55,66,83) contra rgb(32,38,47), medido sobre píxeles reales—.
+Con eso, los siete colores de
+los KPI caían por debajo del suelo de 4,5:1, incluido el `#ef4444` con el que se llama a
+boxes (2,41:1). `.sp-header` pinta ahora su propio fondo opaco con `var(--panel-bg)` en
+`panel.css`; las baldosas siguen siendo de cristal, pero sobre un plano. La regla general que
+deja esto: **dos superficies del mismo material no pueden anidarse** — si una contiene a la
+otra, la de fuera va mate.
 
 `.sp-back` figuraba antes en esta tabla como superficie con cristal, y su CSS existe en
 `panel.css`/`glass.css`, pero `class="sp-back"` no aparece en ningún `.js` ni `.html` del
@@ -195,6 +215,14 @@ caso real es uno**:
 > `.sp-header` lleve `backdrop-filter`, dejará de posicionarse contra la ventana y pasará a
 > hacerlo contra la cabecera.
 
+(Corrección de la revisión final: `.sp-header` acabó **sin** material — ver §5 —, así que ese
+disparador concreto ya no existe. El arreglo se queda igual y ese es justo su mérito: con
+`absolute` el bloque contenedor es el antecesor posicionado más cercano —`.sp-topbar`, que ya
+es `relative`— lleve o no material la cabecera, y el cartel sigue centrado contra la ventana
+porque `left:0/right:0` se miden contra la **caja de relleno** de `.sp-topbar`, dentro de la
+cual queda su `padding-left:270px`. Verificado en el banco tras quitarle el material a la
+cabecera.)
+
 **Solución elegida:** `.sp-session` pasa de `position: fixed` a `position: absolute` dentro de
 `.sp-topbar`, que ya es `position: relative`. El `fixed` solo estaba ahí para centrar el
 nombre de la sesión en la ventana ignorando el `padding-left: 270px` de la topbar; como
@@ -226,9 +254,20 @@ comparten también el gris del texto secundario.
 (Los números de esta tabla son una primera estimación compuesta a mano. El test de §9 es la
 autoridad.)
 
-**No se tocan** `.en-thead span` (`#333`) ni `.sp-fl` (`#2d2f38`). Su contraste es bajísimo,
-pero ya lo era antes de esta rama y son decorativos: **se restauran al valor que tienen, no
-se mejoran**. Arreglarlos es una decisión aparte.
+**No se toca** `.en-thead span` (`#333`). Su contraste es bajísimo, pero ya lo era antes de
+esta rama y es decorativo: **se restaura al valor que tiene, no se mejora**. Arreglarlo es
+una decisión aparte.
+
+(Corrección: este párrafo decía también `.sp-fl` (`#2d2f38`), y la rama **sí** lo tocó —
+`panel.css:51` lo pasó a `var(--text-3)` en el commit `5c22022`, ruling R6—. Estuvo bien
+hecho y por eso se corrige el spec y no el código: al llevar cristal el pie, su fondo se
+aclara y `#2d2f38` caía a **~1,1:1** (1,10 medido en la Tarea 2, 1,13 en la revisión final,
+1,17 recalculado con el modelo del test sobre el material de entonces), es decir,
+desaparecía. No es "bajo pero igual que antes": es una regresión que introduce esta rama.
+Apuntarlo a `var(--text-3)` lo pone bajo la vigilancia permanente del test de §9 —hoy
+**6,09:1** sobre el peor caso que ese test modela— en vez de dejarlo como un color suelto que
+nadie mide. `.en-thead span` sí sigue intacto: vive en la
+zona de datos, que se queda mate.)
 
 **`body.hc` apaga el cristal**: superficies opacas y `--glass-blur: 0`. El modo contraste
 sigue siendo el refugio garantizado para sol directo, y así no hay que demostrar que el
@@ -254,10 +293,18 @@ a `10×`, GPU Apple M4, 5 s de `requestAnimationFrame` × 2 pasadas por modo →
 16,67 ms de frame medio, 0 tareas largas**, y el modo ☀ (sin cristal) da lo mismo hasta la
 décima. Con esto, este spec deja de pedir una medición que ya está hecha.
 
-Dos palancas puestas por si acaso: el token `--glass-blur`, y una regla dentro del
-`@media (max-width:900px)` que ya existe para iPad, que baja el desenfoque en pantallas
-pequeñas, que es donde más cuesta — implementada en `src/glass.css` (`--glass-blur` a
-14px bajo esa media query).
+Dos palancas puestas por si acaso: el token `--glass-blur`, y una regla que baja el
+desenfoque en pantallas pequeñas, que es donde más cuesta — implementada en `src/glass.css`
+(`--glass-blur` a 14px bajo esa media query).
+
+(Corrección de la revisión final: esa regla se escribió dentro del `@media (max-width:900px)`
+que ya existía "para iPad", y con 900px **no se disparaba en ningún iPad en apaisado**, que
+es como se mira un panel de tiempos: mini 1024, 10.2" 1080, Air 1180, Pro 12.9" 1366. La
+palanca existía y estaba apagada para su caso de uso declarado. El corte de `glass.css` sube
+a **1200px**, que cubre mini, 10.2" y Air; el Pro 12.9" queda fuera a propósito, porque
+subirlo a 1400 arrastraría también a los portátiles de 1366 de ancho. Los otros dos
+`@media (max-width:900px)` del proyecto —`en-grid.js:44` y `en-state.js:167`— estrechan las
+columnas de la parrilla y **no** se tocan: coincidían en el número, no en el motivo.)
 
 ## 9. Verificación
 
@@ -289,7 +336,8 @@ anterior decía "como los ocho que ya hay" — son **14 ficheros** de test, `ls 
 ## 10. Fuera de alcance
 
 - Las seis páginas satélite (§1).
-- Arreglar el contraste de `.en-thead span` y `.sp-fl` (§7).
+- Arreglar el contraste de `.en-thead span` (§7). (Corrección: aquí figuraba también `.sp-fl`,
+  que la rama sí arregló porque el cristal lo hundía a 1,13:1 — ver §7.)
 - Tokenizar los 209 hex: **solo** se tokenizan las superficies que estrenan cristal y las que
   el modo ☀ necesita. El resto se queda como está.
 - Cualquier cambio de disposición, tipografía o tamaño. Esto es un cambio de material.
