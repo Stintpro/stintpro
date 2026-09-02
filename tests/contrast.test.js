@@ -900,7 +900,13 @@ test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble 
 //     definida FUERA del recorte (kartRow en src/en-strategy.js, que pinta
 //     `color:${minCol}` con el minCol que recibe). Se ha tokenizado igualmente
 //     —los píxeles son lo que importa— pero el recorte por tarjeta no alcanza
-//     a comprobarlo.
+//     a comprobarlo. Cubierto aparte, más abajo: un test nominal lee el texto
+//     crudo de las declaraciones de minCol y stintWindowInfo (la otra función
+//     que vive antes del <div class="en-strat-card"> y de la que minCol
+//     cuelga) y exige que sus ramas de estado sean var(--state-*). Sin ese
+//     test, re-literalizar minCol Y stintWindowInfo a la vez deja hasta 24
+//     elementos de texto de "Karts en pista" (3 columnas × hasta 8 karts) rotos
+//     en ☀ sin que ningún test lo diga.
 //   - Una expresión que mezcla un literal con algo que no resuelve
 //     (`${t.evColor||'#555'}`): se queda con el '#555' y da la expresión por
 //     resuelta. El origen de t.evColor también se ha tokenizado a mano.
@@ -970,7 +976,16 @@ test('los colores de estado de las tarjetas llegan a 4.5:1 sobre la tarjeta de �
   // SOLO ☀, y no es un descuido. En modo NORMAL las tarjetas componen con la
   // capa de profundidad (flotan sobre #screen-dash, no cuelgan de la cabecera
   // mate) y ahí este mismo modelo da --state-alert = 4,036:1 con la mancha
-  // ámbar a tope. Eso es ANTERIOR a esta ronda y sigue exactamente igual: en
+  // ámbar a tope. Ese 4,036:1 es el modelo, y el modelo es pesimista AQUÍ: supone
+  // la mancha ámbar de profundidad al máximo, pero el centro de esa mancha cae
+  // siempre bajo la cabecera —que es opaca— y además blur(28px) arrastra hacia
+  // la tarjeta el entorno oscuro que la rodea. Medido sobre píxeles renderizados
+  // en el banco, esas mismas tarjetas dan 4,54-4,82:1: por ENCIMA del suelo. El
+  // número del modelo no se toca —sigue siendo el peor caso teórico y sigue
+  // sirviendo de cota superior—, pero que quede escrito para que no se lea como
+  // si el modo normal estuviera hoy por debajo de 4,5:1, porque en píxeles no lo
+  // está.
+  // Eso es ANTERIOR a esta ronda y sigue exactamente igual: en
   // :root el token vale el literal de siempre, así que no se ha movido ni un
   // píxel. Ya estaba reportado con sus números en el bloque de alcance del
   // barrido de baldosas —reportado, no exceptuado: EXCEPCIONES sigue vacía—, y
@@ -988,6 +1003,50 @@ test('los colores de estado de las tarjetas llegan a 4.5:1 sobre la tarjeta de �
       `${t} vale ${color} en ☀ y da ${c.toFixed(3)}:1 sobre la tarjeta — ` +
       `la palanca es el token de body.hc, nunca el umbral`);
   }
+});
+
+test('minCol y stintWindowInfo (fuera del recorte de tarjetas) pintan sus estados por token', () => {
+  // El agujero que este test cierra: kartRow (que pinta `color:${minCol}` en su
+  // propia plantilla) y stintWindowInfo están definidas ANTES de que se abra el
+  // <div class="en-strat-card"> de "Karts en pista" — cajasPorClase() empieza a
+  // emparejar llaves desde ahí, así que ninguna de las dos entra JAMÁS en el
+  // recorte de la tarjeta: ni para verlas como token, ni para pillarlas si
+  // volvieran a ser literal. Demostrado: re-literalizar a la vez la rama
+  // "atrapado" de stintWindowInfo y las dos ramas coloreadas de minCol deja la
+  // suite en 28/28 verde con unos 24 elementos de texto rotos en ☀ (3 columnas
+  // × hasta 8 karts). Mismo patrón que el guardián de stintColor de arriba:
+  // aserción nominal sobre las ramas conocidas, leyendo el texto crudo del
+  // fichero — no confiada a un recorte por caja que aquí no llega.
+  const srcEstrategia = leer('src/en-strategy.js');
+  const literalesDeEstado = Object.values(ESTADO_EN_NORMAL);
+
+  const declStintWindowInfo = srcEstrategia.match(/const stintWindowInfo=\(e\)=>\{[\s\S]*?\n  \};/);
+  ok(declStintWindowInfo,
+    'no se encuentra la declaración de stintWindowInfo en src/en-strategy.js — ¿cambió de forma? ' +
+    'ajusta el regex de este test para que la siga viendo');
+  const coloresStintWindowInfo = literalesDeExpresion(declStintWindowInfo[0]);
+  ok(coloresStintWindowInfo.includes('var(--state-alert)'),
+    'stintWindowInfo debería seguir marcando el caso "atrapado por deuda de paradas" con var(--state-alert)');
+  for (const lit of literalesDeEstado)
+    ok(!coloresStintWindowInfo.includes(lit),
+      `stintWindowInfo pinta un estado con el literal ${lit} en vez de var(--state-*) — ` +
+      `vive fuera del recorte de la tarjeta (antes del <div class="en-strat-card">), así que ` +
+      `ningún barrido de arriba lo pilla; el modo ☀ tampoco podría aclararlo`);
+
+  const declMinCol = srcEstrategia.match(/const minCol=info\.color\|\|[^\n]+;/);
+  ok(declMinCol,
+    'no se encuentra la declaración de minCol (columna "Buenos") en src/en-strategy.js — ¿cambió de forma? ' +
+    'ajusta el regex de este test para que la siga viendo');
+  const coloresMinCol = literalesDeExpresion(declMinCol[0]);
+  for (const v of ['var(--state-ok)', 'var(--state-warn)'])
+    ok(coloresMinCol.includes(v),
+      `minCol debería tener la rama ${v} (según el tiempo restante hasta el mínimo) — ` +
+      `¿ha dejado de resolver el ternario, o ha vuelto a escribirse como literal?`);
+  for (const lit of literalesDeEstado)
+    ok(!coloresMinCol.includes(lit),
+      `minCol pinta un estado con el literal ${lit} en vez de var(--state-*) — ` +
+      `kartRow, que usa minCol en \`color:\${minCol}\`, vive fuera del recorte de la tarjeta, así ` +
+      `que ningún barrido de arriba lo pilla; el modo ☀ tampoco podría aclararlo`);
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
