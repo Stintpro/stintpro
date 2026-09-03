@@ -67,6 +67,59 @@
   //               snapshot, pero ningún consumidor los usa hoy (decisión
   //               tomada 2026-07-20: no se muestran en la app).
 
+  // ── Mensajes de dirección de carrera (línea msg|) ──────────────────────────
+  // Formato real: `msg|<subtipo>|<texto>`, con el subtipo vacío o 'msgp'.
+  // El texto trae sanciones, avisos y la mejor vuelta del evento, en el idioma
+  // del circuito (fr/es/it/nl). Los que van dirigidos a un kart empiezan por el
+  // dorsal, con cuatro formatos según idioma: N°14 / Nº.49 / Nr.7 / Nr19.
+  //
+  // El número ES el dorsal de la parrilla, no el rowId ni el transponder:
+  // verificado sobre el corpus del VPS (115 mensajes con prefijo, 115 dorsales
+  // presentes en su parrilla). El NOMBRE en cambio no es fiable para identificar
+  // —en Le Mans el mensaje abrevia el equipo y en worldkarts ni siquiera es un
+  // nombre de equipo— así que solo vale para mostrar.
+  const MSG_WARNING_RE = /^(Avertissement|Waarschuwing|Ammonizione|Aviso)(?=\s|[-:]|$)/i;
+  const MSG_PENALTY_RE = /^(Pénalité|Penalité|Penalità|Penalizaci[óo]n|Straf|Penalty|SUPPRESSION DU MEILLEUR CHRONO|ANNULATION DU MEILLEUR CHRONO)(?=\s|[-:]|$)/i;
+  const MSG_BEST_RE    = /^(Meilleur Tour|Mejor vuelta|Giro migliore|Snelste ronde|Beste ronde|Best lap)\s*:/i;
+  const MSG_DORSAL_RE  = /^(?:N°|Nº\.?|Nr\.?)\s?(\d+)\s+(.+?)\s*:\s*(.*)$/;
+
+  function classifyApexMessage(text, subtype) {
+    const raw = String(text == null ? '' : text).trim();
+    if (!raw) return null;
+
+    const m = MSG_DORSAL_RE.exec(raw);
+    if (!m) {
+      return { kind: MSG_BEST_RE.test(raw) ? 'best' : 'other',
+               dorsal: null, team: null, reason: raw, penalty: null, text: raw };
+    }
+
+    const dorsal = m[1];
+    const team   = m[2].trim();
+    const body   = m[3].trim();
+
+    // El texto manda; el subtipo de la línea (msgp/msgw) es la red por si un
+    // circuito nuevo escribe la sanción en un idioma que no reconocemos.
+    let kind = 'other';
+    if (MSG_WARNING_RE.test(body))      kind = 'warning';
+    else if (MSG_PENALTY_RE.test(body)) kind = 'penalty';
+    else if (subtype === 'msgw')        kind = 'warning';
+    else if (subtype === 'msgp')        kind = 'penalty';
+
+    // `Pénalité - <motivo> - <castigo>`: el tipo va delante del primer guión y el
+    // castigo detrás del último. El motivo puede llevar sus propios ':' y '-'.
+    let rest = body.replace(/^[^-]*-\s*/, '');
+    let reason = rest, penalty = null;
+    const cut = rest.lastIndexOf(' - ');
+    if (cut > 0) {
+      reason  = rest.slice(0, cut).trim();
+      penalty = rest.slice(cut + 3).trim() || null;
+    } else if (/\s-\s*$/.test(rest)) {
+      reason = rest.replace(/\s-\s*$/, '').trim();
+    }
+
+    return { kind, dorsal, team, reason, penalty, text: raw };
+  }
+
   // ── Utilidades puras (también exportadas para los wrappers de grid) ────────
 
   function parseTime(str) {
@@ -625,6 +678,16 @@
         return true;
       }
 
+      // ── MENSAJES DE DIRECCIÓN DE CARRERA ──────────────────────────────
+      if (line.startsWith('msg|')) {
+        if (callbacks.onMessage) {
+          const cut  = line.indexOf('|', 4);
+          const info = classifyApexMessage(line.substring(cut + 1), line.substring(4, cut));
+          if (info) callbacks.onMessage(info);
+        }
+        return true;
+      }
+
       // ── COMENTARIOS ───────────────────────────────────────────────────
       if (line.startsWith('com|')) {
         if (callbacks.onComment) {
@@ -924,5 +987,5 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory };
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, classifyApexMessage };
 });

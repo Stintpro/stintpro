@@ -321,7 +321,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     <div class="sp-kpi-sub">Últ: ${myLast} · M5v: ${myAvg5Str}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
   </div>
   <div class="sp-kpi">
-    <div class="sp-kpi-lbl">${stintLight} Stint · ${stintLaps}v</div>
+    <div class="sp-kpi-lbl" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><span>${stintLight} Stint · ${stintLaps}v</span>${_enMsgBtnHtml()}</div>
     <div class="sp-kpi-val" style="color:${stintColor}">${stintStr}</div>
     <div class="sp-kpi-sub" style="background:linear-gradient(90deg,${stintColor}22 ${stintPct}%,transparent ${stintPct}%);border-radius:2px;padding:1px 4px">${pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')}</div>
   </div>
@@ -607,6 +607,18 @@ function _enSelectPilot(idx){
   EnSession.currentPilot=idx;
   _enDismissOverlay();
   _enRender();
+}
+
+// ── Botón de mensajes de dirección de carrera ────────────────────────────
+// Vive en la baldosa del stint, al lado del cronómetro. Dos niveles de luz:
+// rojo parpadeante si la última novedad va dirigida a MI dorsal, ámbar fija si
+// es de un rival. Sin mensajes queda apagado pero visible (afordancia).
+function _enMsgBtnHtml(){
+  const n=(EnSession.messages||[]).length;
+  const u=EnSession.msgUnread||{};
+  const cls=u.mias?'en-msg-btn mine':u.otras?'en-msg-btn amber':'en-msg-btn';
+  const title=u.mias?'Sanción o aviso para tu equipo':n?'Mensajes de dirección de carrera':'Sin mensajes de dirección de carrera';
+  return `<button class="${cls}" title="${title}" onclick="event.stopPropagation();_enShowMessages()">✉${n?' '+n:''}</button>`;
 }
 
 function _enDismissOverlay(){

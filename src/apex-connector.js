@@ -16,7 +16,7 @@ var RESERVED_DTYPES = new Set(['rk','no','dr','llp','blp','gap','int','tlp','lc'
 
 window.ApexConnector = {
   ws: null, slug: null, port: 7913, connected: false,
-  onData: null, onStatus: null, onComment: null, onTitle: null,
+  onData: null, onStatus: null, onComment: null, onTitle: null, onMessage: null,
   _reconnectTimer: null,
   _parser: null,
   _comments: [],
@@ -27,9 +27,10 @@ window.ApexConnector = {
   _flagTracker: null,   // bandera del panel + estado carrera detenida — ver apex-protocol
   _raceStopped: false,  // ¿carrera detenida por roja con carrera activa?
 
-  connect(slug, onData, onStatus, onComment, port, onTitle) {
+  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage) {
     this.slug = slug; this.port = port || 7913;
     this.onData = onData; this.onStatus = onStatus; this.onComment = onComment; this.onTitle = onTitle || null;
+    this.onMessage = onMessage || null;
     this._comments = [];
     this._httpPort = null; this._historyFetched = false;
     this._raceTracker = ApexProtocol.createRaceStartTracker();
@@ -67,6 +68,12 @@ window.ApexConnector = {
       },
       onTitle:      (title)    => { if (this.onTitle) this.onTitle(title); },
       onComment:    (html)     => this._parseComment(html),
+      // Sanciones y avisos (canal msg|). Las mejores vueltas del evento se
+      // descartan aquí igual que en el logger: son 684 de 887 y no son señal.
+      onMessage:    (info)     => {
+        if (!info || (info.kind !== 'penalty' && info.kind !== 'warning')) return;
+        if (this.onMessage) this.onMessage({ ...info, ts: Date.now() });
+      },
       onFlag:       (flag, ctx)=> {
         this._flagTracker.ingest(flag, ctx || {});
         this._raceStopped = this._flagTracker.stopped;

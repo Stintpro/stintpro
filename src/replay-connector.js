@@ -1,5 +1,5 @@
 // ── ReplayConnector — reproduce un .ndjson grabado por el logger ──────────
-// Misma interfaz que ApexConnector: connect(slug, onData, onStatus, onComment, port)
+// Misma interfaz que ApexConnector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage)
 // Controles: pause() / resume() / setSpeed(n)
 
 // Cabeceras que delatan una columna de categoría/cilindrada
@@ -25,6 +25,7 @@ window.ReplayConnector = {
   onData:      null,
   onStatus:    null,
   onComment:   null,
+  onMessage:   null,
   _parser:     null,
   _comments:   [],
 
@@ -57,10 +58,11 @@ window.ReplayConnector = {
       .filter(l => l && l.t && l.raw);
   },
 
-  connect(slug, onData, onStatus, onComment) {
+  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage) {
     this.onData    = onData;
     this.onStatus  = onStatus;
     this.onComment = onComment;
+    this.onMessage = onMessage || null;
     this._comments = [];
     this._paused   = false;
     this._parser   = this._createParser();
@@ -137,6 +139,11 @@ window.ReplayConnector = {
       onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); },
       onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
       onComment:    (html)     => this._parseComment(html),
+      // Sanciones y avisos (canal msg|), igual que el conector directo.
+      onMessage:    (info)     => {
+        if (!info || (info.kind !== 'penalty' && info.kind !== 'warning')) return;
+        if (this.onMessage) this.onMessage({ ...info, ts: Date.now() });
+      },
       onChange:     (state)    => this._emit(state),
     });
   },

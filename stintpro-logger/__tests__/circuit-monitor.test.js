@@ -413,6 +413,41 @@ describe('_broadcastPilots (vía _onState)', () => {
   });
 });
 
+// ── _onMessage (canal msg| de dirección de carrera) ──────────────────────────
+
+describe('_onMessage', () => {
+  test('difunde la sanción ya clasificada a los subscriptores', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    ws.send.mockClear(); // descarta el snapshot histórico del subscribe
+
+    m._onMessage({
+      kind: 'penalty', dorsal: '14', team: 'KARTMANS II',
+      reason: 'Passage au stand en 01:58 (Tour 82)', penalty: '1 Tour',
+      text: 'N°14 KARTMANS II : Pénalité - Passage au stand en 01:58 (Tour 82) - 1 Tour',
+    });
+
+    expect(ws.send).toHaveBeenCalledTimes(1);
+    const msg = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(msg).toMatchObject({ type: 'message', kind: 'penalty', dorsal: '14', penalty: '1 Tour' });
+    expect(typeof msg.ts).toBe('number');
+  });
+
+  test('las mejores vueltas del evento NO se difunden (ruido: 684 de 887 mensajes)', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    ws.send.mockClear();
+
+    m._onMessage({ kind: 'best', dorsal: null, team: null,
+                   reason: 'Meilleur Tour : KJC RACING - 1:00.095', penalty: null,
+                   text: 'Meilleur Tour : KJC RACING - 1:00.095' });
+
+    expect(ws.send).not.toHaveBeenCalled();
+  });
+});
+
 // ── _onSessionEnd / _onNewSession ────────────────────────────────────────────
 
 describe('_onSessionEnd / _onNewSession', () => {
