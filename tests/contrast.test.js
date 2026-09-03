@@ -890,10 +890,12 @@ test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble 
 //
 // LO QUE NO AFIRMA, A PROPÓSITO: no audita todos los colores de las tarjetas.
 // Su contenido mezcla apagados deliberados —#555 (2,220:1 en ☀), #333 (1,310),
-// #2a2b2e (1,169), #6b7280 (3,423)— que son separadores y marcadores de "sin
-// dato", no texto, y que ningún material arregla. Triarlos es un frente aparte
-// y no se abre aquí. Al afirmar solo lo de los estados, esos apagados quedan
-// fuera SIN necesidad de una excepción: EXCEPCIONES sigue vacía.
+// #2a2b2e (1,169)— que son separadores, no texto, y que ningún material
+// arregla. Triarlos es un frente aparte y no se abre aquí. (El «posición sin
+// cambio» del historial de stints, que era #6b7280 a 3,423:1, SÍ se cerró: va
+// por var(--text-3), 7,0/7,6 sobre el cristal.) Al afirmar solo lo de los
+// estados, esos apagados quedan fuera SIN necesidad de una excepción:
+// EXCEPCIONES sigue vacía.
 //
 // LO QUE EL BARRIDO NO PUEDE VER (documentado, no ignorado):
 //   - Un color que llega a la tarjeta a través de una función auxiliar

@@ -463,7 +463,7 @@ function _enRenderTeam(myKart, trackAvg){
     EnSession.stintHistory.forEach((s,i)=>{
       const col=colors[s.pilotIdx%colors.length];
       const posStr=s.posIn&&s.posOut?`P${s.posIn}→P${s.posOut}`:(s.posIn?`P${s.posIn}`:'—');
-      const posCol=s.posIn&&s.posOut?(s.posOut<s.posIn?'var(--state-ok)':s.posOut>s.posIn?'var(--state-alert)':'#6b7280'):'#6b7280';
+      const posCol=s.posIn&&s.posOut?(s.posOut<s.posIn?'var(--state-ok)':s.posOut>s.posIn?'var(--state-alert)':'var(--text-3)'):'var(--text-3)';
       const pitStr=s.pitStopMs?_enFmtStint(s.pitStopMs):'—';
       html+=`<div class="en-stint-row">
         <span style="color:${col};font-weight:600">${i+1}</span>
