@@ -67,7 +67,7 @@
     var(--glass-shadow);
 }
 
-/* Las 11 cajas de modal comparten borde y radio: el inline ya no los pone
+/* Las 12 cajas de modal comparten borde y radio: el inline ya no los pone
  * (Tarea 3, Paso 2). Dos cajas quieren un radio distinto (16px, 10px) y lo
  * dejan en su propio style inline, que gana a esta clase por SER INLINE —por
  * origen en la cascada, no por especificidad: un valor inline ni siquiera

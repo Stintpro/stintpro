@@ -16,7 +16,7 @@
    * normal (4,12:1 sobre el denso de hoy, ya ahumado por la Tarea 4b) — el
    * PEOR caso real, compuesto sobre --panel-bg (#screen-dash,
    * src/panel.css:18), que es más claro que --bg y es donde vive la inmensa
-   * mayoría del cristal (cabecera, KPI, pie, las 11 cajas de modal…). NO se
+   * mayoría del cristal (cabecera, KPI, pie, las 12 cajas de modal…). NO se
    * arregla oscureciendo el vidrio: en el denso, subir --glass-denso-a/-b
    * hasta opacidad total ACERCA la superficie a su color base rgb(22,26,32)
    * —medido: prácticamente idéntico a la superficie compuesta de hoy—, así
