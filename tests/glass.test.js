@@ -66,6 +66,23 @@ group('el material vive en un solo sitio', () => {
     strictEqual(sel.some(s => /(^|,\s*)\.sp-glass(,|\s|$)/.test(s)), true, 'falta .sp-glass');
     strictEqual(sel.some(s => /\.sp-glass-denso/.test(s)), true, 'falta .sp-glass-denso');
   });
+
+  test('.en-tab.active (la pastilla de la pestaña activa) entra en el material NORMAL, no en el denso', () => {
+    // Las pestañas viven en el flujo del documento, no flotan sobre la
+    // parrilla, así que les toca el mismo material que .sp-kpi/.sp-footer,
+    // no el denso (ese es para .en-col-panel y las cajas de modal).
+    const normal = rulesOf(glass).find(r => /(^|,\s*)\.sp-glass(,|\s|$)/.test(r.selector));
+    strictEqual(!!normal, true, 'no se encuentra la regla del material normal (.sp-glass, ...)');
+    const individualesNormal = normal.selector.split(',').map(s => s.trim());
+    strictEqual(individualesNormal.includes('.en-tab.active'), true,
+      '.en-tab.active no está en la lista de selectores del material NORMAL');
+
+    const densa = rulesOf(glass).find(r => /\.sp-glass-denso/.test(r.selector));
+    strictEqual(!!densa, true, 'no se encuentra la regla del material denso (.sp-glass-denso, ...)');
+    const individualesDenso = densa.selector.split(',').map(s => s.trim());
+    strictEqual(individualesDenso.includes('.en-tab.active'), false,
+      '.en-tab.active está en la lista del material DENSO: le toca el normal, no el denso');
+  });
 });
 
 group('el material no declara borde', () => {
@@ -261,6 +278,39 @@ group('lo que flota sobre datos lleva el material denso', () => {
       `.en-col-panel declara background propio: ${regla.body}`);
     strictEqual(/\bbox-shadow\s*:/.test(regla.body), false,
       `.en-col-panel declara box-shadow propio: ${regla.body}`);
+  });
+});
+
+group('la pastilla de la pestaña activa (.en-tab.active) no reabre la trampa del orden de carga', () => {
+  // Misma trampa que ya mordió dos veces en esta entrega (.en-col-panel,
+  // R10; .en-team-card/.en-strat-card): .en-tab.active vive en el <style>
+  // inyectado de en-state.js, que carga DESPUÉS de glass.css. Si conservara
+  // un background o box-shadow propio, ganaría por cargar más tarde y el
+  // material añadido en glass.css quedaría inútil detrás.
+  const inyectado = extractInjectedCss(leer('src/en-state.js'));
+  const regla = rulesOf(inyectado).find(r => r.selector === '.en-tab.active');
+
+  test('.en-tab.active existe en el <style> inyectado', () => {
+    strictEqual(!!regla, true, 'no se encontró la regla .en-tab.active en el <style> inyectado de en-state.js');
+  });
+
+  test('.en-tab.active no conserva fondo ni sombra propios', () => {
+    strictEqual(/\bbackground\s*:/.test(regla.body), false,
+      `.en-tab.active declara background propio: ${regla.body}`);
+    strictEqual(/\bbox-shadow\s*:/.test(regla.body), false,
+      `.en-tab.active declara box-shadow propio: ${regla.body}`);
+  });
+
+  test('.en-tab.active ya no pinta un borde inferior de color: la pastilla es la señal, no el subrayado', () => {
+    strictEqual(/border-bottom-color/.test(regla.body), false,
+      `.en-tab.active todavía declara border-bottom-color: ${regla.body} — el diseño aprobado quita el subrayado`);
+  });
+
+  test('.en-tab.active pone su propio borde y radio con var(--glass-border) (el material no los declara)', () => {
+    strictEqual(/(?:^|;)\s*border\s*:\s*[^;]*var\(--glass-border\)/.test(regla.body), true,
+      `.en-tab.active no declara un border con var(--glass-border): ${regla.body}`);
+    strictEqual(/border-radius\s*:/.test(regla.body), true,
+      `.en-tab.active no declara border-radius: ${regla.body}`);
   });
 });
 

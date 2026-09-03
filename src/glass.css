@@ -42,7 +42,8 @@
 .sp-glass,
 .sp-kpi, .sp-footer, .sp-back,
 .en-team-card, .en-strat-card,
-#screen-setup .card {
+#screen-setup .card,
+.en-tab.active {
   background: linear-gradient(158deg, var(--glass-a), var(--glass-b));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));

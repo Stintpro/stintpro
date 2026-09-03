@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ok, strictEqual, deepStrictEqual } = require('assert/strict');
-const { rulesOf } = require('../tools/css-extract');
+const { rulesOf, extractInjectedCss } = require('../tools/css-extract');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -1047,6 +1047,56 @@ test('minCol y stintWindowInfo (fuera del recorte de tarjetas) pintan sus estado
       `minCol pinta un estado con el literal ${lit} en vez de var(--state-*) — ` +
       `kartRow, que usa minCol en \`color:\${minCol}\`, vive fuera del recorte de la tarjeta, así ` +
       `que ningún barrido de arriba lo pilla; el modo ☀ tampoco podría aclararlo`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// LA PASTILLA DE LA PESTAÑA ACTIVA (.en-tab.active) — cristal para la barra
+// de pestañas del panel endurance.
+//
+// Superficie NUEVA de material NORMAL (entra en la lista de .sp-glass de
+// src/glass.css). .en-tabs es HERMANA de .sp-header —cuelga de #screen-dash,
+// no de la cabecera, a diferencia de .sp-kpi—, así que el cristal se apoya en
+// el FONDO DE PANTALLA con la capa de profundidad debajo: el mismo caso que
+// .sp-footer, .en-team-card, .en-strat-card y #screen-setup .card. Se mide
+// con peorCasoDelCristal, que ya barre las DOS bases (--panel-bg y --bg) con
+// la mancha de profundidad a tope — el peor píxel real, no el más favorable.
+//
+// El único color de texto que audita este barrido es el ámbar literal de la
+// pestaña activa: las inactivas NO llevan material (siguen con
+// var(--text-3), sin cristal, sin superficie nueva) y quedan fuera a
+// propósito.
+console.log('\ncontraste de la pastilla .en-tab.active (pestaña activa)');
+
+const inyectadoTabs = extractInjectedCss(leer('src/en-state.js'));
+const reglaTabActive = rulesOf(inyectadoTabs).find(r => r.selector === '.en-tab.active');
+
+test('.en-tab.active existe en el <style> inyectado y pinta su texto con un hex literal', () => {
+  strictEqual(!!reglaTabActive, true,
+    'no se encuentra la regla .en-tab.active en el <style> inyectado de en-state.js');
+  const m = reglaTabActive.body.match(/(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,6})\s*(?:;|$)/);
+  strictEqual(m !== null, true, '.en-tab.active no pinta su texto con un color hex literal');
+});
+
+// Leído del propio fichero, no clavado: si el ámbar cambiara de valor,
+// este barrido mide el que de verdad se pinta, no uno desactualizado.
+const AMBAR_PESTANA = (() => {
+  const m = reglaTabActive && reglaTabActive.body.match(/(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,6})\s*(?:;|$)/);
+  return m ? m[1] : '#F5A623'; // el test de arriba ya exige que exista; esto es solo defensivo
+})();
+
+test('el ámbar de la pestaña activa alcanza 4.5:1 sobre el peor caso del material normal', () => {
+  const { contraste: c, base } = peorCasoDelCristal(AMBAR_PESTANA, { densa: false });
+  ok(c >= 4.5,
+    `${AMBAR_PESTANA} da ${c.toFixed(3)}:1 sobre la pastilla, base ${base.token} (${base.consumidor}) — ` +
+    `ajusta el MATERIAL o el color del texto, nunca el umbral`);
+});
+
+test('el ámbar de la pestaña activa alcanza 4.5:1 sobre la pastilla de ☀', () => {
+  const superficie = superficieHc({ densa: false });
+  const c = contraste(hex(AMBAR_PESTANA), superficie);
+  ok(c >= 4.5,
+    `${AMBAR_PESTANA} da ${c.toFixed(3)}:1 sobre la pastilla en ☀ — ` +
+    `la palanca es --panel-surface (body.hc) o el color del texto, nunca el umbral`);
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
