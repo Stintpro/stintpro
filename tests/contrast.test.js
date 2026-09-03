@@ -1119,5 +1119,51 @@ test('el ámbar de la pestaña activa alcanza 4.5:1 sobre la pastilla de ☀', (
     `la palanca es --panel-surface (body.hc) o el color del texto, nunca el umbral`);
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// GUARDIÁN DEL BOTÓN .en-msg-btn (mensajes de dirección de carrera).
+//
+// Por qué existe: main trajo esta feature con el botón escrito contra la
+// baldosa OPACA de producción — #fbbf24/#ef4444 literales — sin saber que en
+// esta rama esa baldosa (.sp-kpi-lbl) es cristal. El merge lo reintrodujo: en
+// ☀ .en-msg-btn.mine (la sanción sobre MI equipo, la más urgente, la que
+// parpadea) daba 4,397:1, por debajo del suelo. Es el mismo fallo que ya
+// arreglaron los grupos de arriba en las baldosas y en las tarjetas — aquí
+// solo falta el barrido porque .en-msg-btn no es una .sp-kpi ni una
+// .en-strat-card, así que ningún recorte de los de arriba lo alcanza.
+//
+// LO QUE AFIRMA, Y SOLO ESO: que .en-msg-btn.amber y .en-msg-btn.mine pintan
+// color y border-color con var(--state-*), no con un #hex literal. El propio
+// token ya se mide sobre la baldosa en ☀ en los grupos de arriba (líneas 809
+// y 949) — este test no repite esa medida, solo comprueba que el botón la usa.
+const reglaMsgAmbar = reglasStyles.find(r => r.selector === '.en-msg-btn.amber');
+const reglaMsgMine = reglasStyles.find(r => r.selector === '.en-msg-btn.mine');
+const HEX_LITERAL = /#[0-9a-fA-F]{3,8}\b/;
+
+console.log('\nel botón .en-msg-btn (mensajes de dirección de carrera) va por token de estado, no por literal');
+
+test('se encuentran las reglas .en-msg-btn.amber y .en-msg-btn.mine en src/styles.css', () => {
+  ok(reglaMsgAmbar, 'no se encuentra la regla .en-msg-btn.amber en src/styles.css');
+  ok(reglaMsgMine, 'no se encuentra la regla .en-msg-btn.mine en src/styles.css');
+});
+
+test('.en-msg-btn.amber pinta color y border-color con var(--state-warn), no con un hex literal', () => {
+  ok(!HEX_LITERAL.test(reglaMsgAmbar.body),
+    `.en-msg-btn.amber tiene un #hex literal en su cuerpo ("${reglaMsgAmbar.body}") — ` +
+    `sobre la baldosa de cristal eso no pasa el 4.5:1 en ☀; usa var(--state-warn)`);
+  ok(/color\s*:\s*var\(--state-warn\)/.test(reglaMsgAmbar.body) &&
+     /border-color\s*:\s*var\(--state-warn\)/.test(reglaMsgAmbar.body),
+    `.en-msg-btn.amber debe pintar color y border-color con var(--state-warn) (cuerpo: "${reglaMsgAmbar.body}")`);
+});
+
+test('.en-msg-btn.mine pinta color y border-color con var(--state-alert), no con un hex literal', () => {
+  ok(!HEX_LITERAL.test(reglaMsgMine.body.replace(/rgba\([^)]*\)/g, '')),
+    `.en-msg-btn.mine tiene un #hex literal en su cuerpo ("${reglaMsgMine.body}") — ` +
+    `sobre la baldosa de cristal eso no pasa el 4.5:1 en ☀; usa var(--state-alert) ` +
+    `(el rgba() del box-shadow del keyframe no cuenta: es un halo decorativo, no texto)`);
+  ok(/color\s*:\s*var\(--state-alert\)/.test(reglaMsgMine.body) &&
+     /border-color\s*:\s*var\(--state-alert\)/.test(reglaMsgMine.body),
+    `.en-msg-btn.mine debe pintar color y border-color con var(--state-alert) (cuerpo: "${reglaMsgMine.body}")`);
+});
+
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);

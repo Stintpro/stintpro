@@ -229,15 +229,16 @@ html,body { width:100%;height:100%;background:var(--bg);color:var(--text-1);font
 
 /* Botón de mensajes de dirección de carrera, en la baldosa del stint.
    Dos niveles de luz: ámbar FIJA = sanción/aviso de un rival; rojo PARPADEANTE
-   = va dirigido a mi dorsal. El rojo gana sobre el ámbar. Mismos literales que
-   usa la baldosa del stint (#ef4444 / #fbbf24). */
+   = va dirigido a mi dorsal. El rojo gana sobre el ámbar. Mismos tokens de
+   estado que usa la baldosa del stint (--state-warn / --state-alert): la
+   baldosa es cristal, y un literal aquí no pasa el 4.5:1 en ☀. */
 @keyframes enMsgAlertBlink { 0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow:0 0 0 3px rgba(239,68,68,0.5); } }
 .en-msg-btn { background:transparent; border:1px solid var(--border-md, rgba(255,255,255,0.11)); border-radius:5px;
               color:var(--text-2); font-size:11px; line-height:1; padding:2px 6px; cursor:pointer;
               font-family:inherit; letter-spacing:0.2px; }
 .en-msg-btn:hover { color:var(--text-1); }
-.en-msg-btn.amber { color:#fbbf24; border-color:#fbbf24; }
-.en-msg-btn.mine  { color:#ef4444; border-color:#ef4444;
+.en-msg-btn.amber { color:var(--state-warn); border-color:var(--state-warn); }
+.en-msg-btn.mine  { color:var(--state-alert); border-color:var(--state-alert);
                     animation:enMsgAlertBlink 1.1s ease-in-out infinite; }
 
 /* ═══ SETUP ═══════════════════════════════════════════════════════════ */
