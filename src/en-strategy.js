@@ -773,6 +773,55 @@ function _enComputeEstimatedClassification(){
   return {estimated, tiers, tierSizes, anyTier, avgPitCost, costSource, maxStops, usingOfficial, hasApexGap, trackAvg};
 }
 
+// ── Popup de mensajes de dirección de carrera (canal msg| de Apex) ────────
+// Lo abre el botón de la baldosa del stint. Muestra sanciones y avisos con su
+// motivo literal —de ahí sale el reglamento real del evento: "Passage au stand
+// en 01:58 - 1 Tour" dice cuál es la parada mínima—. Los tuyos van resaltados.
+// Abrirlo apaga las dos luces.
+function _enShowMessages(){
+  if(window.EnMessages)EnMessages.clearUnread(EnSession);
+
+  let overlay=document.getElementById('en-pilot-overlay');
+  if(overlay)overlay.remove();
+  overlay=document.createElement('div');
+  overlay.id='en-pilot-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:999;';
+
+  const msgs=EnSession.messages||[];
+  let rows='';
+  if(!msgs.length){
+    rows='<div style="padding:18px 2px;font-size:12.5px;color:var(--text-2);font-family:sans-serif">Todavía no ha llegado ningún mensaje de dirección de carrera en esta sesión.</div>';
+  } else {
+    msgs.forEach(m=>{
+      const hora=new Date(m.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      const col=m.kind==='penalty'?'#ef4444':'#fbbf24';
+      const tag=m.kind==='penalty'?'SANCIÓN':'AVISO';
+      rows+=`<div style="display:grid;grid-template-columns:44px 62px 40px 1fr 90px;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #1a1b22;${m.mine?'box-shadow:inset 3px 0 0 #ef4444;':''}">
+        <span style="font-size:11.5px;color:var(--text-2);font-family:monospace">${hora}</span>
+        <span style="font-size:10.5px;color:${col};font-weight:600;font-family:sans-serif">${tag}</span>
+        <span style="font-size:13px;font-weight:700;color:${m.mine?'#ef4444':'var(--text-1)'};text-align:center">${m.dorsal?_esc(m.dorsal):'—'}</span>
+        <span style="font-size:12.5px;color:var(--text-1);font-family:sans-serif">${_esc(m.reason||m.text)}<span style="color:var(--text-2)"> · ${_esc(m.team||'')}</span></span>
+        <span style="font-size:12.5px;color:${col};font-family:monospace;text-align:right">${m.penalty?_esc(m.penalty):''}</span>
+      </div>`;
+    });
+  }
+
+  overlay.innerHTML=`
+    <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:760px;width:95%;max-height:80vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+          <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">✉ Dirección de carrera</div>
+          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Sanciones y avisos que emite el circuito, con su motivo literal. Las mejores vueltas del evento no se listan.</div>
+          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">La barra roja marca los de <b>tu dorsal</b>. La atribución va por dorsal, no por nombre de equipo.</div>
+        </div>
+        <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      ${rows}
+    </div>`;
+  document.body.appendChild(overlay);
+  _enScheduleRender(); // repinta el botón ya apagado
+}
+
 function _enShowEstimatedClassification(){
   const computed=_enComputeEstimatedClassification();
   if(!computed)return;
@@ -1355,6 +1404,12 @@ window.showEnduranceDashboard=function(cfg){
         cfg.name=title;
         const el=document.querySelector('.sp-session');
         if(el)el.childNodes[0].textContent=title+' ';
+      },
+      // Sanción o aviso de dirección de carrera. La atribución (¿es de mi
+      // dorsal?) y el anti-duplicado viven en en-messages.js, con test.
+      (msg)=>{
+        if(!window.EnMessages)return;
+        if(EnMessages.ingestMessage(EnSession, msg, window.AppState?.config?.myDorsal, msg.ts))_enScheduleRender();
       }
     );
   }
@@ -1432,6 +1487,8 @@ window._enGoBack=function(){
   EnSession.pitOutPending={};
   EnSession.pitInLastPass={};
   EnSession._finished=false;
+  EnSession.messages=[];
+  EnSession.msgUnread={mias:false,otras:false};
   EnSession._reconcilePending=false;
   EnSession._lastPersist=null;
   _enAiEngineer.lastBulletin=null;

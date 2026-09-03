@@ -13,7 +13,7 @@ const RESERVED_DTYPES = new Set([
 ]);
 
 class ApexParser {
-  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag } = {}) {
+  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag, onMessage } = {}) {
     this._proto = createParser({
       onLap,
       onPit,
@@ -23,6 +23,7 @@ class ApexParser {
       onTitle,
       onComment,
       onFlag,
+      onMessage,
       onGrid:    (html)  => this._parseGrid(html),
       onChange:  (state) => { if (onState) onState(state); },
     });

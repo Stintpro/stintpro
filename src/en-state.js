@@ -28,6 +28,8 @@ const EnSession = {
   flag:             null,   // bandera del panel de luces: 'green'|'red'|'yellow'|null
   raceStopped:      false,  // carrera detenida por bandera roja (con carrera activa)
   raceEvents:       [],     // eventos de detención/reanudación de la sesión
+  messages:         [],     // sanciones y avisos de dirección de carrera (canal msg|), el más reciente primero
+  msgUnread:        { mias: false, otras: false }, // luz del botón: roja parpadeante (mías) / ámbar fija (rivales)
 };
 
 // ── Historial de pilotos (logger o URL configurada en modo Apex/Replay) ──

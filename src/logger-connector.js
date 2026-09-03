@@ -1,6 +1,6 @@
 // ── StintPro Logger Connector ─────────────────────────────────────────────
 // Connects to the NAS logger instead of Apex directly.
-// Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port)
+// Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage)
 const Logger = {
   ws: null,
   slug: null,
@@ -13,10 +13,11 @@ const Logger = {
   _flag: null,        // última bandera del panel reenviada por el logger
   _raceStopped: false,// ¿carrera detenida por roja con carrera activa?
 
-  connect(slug, onData, onStatus, onComment, port) {
+  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage) {
     this.slug = slug;
     this.onData = onData;
     this.onStatus = onStatus;
+    this.onMessage = onMessage || null;
     this._raceStart = null;
     this._flag = null;
     this._raceStopped = false;
@@ -68,6 +69,12 @@ const Logger = {
           // igual que en modo directo (data.raceStart).
           if (msg.type === 'raceStart') {
             this._raceStart = { at: msg.at, clock: msg.clock, source: msg.source };
+          }
+
+          // Sanción o aviso de dirección de carrera (canal msg|), ya clasificado
+          // por el logger. Llega suelto, no dentro del payload live.
+          if (msg.type === 'message' && this.onMessage) {
+            this.onMessage(msg);
           }
 
           // Bandera del panel (roja/verde/amarilla). Se emite un payload ligero

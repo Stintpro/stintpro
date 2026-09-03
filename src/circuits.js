@@ -14,6 +14,7 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_lucasguerrero', name: 'Circuito Lucas Guerrero',  slug: 'kartodromo-lucas-guerrero', port: 9953 },
   { id: 'cat_ariza',        name: 'Ariza Racing Circuit',      slug: 'ariza-racing-circuit',      port: 8973 },
   { id: 'cat_osona',        name: 'Circuito de Osona',         slug: 'circuitosona',              port: 9623 },
+  { id: 'cat_kippalmela',   name: 'KIP Palmela',               slug: 'kip-palmela',               port: 10113 }, // Portugal (configPort 10110 + 3)
 ];
 
 window.CircuitDB = {

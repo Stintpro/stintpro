@@ -151,6 +151,7 @@ class CircuitMonitor {
       onCountdown:  this._onCountdown.bind(this),
       onComment:    this._onComment.bind(this),
       onFlag:       this._onFlag.bind(this),
+      onMessage:    this._onMessage.bind(this),
     });
 
     // Último countdown recibido de Apex ({ms, mode, at}) — para reenviar a subscriptores
@@ -665,6 +666,15 @@ class CircuitMonitor {
       console.log(`[${this.slug}] Salida oficial ${rs.clock} (${rs.source})`);
       this._broadcast({ type: 'raceStart', at: rs.at, clock: rs.clock, source: rs.source });
     }
+  }
+
+  // ── Mensajes de dirección de carrera (canal msg|) ───────────────────────
+  // Sanciones y avisos con su motivo literal, ya clasificados por el parser
+  // compartido. Las mejores vueltas del evento NO se difunden: son 684 de los
+  // 887 mensajes distintos del corpus y ahogarían la señal en el cliente.
+  _onMessage(info) {
+    if (!info || (info.kind !== 'penalty' && info.kind !== 'warning')) return;
+    this._broadcast({ type: 'message', ts: Date.now(), ...info });
   }
 
   // ── Bandera del panel de luces (verde/roja/amarilla) ────────────────────
