@@ -1077,25 +1077,45 @@ test('.en-tab.active existe en el <style> inyectado y pinta su texto con un hex 
   strictEqual(m !== null, true, '.en-tab.active no pinta su texto con un color hex literal');
 });
 
-// Leído del propio fichero, no clavado: si el ámbar cambiara de valor,
-// este barrido mide el que de verdad se pinta, no uno desactualizado.
-const AMBAR_PESTANA = (() => {
-  const m = reglaTabActive && reglaTabActive.body.match(/(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,6})\s*(?:;|$)/);
-  return m ? m[1] : '#F5A623'; // el test de arriba ya exige que exista; esto es solo defensivo
-})();
+// Leído del propio fichero, no clavado: si el ámbar cambiara de valor, este
+// barrido mide el que de verdad se pinta, no uno desactualizado.
+//
+// Ronda de arreglo 1, R-pestañas: la primera versión caía a un literal
+// '#F5A623' hardcodeado cuando la extracción fallaba (regla ausente, o sin
+// color hex legible) — con eso, renombrar .en-tab.active dejaba los DOS
+// tests de contraste de abajo en VERDE midiendo el literal fijo en vez de lo
+// que dice el CSS; solo el primer test del grupo (el de arriba) se enteraba.
+// Ahora LANZA en vez de caer a un literal — y se llama DESDE DENTRO de cada
+// test (no en una constante de ámbito de módulo) para que sea el `test()` de
+// cada uno quien atrape la excepción: los tres tests del grupo caen en rojo
+// juntos, con su propio mensaje, sin que un throw a nivel de módulo tumbe el
+// resto de la suite. Demostrado en el informe: renombrar la clase pone rojos
+// los tres tests de este grupo, no solo uno.
+function obtenerAmbarPestana() {
+  if (!reglaTabActive)
+    throw new Error('no se encuentra la regla .en-tab.active en el <style> inyectado de en-state.js — ' +
+      'no se puede medir el contraste de un color que no se ha podido leer del CSS');
+  const m = reglaTabActive.body.match(/(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,6})\s*(?:;|$)/);
+  if (!m)
+    throw new Error(`.en-tab.active no pinta su texto con un color hex literal legible (cuerpo: ${reglaTabActive.body}) — ` +
+      'no se puede medir el contraste de un color que no se ha podido extraer');
+  return m[1];
+}
 
 test('el ámbar de la pestaña activa alcanza 4.5:1 sobre el peor caso del material normal', () => {
-  const { contraste: c, base } = peorCasoDelCristal(AMBAR_PESTANA, { densa: false });
+  const ambar = obtenerAmbarPestana();
+  const { contraste: c, base } = peorCasoDelCristal(ambar, { densa: false });
   ok(c >= 4.5,
-    `${AMBAR_PESTANA} da ${c.toFixed(3)}:1 sobre la pastilla, base ${base.token} (${base.consumidor}) — ` +
+    `${ambar} da ${c.toFixed(3)}:1 sobre la pastilla, base ${base.token} (${base.consumidor}) — ` +
     `ajusta el MATERIAL o el color del texto, nunca el umbral`);
 });
 
 test('el ámbar de la pestaña activa alcanza 4.5:1 sobre la pastilla de ☀', () => {
+  const ambar = obtenerAmbarPestana();
   const superficie = superficieHc({ densa: false });
-  const c = contraste(hex(AMBAR_PESTANA), superficie);
+  const c = contraste(hex(ambar), superficie);
   ok(c >= 4.5,
-    `${AMBAR_PESTANA} da ${c.toFixed(3)}:1 sobre la pastilla en ☀ — ` +
+    `${ambar} da ${c.toFixed(3)}:1 sobre la pastilla en ☀ — ` +
     `la palanca es --panel-surface (body.hc) o el color del texto, nunca el umbral`);
 });
 

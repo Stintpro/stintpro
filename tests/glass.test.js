@@ -306,11 +306,56 @@ group('la pastilla de la pestaña activa (.en-tab.active) no reabre la trampa de
       `.en-tab.active todavía declara border-bottom-color: ${regla.body} — el diseño aprobado quita el subrayado`);
   });
 
-  test('.en-tab.active pone su propio borde y radio con var(--glass-border) (el material no los declara)', () => {
-    strictEqual(/(?:^|;)\s*border\s*:\s*[^;]*var\(--glass-border\)/.test(regla.body), true,
-      `.en-tab.active no declara un border con var(--glass-border): ${regla.body}`);
+  test('.en-tab.active pone su propio color de borde y radio con var(--glass-border) (el material no los declara)', () => {
+    // .en-tab.active solo cambia border-COLOR (y el radio): el ANCHO del
+    // borde lo fija .en-tab en la base, igual en las cuatro pestañas, para
+    // que activar una no cambie la caja (ver el grupo de más abajo, "la
+    // pestaña activa no cambia de tamaño al activarse").
+    strictEqual(/(?:^|;)\s*border-color\s*:\s*var\(--glass-border\)/.test(regla.body), true,
+      `.en-tab.active no declara border-color con var(--glass-border): ${regla.body}`);
     strictEqual(/border-radius\s*:/.test(regla.body), true,
       `.en-tab.active no declara border-radius: ${regla.body}`);
+  });
+});
+
+group('la pestaña activa no cambia de tamaño al activarse (no debe saltar el layout)', () => {
+  // Ronda de arreglo 1: el revisor midió con getBoundingClientRect().height
+  // de .en-tabs, cambiando de pestaña, en tres anchos — 36,25px con
+  // "Clasificación" activa, 38,25px con cualquiera de las otras tres. La
+  // causa: .en-tab no declara ningún ancho de borde propio (no tiene
+  // altura fija, es flex:1 auto-dimensionado por contenido), así que el
+  // border:0.5px que solo ganaba .en-tab.active cambiaba la caja 1px por
+  // cada lado. El viejo border-bottom:2px solid transparent de la base
+  // existía justo para reservar ese hueco y se quitó sin poner el
+  // equivalente para el borde nuevo.
+  //
+  // El arreglo: .en-tab reserva en la BASE el mismo ancho y estilo de
+  // borde (transparente) que gana .en-tab.active; la activa solo cambia
+  // border-COLOR, nunca border-width. Esto es estático (no mide píxeles:
+  // eso lo hizo el revisor a mano en el banco, ver el informe), pero
+  // afirma la causa raíz para que no vuelva a desviarse sin que algo lo
+  // note.
+  const inyectado = extractInjectedCss(leer('src/en-state.js'));
+  const base = rulesOf(inyectado).find(r => r.selector === '.en-tab');
+  const activa = rulesOf(inyectado).find(r => r.selector === '.en-tab.active');
+
+  test('.en-tab (base) reserva un border con el mismo ancho que ganará .en-tab.active', () => {
+    strictEqual(!!base, true, 'no se encontró la regla .en-tab en el <style> inyectado de en-state.js');
+    const anchoBase = base.body.match(/(?:^|;)\s*border\s*:\s*([\d.]+px)\s+solid\s+transparent\s*(?:;|$)/);
+    strictEqual(anchoBase !== null, true,
+      `.en-tab no reserva un border transparente de ancho fijo: ${base.body} — sin esto, .en-tab.active ` +
+      `cambia de tamaño respecto a las inactivas y el layout salta al cambiar de pestaña`);
+
+    strictEqual(!!activa, true, 'no se encontró la regla .en-tab.active en el <style> inyectado de en-state.js');
+    const anchoActiva = activa.body.match(/border-color\s*:/);
+    strictEqual(anchoActiva !== null, true,
+      '.en-tab.active debería cambiar solo border-color, no redeclarar el ancho del border (eso reabriría el salto)');
+    // Si .en-tab.active redeclarase el shorthand "border:" completo (en vez de
+    // solo border-color), el ancho podría desviarse del de la base sin que
+    // ningún test estático lo note — por eso se prohíbe aquí explícitamente.
+    strictEqual(/(?:^|;)\s*border\s*:/.test(activa.body), false,
+      `.en-tab.active declara el shorthand "border:" completo (${activa.body}): eso puede reintroducir un ` +
+      `ancho distinto al de la base y el salto de layout — debe cambiar solo border-color`);
   });
 });
 

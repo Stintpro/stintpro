@@ -186,9 +186,9 @@ function _enInjectStyles(){
     .en-myrow:nth-child(odd){background:linear-gradient(90deg,rgba(245,166,35,0.32),rgba(245,166,35,0.08) 55%,transparent)!important;}
     /* Pestañas */
     .en-tabs{display:flex;border-bottom:0.5px solid #1a1b20;flex-shrink:0;}
-    .en-tab{flex:1;padding:8px 0;text-align:center;font-size:12.5px;color:var(--text-3);cursor:pointer;font-family:sans-serif;transition:all .15s;}
+    .en-tab{flex:1;padding:8px 0;text-align:center;font-size:12.5px;color:var(--text-3);cursor:pointer;font-family:sans-serif;transition:all .15s;border:0.5px solid transparent;}
     .en-tab:hover{color:var(--text-2);}
-    .en-tab.active{color:#F5A623;border:0.5px solid var(--glass-border);border-radius:8px;}
+    .en-tab.active{color:#F5A623;border-color:var(--glass-border);border-radius:8px;}
     /* Vista equipo */
     .en-team{padding:14px 18px;overflow-y:auto;flex:1;}
     .en-team-card{border:0.5px solid var(--glass-border);border-radius:8px;padding:14px;margin-bottom:12px;}
