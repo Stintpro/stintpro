@@ -794,12 +794,12 @@ function _enShowMessages(){
   } else {
     msgs.forEach(m=>{
       const hora=new Date(m.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-      const col=m.kind==='penalty'?'#ef4444':'#fbbf24';
+      const col=m.kind==='penalty'?'var(--state-alert)':'var(--state-warn)';
       const tag=m.kind==='penalty'?'SANCIÓN':'AVISO';
       rows+=`<div style="display:grid;grid-template-columns:44px 62px 40px 1fr 90px;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #1a1b22;${m.mine?'box-shadow:inset 3px 0 0 #ef4444;':''}">
         <span style="font-size:11.5px;color:var(--text-2);font-family:monospace">${hora}</span>
         <span style="font-size:10.5px;color:${col};font-weight:600;font-family:sans-serif">${tag}</span>
-        <span style="font-size:13px;font-weight:700;color:${m.mine?'#ef4444':'var(--text-1)'};text-align:center">${m.dorsal?_esc(m.dorsal):'—'}</span>
+        <span style="font-size:13px;font-weight:700;color:${m.mine?'var(--state-alert)':'var(--text-1)'};text-align:center">${m.dorsal?_esc(m.dorsal):'—'}</span>
         <span style="font-size:12.5px;color:var(--text-1);font-family:sans-serif">${_esc(m.reason||m.text)}<span style="color:var(--text-2)"> · ${_esc(m.team||'')}</span></span>
         <span style="font-size:12.5px;color:${col};font-family:monospace;text-align:right">${m.penalty?_esc(m.penalty):''}</span>
       </div>`;
@@ -807,7 +807,7 @@ function _enShowMessages(){
   }
 
   overlay.innerHTML=`
-    <div style="background:#13141a;border:0.5px solid #2a2b2e;border-radius:12px;padding:24px;max-width:760px;width:95%;max-height:80vh;overflow-y:auto">
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:760px;width:95%;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">✉ Dirección de carrera</div>

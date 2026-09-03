@@ -196,10 +196,10 @@ group('la zona de datos sigue mate', () => {
 group('lo que flota sobre datos lleva el material denso', () => {
   const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js'];
 
-  test('las 11 cajas de modal llevan class="sp-modal"', () => {
+  test('las 12 cajas de modal llevan class="sp-modal"', () => {
     let cajas = 0;
     for (const f of FICHEROS_MODAL) cajas += (leer('src/' + f).match(/class="sp-modal"/g) || []).length;
-    strictEqual(cajas, 11, `esperaba 11 cajas con sp-modal, encontré ${cajas}`);
+    strictEqual(cajas, 12, `esperaba 12 cajas con sp-modal, encontré ${cajas}`);
   });
 
   test('ninguna caja de modal conserva un fondo, borde o sombra sólidos inline', () => {
@@ -214,7 +214,7 @@ group('lo que flota sobre datos lleva el material denso', () => {
     // regex se para ahí, el style queda sin cerrar, el match de style
     // devuelve null, `style` cae a `''` y las tres aserciones de abajo pasan
     // SIN HABER COMPROBADO NADA —el test falla en abierto—. Hoy ninguna de
-    // las 11 cajas tiene ese patrón, pero el test tiene que seguir cazándolo
+    // las 12 cajas tiene ese patrón, pero el test tiene que seguir cazándolo
     // si aparece mañana.
     //
     // Arreglo: en vez de cortar por el primer `>`, se reconstruye la

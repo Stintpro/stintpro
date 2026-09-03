@@ -125,7 +125,7 @@ function contraste(a, b) {
 // fondos reales detrás del material, cada uno con sus propios consumidores:
 //   - var(--panel-bg) — #0e0f11 — en src/panel.css:18 (#screen-dash), donde
 //     vive la mayoría del cristal: la cabecera, los KPI, el pie,
-//     .en-team-card, .en-strat-card, .en-col-panel y las 11 cajas de modal.
+//     .en-team-card, .en-strat-card, .en-col-panel y las 12 cajas de modal.
 //   - var(--bg) — #07090F — en src/styles.css:117 (#screen-setup .card), el
 //     único consumidor que descansa sobre el fondo "normal".
 // Un test anclado solo a --bg mide un colchón que no es el real: --panel-bg es
@@ -244,7 +244,7 @@ test('--text-1 supera a --text-3 en ☀', () => {
 });
 test('--text-1 supera a --text-3', () => {
   // Comparación relativa: usa la base más exigente (--panel-bg) porque es
-  // donde vive la inmensa mayoría del cristal, incluidas las 11 cajas de
+  // donde vive la inmensa mayoría del cristal, incluidas las 12 cajas de
   // modal — el orden entre --text-1 y --text-3 no depende de la base.
   const s = superficieDelCristal({ densa: false, base: '--panel-bg' });
   const c1 = contraste(hex(token('--text-1')), s);
@@ -254,18 +254,18 @@ test('--text-1 supera a --text-3', () => {
 
 // ─────────────────────────────────────────────────────────────────────────
 // R17: los tokens (--text-1, --text-2, --text-3) no son el único texto que
-// vive dentro de una caja de cristal. Las 11 cajas .sp-modal escriben colores
+// vive dentro de una caja de cristal. Las 12 cajas .sp-modal escriben colores
 // LITERALES directamente en su style="" inline (color:#ef4444, color:#22c55e…)
 // y esos jamás pasan por un token — el grupo de arriba, que solo mira
 // --text-3, no los vería nunca. Este grupo barre esos literales.
 //
-// Las 11 cajas de modal son contenido de la pantalla endurance: componen
+// Las 12 cajas de modal son contenido de la pantalla endurance: componen
 // sobre --panel-bg (ver BASES arriba), no sobre --bg. Se comprueban contra
 // esa base — la real, y también la más exigente de las dos.
 //
 // ALCANCE de la extracción (documentado a propósito, en vez de fingir que es
 // completa):
-//   1. Solo mira los 5 ficheros donde viven las 11 cajas de modal (los mismos
+//   1. Solo mira los 5 ficheros donde viven las 12 cajas de modal (los mismos
 //      que usa tests/glass.test.js: app.js, en-advanced.js, en-grid.js,
 //      en-team.js, en-strategy.js), y solo dentro del innerHTML de una caja
 //      class="sp-modal" — localizado por el `innerHTML=`` más cercano hacia
@@ -274,7 +274,7 @@ test('--text-1 supera a --text-3', () => {
 //      `${pilotos.map(p=>\`...\`)}` de en-grid.js/en-team.js: un simple
 //      "busca el siguiente backtick" corta ahí a mitad de caja y se deja
 //      colores reales sin mirar — comprobado: sin el escáner con pila, 4 de
-//      las 11 cajas se cortan a mitad y se pierden colores reales, por
+//      las 12 cajas se cortan a mitad y se pierden colores reales, por
 //      ejemplo color:#22c55e y color:#F5A623 en en-grid.js:655).
 //   2. Solo ve colores hexadecimales LITERALES dentro de un `color:#rrggbb`
 //      directo. Dentro de una caja de modal también hay colores que llegan
@@ -417,7 +417,7 @@ function extraeColoresDeCaja(caja) {
 // R1 (ronda de arreglo 1): antes, "se encuentran los N colores esperados"
 // interpolaba N del propio resultado — la única aserción real era size > 0,
 // así que si la extracción se quedaba corta (el modo de fallo que YA
-// documentamos arriba: el escáner ingenuo cortaba 4 de las 11 cajas), el
+// documentamos arriba: el escáner ingenuo cortaba 4 de las 12 cajas), el
 // test seguía en verde con menos colores. Ahora la lista esperada es una
 // constante fija, comparada con deepStrictEqual: si mañana se añade o se
 // quita un color legítimo, hay que tocar esta lista A PROPÓSITO.
@@ -428,7 +428,7 @@ const COLORES_ESPERADOS = [
   '#22c55e', '#60a5fa', '#e4e6ed',
   '#ef4444', '#f2f2f6', '#f5a623', '#fbbf24', '#fff',
 ];
-const CAJAS_ESPERADAS = 11; // mismo número que vigila tests/glass.test.js
+const CAJAS_ESPERADAS = 12; // mismo número que vigila tests/glass.test.js
 
 const coloresEncontrados = new Set();
 const noMediblesEncontrados = [];
@@ -488,7 +488,7 @@ test('ningún color de texto usa un hex de 4 u 8 dígitos que hex() no sepa leer
 });
 
 // Con EXCEPCIONES vacía este test NO pasa "por vacío": la extracción que
-// alimenta coloresEncontrados está vigilada por los dos tests de arriba (11
+// alimenta coloresEncontrados está vigilada por los dos tests de arriba (12
 // cajas, 8 colores exactos), y aquí se mide CADA color contra la superficie
 // densa real. Lo que se afirma es que ninguno baja de 4,5:1; si alguno baja,
 // el mensaje dice cuál, cuánto da y en qué fichero(s) vive.
@@ -544,7 +544,7 @@ test('los colores exceptuados aparecen solo donde y las veces documentadas — n
 // BARRIDO DE LOS COLORES DEL MATERIAL NORMAL — las baldosas .sp-kpi.
 //
 // Por qué existe: hasta la revisión final este fichero barría literales SOLO
-// dentro de las 11 cajas .sp-modal y SOLO contra el material denso. El
+// dentro de las 12 cajas .sp-modal y SOLO contra el material denso. El
 // material normal no tenía barrido de literales ninguno, y ahí es justo donde
 // vivía el fallo crítico de la entrega: .sp-header y .sp-kpi compartían la
 // regla de material, el velo se componía DOS VECES sobre el mismo píxel y los
@@ -1163,6 +1163,87 @@ test('.en-msg-btn.mine pinta color y border-color con var(--state-alert), no con
   ok(/color\s*:\s*var\(--state-alert\)/.test(reglaMsgMine.body) &&
      /border-color\s*:\s*var\(--state-alert\)/.test(reglaMsgMine.body),
     `.en-msg-btn.mine debe pintar color y border-color con var(--state-alert) (cuerpo: "${reglaMsgMine.body}")`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// FILAS DEL MODAL DE MENSAJES (_enShowMessages, en-strategy.js) — un patrón
+// que el barrido R17 de arriba no alcanza.
+//
+// Por qué existe: cuando esta caja pasó a class="sp-modal" (cristal, entrega
+// 2), sus colores de fila (SANCIÓN/AVISO en rojo o ámbar, el dorsal en rojo
+// si es el propio) NO entraron en el barrido R17 pese a vivir dentro de una
+// caja .sp-modal. Motivo: las filas se construyen en una variable `rows`
+// aparte (`rows+=\`...\`` dentro de un forEach) ANTES del innerHTML, y el
+// innerHTML solo interpola `${rows}` — un identificador simple. cajasModalDe()
+// ancla en el backtick del innerHTML y solo ve lo que hay DENTRO de ESE
+// backtick (con su escáner de plantillas anidadas, que sí alcanza un
+// `.map(p=>\`...\`)` escrito directamente ahí — el patrón de
+// en-grid.js/en-team.js); una reasignación `rows+=` en una sentencia PREVIA
+// queda fuera de ese backtick, así que no hay literal ni ternario que
+// "barrer" — el texto entero de la fila es invisible para ese escáner.
+// Comprobado a propósito inyectando '#555555' en el color de la fila: el
+// barrido de arriba se quedó en verde (35/35, sin verlo).
+//
+// La solución elegida NO es generalizar R17 para seguir `rows+=` (exigiría
+// bastante más máquina para un único consumidor de este patrón). En su
+// lugar, la fila pasó a pintar sus dos colores de estado por TOKEN
+// (var(--state-alert) / var(--state-warn)), igual que ya hacen .en-msg-btn
+// (guardián de arriba) y las tarjetas (R39) — y este bloque hace lo mismo
+// que esos dos: (1) mide el token contra el material DENSO en los dos
+// modos, que es la superficie real de este modal y que ningún grupo de
+// arriba comprueba (los de arriba solo miden contra el material NORMAL de
+// baldosas/tarjetas); (2) vigila con una regex anclada al cuerpo de
+// _enShowMessages que sus líneas de color sigan usando esos tokens y no un
+// hex literal — así que reintroducir un color suelto (el '#555555' de la
+// prueba, o cualquier otro) vuelve a poner esto en rojo.
+console.log('\ncolores de las filas del modal de mensajes (_enShowMessages) — patrón fuera del alcance de R17');
+
+const srcEnStrategy = leer('src/en-strategy.js');
+const fnMsgsMatch = /function _enShowMessages\(\)\{[\s\S]*?\n\}/.exec(srcEnStrategy);
+
+test('se encuentra la función _enShowMessages en src/en-strategy.js', () => {
+  ok(fnMsgsMatch !== null,
+    'no se encuentra "function _enShowMessages(){...}" en src/en-strategy.js — ' +
+    'si se renombró o movió, este guardián necesita seguirla para poder vigilar sus colores');
+});
+const fnMsgs = fnMsgsMatch ? fnMsgsMatch[0] : '';
+
+test('la fila de mensajes pinta SANCIÓN/AVISO por token de estado (var(--state-alert)/var(--state-warn)), no con un hex literal', () => {
+  const m = /const col\s*=\s*([^;]+);/.exec(fnMsgs);
+  ok(m !== null, 'no se encuentra "const col=...;" dentro de _enShowMessages — ¿cambió el nombre de la variable?');
+  const expr = m[1];
+  ok(!/#[0-9a-fA-F]{3,8}\b/.test(expr),
+    `"col" tiene un hex literal ("${expr}") — sobre el material denso eso no queda vigilado por ningún barrido; usa var(--state-alert)/var(--state-warn)`);
+  ok(/var\(--state-alert\)/.test(expr) && /var\(--state-warn\)/.test(expr),
+    `"col" debe alternar entre var(--state-alert) y var(--state-warn) (valor actual: "${expr}")`);
+});
+
+test('el dorsal de "mi" fila pinta con var(--state-alert), no con un hex literal', () => {
+  const m = /color:\$\{m\.mine\?([^:]+):([^}]+)\}/.exec(fnMsgs);
+  ok(m !== null, 'no se encuentra el color condicional del dorsal (color:${m.mine?...:...}) dentro de _enShowMessages');
+  const ramaMine = m[1], ramaOtros = m[2];
+  ok(!/#[0-9a-fA-F]{3,8}\b/.test(ramaMine) && !/#[0-9a-fA-F]{3,8}\b/.test(ramaOtros),
+    `el color del dorsal tiene un hex literal (mine:"${ramaMine.trim()}", resto:"${ramaOtros.trim()}") — usa var(--state-alert)/var(--text-1)`);
+  ok(/var\(--state-alert\)/.test(ramaMine),
+    `la rama "mine" del dorsal debe ser var(--state-alert) (valor actual: "${ramaMine.trim()}")`);
+});
+
+test('var(--state-alert) alcanza 4.5:1 sobre el cristal denso, en los dos modos (superficie real del modal de mensajes)', () => {
+  const normalHex = resolverToken('--state-alert', token);
+  const hcHex = resolverToken('--state-alert', tokenHc);
+  const cNormal = peorCasoDelCristal(normalHex, { densa: true }).contraste;
+  const cHc = contraste(hex(hcHex), superficieHc({ densa: true }));
+  ok(cNormal >= 4.5, `--state-alert (${normalHex}) da ${cNormal.toFixed(3)}:1 sobre el denso en modo normal`);
+  ok(cHc >= 4.5, `--state-alert (${hcHex}) da ${cHc.toFixed(3)}:1 sobre el denso en ☀`);
+});
+
+test('var(--state-warn) alcanza 4.5:1 sobre el cristal denso, en los dos modos (superficie real del modal de mensajes)', () => {
+  const normalHex = resolverToken('--state-warn', token);
+  const hcHex = resolverToken('--state-warn', tokenHc);
+  const cNormal = peorCasoDelCristal(normalHex, { densa: true }).contraste;
+  const cHc = contraste(hex(hcHex), superficieHc({ densa: true }));
+  ok(cNormal >= 4.5, `--state-warn (${normalHex}) da ${cNormal.toFixed(3)}:1 sobre el denso en modo normal`);
+  ok(cHc >= 4.5, `--state-warn (${hcHex}) da ${cHc.toFixed(3)}:1 sobre el denso en ☀`);
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);
