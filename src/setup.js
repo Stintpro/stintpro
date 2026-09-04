@@ -283,7 +283,7 @@ function renderEnduranceSetup() {
         <input class="f-input" id="nPilotos" type="number" min="1" max="10" value="3" oninput="renderPilotInputs()" style="width:44px;text-align:center;font-family:var(--font-mono)">
         <span class="f-unit">pilotos</span>
       </div>
-      <div style="padding:6px 14px 4px;font-size:10.5px;color:#3E4E62;font-family:var(--font-mono);letter-spacing:0.06em">NOMBRE · TIEMPO MÍNIMO EN PISTA</div>
+      <div style="padding:6px 14px 4px;font-size:10.5px;color:var(--text-3);font-family:var(--font-mono);letter-spacing:0.06em">NOMBRE · TIEMPO MÍNIMO EN PISTA</div>
       <div id="pilotInputs"></div>
     </div>
 

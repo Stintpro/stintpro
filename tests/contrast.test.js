@@ -1286,6 +1286,87 @@ test('todo color de texto de .en-col-* es un token conocido o un literal ≥4.5:
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// PANTALLA DE SETUP #screen-setup .card — cristal NORMAL, sin barrer hasta la
+// auditoría de 2026-09.
+//
+// #screen-setup .card entra en la lista de material normal de src/glass.css,
+// pero su texto se pinta con style="" inline dentro de los innerHTML de
+// src/setup.js y ningún barrido de arriba mira ese fichero. La auditoría
+// encontró ahí color:#3E4E62 (la cabecera “NOMBRE · TIEMPO MÍNIMO EN PISTA”)
+// sobre una .card de cristal a 1,79:1 — por debajo del suelo. Se tokenizó a
+// var(--text-3) (decisión del dueño: es texto que debe leerse) y este guardián
+// cierra la superficie entera.
+//
+// MODELO: barre TODOS los color: inline de setup.js y los mide contra el cristal
+// normal. Es CONSERVADOR a propósito: parte del setup (el logo, el subtítulo) se
+// pinta directamente sobre #screen-setup, que es OPACO y más oscuro que la
+// baldosa de cristal —mejor contraste para texto claro—, así que exigir el suelo
+// contra el cristal (el peor caso) cubre también lo que va sobre el fondo opaco.
+//   · Se saltan los textos con fondo local OPACO propio (botones tipo
+//     background:#F5A623 con color:#08090a, badges) — no componen con el cristal.
+//   · Se saltan los tokens de texto/estado (medidos en sus grupos).
+//   · Los tokens de marca (var(--green-txt), etc.) y los literales se miden.
+// El único apagado real es #2A3848, el subtítulo “KARTING STRATEGY INTELLIGENCE”
+// bajo el logo: va sobre el fondo OPACO de #screen-setup (no sobre cristal) y es
+// tipografía técnica tenue a propósito. Va en MARCADORES_SETUP, con su motivo, y
+// un test comprueba que sigue existiendo para que la lista no se pudra.
+const MARCADORES_SETUP = {
+  '#2a3848': 'subtítulo “KARTING STRATEGY INTELLIGENCE” bajo el logo (setup.js) — tipografía técnica tenue a propósito y sobre el fondo OPACO de #screen-setup, no sobre cristal; fuera del invariante del cristal',
+};
+
+function coloresDeTextoInlineDe(src) {
+  const out = [];
+  for (const m of src.matchAll(/style="([^"]*)"/g)) {
+    const style = m[1];
+    if (tieneFondoLocalOpaco(style)) continue; // botón/badge con su propio fondo opaco
+    for (const cm of style.matchAll(/color\s*:\s*(#[0-9a-fA-F]{3,8}|var\(--[\w-]+\))/g)) {
+      const previo = style[cm.index - 1];
+      if (previo !== undefined && /[a-zA-Z-]/.test(previo)) continue; // background-color, border-color
+      out.push(cm[1].toLowerCase());
+    }
+  }
+  return out;
+}
+const coloresSetup = coloresDeTextoInlineDe(leer('src/setup.js'));
+
+console.log('\ncolores de texto de la pantalla de setup (#screen-setup .card, cristal normal)');
+
+test('el barrido de setup extrae colores de texto (no mide en vacío)', () => {
+  ok(coloresSetup.length > 0,
+    'no se ha extraído ningún color de texto inline de src/setup.js — ¿cambió la forma del marcado? ' +
+    'sin colores, este guardián mediría en vacío');
+});
+
+test('los marcadores tenues del setup declarados siguen existiendo (la lista no se pudre)', () => {
+  const ausentes = Object.keys(MARCADORES_SETUP).filter(c => !coloresSetup.includes(c));
+  deepStrictEqual(ausentes, [],
+    `marcador(es) tenue(s) del setup que ya no aparecen: ${ausentes.join(', ')} — ` +
+    `si se retiraron del código, quítalos de MARCADORES_SETUP a propósito`);
+});
+
+test('todo color de texto del setup que no es token ni marcador declarado llega a 4.5:1 (cristal normal, dos modos)', () => {
+  const faints = new Set(Object.keys(MARCADORES_SETUP));
+  const fallos = [];
+  for (const v of new Set(coloresSetup)) {
+    if (/^var\(--(text-[123]|state-(alert|warn|ok))\)$/.test(v)) continue; // medidos en sus grupos
+    if (faints.has(v)) continue;
+    const hN = resolverValor(v, token).toLowerCase();
+    const hHc = resolverValor(v, tokenHc).toLowerCase();
+    if (!HEX_OPACO.test(hN) || !HEX_OPACO.test(hHc)) {
+      fallos.push(`${v} resuelve a "${hN}"/"${hHc}", que hex() no sabe leer`);
+      continue;
+    }
+    const cN = peorCasoDelCristal(hN, { densa: false }).contraste;
+    const cHc = contraste(hex(hHc), superficieHc({ densa: false }));
+    if (cN < 4.5 || cHc < 4.5)
+      fallos.push(`${v === hN ? v : `${v} → ${hN}`} da ${cN.toFixed(3)}:1 (normal) / ${cHc.toFixed(3)}:1 (☀)`);
+  }
+  deepStrictEqual(fallos.sort(), [],
+    `color(es) de texto del setup por debajo de 4.5:1 sobre el cristal: ${fallos.join('; ')} — ` +
+    `tokeniza a var(--text-3) o ajusta el color; nunca el umbral`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // GUARDIÁN DEL BOTÓN .en-msg-btn (mensajes de dirección de carrera).
 //
 // Por qué existe: main trajo esta feature con el botón escrito contra la
