@@ -1457,6 +1457,7 @@ window._enGoBack=function(){
   EnSession.posIn=null;
   EnSession.stintBestLap=null;
   EnUi.excludedFromAvg={};
+  EnUi.excludedCategories={};
   EnBox.config={type:'line',positions:4,columns:2};
   EnSession.rivalPitOut={};
   EnBox.pilotMinTime=0;

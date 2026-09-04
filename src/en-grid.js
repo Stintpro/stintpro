@@ -323,6 +323,8 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
 
   // Media pista live
   const trackStr=trackAvg?_enFmt(trackAvg):'—';
+  // Karts efectivamente fuera de la media: por dorsal o por su categoría.
+  const nExclAvg=(eq||[]).filter(e=>EnUi.excludedFromAvg[e.dorsal]||(e.category&&EnUi.excludedCategories[e.category])).length;
 
   // Vueltas restantes estimadas
   const estLaps=_enEstLaps(trackAvg);
@@ -343,7 +345,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     <div class="sp-kpi-sub" style="background:linear-gradient(90deg,color-mix(in srgb, ${stintColor} 13.33%, transparent) ${stintStarted?stintPct:0}%,transparent ${stintStarted?stintPct:0}%);border-radius:2px;padding:1px 4px">${stintStarted?(pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')):'Esperando salida'}</div>
   </div>
   <div class="sp-kpi" style="cursor:pointer" onclick="_enShowAvgFilter()">
-    <div class="sp-kpi-lbl">Media pista ${Object.values(EnUi.excludedFromAvg).filter(Boolean).length?'<span style="color:#f97316">('+Object.values(EnUi.excludedFromAvg).filter(Boolean).length+' excl.)</span>':''}</div>
+    <div class="sp-kpi-lbl">Media pista ${nExclAvg?'<span style="color:#f97316">('+nExclAvg+' excl.)</span>':''}</div>
     <div class="sp-kpi-val" style="color:#60a5fa">${trackStr}</div>
     <div class="sp-kpi-sub">click para filtrar equipos</div>
   </div>

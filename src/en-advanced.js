@@ -404,10 +404,31 @@ function _enShowAvgFilter(){
   overlay.id='en-pilot-overlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
 
+  // Categorías presentes en pista (para el filtro por clase en bloque). Solo se
+  // ofrecen los chips cuando hay ≥2 clases distintas: en carrera de una sola
+  // clase no aportan nada y el popup queda idéntico al de siempre.
+  const catCounts={};
+  eq.forEach(e=>{ if(e.category) catCounts[e.category]=(catCounts[e.category]||0)+1; });
+  const cats=Object.keys(catCounts).sort();
+  let chips='';
+  if(cats.length>=2){
+    const chipEls=cats.map((cat,i)=>{
+      const off=!!EnUi.excludedCategories[cat];
+      return `<div onclick="_enToggleCatExclude(${i})" style="cursor:pointer;display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;border:1px solid ${off?'#2a2b2e':'#F5A623'};background:${off?'transparent':'#F5A62322'};opacity:${off?'0.45':'1'}">
+        <span style="font-size:11.5px;font-weight:700;color:${off?'#6b7280':'#F5A623'};font-family:sans-serif">${_esc(cat)}</span>
+        <span style="font-size:10px;color:${off?'#4b5563':'#9ca3af'};font-family:monospace">${catCounts[cat]}</span>
+      </div>`;
+    }).join('');
+    chips=`<div style="font-size:10.5px;color:var(--text-3);margin-bottom:6px;font-family:sans-serif">Filtrar por clase</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${chipEls}</div>`;
+  }
+
   let rows='';
   eq.forEach(e=>{
     if(!e.lastLap||e.pit)return;
-    const excluded=!!EnUi.excludedFromAvg[e.dorsal];
+    const dorsalExcl=!!EnUi.excludedFromAvg[e.dorsal];
+    const catExcl=!!(e.category&&EnUi.excludedCategories[e.category]);
+    const excluded=dorsalExcl||catExcl;
     const kc=_enKartColor(e.dorsal);
     let lapCol='#9ca3af';
     if(trackAvg){
@@ -417,9 +438,15 @@ function _enShowAvgFilter(){
       else if(d>0.5)lapCol='#ef4444';
       else if(d>0.2)lapCol='#fbbf24';
     }
+    // Etiqueta de clase solo cuando hay varias clases; si la fila está fuera por
+    // su categoría se rotula "clase" para que se vea que el chip es quien manda.
+    const catTag=(cats.length>=2&&e.category)
+      ? `<div style="font-size:10px;color:${catExcl?'#F5A623':'#6b7280'};font-family:sans-serif;${catExcl?'':'opacity:0.7'}">${catExcl?'⊘ ':''}${_esc(e.category)}</div>`
+      : '';
     rows+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:0.5px solid ${excluded?'#1a1b20':'#1e1f25'};background:${excluded?'#0e0f11':'#13141a'};cursor:pointer;opacity:${excluded?'0.4':'1'}" onclick="_enToggleAvgExclude('${e.dorsal}')">
       <div style="width:24px;height:18px;border-radius:4px;background:${kc.bg};color:${kc.text};border:1px solid ${kc.border};display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700">${e.dorsal}</div>
       <div style="flex:1;font-size:11.5px;color:${excluded?'#333':'#9ca3af'};font-family:sans-serif">${_esc(e.name)}</div>
+      ${catTag}
       <div style="font-size:11.5px;color:${excluded?'#333':lapCol};font-family:monospace">${_enFmt(e.lastLap)}</div>
       <div style="width:18px;height:18px;border-radius:3px;border:1.5px solid ${excluded?'#333':'#F5A623'};background:${excluded?'transparent':'#F5A623'};display:flex;align-items:center;justify-content:center;font-size:11.5px;color:#fff">${excluded?'':'✓'}</div>
     </div>`;
@@ -429,6 +456,7 @@ function _enShowAvgFilter(){
     <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:380px;width:90%;max-height:80vh;display:flex;flex-direction:column">
       <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:4px;font-family:sans-serif">📊 Filtro media pista</div>
       <div style="font-size:11.5px;color:var(--text-3);margin-bottom:14px;font-family:sans-serif">Click para incluir/excluir del cálculo. Media actual: <span style="color:#60a5fa">${trackAvg?_enFmt(trackAvg):'—'}</span></div>
+      ${chips}
       <div style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px">
         ${rows}
       </div>
@@ -445,8 +473,22 @@ function _enToggleAvgExclude(dorsal){
   _enShowAvgFilter(); // refrescar popup
 }
 
+// Toggle de una clase entera. Recibe el índice dentro de la lista de categorías
+// ordenada (misma derivación que el render) para no interpolar el nombre de la
+// clase en el onclick.
+function _enToggleCatExclude(idx){
+  const eq=(EnSession.data&&EnSession.data.equipos)||[];
+  const counts={};
+  eq.forEach(e=>{ if(e.category) counts[e.category]=(counts[e.category]||0)+1; });
+  const cat=Object.keys(counts).sort()[idx];
+  if(!cat)return;
+  EnUi.excludedCategories[cat]=!EnUi.excludedCategories[cat];
+  _enShowAvgFilter();
+}
+
 function _enResetAvgFilter(){
   EnUi.excludedFromAvg={};
+  EnUi.excludedCategories={};
   _enShowAvgFilter();
 }
 

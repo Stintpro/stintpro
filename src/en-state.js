@@ -123,6 +123,7 @@ const EnUi = {
   sortMode:      'pos',  // 'pos' | 'm5v'
   kartQuality:   {},     // dorsal → 'good'|'neutral'|'bad'|'auto'|null (overrides manuales)
   excludedFromAvg:{},    // dorsal → true si excluido de la media de pista
+  excludedCategories:{}, // categoría → true si toda la clase se excluye de la media
 };
 
 // ── Timers (handles — no son estado de dominio) ───────────────────────────
@@ -243,9 +244,12 @@ function _enStintLaps(myKart){
 function _enTrackAvgLive(eq){
   const laps=[];
   eq.forEach(e=>{
-    // Excluir: en pit, saliendo de pit, vueltas >180s, equipos excluidos manualmente
+    // Excluir: en pit, saliendo de pit, vueltas >180s, dorsales excluidos
+    // manualmente, y karts cuya categoría esté excluida en bloque. Un kart sin
+    // categoría nunca cae por esta última vía (solo por dorsal).
     const m5=_enAvg5(e.lapHistory);
-    if(m5&&m5<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal])laps.push(m5);
+    const catExcluded=e.category&&EnUi.excludedCategories[e.category];
+    if(m5&&m5<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal]&&!catExcluded)laps.push(m5);
   });
   if(laps.length<2)return null;
   laps.sort((a,b)=>a-b);
@@ -490,6 +494,6 @@ function _enQualityTooltip(dorsal, e, trackAvg){
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enAutoKartQuality, _enEffectiveQuality, EnSession, EnUi, _enPilotRatings };
+  module.exports = { _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, EnSession, EnUi, _enPilotRatings };
 }
 
