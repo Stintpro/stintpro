@@ -235,6 +235,39 @@ for (const densa of [false, true]) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// AUDITORÍA 2026-09: --text-3 NO es el único token de texto que vive sobre el
+// cristal. El barrido de inyecciones encontró que --text-1 y --text-2 se pintan
+// como texto en superficies de cristal SIN que nadie mida su contraste absoluto:
+//   · --text-2 → .en-col-item (panel de columnas, DENSO), .en-queue-name /
+//     .sp-vtas de las tarjetas, y decenas de <div style="color:var(--text-2)">
+//     dentro de .en-strat-card / .en-team-card construidas con html+=.
+//   · --text-1 → .en-pilot-name, .en-queue-name (siguiente), y el texto
+//     principal de tarjetas y modales.
+// Solo se comprobaba que --text-1 SUPERA a --text-3 (relativo), no que ambos
+// llegan al suelo. Un cambio futuro que oscureciera --text-1 o --text-2 en
+// :root o en body.hc rompería el contraste en todas esas superficies y la suite
+// seguía verde. Medirlos aquí en absoluto —igual que --text-3— cierra el
+// agujero de RAÍZ: se prueba el TOKEN sobre el peor cristal, así que cubre todos
+// sus consumidores de golpe, se pinten donde se pinten y por la vía que sea.
+// Anclaje: token()/tokenHc() lanzan si el token desaparece de :root/body.hc.
+console.log('\ncontraste absoluto de --text-1 y --text-2 sobre el material (los dos van a cristal)');
+for (const nombreToken of ['--text-1', '--text-2']) {
+  for (const densa of [false, true]) {
+    const nombre = densa ? 'material denso' : 'material normal';
+    test(`${nombreToken} alcanza 4.5:1 sobre el peor caso del ${nombre} (--panel-bg y --bg)`, () => {
+      const { contraste: c, base } = peorCasoDelCristal(token(nombreToken), { densa });
+      ok(c >= 4.5,
+        `${nombreToken} (${token(nombreToken)}) da ${c.toFixed(3)}:1 sobre el ${nombre}, base ${base.token} (${base.consumidor}) — ajusta el MATERIAL o el token, nunca el umbral`);
+    });
+    test(`${nombreToken} alcanza 4.5:1 sobre el ${nombre} en ☀`, () => {
+      const c = contraste(hex(tokenHc(nombreToken)), superficieHc({ densa }));
+      ok(c >= 4.5,
+        `${nombreToken} (${tokenHc(nombreToken)}) da ${c.toFixed(3)}:1 sobre el ${nombre} de ☀ — la palanca es el token de body.hc, nunca el umbral`);
+    });
+  }
+}
+
 console.log('\nel texto principal no puede estar peor que el secundario');
 test('--text-1 supera a --text-3 en ☀', () => {
   const s = superficieHc({ densa: false });
@@ -1052,6 +1085,81 @@ test('minCol y stintWindowInfo (fuera del recorte de tarjetas) pintan sus estado
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// BARRIDO COMPLETO DE COLOR DE LAS TARJETAS (auditoría 2026-09) — abre el frente
+// que R39 dejó explícitamente aparte.
+//
+// R39 (arriba) solo afirma UNA cosa de las tarjetas: que sus colores de ESTADO
+// van por token. Todo lo demás —los literales de marca/acento (#F5A623, #fff,
+// #60a5fa, #c084fc, #84cc16…), los grises de dato (#9ca3af, #d0d2db) y los
+// apagados deliberados (#2a2b2e, #333, #555)— quedaba sin medir. El barrido de
+// inyecciones lo confirmó: color:#555555 en cualquiera de esas posiciones de una
+// tarjeta dejaba la suite en verde.
+//
+// Este grupo mide CADA valor de color que el barrido de tarjetas ya extrae
+// (valoresTarjeta, con sus interpolaciones y consts resueltas), contra la
+// superficie REAL de la tarjeta, y cierra el agujero:
+//
+//   · Los tokens de texto (var(--text-1/2/3)) se saltan aquí: ya se miden sobre
+//     el peor cristal —denso incluido— en su propio grupo de arriba.
+//   · Los tokens de estado (var(--state-*)) se saltan aquí: los mide R39 en ☀.
+//     No se re-miden en modo normal a propósito, porque en las tarjetas el
+//     modelo normal es PESIMISTA (compone la mancha de profundidad al máximo) y
+//     ahí --state-alert da 4,04:1 —sobre píxeles reales del banco da 4,54-4,82,
+//     por encima del suelo—; medir el estado con ese modelo daría un rojo falso.
+//     Esa pesimismo es justo por lo que este barrido NO mide el resto en un solo
+//     modo: exige el suelo en el modelo normal-con-mancha (CONSERVADOR: la
+//     realidad es mejor) Y en ☀ (exacto, superficie opaca). Un color que pasa el
+//     modelo pesimista pasa de sobra en píxeles.
+//   · Los apagados deliberados van en MARCADORES_TENUES, cada uno con su motivo
+//     y su contraste real: NO son texto de lectura (separadores, marcadores de
+//     "sin dato"), ningún material los arregla y no se tocan. Se saltan de forma
+//     EXPLÍCITA —no por accidente— y un test comprueba que siguen existiendo en
+//     las tarjetas, para que la lista no se pudra ni tape un color nuevo.
+//   · Cualquier OTRO literal (marca, acento, gris de dato) tiene que llegar a
+//     4,5:1 en los dos modos. Un literal nuevo por debajo del suelo pone esto
+//     en rojo nombrándolo.
+//
+// Nunca entra nada en EXCEPCIONES: los apagados quedan fuera por ser marcadores
+// declarados, no por ser una excepción al umbral.
+const MARCADORES_TENUES = {
+  '#2a2b2e': 'flecha “→” separadora entre karts de la cola del box (en-strategy.js) — glifo decorativo, no texto de lectura',
+  '#333':    'etiquetas de fila “fila N →” del diagrama de columnas del box (en-strategy.js) — marcador de posición atenuado, no texto de lectura',
+  '#555':    'fallback de “sin dato”: calidad de kart desconocida, gap sin medir y evento sin color propio (en-strategy.js) — marcador, no texto de lectura',
+};
+
+console.log('\nbarrido completo de color de las tarjetas .en-strat-card / .en-team-card (auditoría 2026-09)');
+
+test('los marcadores tenues declarados siguen existiendo en las tarjetas (la lista no se pudre)', () => {
+  const ausentes = Object.keys(MARCADORES_TENUES).filter(c => !valoresTarjeta.has(c));
+  deepStrictEqual(ausentes, [],
+    `marcador(es) tenue(s) declarado(s) que ya no aparecen en ninguna tarjeta: ${ausentes.join(', ')} — ` +
+    `si se retiraron del código, quítalos de MARCADORES_TENUES a propósito; si no, el recorte dejó de verlos`);
+});
+
+test('todo color de texto de las tarjetas que no es token ni marcador tenue llega a 4.5:1 (normal con mancha + ☀)', () => {
+  const faints = new Set(Object.keys(MARCADORES_TENUES));
+  const fallos = [];
+  for (const v of valoresTarjeta) {
+    if (/^var\(--(text-[123]|state-(alert|warn|ok))\)$/.test(v)) continue; // medidos en sus grupos
+    const hN = resolverValor(v, token).toLowerCase();
+    const hHc = resolverValor(v, tokenHc).toLowerCase();
+    if (faints.has(hN)) continue; // marcador tenue declarado (mismo literal en los dos modos)
+    if (!HEX_OPACO.test(hN) || !HEX_OPACO.test(hHc)) {
+      fallos.push(`${v} resuelve a "${hN}"/"${hHc}", que hex() no sabe leer (¿alfa? ¿rgba?) — conviértelo o tokenízalo`);
+      continue;
+    }
+    const cN = peorCasoDelCristal(hN, { densa: false }).contraste;
+    const cHc = contraste(hex(hHc), superficieHc({ densa: false }));
+    if (cN < 4.5 || cHc < 4.5)
+      fallos.push(`${v === hN ? v : `${v} → ${hN}`} da ${cN.toFixed(3)}:1 (normal) / ${cHc.toFixed(3)}:1 (☀)`);
+  }
+  deepStrictEqual(fallos.sort(), [],
+    `color(es) de tarjeta por debajo de 4.5:1: ${fallos.join('; ')} — ` +
+    `si es un ESTADO, tokenízalo a var(--state-*); si es texto apagado que debe leerse, var(--text-3); ` +
+    `si es un marcador tenue de verdad, documéntalo en MARCADORES_TENUES con su motivo; nunca bajes el umbral`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // LA PASTILLA DE LA PESTAÑA ACTIVA (.en-tab.active) — cristal para la barra
 // de pestañas del panel endurance.
 //
@@ -1119,6 +1227,62 @@ test('el ámbar de la pestaña activa alcanza 4.5:1 sobre la pastilla de ☀', (
   ok(c >= 4.5,
     `${ambar} da ${c.toFixed(3)}:1 sobre la pastilla en ☀ — ` +
     `la palanca es --panel-surface (body.hc) o el color del texto, nunca el umbral`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// EL PANEL DE COLUMNAS .en-col-panel — cristal DENSO, y hasta la auditoría de
+// 2026-09 no lo barría nadie.
+//
+// Por qué faltaba: .en-col-panel es material denso (src/glass.css) —flota sobre
+// la parrilla—, pero su texto no se pinta con style="" inline como las baldosas
+// o los modales: sus colores viven en el CSS que INYECTA src/en-state.js
+// (.en-col-title, .en-col-item). Ningún barrido de arriba mira ese CSS (solo el
+// de .en-tab.active), así que el ámbar literal del título de grupo (#F5A623) y
+// el token de las filas (var(--text-2)) estaban sin vigilar. Comprobado con el
+// barrido de inyecciones: meter color:#555555 en .en-col-title dejaba la suite
+// en verde.
+//
+// LO QUE AFIRMA: cada regla .en-col-* del <style> inyectado que declare un
+// color de TEXTO usa, o bien un token de texto (--text-1/2/3, ya medido arriba
+// sobre el peor cristal, denso incluido) o de estado (medido en su grupo), o
+// bien un literal que llega a 4,5:1 sobre el cristal DENSO en los dos modos. Un
+// literal nuevo por debajo del suelo, o un color escrito como rgba()/hex con
+// alfa que hex() no sabe leer, ponen esto en rojo.
+//
+// ANCLAJE: exige que exista la regla .en-col-title. Si alguien la renombra, el
+// panel se queda sin su único literal de texto y este guardián FALLA en vez de
+// pasar en vacío.
+console.log('\ncolores de texto del panel de columnas .en-col-panel (cristal denso, CSS inyectado por en-state.js)');
+
+const cssColPanel = rulesOf(extractInjectedCss(leer('src/en-state.js')));
+const reglasColPanel = cssColPanel.filter(r => /^\.en-col-(title|item|group|panel)\b/.test(r.selector));
+
+test('existe la regla .en-col-title en el CSS inyectado (ancla del barrido del panel de columnas)', () => {
+  ok(reglasColPanel.some(r => r.selector.startsWith('.en-col-title')),
+    'no se encuentra .en-col-title en el <style> inyectado de en-state.js — ¿se renombró? ' +
+    'sin ella el barrido del panel de columnas mediría en vacío');
+});
+
+test('todo color de texto de .en-col-* es un token conocido o un literal ≥4.5:1 sobre el cristal denso (los dos modos)', () => {
+  const fallos = [];
+  for (const r of reglasColPanel) {
+    // color: del cuerpo de la regla, sin confundir background-color/border-color
+    const m = r.body.match(/(?:^|;)\s*color\s*:\s*([^;]+?)\s*(?:;|$)/);
+    if (!m) continue;
+    const valor = m[1].trim();
+    if (/^var\(--(text-[123]|state-(alert|warn|ok))\)$/.test(valor)) continue; // cubierto por sus grupos
+    if (!HEX_OPACO.test(valor)) {
+      fallos.push(`${r.selector}: "${valor}" no es un token conocido ni un hex opaco de 3/6 dígitos — hex() lo leería mal o no lo mide nadie`);
+      continue;
+    }
+    const cN = peorCasoDelCristal(valor, { densa: true }).contraste;
+    const cHc = contraste(hex(valor), superficieHc({ densa: true }));
+    if (cN < 4.5 || cHc < 4.5)
+      fallos.push(`${r.selector}: ${valor} da ${cN.toFixed(3)}:1 (normal) / ${cHc.toFixed(3)}:1 (☀) sobre el denso`);
+  }
+  deepStrictEqual(fallos, [],
+    `color(es) de texto del panel de columnas sin garantía de 4.5:1: ${fallos.join('; ')} — ` +
+    `tokeniza a var(--text-*) o ajusta el color, nunca el umbral`);
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1246,6 +1410,102 @@ test('var(--state-warn) alcanza 4.5:1 sobre el cristal denso, en los dos modos (
   const cHc = contraste(hex(hcHex), superficieHc({ densa: true }));
   ok(cNormal >= 4.5, `--state-warn (${normalHex}) da ${cNormal.toFixed(3)}:1 sobre el denso en modo normal`);
   ok(cHc >= 4.5, `--state-warn (${hcHex}) da ${cHc.toFixed(3)}:1 sobre el denso en ☀`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// FILAS DEL MODAL "DEUDA DE PARADAS" (_enShowEstimatedClassification) — el MISMO
+// patrón ciego que _enShowMessages, encontrado por la auditoría de 2026-09.
+//
+// Por qué faltaba: este modal (clasificación normalizada por paradas) construye
+// sus filas con `rows+=` en un forEach y luego interpola `${rows}` dentro del
+// innerHTML de la caja .sp-modal (en-strategy.js). Igual que en _enShowMessages,
+// el escáner de modales (cajasModalDe) ancla en el backtick del innerHTML y solo
+// ve lo que hay DENTRO de ese backtick; la reasignación `rows+=` es una
+// sentencia previa, así que las filas —con sus ↑/↓ (posición hipotética), su
+// contador de paradas y su gap— quedaban invisibles. Comprobado: color:#555555
+// en una fila dejaba la suite en verde.
+//
+// Al integrarlo, esas filas pintaban los estados como LITERAL (#ef4444/#22c55e)
+// sobre el cristal denso. Se tokenizaron a var(--state-*) —en :root valen el
+// mismo hex, así que el modo normal no se mueve; en ☀ el token los aclara— y
+// este guardián, gemelo del de _enShowMessages, vigila que sigan por token.
+//
+// LO QUE AFIRMA: (1) la función existe (si se renombra, FALLA, no pasa en
+// vacío); (2) localiza la plantilla rows+=`...`; (3) esa plantilla no pinta
+// ningún estado con hex literal; (4) usa DE VERDAD los tokens de estado (no está
+// midiendo una plantilla vacía); (5) sus literales de texto restantes (#F5A623,
+// #9ca3af) llegan a 4,5:1 sobre el denso en los dos modos, salvo el marcador
+// tenue #555 ("sin dato"), reconocido en MARCADORES_TENUES.
+console.log('\ncolores de las filas del modal "Deuda de paradas" (_enShowEstimatedClassification) — mismo patrón rows+= fuera del backtick');
+
+const fnEstMatch = /function _enShowEstimatedClassification\(\)\{[\s\S]*?\n\}/.exec(srcEnStrategy);
+test('se encuentra la función _enShowEstimatedClassification en src/en-strategy.js', () => {
+  ok(fnEstMatch !== null,
+    'no se encuentra "function _enShowEstimatedClassification(){...}" en src/en-strategy.js — ' +
+    'si se renombró o movió, este guardián necesita seguirla para vigilar los colores de sus filas');
+});
+const fnEst = fnEstMatch ? fnEstMatch[0] : '';
+// La REGIÓN DE ACUMULACIÓN entera, de `let rows='';` hasta `overlay.innerHTML=`.
+// No basta con la plantilla rows+=`...`: dos colores de fila viven en consts
+// PREVIAS de la misma iteración —penaltyStr (la penalización) y posStr (la ↑/↓
+// hipotética)— que luego se interpolan como ${penaltyStr}/${posStr} dentro de la
+// fila. Su `color:` aparece como texto en esta región aunque no en el backtick
+// de rows+=. Se corta antes de `overlay.innerHTML=` para NO tragarse la
+// plantilla del innerHTML (esos literales sí los mide el barrido de modales).
+const filasEstMatch = /let rows='';([\s\S]*?)overlay\.innerHTML=/.exec(fnEst);
+test('se localiza la región de acumulación de filas (let rows=… → overlay.innerHTML=) en _enShowEstimatedClassification', () => {
+  ok(filasEstMatch !== null,
+    'no se encuentra la región "let rows=\'\';…overlay.innerHTML=" dentro de _enShowEstimatedClassification — ' +
+    'las filas se acumulan fuera del innerHTML; si cambió la forma, este guardián deja de verlas');
+});
+const filasEst = filasEstMatch ? filasEstMatch[1] : '';
+
+// Colores de TEXTO de la plantilla de filas (color:, no background/border-color).
+// Cada valor tal cual: #hex, var(--x) o los literales/tokens de un ${ternario}.
+function coloresTextoDeFilas(plantilla) {
+  const out = [];
+  const re = /color\s*:\s*(#[0-9a-fA-F]{3,8}|var\(--[\w-]+\)|\$\{[^}]*\})/g;
+  let m;
+  while ((m = re.exec(plantilla))) {
+    const previo = plantilla[m.index - 1];
+    if (previo !== undefined && /[a-zA-Z-]/.test(previo)) continue; // background-color, border-color
+    const v = m[1];
+    if (v.startsWith('${')) out.push(...literalesDeExpresion(v.slice(2, -1)));
+    else out.push(v.toLowerCase());
+  }
+  return out;
+}
+const coloresFilaEst = coloresTextoDeFilas(filasEst);
+
+test('las filas de "Deuda de paradas" no pintan ningún estado con hex literal (van por token)', () => {
+  const literalesEstado = Object.values(ESTADO_EN_NORMAL); // #ef4444, #fbbf24, #22c55e
+  const colados = [...new Set(coloresFilaEst.filter(c => literalesEstado.includes(c)))].sort();
+  deepStrictEqual(colados, [],
+    `las filas pintan estado(s) con literal: ${colados.join(', ')} — ` +
+    `se acumulan con rows+= fuera del innerHTML, así que ningún barrido de modal los mide; usa var(--state-*)`);
+});
+
+test('las filas de "Deuda de paradas" usan de verdad los tokens de estado (el guardián no pasa en vacío)', () => {
+  for (const v of ['var(--state-alert)', 'var(--state-ok)'])
+    ok(coloresFilaEst.includes(v),
+      `${v} ya no aparece como color de texto en las filas de _enShowEstimatedClassification — ` +
+      `o el ↑/↓/gap dejó de pintarse por token, o el guardián dejó de ver la plantilla rows+=`);
+});
+
+test('todo literal de texto de las filas de "Deuda de paradas" llega a 4.5:1 sobre el denso (salvo el marcador tenue #555)', () => {
+  const faints = new Set(Object.keys(MARCADORES_TENUES));
+  const fallos = [];
+  for (const c of new Set(coloresFilaEst)) {
+    if (c.startsWith('var(')) continue; // tokens: medidos en sus grupos
+    if (faints.has(c)) continue;         // marcador "sin dato" declarado
+    if (!HEX_OPACO.test(c)) { fallos.push(`${c} no es un hex de 3/6 dígitos medible`); continue; }
+    const cN = peorCasoDelCristal(c, { densa: true }).contraste;
+    const cHc = contraste(hex(c), superficieHc({ densa: true }));
+    if (cN < 4.5 || cHc < 4.5) fallos.push(`${c} da ${cN.toFixed(3)}:1 (normal) / ${cHc.toFixed(3)}:1 (☀)`);
+  }
+  deepStrictEqual(fallos.sort(), [],
+    `literal(es) de fila por debajo de 4.5:1 sobre el cristal denso: ${fallos.join('; ')} — ` +
+    `tokeniza (estado), usa var(--text-3) (texto apagado legible) o documéntalo en MARCADORES_TENUES; nunca el umbral`);
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);

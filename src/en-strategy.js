@@ -838,21 +838,21 @@ function _enShowEstimatedClassification(){
   estimated.forEach((e,i)=>{
     const kc=_enKartColor(e.dorsal);
     const qBorder=e.quality==='good'?'#22c55e':e.quality==='bad'?'#ef4444':e.quality==='neutral'?'#fbbf24':kc.border;
-    const penaltyStr=e.diff>0?`<span style="color:#ef4444">+${e.diff}pit (${e.penalty.toFixed(0)}s)</span>`:'';
+    const penaltyStr=e.diff>0?`<span style="color:var(--state-alert)">+${e.diff}pit (${e.penalty.toFixed(0)}s)</span>`:'';
     const inTier=tiers?tierSizes[tiers[i]]>1:false;
     const estGapStr=i===0?'—':(inTier?'≈':'+')+e.estimatedGap.toFixed(1)+'s';
     const realGapStr=e.lapsBehind>0?`-${e.lapsBehind}v`:e.gapReal>0?'+'+e.gapReal.toFixed(1)+'s':'—';
     // Δ = movimiento HIPOTÉTICO si todos completaran sus paradas pendientes.
     // No es nuestro orden ni una predicción: es lo que vale la deuda de paradas.
     const whatIf=(e.shownRank||i+1)-(e.whatIfRank||i+1);
-    const posStr=whatIf>0?`<span style="color:#22c55e">↑${whatIf}</span>`:whatIf<0?`<span style="color:#ef4444">↓${Math.abs(whatIf)}</span>`:'<span style="color:var(--text-2)">=</span>';
+    const posStr=whatIf>0?`<span style="color:var(--state-ok)">↑${whatIf}</span>`:whatIf<0?`<span style="color:var(--state-alert)">↓${Math.abs(whatIf)}</span>`:'<span style="color:var(--text-2)">=</span>';
 
     rows+=`<div style="display:grid;grid-template-columns:28px 34px 1fr 44px 60px 60px 80px 36px;align-items:center;padding:5px 0;border-bottom:0.5px solid #1a1b22;gap:8px;${inTier?'box-shadow:inset 3px 0 0 #F5A623;':''}">
       <span style="font-size:13.5px;font-weight:600;color:var(--text-1);text-align:center">${e.pos!=null&&e.pos<99?e.pos:'—'}</span>
       <div style="position:relative;width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">${_esc(e.dorsal)}${e.diff>0?'':'<span style="position:absolute;top:-4px;right:-4px;font-size:9px;line-height:1">★</span>'}</div>
       <span style="font-size:14.5px;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
-      <span style="font-size:13.5px;color:${e.stops===maxStops?'#22c55e':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}</span>
-      <span style="font-size:13.5px;color:${e.lapsBehind>0?'#ef4444':e.gapReal>0?'#9ca3af':'#555'};font-family:monospace;text-align:right">${realGapStr}</span>
+      <span style="font-size:13.5px;color:${e.stops===maxStops?'var(--state-ok)':'#9ca3af'};font-family:monospace;text-align:center">${e.stops}</span>
+      <span style="font-size:13.5px;color:${e.lapsBehind>0?'var(--state-alert)':e.gapReal>0?'#9ca3af':'#555'};font-family:monospace;text-align:right">${realGapStr}</span>
       <span style="font-size:13.5px;color:#F5A623;font-family:monospace;text-align:right;font-weight:600">${estGapStr}</span>
       <span style="font-size:13px;font-family:sans-serif;text-align:right">${penaltyStr}</span>
       <span style="font-size:13.5px;text-align:center">${posStr}</span>
