@@ -269,9 +269,12 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
 }
 
 function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
-  // Stint timer
+  // Stint timer. Hasta que la carrera arranca (cuenta atrás regresiva / salida
+  // oficial), stintStart es null → "esperando salida" en vez de un 0:00 que
+  // parecería tiempo real. Ver EnStintMachine.raceStintStart.
+  const stintStarted=!!(EnSession.stintStart||EnSession.stintFrozen);
   const stintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
-  const stintStr=_enFmtStint(stintMs);
+  const stintStr=stintStarted?_enFmtStint(stintMs):'—';
   const stintCfg=window.AppState?.config;
   const stintMaxMs=(stintCfg?.stintMax||999)*60*1000;
   const stintMinMs=(stintCfg?.stintMin||0)*60*1000;
@@ -284,7 +287,9 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   // truco de pegarle el alfa al hex (`${stintColor}22`) —a un var() no se le
   // concatena nada—, así que ese 0x22/0xff pasa a ser color-mix(… 13,33%,
   // transparent), que da exactamente el mismo alfa.
-  const stintColor=stintPct>85?'var(--state-alert)':stintPct>70?'var(--state-warn)':'var(--state-ok)';
+  // Antes de la salida (stint sin arrancar) el valor va en tenue (--text-3): no
+  // es tiempo real, no debe pintarse con el semáforo de estado.
+  const stintColor=!stintStarted?'var(--text-3)':stintPct>85?'var(--state-alert)':stintPct>70?'var(--state-warn)':'var(--state-ok)';
   const stintLaps=_enStintLaps(myKart);
 
   // Ventana de pit
@@ -335,7 +340,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   <div class="sp-kpi">
     <div class="sp-kpi-lbl" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><span>${stintLight} Stint · ${stintLaps}v</span>${_enMsgBtnHtml()}</div>
     <div class="sp-kpi-val" style="color:${stintColor}">${stintStr}</div>
-    <div class="sp-kpi-sub" style="background:linear-gradient(90deg,color-mix(in srgb, ${stintColor} 13.33%, transparent) ${stintPct}%,transparent ${stintPct}%);border-radius:2px;padding:1px 4px">${pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')}</div>
+    <div class="sp-kpi-sub" style="background:linear-gradient(90deg,color-mix(in srgb, ${stintColor} 13.33%, transparent) ${stintStarted?stintPct:0}%,transparent ${stintStarted?stintPct:0}%);border-radius:2px;padding:1px 4px">${stintStarted?(pitWindow||(stintPct>85?'⚠ Cambio pronto':stintPct>70?'Atención':'En stint')):'Esperando salida'}</div>
   </div>
   <div class="sp-kpi" style="cursor:pointer" onclick="_enShowAvgFilter()">
     <div class="sp-kpi-lbl">Media pista ${Object.values(EnUi.excludedFromAvg).filter(Boolean).length?'<span style="color:#f97316">('+Object.values(EnUi.excludedFromAvg).filter(Boolean).length+' excl.)</span>':''}</div>

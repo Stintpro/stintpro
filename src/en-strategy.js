@@ -996,27 +996,6 @@ function _enInitSim(){
 // Con cfg.duration (horas totales anunciadas por la organización) se puede
 // reconstruir el tiempo real ya transcurrido y anclar el timer ahí en vez de
 // a Date.now().
-function _enStintStartFromClock(cfg){
-  const now=Date.now();
-  // 1) Salida oficial (canal com| de dirección de carrera): la fuente más
-  // fiable del arranque real. Precede al reloj y a la duración manual.
-  const rs=EnSession.raceStart;
-  if(rs&&rs.at&&now-rs.at>=0&&now-rs.at<24*3600*1000)return rs.at;
-  if(window.ApexClock.isCountUp()){
-    // Reloj ascendente: remainingMs() ya devuelve el tiempo transcurrido de sesión.
-    const elapsed=window.ApexClock.remainingMs();
-    return elapsed!=null?now-Math.max(0,elapsed):now;
-  }
-  const raceDurMs=(cfg?.duration||0)*3600*1000;
-  if(raceDurMs>0){
-    const rem=window.ApexClock.remainingMs();
-    if(rem!=null)return now-Math.max(0,raceDurMs-rem);
-  }
-  // Sin duración configurada: no hay forma de saber cuánto llevaba ya
-  // corriendo la sesión — se mantiene el comportamiento anterior.
-  return now;
-}
-
 // Cartel de estado de carrera: rojo si detenida (bandera roja con carrera
 // activa), ámbar si precaución (amarilla). Oculto en verde/sin bandera. Lee
 // EnSession.raceStopped/flag, que alimentan ambos conectores (directo y logger).
@@ -1068,8 +1047,15 @@ window.showEnduranceDashboard=function(cfg){
     if(cv&&window.ApexClock){
       cv.textContent=window.ApexClock.fmtMs(window.ApexClock.remainingMs());
       if(lbl)lbl.textContent=window.ApexClock.isCountUp()?'tiempo transcurrido':'tiempo restante';
-      // Iniciar stint cuando el reloj arranca por primera vez
-      if(!EnSession.stintStart&&window.ApexClock._synced)EnSession.stintStart=_enStintStartFromClock(cfg);
+      // Iniciar stint SOLO cuando la carrera ha ARRANCADO de verdad: cuenta atrás
+      // regresiva en marcha o salida oficial (verde com|). El reloj de warmup
+      // ascendente (prácticas) y los relojes rancios NO cuentan — antes disparaban
+      // el stint 2-10 min antes de la salida. Ver EnStintMachine.raceStintStart.
+      if(!EnSession.stintStart){
+        const snap=window.ApexClock?{synced:window.ApexClock._synced,countUp:window.ApexClock.isCountUp(),remainingMs:window.ApexClock.remainingMs()}:null;
+        const ss=EnStintMachine.raceStintStart(snap,EnSession.raceStart,(cfg?.duration||0)*3600*1000,Date.now());
+        if(ss!==null)EnSession.stintStart=ss;
+      }
       // Congelar stint cuando countdown llega a 0
       if(EnSession.stintStart&&!EnSession.stintFrozen&&!window.ApexClock.isCountUp()){
         const rem=window.ApexClock.remainingMs();

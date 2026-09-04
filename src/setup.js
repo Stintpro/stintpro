@@ -661,7 +661,7 @@ function startEndurance() {
     // Duración total anunciada de la carrera (horas) — opcional. Permite
     // reconstruir el tiempo real transcurrido del primer stint si el reloj
     // de Apex sincroniza tarde (conexión tardía o inestable al arrancar).
-    // Ver _enStintStartFromClock en en-strategy.js.
+    // Ver EnStintMachine.raceStintStart en en-stint-machine.js.
     duration:parseFloat(document.getElementById('raceDurationInput')?.value)||0
   };
   window.AppState.config=cfg;

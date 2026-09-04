@@ -80,5 +80,61 @@
     if (myK && myK.pitState !== 'out') D._myWasOut = false;
   }
 
-  return { updateMyStintState };
+  // ── Arranque del PRIMER stint de la carrera ─────────────────────────────
+  // Decide si el primer stint debe arrancar y en QUÉ instante. Devuelve el
+  // timestamp de arranque, o null si la carrera aún no ha empezado (mostrar
+  // "esperando salida").
+  //
+  // POR QUÉ: antes el stint arrancaba en cuanto ApexClock se sincronizaba, y eso
+  // NO es "carrera arrancada". Contrastado con raw logs del VPS:
+  //   · Prácticas/warmup → `dyn1|count|` ASCENDENTE desde antes de la salida
+  //     (campillos_10: ya en 212027 ms en t=0, verde a los +730s). Sincronizaba
+  //     el reloj y disparaba el stint 2-10 min antes de la carrera real.
+  //   · Resistencias → `dyn1|countdown|` REGRESIVO justo al dar la verde.
+  // Un reloj ascendente NO es señal de carrera → nunca arranca el stint por sí
+  // solo. Sí lo hacen la salida oficial (verde com|) o el countdown regresivo.
+  //
+  //   clock      → { synced, countUp, remainingMs } (snapshot de ApexClock) | null
+  //   raceStart  → EnSession.raceStart { at } | null (ancla de la verde com|)
+  //   raceDurMs  → duración configurada en ms (0 si desconocida)
+  //   now        → Date.now() (inyectado para testear con reloj fijo)
+  // Un reloj de carrera arranca ~100% de la duración; un timer de pre-carrera
+  // (circuitosona: 4min sobre 4H) queda muy por debajo de la mitad.
+  const RACE_CLOCK_MIN_FRACTION = 0.5;
+  // Sin duración configurada: umbral absoluto. Una resistencia real dura >15 min.
+  const RACE_CLOCK_MIN_MS = 15 * 60 * 1000;
+
+  function raceStintStart(clock, raceStart, raceDurMs, now) {
+    // 1) Salida oficial (verde com|): la señal más fiable, vale para cualquier
+    //    reloj (incluso circuitos que cuentan hacia arriba). Guardas de cordura:
+    //    ni futura ni de hace más de 24h.
+    if (raceStart && raceStart.at && now - raceStart.at >= 0 && now - raceStart.at < 24 * 3600 * 1000) {
+      return raceStart.at;
+    }
+    // 2) Cuenta atrás REGRESIVA en marcha = la carrera arrancó. Dos filtros:
+    //    · El reloj ASCENDENTE (warmup/prácticas) se ignora a propósito.
+    //    · Un countdown corto de PRE-CARRERA no es el reloj de carrera. Visto en
+    //      circuitosona (ENDURANCE-4H manda un countdown de 4 min que decrece a 0
+    //      ANTES de rodar). El reloj de carrera arranca cerca de la duración
+    //      total; un timer de pre-carrera queda muy por debajo → se descarta y el
+    //      stint arranca luego con la 1ª vuelta (salvaguarda en en-strategy.js).
+    if (clock && clock.synced && !clock.countUp) {
+      const rem = clock.remainingMs;
+      if (rem !== null && rem !== undefined && rem > 0) {
+        if (raceDurMs > 0) {
+          // Con duración conocida: solo si el reloj está cerca de la duración
+          // (rem ≥ 50%). circuitosona: 4min/4H = 1,7% → descartado. Una conexión
+          // a mitad de carrera también cae aquí → la cubre la 1ª vuelta.
+          if (rem >= raceDurMs * RACE_CLOCK_MIN_FRACTION) return now - Math.max(0, raceDurMs - rem);
+        } else if (rem >= RACE_CLOCK_MIN_MS) {
+          // Sin duración configurada: una resistencia real dura >15 min; un timer
+          // de pre-carrera (≤~5 min) o un sprint corto se descartan por magnitud.
+          return now;
+        }
+      }
+    }
+    return null;
+  }
+
+  return { updateMyStintState, raceStintStart };
 });

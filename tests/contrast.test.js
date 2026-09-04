@@ -800,6 +800,10 @@ function pordebajoDe45(medibles, superficie) {
 const VALORES_BALDOSA_ESPERADOS = [
   '#60a5fa', '#c084fc', '#f5a623', '#f87171', '#f97316', '#fff',
   'var(--state-alert)', 'var(--state-ok)', 'var(--state-warn)',
+  // Cuarta rama de stintColor: el valor del stint en tenue antes de la salida
+  // ("—"/esperando salida). --text-3 ya cumple 4.5:1 sobre las superficies del
+  // panel (grupo de tests de --text-3 más arriba).
+  'var(--text-3)',
 ];
 // Interpolaciones que no resuelven a literales, por fichero. Ver el bloque de
 // alcance de arriba.
