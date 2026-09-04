@@ -57,6 +57,16 @@ function _migrate() {
   } catch(e) {
     console.warn('[DB] Aviso migración laps:', e.message);
   }
+
+  try {
+    const pitNames = db.prepare("PRAGMA table_info(pit_events)").all().map(r => r.name);
+    if (pitNames.length && !pitNames.includes('duration_ms')) {
+      db.exec('ALTER TABLE pit_events ADD COLUMN duration_ms INTEGER');
+      console.log('[DB] Columna duration_ms añadida a pit_events');
+    }
+  } catch(e) {
+    console.warn('[DB] Aviso migración pit_events:', e.message);
+  }
 }
 
 // async por compatibilidad: server.js hace `await db.init()` (antes sql.js
@@ -102,6 +112,7 @@ async function init() {
       event_type   TEXT,
       stands_count INTEGER DEFAULT 0,
       timestamp    INTEGER,
+      duration_ms  INTEGER,
       FOREIGN KEY (session_id) REFERENCES sessions(id)
     );
     CREATE TABLE IF NOT EXISTS snapshots (
@@ -172,15 +183,17 @@ function getLapsBySession(sessionId) {
 
 // ── Pit events ────────────────────────────────────────────────────────────
 
-function insertPitEvent(sessionId, dorsal, eventType, standsCount, timestamp) {
+// durationMs: duración oficial de la parada (crono otr de Apex), solo llega en el
+// evento 'out' de circuitos que exponen ese cronómetro; null en los demás.
+function insertPitEvent(sessionId, dorsal, eventType, standsCount, timestamp, durationMs) {
   db.prepare(
-    'INSERT INTO pit_events (session_id,dorsal,event_type,stands_count,timestamp) VALUES (?,?,?,?,?)'
-  ).run(sessionId, dorsal ?? null, eventType ?? null, standsCount || 0, timestamp || Date.now());
+    'INSERT INTO pit_events (session_id,dorsal,event_type,stands_count,timestamp,duration_ms) VALUES (?,?,?,?,?,?)'
+  ).run(sessionId, dorsal ?? null, eventType ?? null, standsCount || 0, timestamp || Date.now(), durationMs ?? null);
 }
 
 function getPitEventsBySession(sessionId) {
   return db.prepare(
-    'SELECT dorsal,event_type,stands_count,timestamp FROM pit_events WHERE session_id=? ORDER BY timestamp ASC'
+    'SELECT dorsal,event_type,stands_count,timestamp,duration_ms FROM pit_events WHERE session_id=? ORDER BY timestamp ASC'
   ).all(sessionId);
 }
 

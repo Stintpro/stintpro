@@ -546,8 +546,11 @@ class CircuitMonitor {
 
   _onPit(dorsal, eventType, standsCount, timestamp, pitDurationSec) {
     if (!this.recording || !this.sessionId) return;
-    db.insertPitEvent(this.sessionId, dorsal, eventType, standsCount, timestamp);
     // pitDur = duración oficial (crono otr) de la parada, en el evento 'out'.
+    // Se persiste en ms (coherente con lap_time_ms); null si el circuito no lo expone.
+    const durationMs = (eventType === 'out' && pitDurationSec != null)
+      ? Math.round(pitDurationSec * 1000) : null;
+    db.insertPitEvent(this.sessionId, dorsal, eventType, standsCount, timestamp, durationMs);
     const ev = { dorsal, event: eventType, time: timestamp, standsCount };
     if (eventType === 'out' && pitDurationSec != null) ev.pitDur = pitDurationSec;
     this.pitEvents.push(ev);

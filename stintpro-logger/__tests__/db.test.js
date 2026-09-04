@@ -83,6 +83,24 @@ describe('pit events', () => {
     expect(pits[1].event_type).toBe('out');
     expect(pits[1].stands_count).toBe(1);
   });
+
+  test('persiste la duración oficial de la parada (crono otr) en el evento out', () => {
+    const id = db.createSession('test-circuit', 'Test');
+    db.insertLap(id, '7', 'Javier', null, 64000, 1, 1000);
+    db.insertPitEvent(id, '7', 'out', 1, 8000, 92500);
+
+    const pits = db.getPitEventsBySession(id);
+    expect(pits[0].duration_ms).toBe(92500);
+  });
+
+  test('duration_ms es null cuando el circuito no expone el crono de pit', () => {
+    const id = db.createSession('test-circuit', 'Test');
+    db.insertLap(id, '7', 'Javier', null, 64000, 1, 1000);
+    db.insertPitEvent(id, '7', 'in', 0, 5000);
+
+    const pits = db.getPitEventsBySession(id);
+    expect(pits[0].duration_ms).toBeNull();
+  });
 });
 
 // ── getAllSessions ────────────────────────────────────────────────────────────

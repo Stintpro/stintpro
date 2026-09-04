@@ -324,6 +324,24 @@ describe('_onPit', () => {
     m._onPit('7', 'in', 3, Date.now());
     expect(m.pitEvents).toHaveLength(0);
   });
+
+  test('persiste en BD la duración oficial (segundos → ms) del evento out', () => {
+    const m = createMonitor();
+    m._onLap('7', 'JAVIER', null, 64000, 1, Date.now());
+    m._onPit('7', 'out', 1, Date.now(), 92.5); // crono otr en segundos
+
+    const pit = db.getPitEventsBySession(m.sessionId).find(p => p.event_type === 'out');
+    expect(pit.duration_ms).toBe(92500);
+  });
+
+  test('duration_ms null cuando el out no trae crono (circuito sin otr)', () => {
+    const m = createMonitor();
+    m._onLap('7', 'JAVIER', null, 64000, 1, Date.now());
+    m._onPit('7', 'out', 1, Date.now()); // sin 5º argumento
+
+    const pit = db.getPitEventsBySession(m.sessionId).find(p => p.event_type === 'out');
+    expect(pit.duration_ms).toBeNull();
+  });
 });
 
 // ── _onState (broadcast + throttle) ──────────────────────────────────────────
