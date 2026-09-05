@@ -337,6 +337,20 @@ describe('columna de categoría', () => {
     expect(eq.find(e => e.dorsal === '9').category).toBe('Gentleman');
   });
 
+  // El dato de categoría no basta: la columna "Clase" del cliente se habilita con
+  // `requires: cm => !!cm.class`, así que el logger debe exponer colMap.class en su
+  // estado. Sin esto, en vivo (vía logger) la opción de activar clase no aparecía
+  // aunque cada kart tuviese su categoría. Para data-type="class" ya salía solo; el
+  // agujero era la categoría detectada por cabecera (data-type vacío, p.ej. Le Mans).
+  test('expone colMap.class cuando la categoría se detecta por cabecera', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({
+      colDefs: STANDARD_COLS + '<td data-id="c5" data-type="">Catégorie</td>',
+      rows: kartRowCat('r1', '16', 'LECLUSE', 'Sport'),
+    }));
+    expect(p.getState().colMap.class).toBe('c5');
+  });
+
   test('la categoría llega actualizada por celda en vivo', () => {
     const p = new ApexParser();
     p.parse(buildGrid({ colDefs: COLS_CAT_DTYPE, rows: kartRowCat('r1', '7', 'JAVIER', '') }));

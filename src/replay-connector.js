@@ -7,6 +7,10 @@
 // cargados en el mismo scope global de index.html — un `const` duplicado entre
 // ambos lanza "Identifier ha sido declarado" y aborta el segundo script entero.
 var CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
+// Quita acentos antes de testear la cabecera: "Catégorie" (é) no casaba con
+// /categor/ → la columna Clase no se ofrecía al reproducir logs de Le Mans. var
+// por el mismo motivo que CAT_HEADER (scope global compartido con apex-connector).
+var stripAccents = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // dtypes que ya tienen significado propio: nunca son la columna de categoría
 var RESERVED_DTYPES = new Set(['rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr','s1','s2','s3','grp','sta','nat','rku']);
 
@@ -260,7 +264,7 @@ window.ReplayConnector = {
           if (cid && dtype) { colMap[dtype] = cid; colByNum[cid] = dtype; }
 
           if (dtype === 'class') catCol = cid;
-          else if (!catCol && CAT_HEADER.test(td.textContent || '') && !RESERVED_DTYPES.has(dtype)) {
+          else if (!catCol && CAT_HEADER.test(stripAccents(td.textContent)) && !RESERVED_DTYPES.has(dtype)) {
             catCol = cid;
             // Solo colMap.class, NUNCA colByNum[cid]: colByNum fija el dtype que usa
             // _applyCell para decidir el parseo de la celda (estado, tiempos...), y no

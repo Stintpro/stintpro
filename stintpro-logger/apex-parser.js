@@ -74,6 +74,13 @@ class ApexParser {
         });
       }
 
+      // La columna "Clase" del cliente se habilita con `requires: cm => !!cm.class`,
+      // así que hay que exponer colMap.class. Para data-type="class" ya lo hace el
+      // volcado genérico de arriba (colMap[dtype]); esto cubre la categoría detectada
+      // por cabecera (data-type vacío, p.ej. "Catégorie" de Le Mans), que si no
+      // llegaría el dato pero la columna seguiría sin ofrecerse en vivo (vía logger).
+      if (catCol) colMap.class = catCol;
+
       const skip = ['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so'];
       const gridKarts = [];
       let gridPos = 0;
