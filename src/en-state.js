@@ -261,8 +261,47 @@ function _enTrackAvgLive(eq){
   return result;
 }
 
+// ── Color de categoría (acento sobre chip oscuro) ──────────────────────────
+// Apex manda la categoría como el color del dorsal (ver notcToHex en
+// apex-protocol.js). Ese #RRGGBB llega por e.catColor. Aquí se convierte en un
+// acento que encaja con el cristal oscuro: el TONO de la categoría en el texto
+// (+ tinte de fondo) y un borde medio. El borde solo se ve así cuando la calidad
+// del kart es neutra: en el render (en-grid.js) la calidad buena/mala/regular
+// pisa el borde (verde/amarillo/rojo), así que la categoría no compite con ella.
+function _enHexToHsl(hex){
+  const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');
+  if(!m)return null;
+  const r=parseInt(m[1],16)/255,g=parseInt(m[2],16)/255,b=parseInt(m[3],16)/255;
+  const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+  let h=0;
+  if(d){
+    if(max===r)h=((g-b)/d)%6;
+    else if(max===g)h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    h*=60; if(h<0)h+=360;
+  }
+  const l=(max+min)/2;
+  const s=d===0?0:d/(1-Math.abs(2*l-1));
+  return {h,s,l};
+}
+function _catAccent(catColor){
+  const hsl=_enHexToHsl(catColor); if(!hsl)return null;
+  const h=Math.round(hsl.h);
+  const css=(sat,lig)=>`hsl(${h},${Math.round(sat*100)}%,${Math.round(lig*100)}%)`;
+  const s=Math.max(0.45,hsl.s);
+  return {
+    bg:     css(Math.min(s,0.55),0.13),  // tinte muy oscuro del tono
+    text:   css(Math.min(s,0.90),0.68),  // versión clara y legible = señal de categoría
+    border: css(Math.min(s,0.60),0.30),  // tono medio (solo visible en calidad neutra)
+  };
+}
+
 // ── Kart quality ──────────────────────────────────────────────────────────
-function _enKartColor(dorsal){
+// Con catColor (categoría de Apex) → acento de categoría: dos karts de la misma
+// clase comparten tono (color PURO de categoría). Sin él (monoclase) → paleta
+// decorativa por dorsal de siempre (cada kart un color, para seguirlo con la vista).
+function _enKartColor(dorsal, catColor){
+  if(catColor){ const a=_catAccent(catColor); if(a) return a; }
   const colors=[
     {bg:'#0f1e2e',text:'#60a5fa',border:'#1e3f60'},
     {bg:'#2a0f0f',text:'#f87171',border:'#5f1e1e'},
@@ -494,6 +533,6 @@ function _enQualityTooltip(dorsal, e, trackAvg){
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, EnSession, EnUi, _enPilotRatings };
+  module.exports = { _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings };
 }
 

@@ -474,3 +474,51 @@ describe('categoría — log real de Sevilla 2026-08-07', () => {
     }
   });
 });
+
+// ── Color de categoría por dorsal (señal notc de Apex) ────────────────────────
+// Apex codifica la categoría como el color del dorsal: la celda `no` lleva la
+// clase notcNNN (NNN = color BGR empaquetado). Se ve en endurance multiclase
+// (prestige 24H du LUC) donde NO hay columna "Catégorie"; el color es la ÚNICA
+// señal de clase. En monoclase no hay notc → catColor null.
+describe('catColor (categoría por color del dorsal)', () => {
+  const gridWithNotc =
+    'grid|<table><tbody>' +
+    '<tr data-id="r0">' +
+      '<td data-id="c1" data-type="no"></td>' +
+      '<td data-id="c2" data-type="dr"></td>' +
+    '</tr>' +
+    // Kart rojo (notc255 = #FF0000) y kart azul (notc16711680 = #0000FF)
+    '<tr data-id="r1"><td data-id="r1c1" class="no"><div class="notc255">7</div></td><td data-id="r1c2"><div>ROJOS</div></td></tr>' +
+    '<tr data-id="r2"><td data-id="r2c1" class="no"><div class="notc16711680">21</div></td><td data-id="r2c2"><div>AZULES</div></td></tr>' +
+    '</tbody></table>';
+
+  test('decodifica el color del dorsal a hex (BGR → #RRGGBB)', () => {
+    const p = new ApexParser();
+    p.parse(gridWithNotc);
+    const rojo = p.getState().equipos.find(e => e.dorsal === '7');
+    const azul = p.getState().equipos.find(e => e.dorsal === '21');
+    expect(rojo.catColor).toBe('#FF0000');
+    expect(azul.catColor).toBe('#0000FF');
+  });
+
+  test('monoclase (sin notc en el dorsal) → catColor null', () => {
+    const p = new ApexParser();
+    p.parse(
+      'grid|<table><tbody>' +
+      '<tr data-id="r0"><td data-id="c1" data-type="no"></td></tr>' +
+      '<tr data-id="r1"><td data-id="r1c1" class="no"><div>9</div></td></tr>' +
+      '</tbody></table>'
+    );
+    const k = p.getState().equipos.find(e => e.dorsal === '9');
+    expect(k.catColor).toBeNull();
+  });
+
+  test('notcToHex exportada por apex-protocol coincide con las defs CSS reales de prestige', () => {
+    const { notcToHex } = require('../apex-protocol');
+    expect(notcToHex('255')).toBe('#FF0000');
+    expect(notcToHex('16711680')).toBe('#0000FF');
+    expect(notcToHex('65535')).toBe('#FFFF00');
+    expect(notcToHex('33023')).toBe('#FF8000');
+    expect(notcToHex('4227327')).toBe('#FF8040');
+  });
+});

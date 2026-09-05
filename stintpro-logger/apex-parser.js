@@ -2,7 +2,7 @@
 // Responsabilidades: grid HTML (node-html-parser), callbacks de BD, relay de estado.
 
 const { parse: parseHTML }                    = require('node-html-parser');
-const { createParser, parseTime, isValidCategory } = require('./apex-protocol');
+const { createParser, parseTime, isValidCategory, notcToHex } = require('./apex-protocol');
 
 // Cabeceras que delatan una columna de categoría/cilindrada. Se testea sobre el
 // texto normalizado sin diacríticos (ver stripAccents): el francés manda
@@ -105,7 +105,13 @@ class ApexParser {
 
         if (colMap.no) {
           const c = cell(colMap.no);
-          if (c) { const d = (c.querySelector('div') || c.querySelector('p') || c).text.trim(); if (d && !isNaN(parseInt(d))) kg.dorsal = d; }
+          if (c) {
+            const numEl = c.querySelector('div') || c.querySelector('p') || c;
+            const d = numEl.text.trim(); if (d && !isNaN(parseInt(d))) kg.dorsal = d;
+            // Categoría por color del dorsal: la clase notcNNN codifica el color (BGR).
+            const cm = (numEl.getAttribute && (numEl.getAttribute('class') || '')).match(/notc(\d+)/);
+            if (cm) { const hex = notcToHex(cm[1]); if (hex) kg.catColor = hex; }
+          }
         }
 
         if (colMap.dr) {

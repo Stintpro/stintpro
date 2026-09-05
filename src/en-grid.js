@@ -384,7 +384,7 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
   // timestamp —p.ej. replay de historial—, se trata como recién arrancado.)
   const _flashAge=e.lapFlashAt?(now-e.lapFlashAt):(e.lapFlash?0:Infinity);
   const _flashing=_flashAge>=0&&_flashAge<2000;
-  const kc=_enKartColor(e.dorsal);
+  const kc=_enKartColor(e.dorsal, e.catColor);
   const avg5=_enAvg5(e.lapHistory);
   const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
   const trend=_enTrend(e.lapHistory);

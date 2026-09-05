@@ -51,6 +51,23 @@
     return true;
   }
 
+  // ── notcToHex — color de categoría de la celda del dorsal ──────────────────
+  // Apex codifica la categoría de cada kart como el color de su dorsal: la celda
+  // `no` lleva la clase `notcNNN`, donde NNN es un entero con el color empaquetado
+  // en BGR (convención SMS-Timing). El init trae además `css|notcNNN|...` con el
+  // #RRGGBB exacto, pero el número YA es el color, así que se decodifica directo
+  // (evita cablear el mapa CSS por los 3 parsers). Verificado contra prestige
+  // (24H du LUC 2026): notc255→#FF0000, notc16711680→#0000FF. Devuelve null si no
+  // es un color válido (así una carrera monoclase, sin notc, queda con catColor
+  // null y el render cae a la paleta decorativa por dorsal de siempre).
+  function notcToHex(code) {
+    const n = typeof code === 'number' ? code : parseInt(code, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 0xFFFFFF) return null;
+    const r = n & 0xFF, g = (n >> 8) & 0xFF, b = (n >> 16) & 0xFF;
+    const h = x => x.toString(16).padStart(2, '0');
+    return ('#' + h(r) + h(g) + h(b)).toUpperCase();
+  }
+
   // ── Tokens de Apex conocidos y deliberadamente NO usados ──────────────────
   // Catalogados al pasar el detector de novedades (2026-07-20). Se documentan
   // aquí para no volver a investigarlos; NINGUNO se implementa:
@@ -773,6 +790,7 @@
           return {
             dorsal: k.dorsal, name: k.name || `#${k.dorsal}`, teamName: k.teamName || null,
             category: k.category || null,
+            catColor: k.catColor || null, // color de categoría de Apex (dorsal), null si monoclase
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
             lapHistory: k.lapHistory || [], gap: k.gap || '', interval: k.interval || '',
             pit: !!k.pit, pitState: k.pitState || null,
@@ -867,6 +885,7 @@
           if (kg.tours)                        k.tours        = kg.tours;
           if (kg.standsCount !== undefined)    k.standsCount  = kg.standsCount;
           if (kg.category && !k.category && isValidCategory(kg.category)) k.category = kg.category;
+          if (kg.catColor) k.catColor = kg.catColor;
           k.tours = k.tours || 0;
         }
       },
@@ -1038,5 +1057,5 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, classifyApexMessage };
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, notcToHex, classifyApexMessage };
 });

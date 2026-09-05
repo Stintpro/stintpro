@@ -295,7 +295,12 @@ window.ReplayConnector = {
 
         if (colMap.no) {
           const noDiv = row.querySelector(`[data-id$="${colMap.no}"] div`) || row.querySelector('td.no div');
-          if (noDiv) { const d = noDiv.textContent.trim(); if (d && !isNaN(parseInt(d))) kg.dorsal = d; }
+          if (noDiv) {
+            const d = noDiv.textContent.trim(); if (d && !isNaN(parseInt(d))) kg.dorsal = d;
+            // Categoría por color del dorsal: la clase notcNNN codifica el color (BGR).
+            const cm = (noDiv.className || '').match(/notc(\d+)/);
+            if (cm) { const hex = ApexProtocol.notcToHex(cm[1]); if (hex) kg.catColor = hex; }
+          }
         }
 
         const drCell = colMap.dr ? row.querySelector(`[data-id$="${colMap.dr}"]`) : row.querySelector('.dr');

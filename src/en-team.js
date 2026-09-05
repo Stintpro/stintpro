@@ -305,7 +305,7 @@ function _enShowLapHistory(dorsal, ev){
     </div>`;
   });
 
-  const kc=_enKartColor(dorsal);
+  const kc=_enKartColor(dorsal, kart.catColor);
   const quality=_enEffectiveQuality(dorsal, kart, trackAvg);
   const qBadge=quality==='good'?'🟢':quality==='bad'?'🔴':'⚪';
 

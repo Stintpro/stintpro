@@ -199,7 +199,7 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Helper para renderizar kart como en dashboard
   const kartRow=(e,minStr,minCol,minTitle)=>{
-    const kc=_enKartColor(e.dorsal);
+    const kc=_enKartColor(e.dorsal, e.catColor);
     const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
     let kartBorder=kc.border;
     if(quality==='good')kartBorder='#22c55e';
@@ -388,7 +388,7 @@ function _enRenderStrategy(eq, trackAvg){
     html+=`<div style="font-size:13.5px;color:var(--text-3);font-family:sans-serif;padding:8px 0">Sin movimientos</div>`;
   } else {
     pitEvents.forEach(e=>{
-      const kc=_enKartColor(e.dorsal);
+      const kc=_enKartColor(e.dorsal, e.catColor);
       const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
       let qBorder=quality==='good'?'#22c55e':quality==='bad'?'#ef4444':quality==='neutral'?'#fbbf24':kc.border;
       const stateLabel=e.pitState==='in'?'IN':e.pitState==='out'?'OUT':'PIT';
@@ -836,7 +836,7 @@ function _enShowEstimatedClassification(){
 
   let rows='';
   estimated.forEach((e,i)=>{
-    const kc=_enKartColor(e.dorsal);
+    const kc=_enKartColor(e.dorsal, e.catColor);
     const qBorder=e.quality==='good'?'#22c55e':e.quality==='bad'?'#ef4444':e.quality==='neutral'?'#fbbf24':kc.border;
     const penaltyStr=e.diff>0?`<span style="color:var(--state-alert)">+${e.diff}pit (${e.penalty.toFixed(0)}s)</span>`:'';
     const inTier=tiers?tierSizes[tiers[i]]>1:false;

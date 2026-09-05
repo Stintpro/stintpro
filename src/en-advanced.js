@@ -429,7 +429,7 @@ function _enShowAvgFilter(){
     const dorsalExcl=!!EnUi.excludedFromAvg[e.dorsal];
     const catExcl=!!(e.category&&EnUi.excludedCategories[e.category]);
     const excluded=dorsalExcl||catExcl;
-    const kc=_enKartColor(e.dorsal);
+    const kc=_enKartColor(e.dorsal, e.catColor);
     let lapCol='#9ca3af';
     if(trackAvg){
       const d=(e.lastLap||0)-trackAvg;
