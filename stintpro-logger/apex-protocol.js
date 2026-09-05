@@ -190,6 +190,10 @@
     let _otrIsPit        = false;// la columna otr es cronómetro de PIT (cabecera "Tiempo en PIT"/"Box"),
                                  // no "tiempo en pista" (En piste/Tijd op circuit) — lo fija el grid wrapper
     let _pitDurations    = [];   // duraciones oficiales de paradas completadas (para estimar la obligatoria)
+    let _hasStateCol     = false;// el grid trae columna de estado (sta/grp) → el pit se detecta por si/so.
+                                 // Sin ella (p.ej. Le Mans 24H OPEN KART: layout no, dr, otr, pit, sin sta),
+                                 // si/so nunca llegan y la entrada a box se deriva del crono 'to' de la celda
+                                 // otr ("En piste" pasa a cronómetro de parada) + el incremento de Stands.
 
     // Ritmo de pista: mediana de las últimas vueltas aceptadas de todos los karts.
     // Sirve de referencia cuando un kart aún no tiene vueltas propias suficientes.
@@ -211,6 +215,34 @@
     function _pushPitDuration(sec) {
       _pitDurations.push(sec);
       if (_pitDurations.length > 200) _pitDurations.shift();
+    }
+
+    // ── Pit por crono 'to' (feeds SIN columna de estado, p.ej. Le Mans 24H) ──────
+    // Idempotentes por transición: entrar solo si no estaba dentro, salir solo si lo
+    // estaba. Así el crono de stint (clase 'in' cada minuto) no genera pit-outs falsos.
+    function _emitPit(k, type, pitDur) {
+      if (!callbacks.onPit) return;
+      // La celda de estado/dorsal puede llegar antes que el 'no' en el mismo lote:
+      // sin dorsal aún, se pospone el evento (se dispara al fijar 'no'), igual que si/so.
+      if (!k.dorsal) { k._pendingPitEvent = { type, standsCount: k.standsCount, time: Date.now(), pitDur }; return; }
+      // Mismo contrato que si/so: 'in' con 4 args (sin duración), 'out' con 5 (incluye pitDur).
+      if (pitDur === undefined) callbacks.onPit(k.dorsal, type, k.standsCount, Date.now());
+      else                      callbacks.onPit(k.dorsal, type, k.standsCount, Date.now(), pitDur);
+    }
+    function _enterPitTimer(k) {
+      k.pit = true; k._pitTimerActive = true;
+      if (k.pitState === 'in') return;              // ya dentro → solo mantener
+      k.pitState = 'in'; k._pitInTime = Date.now(); k._lapInvalid = true;
+      k._otrPeak = null; k._otrTimer = null;
+      _emitPit(k, 'in');
+    }
+    function _exitPitTimer(k) {
+      if (k.pitState !== 'in') return;              // no estaba dentro → nada
+      const pitDur = (k._otrPeak != null && k._otrPeak > 0) ? k._otrPeak : null;
+      if (pitDur != null) { k.lastPitDuration = pitDur; _pushPitDuration(pitDur); }
+      k.pit = false; k.pitState = 'out'; k.pitS = 0; k._pitTimerActive = false;
+      k._pitInTime = null; k._otrTimer = null;
+      _emitPit(k, 'out', pitDur);
     }
     // El otr mide el tiempo TRANSCURRIDO en boxes → siempre es obligatoria +
     // reacción del piloto al salir (~1-2s), nunca por debajo (salir antes = sanción).
@@ -499,7 +531,10 @@
           if (s !== null) { k.pitS = s; k.pit = true; k._pitTimerActive = true; }
         } else if (type === 'in') {
           k._pitTimerActive = false;
-          if (k.state === 'sr' || k.state === 'su') k.pit = false;
+          // Solo se limpia el pit por estado si el feed TIENE columna de estado (sr/su
+          // reales). Sin ella, k.state queda en su 'sr' por defecto y este incremento de
+          // Stands borraría el pit que el crono 'to' de otr acaba de marcar (Le Mans 24H).
+          if (_hasStateCol && (k.state === 'sr' || k.state === 'su')) k.pit = false;
           const n = parseInt(v);
           if (!isNaN(n) && n > 0) k.standsCount = n;
         }
@@ -513,7 +548,19 @@
       // su pico entre si→so = la duración oficial de la parada (validado con datos
       // reales: Los Santos 181s, Ariza 151s, coincidencia sub-segundo con si→so).
       if (dtype === 'otr') {
-        if (_otrIsPit) {
+        // Feeds SIN columna de estado (si/so nunca llegan): la clase 'to' de la celda otr
+        // es un crono de parada corriendo = el kart está en boxes (aunque la cabecera diga
+        // "En piste": la clase es la señal física, no el texto). La transición 'to'↔'in' es
+        // la ÚNICA marca de entrada/salida de box. Los circuitos con _otrIsPit mandan el
+        // crono con clase 'in' (cabecera "Tiempo en PIT"), no 'to' — esos van por si/so.
+        if (!_hasStateCol) {
+          if (type === 'to')      _enterPitTimer(k);
+          else if (type === 'in') _exitPitTimer(k);
+        }
+        // Crono de pit oficial → pico = duración de la parada. Activo si el grid marcó la
+        // columna como PIT (_otrIsPit, cualquier clase) o si ya sabemos que está en boxes
+        // por el crono 'to' (feed sin estado). El pico solo acumula con el kart en pit.
+        if (_otrIsPit || (!_hasStateCol && k.pit)) {
           const s = parsePitTimer(v);
           if (s !== null && s >= 0 && s < 3600) {
             k._otrTimer = s;
@@ -777,6 +824,7 @@
         _colByNum = colByNum || {};
         _catCol   = catCol   || null;
         if (otrIsPit !== undefined) _otrIsPit = !!otrIsPit;
+        _hasStateCol = !!(_colMap.sta || _colMap.grp); // sin ella → pit por crono 'to' de otr
 
         // Detección de nueva sesión por cambio de parrilla: si el grid entrante comparte
         // pocos dorsales con el estado actual, es una parrilla nueva y hay que limpiar el
@@ -828,7 +876,7 @@
         _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null; _lastGridTime = 0;
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
-        _otrIsPit = false; _pitDurations = [];
+        _otrIsPit = false; _hasStateCol = false; _pitDurations = [];
       },
 
       get colMap()          { return _colMap; },

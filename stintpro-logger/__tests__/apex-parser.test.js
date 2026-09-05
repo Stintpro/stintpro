@@ -218,6 +218,71 @@ describe('integración ApexParser', () => {
   });
 });
 
+// ── Pit sin columna de estado (feed tipo Le Mans 24H OPEN KART) ──────────────
+// Layout real de Le Mans 24H 390CC: NO hay columna sta/grp, así que 'si'/'so'
+// nunca llegan. La entrada a box se señaliza porque la celda otr ("En piste")
+// pasa de clase 'in' (crono de stint, mm:ss) a clase 'to' (crono de parada, seg),
+// mientras la columna Stands incrementa. El pit-out es la vuelta de otr a clase 'in'.
+describe('pit sin columna de estado (crono "to" en otr + Stands)', () => {
+  const COLS_NO_STATE =
+    '<td data-id="c1" data-type="no"></td>' +
+    '<td data-id="c2" data-type="dr"></td>' +
+    '<td data-id="c3" data-type="otr">En piste</td>' +
+    '<td data-id="c4" data-type="pit">Stands</td>';
+
+  function pitRow(rowId, dorsal, name) {
+    return (
+      `<tr data-id="${rowId}">` +
+      `<td data-id="${rowId}c1"><div>${dorsal}</div></td>` +
+      `<td data-id="${rowId}c2"><div>${name}</div></td>` +
+      `<td data-id="${rowId}c3"></td>` +
+      `<td data-id="${rowId}c4"></td>` +
+      '</tr>'
+    );
+  }
+
+  function newParser(onPit) {
+    const p = new ApexParser({ onPit });
+    p.parse(buildGrid({ colDefs: COLS_NO_STATE, rows: pitRow('r1', '7', 'JAVIER') }));
+    return p;
+  }
+
+  test('onPit dispara "in" cuando la celda otr pasa a clase "to"', () => {
+    const onPit = jest.fn();
+    const p = newParser(onPit);
+    p.parse('r1c3|in|0:05');          // en pista: crono de stint
+    expect(onPit).not.toHaveBeenCalled();
+    p.parse('r1c3|to|00.\nr1c4|in|1'); // entra a box: crono de parada + Stands
+    expect(onPit).toHaveBeenCalledWith('7', 'in', expect.any(Number), expect.any(Number));
+  });
+
+  test('onPit dispara "out" con duración cuando otr vuelve a clase "in"', () => {
+    const onPit = jest.fn();
+    const p = newParser(onPit);
+    p.parse('r1c3|to|00.\nr1c4|in|1'); // pit in
+    p.parse('r1c3|to|45.');            // crono de parada corriendo
+    onPit.mockClear();
+    p.parse('r1c3|in|0:00');           // vuelve a pista → pit out
+    expect(onPit).toHaveBeenCalledWith('7', 'out', expect.any(Number), expect.any(Number), 45);
+  });
+
+  test('el crono de stint en pista NO dispara pit falso', () => {
+    const onPit = jest.fn();
+    const p = newParser(onPit);
+    p.parse('r1c3|in|0:01\nr1c3|in|0:02\nr1c3|in|0:03');
+    expect(onPit).not.toHaveBeenCalled();
+  });
+
+  test('Stands en vivo no borra el pit en curso (sin columna de estado)', () => {
+    const onPit = jest.fn();
+    const p = newParser(onPit);
+    p.parse('r1c3|to|00.\nr1c4|in|1');
+    const kart = p.getState().equipos.find(e => e.dorsal === '7');
+    expect(kart.pit).toBe(true);
+    expect(kart.standsCount).toBe(1);
+  });
+});
+
 // ── Columna de categoría (dos cilindradas en la misma tabla) ─────────────────
 
 describe('columna de categoría', () => {
