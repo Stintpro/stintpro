@@ -744,6 +744,10 @@
             tours: (k.tours || 0) > 0 ? k.tours : (k.lapHistory || []).length, standsCount: k.standsCount || 0, stops: k.stops || 0,
             checkered: !!k.checkered, gapMs: k.gapMs || 0,
             lapFlash: !!(k._lapFlash && (now - k._lapFlash) < 2000),
+            lapFlashAt: k._lapFlash || 0, // timestamp crudo del último pase por meta:
+                                          // deja seekear la animación al tiempo real
+                                          // (animation-delay negativo) en cada repintado
+                                          // sin reiniciarla — ver _enDeriveRow en en-grid.js
             posChange: k._posChange && (now - k._posChange.time) < 5000 ? k._posChange : null,
             sessionFinished: _sessionFinished,
           };

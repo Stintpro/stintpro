@@ -175,6 +175,37 @@ group('|*| WITH llp column', () => {
   });
 });
 
+// ── lap flash (destello de fila al pasar por meta) ──────────────────────────
+// El destello debe poder reconstruirse de forma idempotente en cada repintado:
+// el grid se repinta vía innerHTML varias veces por segundo (feed en vivo +
+// clics de UI), lo que recrea el nodo de la fila y REINICIA una animación CSS
+// arrancada "desde 0". Para poder seekear la animación al tiempo transcurrido
+// real (animation-delay negativo) el snapshot debe exponer el TIMESTAMP crudo
+// del último pase por meta, no solo el booleano de "está destellando".
+group('lap flash timestamp (idempotencia del destello)', () => {
+  test('|*| expone lapFlashAt (timestamp) además de lapFlash (booleano)', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },
+      karts: [{ rowId: 'r1', dorsal: '7' }] });
+    const t0 = Date.now();
+    p.parse('r1|*|65000|');
+    const k = p.getState().equipos[0];
+    assert.equal(k.lapFlash, true, 'lapFlash debe estar activo tras el pase por meta');
+    assert.equal(typeof k.lapFlashAt, 'number', 'lapFlashAt debe ser un número (timestamp)');
+    assert.ok(k.lapFlashAt >= t0, 'lapFlashAt debe ser el instante del pase por meta');
+    assert.ok(Date.now() - k.lapFlashAt < 2000, 'lapFlashAt debe ser reciente');
+  });
+
+  test('sin pase por meta, lapFlashAt es 0 (no destella)', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },
+      karts: [{ rowId: 'r1', dorsal: '7' }] });
+    const k = p.getState().equipos[0];
+    assert.equal(k.lapFlash, false);
+    assert.equal(k.lapFlashAt, 0, 'sin destello, lapFlashAt debe ser 0 (no undefined)');
+  });
+});
+
 // ── llp cell ──────────────────────────────────────────────────────────────────
 
 group('llp cell handling', () => {

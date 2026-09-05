@@ -371,6 +371,19 @@ function _enUpdateKpis(el, leader, trackAvg, bestSess, inPit, myKart, myDorsal, 
 // Si algo aquí lanza, el error se aísla a esta fila — no congela el grid.
 function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
   const now=Date.now();
+  // Destello de pase por meta — idempotente entre repintados. El grid se
+  // reconstruye entero vía innerHTML varias veces por segundo (feed en vivo +
+  // clics de UI ajenos a este kart), lo que RECREA el nodo de la fila. Una
+  // animación CSS en un nodo recién insertado arranca desde 0%, así que sin
+  // esto cualquier repintado a mitad del destello lo reinicia → parpadeo. En
+  // vez de fiar la duración al ciclo de vida del nodo, calculamos el tiempo
+  // real transcurrido desde el pase por meta y seekeamos la animación con un
+  // animation-delay negativo (ver _enRenderRow): cada nodo recreado retoma el
+  // destello donde estaba, y la animación completa sus 2s sin cortes.
+  // (Respaldo: si un origen antiguo solo trae el booleano lapFlash sin
+  // timestamp —p.ej. replay de historial—, se trata como recién arrancado.)
+  const _flashAge=e.lapFlashAt?(now-e.lapFlashAt):(e.lapFlash?0:Infinity);
+  const _flashing=_flashAge>=0&&_flashAge<2000;
   const kc=_enKartColor(e.dorsal);
   const avg5=_enAvg5(e.lapHistory);
   const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
@@ -472,7 +485,8 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
     lastCol, bestCol, delta, deltaStr, deltaCol, m5Col,
     arrow, dotColor, pitBadge, fixBadge, chkBadge,
     kartBorder, barPct, barClass, gapHtml,
-    flash:e.lapFlash?'sp-flash':'',
+    flash:_flashing?'sp-flash':'',
+    flashDelay:_flashing?Math.round(_flashAge):0,
     pinned:EnUi.pinned===e.dorsal,
     isMe:e.dorsal===myDorsal,
     tooltip:_enQualityTooltip(e.dorsal, e, trackAvg),
@@ -485,7 +499,7 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
 function _enRenderRow(e, d, cols){
   return`
   <div class="sp-rowwrap">
-    <div class="en-row ${d.flash}${d.pinned?' sp-pinned':''}${d.isMe?' en-myrow':''}" onclick="_enPin('${e.dorsal}')">
+    <div class="en-row ${d.flash}${d.pinned?' sp-pinned':''}${d.isMe?' en-myrow':''}"${d.flash?` style="animation-delay:-${d.flashDelay}ms"`:''} onclick="_enPin('${e.dorsal}')">
       ${EnColumns.rowCells(cols, e, d)}
       <div class="sp-lapbar ${d.barClass}" id="en-bar-${e.dorsal}" style="width:${d.barPct}%"></div>
     </div>
