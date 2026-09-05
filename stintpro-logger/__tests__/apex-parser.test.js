@@ -258,6 +258,20 @@ describe('columna de categoría', () => {
     expect(p.getState().equipos.find(e => e.dorsal === '7').category).toBe('270 cc');
   });
 
+  // Log real de Le Mans (24H OPEN KART): la cabecera francesa es "Catégorie" con
+  // acento y la columna llega con data-type vacío. El regex sin normalizar no
+  // casaba con la é → los 35 equipos quedaban sin clase.
+  test('captura la categoría con cabecera francesa acentuada "Catégorie" (data-type vacío)', () => {
+    const p = new ApexParser();
+    p.parse(buildGrid({
+      colDefs: STANDARD_COLS + '<td data-id="c5" data-type="">Catégorie</td>',
+      rows: kartRowCat('r1', '16', 'LECLUSE', 'Sport') + kartRowCat('r2', '9', 'SIMU PRO', 'Gentleman'),
+    }));
+    const eq = p.getState().equipos;
+    expect(eq.find(e => e.dorsal === '16').category).toBe('Sport');
+    expect(eq.find(e => e.dorsal === '9').category).toBe('Gentleman');
+  });
+
   test('la categoría llega actualizada por celda en vivo', () => {
     const p = new ApexParser();
     p.parse(buildGrid({ colDefs: COLS_CAT_DTYPE, rows: kartRowCat('r1', '7', 'JAVIER', '') }));

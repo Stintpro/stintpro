@@ -4,8 +4,13 @@
 const { parse: parseHTML }                    = require('node-html-parser');
 const { createParser, parseTime, isValidCategory } = require('./apex-protocol');
 
-// Cabeceras que delatan una columna de categoría/cilindrada
+// Cabeceras que delatan una columna de categoría/cilindrada. Se testea sobre el
+// texto normalizado sin diacríticos (ver stripAccents): el francés manda
+// "Catégorie" con é y el literal "categor" no casaba con la é → los 35 equipos
+// del 24H OPEN KART de Le Mans quedaban sin clase.
 const CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
+// Quita acentos: "Catégorie" → "Categorie", "Categoría" → "Categoria".
+const stripAccents = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // dtypes que ya tienen significado propio: nunca son la columna de categoría
 const RESERVED_DTYPES = new Set([
   'rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr',
@@ -65,7 +70,7 @@ class ApexParser {
 
           if (!cid) return;
           if (dtype === 'class') catCol = cid;
-          else if (!catCol && CAT_HEADER.test(td.text || '') && !RESERVED_DTYPES.has(dtype)) catCol = cid;
+          else if (!catCol && CAT_HEADER.test(stripAccents(td.text)) && !RESERVED_DTYPES.has(dtype)) catCol = cid;
         });
       }
 
