@@ -15,6 +15,7 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_ariza',        name: 'Ariza Racing Circuit',      slug: 'ariza-racing-circuit',      port: 8973 },
   { id: 'cat_osona',        name: 'Circuito de Osona',         slug: 'circuitosona',              port: 9623 },
   { id: 'cat_kippalmela',   name: 'KIP Palmela',               slug: 'kip-palmela',               port: 10113 }, // Portugal (configPort 10110 + 3)
+  { id: 'cat_lemans',       name: 'Le Mans Karting 2 (FR)',    slug: 'lemans-karting2',           port: 8013  }, // Francia — 24H Open Kart 390cc
 ];
 
 window.CircuitDB = {
