@@ -519,3 +519,43 @@ describe('categorías (dos tipos de kart en la misma carrera)', () => {
     expect(s1.score).not.toBeNull();
   });
 });
+
+// ── Canonicalización de nombres (fusión de variantes) ─────────────────────────
+
+describe('canonicalización de nombres — fusiona variantes del mismo piloto', () => {
+  test('mayúsculas/minúsculas → un solo piloto con vueltas sumadas', () => {
+    const res = computePilotRatings([
+      row('PABLO MIR YANES', 1, 50000, { laps: 12 }),
+      row('Pablo Mir Yanes', 2, 50500, { laps: 8 }),
+    ]);
+    expect(res).toHaveLength(1);
+    expect(res[0].total_laps).toBe(20);
+    expect(res[0].session_count).toBe(2);
+  });
+
+  test('acentos y dobles espacios → un solo piloto', () => {
+    const res = computePilotRatings([
+      row('DANIEL MARTÍNEZ', 1, 50000, { laps: 10 }),
+      row('DANIEL  MARTINEZ', 2, 50000, { laps: 5 }),
+    ]);
+    expect(res).toHaveLength(1);
+    expect(res[0].total_laps).toBe(15);
+  });
+
+  test('nombres distintos NO se fusionan', () => {
+    const res = computePilotRatings([
+      row('PABLO GARCIA', 1, 50000, { laps: 12 }),
+      row('PABLO LOPEZ', 1, 51000, { laps: 12 }),
+    ]);
+    expect(res).toHaveLength(2);
+  });
+
+  test('nombre mostrado = variante con más vueltas', () => {
+    const res = computePilotRatings([
+      row('daniel sanchez sanz', 1, 50000, { laps: 3 }),
+      row('DANIEL SANCHEZ SANZ', 2, 50000, { laps: 20 }),
+    ]);
+    expect(res).toHaveLength(1);
+    expect(res[0].name).toBe('DANIEL SANCHEZ SANZ');
+  });
+});

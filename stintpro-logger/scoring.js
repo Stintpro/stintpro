@@ -12,6 +12,18 @@ function _validName(n) {
   return true;
 }
 
+// Clave canónica para agrupar variantes del MISMO piloto: sin acentos, espacios
+// colapsados, mayúsculas. Fusiona "Pablo"/"PABLO", "MARTÍNEZ"/"MARTINEZ" y dobles
+// espacios. NO fusiona truncados ("...DOMIN" vs "...DOMINGUEZ") ni alias.
+function _canonName(n) {
+  return String(n || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
 // ── Parámetros ──────────────────────────────────────────────────────────────
 
 const PACE_FLOOR    = 0.12;  // 12% sobre la referencia = 0 puntos de pace
@@ -205,12 +217,14 @@ function computePilotRatings(rows) {
   }
 
   // ── Agregar por piloto ───────────────────────────────────────────────────
+  // Clave = nombre CANÓNICO → fusiona variantes del mismo piloto (case/acentos/
+  // espacios). El nombre a mostrar se resuelve luego a la variante con más vueltas.
   const pilotMap = {};
   for (const r of validRows) {
-    const key = r.name.trim();
-    if (!pilotMap[key]) pilotMap[key] = { name: key, sessions: [], total_laps: 0 };
+    const key = _canonName(r.name);
+    if (!pilotMap[key]) pilotMap[key] = { name: null, variants: {}, sessions: [], total_laps: 0 };
     const rank  = bySession[r.session_id];
-    const pos   = rank.findIndex(x => x.name === r.name) + 1;
+    const pos   = rank.findIndex(x => _canonName(x.name) === key) + 1;
     const g     = groupOf[r.session_id];
     const ref   = _refFor(r);
     pilotMap[key].sessions.push({
@@ -219,6 +233,13 @@ function computePilotRatings(rows) {
       gap: ref ? (r.best_ms - ref) / ref : null,
     });
     pilotMap[key].total_laps += r.laps;
+    const disp = r.name.trim();
+    pilotMap[key].variants[disp] = (pilotMap[key].variants[disp] || 0) + r.laps;
+  }
+  // Nombre a mostrar: la grafía con más vueltas; desempate por la más larga.
+  for (const p of Object.values(pilotMap)) {
+    p.name = Object.entries(p.variants)
+      .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0][0];
   }
 
   const results = [];
