@@ -1086,6 +1086,13 @@ async function start() {
 
   await db.init();
 
+  // Cierra las sesiones colgadas (is_active=1) de reinicios o carreras acabadas en
+  // silencio, sellándolas con su última vuelta real. 30 min = ventana de resume
+  // (RESUME_MAX_AGE_MS de circuit-monitor): nada reanudable es más viejo, así que
+  // esto no interfiere con _tryResumeSession, que cierra/continúa las recientes.
+  const closedStale = db.closeStaleSessions(30 * 60 * 1000);
+  if (closedStale) console.log(`[Logger] ${closedStale} sesión(es) colgada(s) cerradas al arrancar`);
+
   const monitors = new Map(); // slug → CircuitMonitor
   const { server, computePilotRatings } = createServer({ apiKey: API_KEY, monitors, config });
 

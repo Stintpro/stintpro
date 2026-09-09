@@ -204,3 +204,35 @@ describe('deleteSession', () => {
     expect(db.getLapsBySession(id)).toEqual([]);
   });
 });
+
+// ── closeStaleSessions ─────────────────────────────────────────────────────────
+
+describe('closeStaleSessions', () => {
+  test('cierra una sesión abierta cuya última vuelta es más vieja que el umbral', () => {
+    const id = db.createSession('test-stale', 'Test');
+    const old = Date.now() - 60 * 60 * 1000; // 1 h atrás
+    db.insertLap(id, '7', 'X', null, 64000, 1, old);
+    const n = db.closeStaleSessions(30 * 60 * 1000);
+    expect(n).toBeGreaterThanOrEqual(1);
+    const s = db.getAllSessions().find(s => s.id === id);
+    expect(s.is_active).toBe(0);
+    expect(s.ended_at).toBe(old); // sella con la última vuelta real, no con "ahora"
+  });
+
+  test('respeta una sesión con actividad reciente (no la cierra)', () => {
+    const id = db.createSession('test-fresh', 'Test');
+    db.insertLap(id, '7', 'X', null, 64000, 1, Date.now());
+    db.closeStaleSessions(30 * 60 * 1000);
+    const s = db.getAllSessions().find(s => s.id === id);
+    expect(s.is_active).toBe(1);
+  });
+
+  test('cierra sesión vieja SIN vueltas sellando con started_at', () => {
+    const id = db.createSession('test-empty-stale', 'Test');
+    const started = db.getAllSessions().find(s => s.id === id).started_at;
+    db.closeStaleSessions(-1); // umbral en el futuro → todo cuenta como viejo
+    const s = db.getAllSessions().find(s => s.id === id);
+    expect(s.is_active).toBe(0);
+    expect(s.ended_at).toBe(started);
+  });
+});

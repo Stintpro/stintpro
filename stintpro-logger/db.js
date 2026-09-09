@@ -157,6 +157,24 @@ function cleanupEmptySessions() {
            AND id NOT IN (SELECT DISTINCT session_id FROM laps)`);
 }
 
+// Cierra las sesiones que quedaron colgadas con is_active=1 y cuya última actividad
+// real es más vieja que maxIdleMs (una carrera terminada en silencio, o restos
+// pre-fix). Se sella ended_at con la ÚLTIMA vuelta real (no con "ahora": estas
+// sesiones pueden llevar semanas colgadas). El umbral debe ser ≥ RESUME_MAX_AGE_MS
+// (30 min) para no pisar el resume por-slug: nada reanudable es más viejo que eso.
+// Se llama una vez al arrancar el logger. Devuelve cuántas cerró.
+function closeStaleSessions(maxIdleMs) {
+  const cutoff = Date.now() - maxIdleMs;
+  const info = db.prepare(`
+    UPDATE sessions
+       SET is_active = 0,
+           ended_at  = COALESCE((SELECT MAX(timestamp) FROM laps WHERE session_id = sessions.id), started_at)
+     WHERE is_active = 1
+       AND COALESCE((SELECT MAX(timestamp) FROM laps WHERE session_id = sessions.id), started_at) < ?
+  `).run(cutoff);
+  return info.changes;
+}
+
 function deleteSession(sessionId) {
   for (const sql of [
     'DELETE FROM laps       WHERE session_id=?',
@@ -313,6 +331,7 @@ function getBestLapsByCircuit(slug) {
 module.exports = {
   init,
   createSession, endSession, updateSessionTitle, cleanupEmptySessions, deleteSession,
+  closeStaleSessions,
   getResumableSession,
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
