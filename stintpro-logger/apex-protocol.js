@@ -947,8 +947,15 @@
     const _seen    = new Set();
     let _primed    = false;
 
-    // Hora de pared HH:MM del cronograma → instante más reciente ≤ ahora con esa
+    // Hora de pared HH:MM del cronograma → instante más reciente ≈ ahora con esa
     // hora. Los circuitos actuales (ES/FR/IT/BE/NL) comparten huso Europe/Madrid.
+    // El director suele ARMAR la verde unos segundos antes de su minuto (manda
+    // "Start 11:23" cuando el reloj de pared aún marca 11:22), así que el minuto de
+    // la verde puede ir hasta unos minutos POR DELANTE del de pared. Ese caso es
+    // "ahora", NO "ayer": sin tolerancia, diffMin salía negativo, se le sumaban 24h
+    // y el ancla saltaba al día anterior → el KPI de stint mostraba ~24h absurdas
+    // (bug Henakart 3H 2026-09-06). Solo se considera "ayer" si va MUY por delante.
+    const FUTURE_GRACE_MIN = 10; // margen de verde adelantada / desfase de reloj
     function _clockToEpoch(hhmm) {
       try {
         const [h, min] = hhmm.split(':').map(Number);
@@ -957,7 +964,8 @@
           timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
         }).format(new Date()).split(':').map(Number);
         let diffMin = (nh * 60 + nm) - (h * 60 + min);
-        if (diffMin < 0) diffMin += 24 * 60; // esa hora aún no ha pasado hoy → fue ayer
+        if (diffMin < -FUTURE_GRACE_MIN) diffMin += 24 * 60; // realmente fue ayer
+        if (diffMin < 0) diffMin = 0;                        // futuro cercano → ahora
         return Date.now() - diffMin * 60000;
       } catch (e) { return null; }
     }
