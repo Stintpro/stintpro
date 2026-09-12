@@ -147,6 +147,20 @@ await group('persistencia — _flush / recoverLast / clear / export', async () =
     assert.equal(await bb.recoverLast(), null);
   });
 
+  await test('recoverLast elige por actividad (hasta) real, no por orden lexicográfico de la clave', async () => {
+    const store = fakeStore();
+    const hoy = new Date().toISOString().slice(0, 10);
+    // Lexicográficamente "..._x_10" < "..._x_2", pero _2 es la más reciente por `hasta`.
+    await store.put(`${hoy}_x_10`, { resumen: { hasta: 100 }, eventos: [] });
+    await store.put(`${hoy}_x_2`,  { resumen: { hasta: 200 }, eventos: [] });
+    bb.clear(); bb._setStore(store);
+    bb.setMeta({ app: '1.0.0', circuito: 'lossantos', sesion: 99 }); // sesión actual distinta de ambas
+    const rec = await bb.recoverLast();
+    assert.ok(rec);
+    assert.equal(rec.key, `${hoy}_x_2`);
+    assert.equal(rec.resumen.hasta, 200);
+  });
+
   await test('export devuelve filename + payload y hace _flush', async () => {
     const store = fakeStore();
     bb.clear(); bb._setStore(store);

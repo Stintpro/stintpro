@@ -92,12 +92,16 @@ async function recoverLast(){
   const hoy = new Date().toISOString().slice(0, 10);
   const actual = _sesionKey();
   const keys = (await _store.listKeys())
-    .filter(k => k.startsWith(hoy) && k !== actual)
-    .sort();
+    .filter(k => k.startsWith(hoy) && k !== actual);
   if (!keys.length) return null;
-  const key = keys[keys.length - 1];
-  const payload = await _store.get(key);
-  return payload ? { key, resumen: payload.resumen } : null;
+  let best = null, bestHasta = -Infinity;
+  for (const key of keys) {
+    const payload = await _store.get(key);
+    if (!payload) continue;
+    const hasta = (payload.resumen && payload.resumen.hasta != null) ? payload.resumen.hasta : -Infinity;
+    if (!best || hasta > bestHasta) { best = { key, resumen: payload.resumen }; bestHasta = hasta; }
+  }
+  return best;
 }
 
 function _filename(){
