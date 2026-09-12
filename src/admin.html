@@ -161,6 +161,9 @@
       <button class="sb-link" id="sb-demo" onclick="showPage('demo')">
         <span class="icon">📼</span> Modo Demo
       </button>
+      <button class="sb-link" id="sb-blackbox" onclick="showPage('blackbox')">
+        <span class="icon">🧰</span> Diagnóstico
+      </button>
     </div>
   </aside>
 
@@ -253,6 +256,29 @@
       </div>
     </div>
 
+    <!-- ── DIAGNÓSTICO (CAJA NEGRA) ── -->
+    <div class="page" id="page-blackbox">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Caja negra de diagnóstico</div>
+          <div class="page-sub">Registro interno de eventos, para depurar incidencias reportadas</div>
+        </div>
+      </div>
+
+      <div style="max-width:520px">
+        <p id="bb-recover" hidden style="padding:12px 16px;border-radius:8px;font-size:13px;line-height:1.5;background:rgba(240,144,64,.12);color:var(--orange);border:1px solid rgba(240,144,64,.25);margin-bottom:16px"></p>
+
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:28px 28px 24px">
+          <div style="font-size:15px;font-weight:600;color:var(--text-1);margin-bottom:4px">Registro de eventos</div>
+          <div style="font-size:13px;color:var(--text-3);line-height:1.5;margin-bottom:20px">Descarga un volcado <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--bg-raised);padding:1px 6px;border-radius:4px">.json</code> con los últimos eventos registrados en esta sesión, o bórralo si ya no lo necesitas.</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-p" id="bb-export" onclick="exportBlackbox()">Exportar caja negra</button>
+            <button class="btn btn-d" id="bb-clear" onclick="clearBlackboxLog()">Borrar log actual</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -317,6 +343,7 @@
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<script src="en-blackbox.js"></script>
 <script>
 let _session = null;
 let _users   = [];
@@ -340,6 +367,7 @@ let _circuits = [];
   loadCircuits();
   loadRequests();
   loadDemoMode();
+  loadBlackboxDiag();
 })();
 
 // ── SIGN OUT ──────────────────────────────────────────────────
@@ -664,6 +692,29 @@ async function toggleDemoMode() {
   _demoActive = next;
   _renderDemoToggle();
   toast(_demoActive ? 'Modo demo activado' : 'Modo demo desactivado');
+}
+
+// ── CAJA NEGRA (DIAGNÓSTICO) ──────────────────────────────────
+async function loadBlackboxDiag() {
+  const p = document.getElementById('bb-recover');
+  if (!p) return;
+  const rec = await window.Blackbox?.recoverLast?.();
+  if (rec) {
+    p.hidden = false;
+    p.textContent = `Hay un log previo de hoy (${rec.key}, ${rec.resumen.totalEventos} eventos). Exporta la caja negra para incluirlo.`;
+  } else {
+    p.hidden = true;
+  }
+}
+
+async function exportBlackbox() {
+  const res = await window.Blackbox?.export?.();
+  if (res) toast('Caja negra exportada: ' + res.filename);
+}
+
+function clearBlackboxLog() {
+  window.Blackbox?.clear?.();
+  toast('Log actual borrado');
 }
 
 // ── UTILS ─────────────────────────────────────────────────────
