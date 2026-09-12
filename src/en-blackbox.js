@@ -48,7 +48,31 @@ function event(grifo, tipo, datos){
 
 function clear(){ try { _theRing.clear(); } catch(_){} }
 
-const Blackbox = { event, clear, _makeRing, _scrub, _ring: () => _theRing, MAX_EVENTS, MAX_MS };
+function _serialize(events, meta){
+  meta = meta || {};
+  const porTipo = {};
+  for (const e of events) {
+    const k = e.grifo + ':' + e.tipo;
+    porTipo[k] = (porTipo[k] || 0) + 1;
+  }
+  const ultimosErrores = events.filter(e => e.tipo === 'error').slice(-10);
+  return {
+    resumen: {
+      app: meta.app || null,
+      circuito: meta.circuito || null,
+      sesion: meta.sesion != null ? meta.sesion : null,
+      desde: events.length ? events[0].ts : null,
+      hasta: events.length ? events[events.length - 1].ts : null,
+      totalEventos: events.length,
+      porTipo,
+      ultimosErrores,
+      estadoConexion: meta.estadoConexion || null,
+    },
+    eventos: events,
+  };
+}
+
+const Blackbox = { event, clear, _makeRing, _scrub, _serialize, _ring: () => _theRing, MAX_EVENTS, MAX_MS };
 
 if (typeof window !== 'undefined') window.Blackbox = Blackbox;
 if (typeof module !== 'undefined') module.exports = Blackbox;

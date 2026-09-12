@@ -67,5 +67,38 @@ group('_scrub — secretos y PII', () => {
   });
 });
 
+group('_serialize — cabecera-resumen + eventos', () => {
+  const events = [
+    { ts: 100, grifo: 'in',     tipo: 'live',  datos: { karts: 20 } },
+    { ts: 200, grifo: 'render', tipo: 'paint', datos: { filas: 20 } },
+    { ts: 300, grifo: 'in',     tipo: 'error', datos: { msg: 'parse' } },
+    { ts: 400, grifo: 'in',     tipo: 'live',  datos: { karts: 21 } },
+  ];
+  const out = bb._serialize(events, { app: '1.0.0', circuito: 'lossantos', sesion: 42, estadoConexion: 'connected' });
+
+  test('cuenta eventos por grifo:tipo', () => {
+    assert.equal(out.resumen.porTipo['in:live'], 2);
+    assert.equal(out.resumen.porTipo['render:paint'], 1);
+    assert.equal(out.resumen.porTipo['in:error'], 1);
+  });
+  test('refleja ventana temporal y total', () => {
+    assert.equal(out.resumen.desde, 100);
+    assert.equal(out.resumen.hasta, 400);
+    assert.equal(out.resumen.totalEventos, 4);
+  });
+  test('extrae últimos errores', () => {
+    assert.equal(out.resumen.ultimosErrores.length, 1);
+    assert.equal(out.resumen.ultimosErrores[0].datos.msg, 'parse');
+  });
+  test('cuerpo en orden cronológico', () => {
+    assert.deepEqual(out.eventos.map(e => e.ts), [100, 200, 300, 400]);
+  });
+  test('lista vacía no rompe', () => {
+    const o = bb._serialize([], { app: '1.0.0' });
+    assert.equal(o.resumen.totalEventos, 0);
+    assert.equal(o.resumen.desde, null);
+  });
+});
+
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
