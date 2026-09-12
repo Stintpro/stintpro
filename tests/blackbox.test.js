@@ -183,6 +183,107 @@ await group('persistencia — _flush / recoverLast / clear / export', async () =
   });
 });
 
+await group('_scrub — contenido de string (credenciales/URLs)', async () => {
+  await test('enmascara token=/key= y credenciales de URL dentro de strings', () => {
+    const out = bb._scrub({ raw: 'x token=abc123 y http://user:pass@h/z' });
+    assert.ok(!/abc123/.test(out.raw), 'no debe sobrevivir el token');
+    assert.ok(!/user:pass/.test(out.raw), 'no deben sobrevivir las credenciales de URL');
+    assert.ok(/\[redactado\]/.test(out.raw), 'debe marcar [redactado]');
+  });
+  await test('enmascara authorization: Bearer ...', () => {
+    const out = bb._scrub({ raw: 'authorization: Bearer sk-XYZ789' });
+    assert.ok(!/sk-XYZ789/.test(out.raw));
+    assert.ok(/\[redactado\]/.test(out.raw));
+  });
+  await test('no toca telemetría normal (números, tiempos, dorsales)', () => {
+    const s = 'dorsal 7 gap 1.234 vuelta 58.021 monkey 5';
+    const out = bb._scrub({ raw: s });
+    assert.equal(out.raw, s);
+  });
+  await test('el string escrutado llega hasta ultimosErrores del serializado', () => {
+    bb.clear();
+    bb.event('in', 'error', { fuente: 'apex', raw: 'boom token=SECRETO123' });
+    const ser = bb._serialize(bb._ring().snapshot(), {});
+    const errRaw = ser.resumen.ultimosErrores[0].datos.raw;
+    assert.ok(!/SECRETO123/.test(errRaw));
+    assert.ok(/\[redactado\]/.test(errRaw));
+  });
+});
+
+await group('_armAutoFlush — flush periódico + ciclo de vida', async () => {
+  await test('intervalo y visibilitychange(hidden) disparan _flush', async () => {
+    let intervalCb = null;
+    const handlers = {};
+    const fakeDoc = {
+      visibilityState: 'visible',
+      addEventListener(ev, fn){ handlers[ev] = fn; },
+      removeEventListener(){},
+    };
+    const store = fakeStore();
+    bb.clear(); bb._setStore(store);
+    bb.setMeta({ app: '1.0.0', circuito: 'lossantos', sesion: 3 });
+    bb.event('in', 'live', { karts: 20 });
+    const stop = bb._armAutoFlush({
+      intervalMs: 5000,
+      setIntervalFn: (fn) => { intervalCb = fn; return 1; },
+      clearIntervalFn: () => {},
+      doc: fakeDoc,
+      win: null,
+    });
+    assert.equal(typeof intervalCb, 'function', 'debe programar el intervalo');
+    assert.equal(typeof handlers.visibilitychange, 'function', 'debe registrar visibilitychange');
+
+    intervalCb();
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal((await store.listKeys()).length, 1, 'el intervalo debe escribir en el store');
+
+    for (const k of await store.listKeys()) await store.del(k);
+    fakeDoc.visibilityState = 'hidden';
+    handlers.visibilitychange();
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal((await store.listKeys()).length, 1, 'visibilitychange(hidden) debe escribir');
+
+    stop();
+  });
+
+  await test('visibilitychange(visible) NO dispara flush', async () => {
+    let intervalCb = null;
+    const handlers = {};
+    const fakeDoc = {
+      visibilityState: 'hidden',
+      addEventListener(ev, fn){ handlers[ev] = fn; },
+      removeEventListener(){},
+    };
+    const store = fakeStore();
+    bb.clear(); bb._setStore(store);
+    bb.setMeta({ app: '1.0.0', circuito: 'lossantos', sesion: 4 });
+    bb.event('in', 'live', {});
+    const stop = bb._armAutoFlush({
+      setIntervalFn: (fn) => { intervalCb = fn; return 1; },
+      clearIntervalFn: () => {},
+      doc: fakeDoc,
+      win: null,
+    });
+    fakeDoc.visibilityState = 'visible';
+    handlers.visibilitychange();
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal((await store.listKeys()).length, 0, 'visible no debe escribir');
+    stop();
+  });
+
+  await test('no lanza aunque _flush falle en el callback', async () => {
+    let intervalCb = null;
+    const badStore = { async put(){ throw new Error('io'); }, async get(){ return null; }, async listKeys(){ return []; }, async del(){} };
+    bb.clear(); bb._setStore(badStore);
+    bb.setMeta({ app: '1.0.0', circuito: 'x', sesion: 1 });
+    bb.event('in', 'live', {});
+    const stop = bb._armAutoFlush({ setIntervalFn: (fn) => { intervalCb = fn; return 1; }, clearIntervalFn: () => {}, doc: null, win: null });
+    assert.doesNotThrow(() => intervalCb());
+    await Promise.resolve();
+    stop();
+  });
+});
+
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
 

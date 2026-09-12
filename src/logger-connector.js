@@ -122,7 +122,7 @@ const Logger = {
             if (msg.fatal) { this.slug = null; this.ws && this.ws.close(); }
           }
         } catch(e) {
-          window.Blackbox?.event('in', 'error', { fuente: 'logger', raw: String(evt.data).slice(0, 2000) });
+          window.Blackbox?.event('in', 'error', { fuente: 'logger', raw: String(evt.data).slice(0, 500) });
         }
       };
 

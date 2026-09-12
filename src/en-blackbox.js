@@ -23,8 +23,27 @@ function _makeRing(maxEvents, maxMs){
 const _SECRET_RE = /api[_-]?key|token|secret|password|bearer|authorization/i;
 const _NAME_RE   = /^(nombre|piloto|driver|name|fullname)$/i;
 
+// Escrutinio de CONTENIDO de strings: enmascara credenciales/tokens y URLs con
+// usuario:contraseña. Patrones conservadores para no tocar telemetría normal
+// (números, tiempos de vuelta, dorsales). NOTA: no intenta borrar nombres de
+// piloto embebidos en un string de error crudo (no son detectables por patrón);
+// es una limitación aceptada y documentada.
+const _STR_URLCRED_RE = /([a-z][a-z0-9+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi;
+const _STR_BEARER_RE  = /\bbearer\s+\S+/gi;
+const _STR_SECRET_RE  = /\b(api[_-]?key|key|token|secret|password|bearer|authorization)\b(\s*[:=]\s*)(\S+)/gi;
+
+function _scrubString(s){
+  try {
+    return s
+      .replace(_STR_URLCRED_RE, '$1[redactado]@')
+      .replace(_STR_BEARER_RE, 'Bearer [redactado]')
+      .replace(_STR_SECRET_RE, (m, kw, sep) => kw + sep + '[redactado]');
+  } catch (_) { return s; }
+}
+
 function _scrub(v, seen){
   seen = seen || new Set();
+  if (typeof v === 'string') return _scrubString(v);
   if (v === null || typeof v !== 'object') return v;
   if (seen.has(v)) return '[circular]';
   seen.add(v);
@@ -131,18 +150,78 @@ async function clear(){
   try { if (_store) await _store.del(_sesionKey()); } catch(_){}
 }
 
+// _armAutoFlush: vuelca a IndexedDB de forma periódica y en eventos de ciclo de
+// vida (visibilitychange oculto + beforeunload). Sin esto la caja negra solo se
+// guardaría en el export manual y NO sobreviviría a un reload/crash. Todos los
+// callbacks van envueltos en try/catch: jamás pueden romper la carrera.
+let _autoFlushArmed = false;
+function _armAutoFlush(opts){
+  opts = opts || {};
+  const intervalMs     = opts.intervalMs != null ? opts.intervalMs : 5000;
+  const setIntervalFn  = 'setIntervalFn'  in opts ? opts.setIntervalFn  : (typeof setInterval  !== 'undefined' ? setInterval  : null);
+  const clearIntervalFn= 'clearIntervalFn' in opts ? opts.clearIntervalFn : (typeof clearInterval !== 'undefined' ? clearInterval : null);
+  const doc            = 'doc' in opts ? opts.doc : (typeof document !== 'undefined' ? document : null);
+  const win            = 'win' in opts ? opts.win : (typeof window   !== 'undefined' ? window   : null);
+
+  if (_autoFlushArmed) return function(){};   // no apilar intervalos duplicados
+  _autoFlushArmed = true;
+
+  const safeFlush = () => {
+    try {
+      const p = _flush();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (_) { /* fail-safe */ }
+  };
+  const onVis = () => { try { if (doc && doc.visibilityState === 'hidden') safeFlush(); } catch (_) {} };
+  const onUnload = () => { safeFlush(); };
+
+  let timer = null;
+  if (typeof setIntervalFn === 'function') {
+    try { timer = setIntervalFn(safeFlush, intervalMs); } catch (_) {}
+  }
+  if (doc && typeof doc.addEventListener === 'function') {
+    try { doc.addEventListener('visibilitychange', onVis); } catch (_) {}
+  }
+  if (win && typeof win.addEventListener === 'function') {
+    try { win.addEventListener('beforeunload', onUnload); } catch (_) {}
+  }
+
+  return function stop(){
+    try { if (timer != null && typeof clearIntervalFn === 'function') clearIntervalFn(timer); } catch (_) {}
+    try { if (doc && typeof doc.removeEventListener === 'function') doc.removeEventListener('visibilitychange', onVis); } catch (_) {}
+    try { if (win && typeof win.removeEventListener === 'function') win.removeEventListener('beforeunload', onUnload); } catch (_) {}
+    _autoFlushArmed = false;
+  };
+}
+
 function _idbStore(dbName, storeName){
+  // Con flush cada ~5s, abrir indexedDB.open() por operación abriría miles de
+  // conexiones en una carrera de 24h. Memoizamos la conexión y la reutilizamos;
+  // si se cierra o falla, se permite reabrir (se anula la caché).
+  let _dbPromise = null;
   function open(){
-    return new Promise((res, rej) => {
+    if (_dbPromise) return _dbPromise;
+    _dbPromise = new Promise((res, rej) => {
       const req = indexedDB.open(dbName, 1);
       req.onupgradeneeded = () => req.result.createObjectStore(storeName);
-      req.onsuccess = () => res(req.result);
-      req.onerror = () => rej(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        try {
+          db.onclose = () => { _dbPromise = null; };
+          db.onerror = () => { _dbPromise = null; };
+        } catch (_) {}
+        res(db);
+      };
+      req.onerror = () => { _dbPromise = null; rej(req.error); };
     });
+    _dbPromise.catch(() => { _dbPromise = null; });   // reintento tras rechazo
+    return _dbPromise;
   }
   function tx(mode, fn){
     return open().then(db => new Promise((res, rej) => {
-      const t = db.transaction(storeName, mode);
+      let t;
+      try { t = db.transaction(storeName, mode); }
+      catch (e) { _dbPromise = null; return rej(e); }   // conexión inválida → reabrir
       const s = t.objectStore(storeName);
       const out = fn(s);
       t.oncomplete = () => res(out._result);
@@ -159,12 +238,12 @@ function _idbStore(dbName, storeName){
 
 const Blackbox = {
   event, clear, _makeRing, _scrub, _serialize, _ring: () => _theRing, MAX_EVENTS, MAX_MS,
-  setMeta, _setStore, _flush, recoverLast, export: exportLog, _idbStore,
+  setMeta, _setStore, _flush, recoverLast, export: exportLog, _idbStore, _armAutoFlush,
 };
 
 if (typeof window !== 'undefined') window.Blackbox = Blackbox;
 if (typeof module !== 'undefined') module.exports = Blackbox;
 
 if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
-  try { _setStore(_idbStore('stintpro', 'blackbox')); } catch(_){}
+  try { _setStore(_idbStore('stintpro', 'blackbox')); _armAutoFlush(); } catch(_){}
 }

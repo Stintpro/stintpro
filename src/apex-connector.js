@@ -104,7 +104,7 @@ window.ApexConnector = {
       this.ws.onmessage = (e) => {
         try { this._parser.parse(e.data); } catch(err) {
           console.error('[ApexConnector]', err);
-          window.Blackbox?.event('in', 'error', { fuente: 'apex', raw: String(e.data).slice(0, 2000) });
+          window.Blackbox?.event('in', 'error', { fuente: 'apex', raw: String(e.data).slice(0, 500) });
         }
       };
       this.ws.onerror  = () => {
