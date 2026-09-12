@@ -43,5 +43,29 @@ group('event() — fail-safe', () => {
   });
 });
 
+group('_scrub — secretos y PII', () => {
+  test('redacta valores bajo claves de secreto', () => {
+    const out = bb._scrub({ apiKey: 'sk-123', api_key: 'x', token: 't', ok: 'visible' });
+    assert.equal(out.apiKey, '[redactado]');
+    assert.equal(out.api_key, '[redactado]');
+    assert.equal(out.token, '[redactado]');
+    assert.equal(out.ok, 'visible');
+  });
+  test('elimina claves de nombre de piloto', () => {
+    const out = bb._scrub({ dorsal: 12, nombre: 'Javier Coy', piloto: 'X' });
+    assert.equal(out.dorsal, 12);
+    assert.ok(!('nombre' in out));
+    assert.ok(!('piloto' in out));
+  });
+  test('respeta datos de carrera anidados', () => {
+    const out = bb._scrub({ karts: [{ dorsal: 7, gap: '1.234', clase: 'A' }] });
+    assert.deepEqual(out.karts, [{ dorsal: 7, gap: '1.234', clase: 'A' }]);
+  });
+  test('no lanza con estructura circular', () => {
+    const a = { x: 1 }; a.self = a;
+    assert.doesNotThrow(() => bb._scrub(a));
+  });
+});
+
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

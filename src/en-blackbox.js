@@ -19,8 +19,24 @@ function _makeRing(maxEvents, maxMs){
   };
 }
 
-// _scrub: en Task 2 redacta secretos/PII. De momento, identidad segura.
-function _scrub(v){ return v; }
+// _scrub: redacta secretos/PII con copia profunda.
+const _SECRET_RE = /api[_-]?key|token|secret|password|bearer|authorization/i;
+const _NAME_RE   = /^(nombre|piloto|driver|name|fullname)$/i;
+
+function _scrub(v, seen){
+  seen = seen || new Set();
+  if (v === null || typeof v !== 'object') return v;
+  if (seen.has(v)) return '[circular]';
+  seen.add(v);
+  if (Array.isArray(v)) return v.map(x => _scrub(x, seen));
+  const out = {};
+  for (const k of Object.keys(v)) {
+    if (_NAME_RE.test(k)) continue;               // PII: fuera
+    if (_SECRET_RE.test(k)) { out[k] = '[redactado]'; continue; }
+    out[k] = _scrub(v[k], seen);
+  }
+  return out;
+}
 
 const _theRing = _makeRing(MAX_EVENTS, MAX_MS);
 
