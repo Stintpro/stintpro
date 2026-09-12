@@ -51,6 +51,7 @@ function _showDemoModal() {
 }
 
 async function _startDemoNow() {
+  window.Blackbox?.event('user', 'demo', { on: true });
   clearInterval(window._demoCountdownIv);
   const overlay = document.getElementById('demo-overlay');
   if (overlay) {
@@ -84,6 +85,7 @@ async function _startDemoNow() {
   window.AppState.config = cfg;
   window.AppState.loggerUrl    = _loggerUrl;
   window.AppState.loggerApiKey = _loggerApiKey;
+  window.Blackbox?.setMeta({ app: '1.0.0', circuito: cfg.slug ?? null, sesion: Date.now(), estadoConexion: 'simulado' });
   const _demoOffset = parseFloat(localStorage.getItem('stintpro_pitoffset_karting-lossantos'));
   if(!isNaN(_demoOffset) && _demoOffset>3 && _demoOffset<300){
     EnSession.pitOutCalibration = [_demoOffset, _demoOffset];
@@ -106,6 +108,7 @@ function _injectDemoBanner() {
 }
 
 function _exitDemo() {
+  window.Blackbox?.event('user', 'demo', { on: false });
   window.ReplayConnector.loopMode = false;
   window.ReplayConnector.disconnect();
   document.getElementById('demo-banner')?.remove();
@@ -178,10 +181,12 @@ function _pinUpdateDots() {
 
 function _pinSubmit() {
   if (window._pinValue === _ACCESS_PIN) {
+    window.Blackbox?.event('user', 'pin-ok', {});
     localStorage.setItem(_PIN_KEY, _ACCESS_PIN);
     document.getElementById('screen-setup').innerHTML = '';
     renderSetup();
   } else {
+    window.Blackbox?.event('user', 'pin-fail', {});
     const err = document.getElementById('pin-error');
     if (err) err.textContent = 'PIN incorrecto';
     const dots = document.querySelectorAll('.pin-dot');

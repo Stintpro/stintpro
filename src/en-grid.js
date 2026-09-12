@@ -193,6 +193,14 @@ function _enRender(){
       }
     }
   }catch(err){console.error('[StintPro] Error avanzado:',err);}
+
+  try{
+    window.Blackbox?.event('render', 'paint', {
+      filas: (document.querySelectorAll('#en-grid-body .en-row')||[]).length,
+      lider: leader?.dorsal ?? null,
+      banderas: EnSession.flag ?? null,
+    });
+  }catch(_){}
 }
 
 function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit, myKart, myDorsal){
@@ -542,11 +550,13 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
 
 function _enPin(dorsal){
   EnUi.pinned=(EnUi.pinned===dorsal)?null:dorsal;
+  window.Blackbox?.event('user', 'pin', { dorsal });
   _enRender();
 }
 
 // ── Pestañas ──────────────────────────────────────────────────────────────
 function _enSetTab(tab){
+  window.Blackbox?.event('user', 'tab', { tab });
   EnUi.tab=tab;
   const thead=document.getElementById('en-thead');
   const grid=document.getElementById('en-grid-body');
@@ -603,6 +613,7 @@ function _enSetTab(tab){
 
 // ── Cambio de piloto ──────────────────────────────────────────────────────
 function _enShowPilotSelect(auto){
+  window.Blackbox?.event('user', 'pilotSelect', { auto: !!auto });
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
   if(!pilotos.length)return;

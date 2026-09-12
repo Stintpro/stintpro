@@ -679,5 +679,6 @@ function startEndurance() {
   if(savedOffset!=null){
     EnSession.pitOutCalibration=[savedOffset, savedOffset];
   }
+  window.Blackbox?.setMeta({ app: '1.0.0', circuito: cfg.slug ?? null, sesion: Date.now(), estadoConexion: 'connecting' });
   window.showEnduranceDashboard(cfg);
 }

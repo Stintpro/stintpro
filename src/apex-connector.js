@@ -62,6 +62,7 @@ window.ApexConnector = {
         if (this._flagTracker) this._flagTracker.reset();
         this._raceStopped = false;
         if (this.onStatus) this.onStatus('connected', '● Nueva sesión');
+        window.Blackbox?.event('in', 'status', { conn: 'connected' });
       },
       onSessionEnd: ()         => {
         if (window.ApexClock) ApexClock.stop();
@@ -97,15 +98,23 @@ window.ApexConnector = {
       this.ws.onopen = () => {
         this.connected = true;
         if (this.onStatus) this.onStatus('connected', '● Apex conectado');
+        window.Blackbox?.event('in', 'status', { conn: 'connected' });
         this.ws.send(this.slug);
       };
       this.ws.onmessage = (e) => {
-        try { this._parser.parse(e.data); } catch(err) { console.error('[ApexConnector]', err); }
+        try { this._parser.parse(e.data); } catch(err) {
+          console.error('[ApexConnector]', err);
+          window.Blackbox?.event('in', 'error', { fuente: 'apex', raw: String(e.data).slice(0, 2000) });
+        }
       };
-      this.ws.onerror  = () => { if (this.onStatus) this.onStatus('error', '● Error de conexión'); };
+      this.ws.onerror  = () => {
+        if (this.onStatus) this.onStatus('error', '● Error de conexión');
+        window.Blackbox?.event('in', 'status', { conn: 'error' });
+      };
       this.ws.onclose  = () => {
         this.connected = false;
         if (this.onStatus) this.onStatus('disconnected', '● Reconectando...');
+        window.Blackbox?.event('in', 'status', { conn: 'disconnected' });
         if (this.slug) this._reconnectTimer = setTimeout(() => this._doConnect(), 5000);
       };
     } catch(e) { if (this.onStatus) this.onStatus('error', '● No se pudo conectar'); }
@@ -342,6 +351,7 @@ window.ApexConnector = {
   _emit(state) {
     if (this._raceStart) state.raceStart = this._raceStart;
     state.raceStopped = this._raceStopped;   // state.flag ya viene de getState()
+    window.Blackbox?.event('in', 'live', { karts: state?.equipos?.length });
     if (this.onData) this.onData(state);
   },
 };

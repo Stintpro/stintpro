@@ -58,11 +58,13 @@ const Logger = {
         this.ws.send(JSON.stringify({ type: 'subscribe', slug: this.slug }));
         this.connected = true;
         if (this.onStatus) this.onStatus('connected', '● Logger conectado');
+        window.Blackbox?.event('in', 'status', { conn: 'connected' });
       };
 
       this.ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data);
+          window.Blackbox?.event('in', msg.type || 'msg', { bytes: evt.data.length, karts: msg?.data?.equipos?.length ?? msg?.snapshot?.equipos?.length });
 
           // Ancla de salida oficial (com|) reenviada por el logger. Se cachea y
           // se adjunta a los payloads live/history para que el dashboard la vea
@@ -119,17 +121,21 @@ const Logger = {
             if (this.onStatus) this.onStatus('error', `● Logger: ${reason}`);
             if (msg.fatal) { this.slug = null; this.ws && this.ws.close(); }
           }
-        } catch(e) {}
+        } catch(e) {
+          window.Blackbox?.event('in', 'error', { fuente: 'logger', raw: String(evt.data).slice(0, 2000) });
+        }
       };
 
       this.ws.onerror = () => {
         this.connected = false;
         if (this.onStatus) this.onStatus('error', '● Error de conexión al logger');
+        window.Blackbox?.event('in', 'status', { conn: 'error' });
       };
 
       this.ws.onclose = () => {
         this.connected = false;
         if (this.onStatus) this.onStatus('disconnected', '● Logger desconectado, reconectando...');
+        window.Blackbox?.event('in', 'status', { conn: 'disconnected' });
         if (this.slug) this._reconnectTimer = setTimeout(() => this._doConnect(), 5000);
       };
     } catch(e) {
