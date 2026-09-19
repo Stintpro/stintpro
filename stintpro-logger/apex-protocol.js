@@ -77,7 +77,11 @@
   //               a la parrilla: rkb=N ganadas, rkw=N perdidas, rke=sin cambio.
   //               Verificado (pos + valor con signo = posición de salida, y se
   //               mantiene constante toda la manga). Solo formato competición.
-  //   nat/class   columnas informativas (nacionalidad, clase). Llegan vacías.
+  //   nat         nacionalidad (bandera). NO siempre vacía: algunos crono la
+  //               mandan con datos reales (Cronosystem/24H KIP: FRA/POR/ESP/BEL…).
+  //               Se mapea en colMap.nat pero ningún consumidor la usa aún.
+  //               (La 'class'/categoría, que antes figuraba aquí como vacía, SÍ
+  //               se usa hoy: columna Clase PRO-AM vía colMap.class + isValidCategory.)
   //   br*/cr*     tablas laterales de competición: br = mejores por sector,
   //               cr = clasificación acumulada del campeonato. No es resistencia.
   //   s1/s2/s3    tiempos por sector. SÍ se parsean abajo y viajan en el

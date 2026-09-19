@@ -78,7 +78,11 @@
     {
       id: 'class', label: 'Clase', align: 'center',
       width: '64px', widthNarrow: '46px',
-      source: 'apex', default: false,
+      // Sin `default:false`: se selecciona por defecto, pero `requires` la deja
+      // oculta salvo que Apex mande la columna de categoría. Efecto neto: aparece
+      // sola en carreras multicategoría (PRO/AM, cilindradas) y sigue invisible
+      // en monoclase, sin que el usuario tenga que descubrir el panel ⚙️.
+      source: 'apex',
       requires: cm => !!cm.class,
       cell: (e, d) => `<div class="sp-cls">${e.category ? _esc(e.category) : '—'}</div>`,
     },
@@ -238,7 +242,16 @@
   }
 
   const STORAGE_KEY = 'stintpro_columns';
-  const VERSION     = 1;
+  const VERSION     = 2;
+
+  // Columnas "promovidas" a visible-por-defecto DESPUÉS de haber existido como
+  // opcionales (default:false). Sin esto, un cambio de defecto solo alcanza a las
+  // instalaciones nuevas: en un dispositivo con selección ya guardada, `known`
+  // trata la columna como conocida-y-rechazada y nunca aparecería. `migrate` las
+  // añade UNA vez a las selecciones de versiones anteriores. Siguen protegidas por
+  // su `requires`, así que solo se ven cuando Apex manda el dato.
+  //   v2 → 'class' (categoría PRO/AM, cilindrada): aparece sola en multicategoría.
+  const PROMOTED = { 2: ['class'] };
 
   function defaultSelection() {
     return COLUMNS.filter(c => c.default !== false).map(c => c.id);
@@ -259,7 +272,13 @@
     const nuevas = COLUMNS
       .filter(c => c.default !== false && !conocidas.has(c.id))
       .map(c => c.id);
-    return Array.from(new Set(kept.concat(nuevas)));
+    // Promoción por versión: columnas que pasaron a defecto tras un bump de VERSION.
+    const storedV = Number(stored.v) || 1;
+    const promovidas = [];
+    for (let v = storedV + 1; v <= VERSION; v++)
+      for (const id of (PROMOTED[v] || []))
+        if (catalogo.has(id)) promovidas.push(id);
+    return Array.from(new Set(kept.concat(nuevas, promovidas)));
   }
 
   function loadSelection() {

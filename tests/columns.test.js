@@ -80,8 +80,10 @@ group('catálogo', () => {
       ['dot', 'pos', 'kart', 'driver']);
   });
 
-  test('Clase es la única que no entra por defecto', () => {
-    deepStrictEqual(COLUMNS.filter(c => c.default === false).map(c => c.id), ['class']);
+  test('ninguna columna arranca desmarcada (Clase ya no es default:false)', () => {
+    // Clase se promocionó a defecto: aparece sola cuando Apex manda categoría y
+    // sigue oculta en monoclase por su `requires`. Ya no hay columnas default:false.
+    deepStrictEqual(COLUMNS.filter(c => c.default === false).map(c => c.id), []);
   });
 });
 
@@ -239,9 +241,9 @@ function fakeStorage() {
 }
 
 group('persistencia', () => {
-  test('sin nada guardado, la selección por defecto son las 14 de hoy', () => {
+  test('sin nada guardado, la selección por defecto son las 15 (Clase incluida)', () => {
     deepStrictEqual(defaultSelection(), [
-      'dot', 'pos', 'kart', 'driver', 'team', 'tours',
+      'dot', 'pos', 'kart', 'driver', 'team', 'class', 'tours',
       'last', 'best', 'm5v', 'delta', 'gap', 'int', 'score', 'pit',
     ]);
   });
@@ -257,7 +259,7 @@ group('persistencia', () => {
     global.localStorage = fakeStorage();
     saveSelection(['pos', 'kart']);
     const raw = JSON.parse(global.localStorage.getItem(STORAGE_KEY));
-    strictEqual(raw.v, 1);
+    strictEqual(raw.v, 2);
     deepStrictEqual(raw.cols, ['pos', 'kart']);
     deepStrictEqual(raw.known, COLUMNS.map(c => c.id));
   });
@@ -275,8 +277,9 @@ group('persistencia', () => {
   });
 
   test('migración: los ids desconocidos se descartan', () => {
+    // v:2 (versión actual) para aislar el test de la promoción por versión.
     deepStrictEqual(
-      migrate({ v: 1, cols: ['pos', 'kart', 'columna_fantasma'], known: COLUMNS.map(c => c.id) }),
+      migrate({ v: 2, cols: ['pos', 'kart', 'columna_fantasma'], known: COLUMNS.map(c => c.id) }),
       ['pos', 'kart']);
   });
 
@@ -292,9 +295,17 @@ group('persistencia', () => {
     ok(!migrate({ v: 1, cols: ['pos', 'kart'], known }).includes('gap'));
   });
 
-  test('migración: una columna nueva con default:false NO entra sola', () => {
-    const known = COLUMNS.map(c => c.id).filter(id => id !== 'class');
-    ok(!migrate({ v: 1, cols: ['pos'], known }).includes('class'));
+  test('promoción: Clase entra en selecciones guardadas anteriores (v1→v2)', () => {
+    // class estaba en known (la conocía) pero no en cols; el bump a v2 la promociona
+    // para que el cambio de defecto alcance a dispositivos ya configurados.
+    const known = COLUMNS.map(c => c.id);
+    ok(migrate({ v: 1, cols: ['pos'], known }).includes('class'));
+  });
+
+  test('promoción: si el usuario ya desmarcó Clase en v2, no reaparece', () => {
+    // La promoción es de un solo salto de versión: en v2 ya respeta la decisión.
+    const known = COLUMNS.map(c => c.id);
+    ok(!migrate({ v: 2, cols: ['pos'], known }).includes('class'));
   });
 
   test('migración: guardado antiguo sin `known` se trata como catálogo completo', () => {

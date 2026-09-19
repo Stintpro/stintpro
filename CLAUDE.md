@@ -174,7 +174,7 @@ Descifrado al pasar el detector de novedades (2026-07-20). Se documenta para no 
 |---|---|---|
 | `sl` (col. `sta`) | Kart lento/doblado | No es estado de carrera. Se ignora a propósito |
 | `rku` + `rkb`/`rkw`/`rke` | Variación de posiciones vs. parrilla: `rkb`=N ganadas, `rkw`=N perdidas, `rke`=sin cambio | Solo formato competición; ningún circuito de resistencia lo emite |
-| `nat` / `class` | Nacionalidad y clase | Declaradas en la cabecera, llegan vacías |
+| `nat` | Nacionalidad (bandera) | NO siempre vacía (Cronosystem/24H KIP la manda: FRA/POR/ESP…); se mapea en `colMap.nat` pero ningún consumidor la usa aún |
 | Tablas `br*` / `cr*` (`gridb`/`gridc`) | Mejores por sector / clasificación acumulada del campeonato | Formato competición, no resistencia |
 | `s1` / `s2` / `s3` | Tiempos por sector | **Sí se parsean** y viajan en el snapshot, pero ningún consumidor los usa. Decisión: no se muestran en la app |
 | `css\|<clase>\|<reglas>` | Apex define clases CSS al vuelo y las manda como "token" de la celda (a veces con espacio delante) | Es estilo, no protocolo |
