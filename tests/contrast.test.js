@@ -954,7 +954,10 @@ test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble 
 const FICHEROS_TARJETA = { 'en-strategy.js': 'en-strat-card', 'en-team.js': 'en-team-card' };
 const TARJETAS_ESPERADAS = { 'en-strategy.js': 7, 'en-team.js': 6 };
 const INTERPOLACIONES_OPACAS_TARJETA = {
-  'en-strategy.js': ['kc.text'], // el color del dorsal, que sale de _enKartColor (otro fichero)
+  // kc.text: el color del dorsal, que sale de _enKartColor (otro fichero).
+  // tacticColor: sale de EnBoxModel.tacticalAdvice (src/en-box-model.js); sus
+  // ramas de estado se fijan como var(--state-*) en tests/box-model.test.js.
+  'en-strategy.js': ['kc.text', 'tacticColor'],
   'en-team.js': ['col'],         // la paleta de identidad del piloto: colors[idx%colors.length]
 };
 

@@ -82,7 +82,7 @@ function _enCheckAlerts(eq, trackAvg){
   if(!onCooldown('trapped')&&EnBox.totalStops&&remainMsAll>0&&stintMaxMs<999*60*1000){
     for(const e of eq){
       if(e.pit||e.dorsal===myDorsal||!(e.standsCount>0))continue;
-      const pitOutTime=EnSession.rivalPitOut[e.dorsal];
+      const pitOutTime=_enRivalStintStart(e);
       if(!pitOutTime)continue;
       const elapsed=now-pitOutTime;
       const stopsLeft=Math.max(0,EnBox.totalStops-e.standsCount);
@@ -140,11 +140,13 @@ function _enCheckAlerts(eq, trackAvg){
     if(myK&&!myK.pit&&EnSession.stintStart&&!EnSession.stintFrozen){
       const myElapsed=now-EnSession.stintStart;
       const myCanPit=stintMinMs<=0||myElapsed>=stintMinMs;
+      // Misma métrica que la pestaña Estrategia: probabilidad de que te toque un
+      // kart bueno según el tipo de box (en línea solo cuenta el primero).
       const queue=EnBox.queue||[];
-      const goodInQueue=queue.filter(k=>k.quality==='good').length;
-      const goodRatio=queue.length?goodInQueue/queue.length:0;
-      if(myCanPit&&queue.length>=2&&goodRatio>=0.6){
-        _enFireAlert('window', { goodInQueue, totalInQueue:queue.length });
+      const acc=EnBoxModel.accessProb(queue, EnBox.config.type||'line', EnBox.config.columns||2);
+      const goodInQueue=Math.round(acc.good);
+      if(myCanPit&&acc.prob!==null&&acc.prob>=60&&acc.knownShare>=0.5){
+        _enFireAlert('window', { goodInQueue, totalInQueue:queue.length, accessProbPct:acc.prob });
         return;
       }
     }

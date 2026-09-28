@@ -80,7 +80,8 @@ function _enBuildAiSnapshot(){
       }));
   }
 
-  const goodInQueue=EnBox.queue.filter(k=>k.quality==='good').length;
+  const goodInQueue=Math.round(EnBox.queue.filter(k=>k.quality==='good').reduce((a,k)=>a+EnBoxModel.weight(k),0));
+  const boxAcc=EnBoxModel.accessProb(EnBox.queue, EnBox.config.type||'line', EnBox.config.columns||2);
   const pilotName=cfg.pilotos?.[EnSession.currentPilot]?.name||null;
 
   return {
@@ -94,7 +95,8 @@ function _enBuildAiSnapshot(){
       planStatus,
       currentPilot:   pilotName,
     },
-    boxQueue:{ totalInQueue: EnBox.queue.length, goodInQueue },
+    boxQueue:{ totalInQueue: Math.round(EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0)), goodInQueue,
+      boxType: EnBox.config.type||'line', accessProbPct: boxAcc.prob },
     rivals,
   };
 }
