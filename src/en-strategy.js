@@ -53,21 +53,9 @@ function _enRenderStrategy(eq, trackAvg){
   const stintMaxMs=(cfg?.stintMax||999)*60*1000;
   const stintMinMs=(cfg?.stintMin||0)*60*1000;
 
-  // Karts en pit con su calidad y tiempo
-  const inPit=eq.filter(e=>e.pit);
-  const pitKarts=inPit.map(e=>{
-    const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
-    const pitTime=e.pitS||0;
-    // Stint mínimo → kart malo inmediatamente
-    // Si entró con poco tiempo de stint, probablemente es malo
-    return {dorsal:e.dorsal, name:e.name, quality, pitTime, pitState:e.pitState};
-  });
-
-  const goodInPit=pitKarts.filter(k=>k.quality==='good').length;
-  const badInPit=pitKarts.filter(k=>k.quality==='bad').length;
-  const neutralInPit=pitKarts.filter(k=>k.quality==='neutral').length;
-  const unknownInPit=pitKarts.filter(k=>!k.quality||k.quality===null||k.quality===undefined).length;
-  const totalInPit=pitKarts.length;
+  // (El recuento de calidad de los karts en pit y la leyenda buenos/neutros/
+  // malos/sin-info se calculan y pintan ahora en el KPI "Estado de Box",
+  // en-grid.js, junto al % de acceso.)
 
   // Probabilidad según configuración del box (misma métrica que la Previsión:
   // EnBoxModel.accessProb). Batería = sorteo entre TODOS; columnas = fila 1;
@@ -80,54 +68,10 @@ function _enRenderStrategy(eq, trackAvg){
   const qTotalW=EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0);
   const queueEstimated=EnBox.queue.some(k=>EnBoxModel.weight(k)<0.999);
 
-  // Probabilidad de presencia (karts buenos entre todos)
-  let probPresencia=0;
-  if(totalInPit>0)probPresencia=Math.round((goodInPit/totalInPit)*100);
-
-  let probAcceso=acc.prob; // null = sin datos
-  let probExplain='';
-  const qName=(q)=>({good:'BUENO',bad:'MALO',neutral:'NEUTRO'})[q]||'DESCONOCIDO';
-  if(EnBox.queue.length===0)probExplain='Cola vacía';
-  else if(boxType==='line')probExplain=`Primero en cola: ${qName(EnBox.queue[0].quality)}`;
-  else if(boxType==='battery')probExplain=`Sorteo entre los ${fmtN(qTotalW)} karts del box · ${fmtN(acc.good)} buenos`;
-  else probExplain=`Fila 1 (${nColsCfg} columnas) · ${fmtN(acc.good)} buenos de ${fmtN(acc.zoneTotal)}`;
-  if(queueEstimated&&boxType!=='line')probExplain+=' · cola estimada (salidas por sorteo)';
-
-  const knownCount=fmtN(acc.zoneTotal*acc.knownShare);
-  const partialData=probAcceso!==null&&acc.knownShare<0.5;
-  const noBoxData=probAcceso===null;
-  if(noBoxData){
-    probPresencia=0;
-    if(EnBox.queue.length)probExplain=boxType==='line'?'El primero de la cola es un kart sin info':'Sin movimientos registrados en el box';
-  }
-
-  // Color según probabilidad de acceso
-  let probColor='#9ca3af';
-  let probLabel='';
-  if(noBoxData){probColor='#555'; probLabel='';}
-  else if(probAcceso>=70){probColor='var(--state-ok)'; probLabel='⚠ REVISAR BOX — alta probabilidad';}
-  else if(probAcceso>=51){probColor='#60a5fa'; probLabel='📊 REVISAR BOX — probabilidad favorable';}
-  else if(probAcceso>=30){probColor='var(--state-warn)'; probLabel='';}
-  else if(totalInPit>0){probColor='var(--state-alert)'; probLabel='🔴 Box desfavorable';}
-
-  // Karts comprometidos (olas de parada): quien ya entró tiene su kart asignado.
-  // En línea, además, qué kart te toca a ti si entras ahora.
-  const committed=EnBoxModel.committedCount(eq, EnBox.swapped);
-  let committedHtml='';
-  if(committed>0||boxType==='line'){
-    const parts=[];
-    if(committed>0)parts.push(`🔒 <b>${committed} equipo${committed>1?'s':''} en boxes</b> ya tiene${committed>1?'n':''} su kart asignado — el % ya lo descuenta`);
-    if(boxType==='line'){
-      const nk=EnBoxModel.nextKartLine(EnBox.queue);
-      if(nk){
-        const qn=({good:'bueno',bad:'malo',neutral:'neutro'})[nk.quality]||'sin info';
-        const qc=nk.quality==='good'?'var(--state-ok)':nk.quality==='bad'?'var(--state-alert)':nk.quality==='neutral'?'var(--state-warn)':'var(--text-2)';
-        const who=nk.dorsal&&nk.dorsal!=='?'?`el que dejó #${_esc(nk.dorsal)}${nk.name?' ('+_esc(nk.name)+')':''}`:'un kart de reserva';
-        parts.push(`Si entras ahora te toca <b style="color:${qc}">${qn}</b> · ${who}`);
-      }
-    }
-    if(parts.length)committedHtml=`<div style="font-size:12px;color:var(--text-1);font-family:sans-serif;margin-top:6px;line-height:1.5">${parts.join('<br>')}</div>`;
-  }
+  // La Fila 1 ("Probabilidad de kart bueno") se movió al KPI de cabecera
+  // "Estado de Box" (ver en-grid.js). Aquí solo conservamos probAcceso, que la
+  // recomendación táctica sigue usando (poolLabel).
+  const probAcceso=acc.prob; // null = sin datos
 
   // Karts en pista por calidad
   // Techo del stint actual de cada rival: puede apurar al MÁXIMO mientras los stints
@@ -168,31 +112,8 @@ function _enRenderStrategy(eq, trackAvg){
 
   let html='';
 
-  // ═══ ROW 1: Probabilidad (ancho completo) ═══
-  html+=`<div class="en-strat-card">
-    <div class="en-strat-title">Probabilidad de kart bueno</div>
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
-      <div>
-        <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">Acceso</div>
-        ${noBoxData?`<span style="font-size:18px;font-weight:500;color:var(--text-2);font-family:sans-serif">SIN DATOS DE BOX</span>`:`<span style="font-size:28px;font-weight:600;color:${probColor};font-family:monospace">${probAcceso}%</span>${partialData?`<span style="font-size:11px;color:var(--state-warn);background:#fbbf2418;border:0.5px solid #fbbf2444;border-radius:4px;padding:2px 5px;margin-left:6px;font-family:sans-serif;vertical-align:middle">⚠ datos parciales (${knownCount}/${fmtN(acc.zoneTotal)} conocidos)</span>`:''}`}
-      </div>
-      <div title="% de karts buenos entre todos los que están físicamente en boxes ahora mismo (según cronometraje)">
-        <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">En pit ahora</div>
-        <span style="font-size:18px;font-weight:500;color:var(--text-2);font-family:monospace">${probPresencia}%</span>
-      </div>
-      <span style="font-size:13.5px;color:${probColor};font-family:sans-serif;margin-left:auto">${probLabel}</span>
-    </div>
-    <div class="en-prob-bar"><div class="en-prob-fill" style="width:${probAcceso||0}%;background:${probColor}"></div></div>
-    <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:4px">${probExplain}</div>
-    ${committedHtml}
-    <div style="display:flex;gap:8px;margin-top:6px">
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:11.5px;color:var(--text-2)">${goodInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:11.5px;color:var(--text-2)">${neutralInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div><span style="font-size:11.5px;color:var(--text-2)">${badInPit}</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></div><span style="font-size:11.5px;color:var(--text-2)">${unknownInPit}</span></div>
-      <span style="font-size:11.5px;color:var(--text-2);margin-left:auto">${totalInPit} en pit · ${fmtN(qTotalW)} en cola</span>
-    </div>
-  </div>`;
+  // NOTA: la antigua Fila 1 ("Probabilidad de kart bueno" a ancho completo) se
+  // trasladó al KPI de cabecera "Estado de Box" (en-grid.js). Aquí ya no se pinta.
 
   // ═══ ROW 2: Karts en pista + (Cola + Movimientos) ═══
   html+=`<div style="display:grid;grid-template-columns:3fr 2fr;gap:10px;margin-bottom:10px">`;

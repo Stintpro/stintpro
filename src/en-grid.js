@@ -338,8 +338,32 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   const estLaps=_enEstLaps(trackAvg);
   const estStr=estLaps!==null?estLaps:'—';
 
-  // Mejor sesión — buscar quién la tiene
-  const bestKart=eq?.find(e=>e.bestLap&&bestSess&&Math.abs(e.bestLap-bestSess)<0.001);
+  // Estado de Box — probabilidad de ACCESO a kart bueno (misma métrica que la
+  // pestaña Estrategia: EnBoxModel.accessProb) + leyenda buenos/neutros/malos/
+  // sin-info en pit y cola. Solo el %, sin barra.
+  const _boxType=EnBox.config.type||'line';
+  const _boxCols=EnBox.config.columns||2;
+  const _acc=EnBoxModel.accessProb(EnBox.queue, _boxType, _boxCols);
+  const probAcceso=_acc.prob; // null = SIN DATOS DE BOX
+  const _fmtN=(x)=>Math.abs(x-Math.round(x))<0.05?String(Math.round(x)):x.toFixed(1);
+  const _qTotalW=EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0);
+  const _pitKarts=(eq||[]).filter(e=>e.pit);
+  let _gInPit=0,_nInPit=0,_bInPit=0,_uInPit=0;
+  for(const e of _pitKarts){
+    const q=_enEffectiveQuality(e.dorsal, e, trackAvg);
+    if(q==='good')_gInPit++; else if(q==='neutral')_nInPit++; else if(q==='bad')_bInPit++; else _uInPit++;
+  }
+  const _totalInPit=_pitKarts.length;
+  // Color por umbrales, idéntico a la tarjeta de Estrategia.
+  let boxColor='#9ca3af', boxVal;
+  if(probAcceso===null){boxColor='#555'; boxVal='—';}
+  else{
+    boxVal=probAcceso+'%';
+    if(probAcceso>=70)boxColor='var(--state-ok)';
+    else if(probAcceso>=51)boxColor='#60a5fa';
+    else if(probAcceso>=30)boxColor='var(--state-warn)';
+    else if(_totalInPit>0)boxColor='var(--state-alert)';
+  }
 
   return `
   <div class="sp-kpi">
@@ -358,9 +382,15 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     <div class="sp-kpi-sub">click para filtrar equipos</div>
   </div>
   <div class="sp-kpi">
-    <div class="sp-kpi-lbl">Mejor sesión</div>
-    <div class="sp-kpi-val" style="color:#c084fc">${bestSess?_enFmt(bestSess):'—'}</div>
-    <div class="sp-kpi-sub">${bestKart?_esc(bestKart.name):''}</div>
+    <div class="sp-kpi-lbl">Estado de Box</div>
+    <div class="sp-kpi-val" style="color:${boxColor}">${boxVal}</div>
+    <div class="sp-kpi-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:#22c55e"></span>${_gInPit}</span>
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></span>${_nInPit}</span>
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:#ef4444"></span>${_bInPit}</span>
+      <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;border-radius:2px;background:#333;border:0.5px solid #555"></span>${_uInPit}</span>
+      <span style="margin-left:auto">${_totalInPit} en pit · ${_fmtN(_qTotalW)} en cola</span>
+    </div>
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">En boxes</div>
