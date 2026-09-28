@@ -210,26 +210,48 @@ function _enRenderStrategy(eq, trackAvg){
   } else {
     const myD=(cfg?.myDorsal||'').toString().trim();
     const myQueueIdx=myD?EnBox.queue.findIndex(k=>k.dorsal?.toString()===myD):-1;
-    html+=`<div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:6px">
-      <span style="font-size:11.5px;color:var(--text-2);margin-right:2px">ENTRA</span>`;
-    [...EnBox.queue].reverse().forEach((k,i)=>{
-      let bg='#fbbf24';
-      if(k.quality==='good')bg='#22c55e';
-      else if(k.quality==='bad')bg='#ef4444';
-      else if(k.quality==='unknown')bg='#333';
-      const isFirst=i===EnBox.queue.length-1; // primero en salir
-      const isMe=myD&&k.dorsal?.toString()===myD;
-      const border=isMe?'3px solid #fff':isFirst?'2px solid #aaa':'1px solid transparent';
-      const rivalTextColor=k.quality==='good'?'#bbf7d0':k.quality==='bad'?'#fecaca':k.quality==='neutral'?'#fef08a':'#888';
-      const label=isMe?(k.dorsal||'YO'):(k.dorsal&&k.dorsal!=='?'?k.dorsal:(k.quality==='unknown'?'?':''));
-      const title=isMe?`TU KART (#${k.dorsal})`:(k.quality==='unknown'?'Sin info':_esc(k.name||'#'+k.dorsal));
-      const textColor=isMe?'#fff':rivalTextColor;
-      // Opacidad = probabilidad de que el kart siga en el box (salidas por sorteo)
+    // ── Tablero de Box (incremento 1): tarjetas ──────────────────────────
+    // Cada kart de la cola como tarjeta, enriquecida cruzando el dorsal con eq
+    // (score, vueltas, última vuelta, tiempo en box). Orden: próximo en salir
+    // (queue[0]) arriba. Los carriles de color manuales + arrastrar vendrán en
+    // el incremento 2. La lógica no-presentacional vive en EnBoxModel.boxCardVM.
+    const eqByDorsal={};
+    for(const e of eq){ if(e.dorsal!=null) eqByDorsal[String(e.dorsal).trim()]=e; }
+    const _fmtBox=(sec)=>{ if(!(sec>0))return '—'; const s=Math.round(sec); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+    const _qBorderCol=(q)=>q==='good'?'#22c55e':q==='bad'?'#ef4444':q==='neutral'?'#fbbf24':'#3a3b42';
+    html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">`;
+    EnBox.queue.forEach((k,i)=>{
+      const kart=(k.dorsal!=null)?eqByDorsal[String(k.dorsal).trim()]:null;
+      const vm=EnBoxModel.boxCardVM(k, kart, {myDorsal:myD, isNextOut:i===0});
       const w=EnBoxModel.weight(k);
-      const wTitle=w<0.999?` · ${Math.round(w*100)}% de que siga en el box`:'';
-      html+=`<div style="width:${isMe?'30px':'28px'};height:${isMe?'22px':'20px'};border-radius:3px;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:1px;border:${border};font-size:11px;color:${textColor};font-weight:700;opacity:${Math.max(0.3,w).toFixed(2)}" title="${title}${wTitle}">${label}</div>`;
+      const kc=_enKartColor(vm.dorsal, kart&&kart.catColor);
+      const qb=_qBorderCol(vm.quality);
+      const r=vm.name?_enPilotRatings[vm.name]:null; const score=(r&&typeof r==='object')?r.score:r;
+      // Vueltas totales del kart (kart.tours, fiable de Apex). _enStintLaps NO
+      // sirve aquí: usa un contador global anclado a MI stint, no al de cada rival.
+      const laps=(kart&&vm.hasData&&kart.tours>0)?kart.tours:null;
+      const last=(kart&&kart.lastLap)?_enFmt(kart.lastLap):null;
+      const box=(kart&&kart.pitS)?_fmtBox(kart.pitS):null;
+      const meBorder=vm.isMe?'2px solid #fff':'1px solid #1c1d24';
+      const wTitle=w<0.999?` title="${Math.round(w*100)}% de que siga en el box"`:'';
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:rgba(255,255,255,0.03);border:${meBorder};border-left:4px solid ${qb};opacity:${Math.max(0.5,w).toFixed(2)}"${wTitle}>
+        <div style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">${vm.dorsal}</div>`;
+      if(vm.isUnknown){
+        html+=`<div style="flex:1;font-size:12.5px;color:var(--text-3);font-family:sans-serif">Reserva · sin info</div>`;
+      } else {
+        html+=`<div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <span style="font-size:13px;font-weight:600;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(vm.name||'#'+vm.dorsal)}</span>
+            ${score!=null?`<span style="font-size:12px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;flex-shrink:0">${score}</span>`:''}
+          </div>
+          <div style="font-size:11px;color:var(--text-2);font-family:monospace">${laps!=null?laps+'v':'—'}${last?' · '+last:''}${box?' · box '+box:''}</div>
+        </div>`;
+      }
+      if(vm.isNextOut)html+=`<span style="font-size:9px;font-weight:700;color:#F5A623;background:#F5A62318;border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
+      else if(vm.isMe)html+=`<span style="font-size:9px;font-weight:700;color:#fff;flex-shrink:0">TÚ</span>`;
+      html+=`</div>`;
     });
-    html+=`<span style="font-size:11.5px;color:var(--text-2);margin-left:2px">SALE</span></div>`;
+    html+=`</div>`;
     const qSum=(q)=>fmtN(EnBox.queue.filter(k=>k.quality===q).reduce((a,k)=>a+EnBoxModel.weight(k),0));
     const qGood=qSum('good'), qBad=qSum('bad'), qNeutral=qSum('neutral'), qUnknown=qSum('unknown');
     html+=`<div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;

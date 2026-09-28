@@ -546,5 +546,33 @@ test('nextKartLine: cola vacía → null', () => {
   strictEqual(M.nextKartLine([]), null);
 });
 
+// ── Tablero de Box (incremento 1): boxCardVM ──────────────────────────────
+console.log('\n▸ boxCardVM (tarjeta del box)\n');
+
+test('kart conocido con entrada en eq → tarjeta con datos', () => {
+  const k = { dorsal: '12', name: 'EQ 12', quality: 'good' };
+  const vm = M.boxCardVM(k, { dorsal: '12', name: 'EQ 12', lastLap: 65.4 }, { myDorsal: '7' });
+  strictEqual(vm.dorsal, '12'); strictEqual(vm.quality, 'good');
+  strictEqual(vm.hasData, true); strictEqual(vm.isMe, false); strictEqual(vm.isUnknown, false);
+  strictEqual(vm.name, 'EQ 12');
+});
+
+test('reserva desconocida (dorsal ?) → tarjeta mínima sin datos', () => {
+  const vm = M.boxCardVM({ dorsal: '?', quality: 'unknown' }, null, { myDorsal: '7' });
+  strictEqual(vm.dorsal, '?'); strictEqual(vm.isUnknown, true);
+  strictEqual(vm.hasData, false); strictEqual(vm.name, null);
+});
+
+test('mi kart se marca (compara como texto)', () => {
+  const vm = M.boxCardVM({ dorsal: 7, name: 'YO', quality: 'neutral' }, { dorsal: 7 }, { myDorsal: '7' });
+  strictEqual(vm.isMe, true); strictEqual(vm.dorsal, '7');
+});
+
+test('sin entrada en eq → conocido pero sin datos enriquecidos', () => {
+  const vm = M.boxCardVM({ dorsal: '9', name: 'EQ 9', quality: 'bad' }, null, { isNextOut: true });
+  strictEqual(vm.hasData, false); strictEqual(vm.isUnknown, false);
+  strictEqual(vm.isNextOut, true); strictEqual(vm.name, 'EQ 9');
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

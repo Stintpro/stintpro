@@ -349,6 +349,28 @@
     return queue.length ? queue[0] : null;
   }
 
-  return { committedCount, nextKartLine, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  // Modelo de una TARJETA del box (incremento 1 del Tablero de Box). Decide solo
+  // las cosas no-presentacionales; el score, colores y formato de tiempos los pone
+  // en-strategy.js con sus helpers. `k` = item de la cola {dorsal,name,quality};
+  // `kart` = entrada de `eq` que casa por dorsal (o null si es reserva sin dato).
+  // opts: { myDorsal, isNextOut }.
+  function boxCardVM(k, kart, opts) {
+    opts = opts || {};
+    const dorsalStr = (k && k.dorsal != null) ? String(k.dorsal).trim() : '';
+    const isUnknown = !dorsalStr || dorsalStr === '?' || (k && k.quality === 'unknown');
+    const myD = opts.myDorsal != null ? String(opts.myDorsal).trim() : '';
+    const isMe = !!(myD && dorsalStr && dorsalStr === myD);
+    return {
+      dorsal: isUnknown ? '?' : dorsalStr,
+      name: isUnknown ? null : ((k && k.name) || (kart && kart.name) || null),
+      quality: (k && k.quality) || 'unknown',
+      isMe,
+      isUnknown,
+      hasData: !!kart && !isUnknown,
+      isNextOut: !!opts.isNextOut,
+    };
+  }
+
+  return { committedCount, nextKartLine, boxCardVM, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, applyPitOut, accessProb, forecast, stopsNeeded };
 });
