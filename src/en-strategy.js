@@ -233,7 +233,10 @@ function _enRenderStrategy(eq, trackAvg){
       const w=EnBoxModel.weight(k);
       const accessible=zoneSet.has(k);
       const kc=_enKartColor(vm.dorsal, kart&&kart.catColor);
-      const bg=_qBg(vm.quality), txt=_qTxt(vm.quality), sub=_qSub(vm.quality);
+      // Calidad EFECTIVA (refleja el override manual del dorsal); en reserva sin
+      // dato se queda 'unknown'.
+      const q=(kart&&!vm.isUnknown)?(_enEffectiveQuality(vm.dorsal, kart, trackAvg)||vm.quality):vm.quality;
+      const bg=_qBg(q), txt=_qTxt(q), sub=_qSub(q);
       const r=vm.name?_enPilotRatings[vm.name]:null; const score=(r&&typeof r==='object')?r.score:r;
       // Vueltas totales del kart (kart.tours, fiable de Apex). _enStintLaps NO
       // sirve aquí: usa un contador global anclado a MI stint, no al de cada rival.
@@ -245,8 +248,10 @@ function _enRenderStrategy(eq, trackAvg){
       const op=Math.max(0.35, w*(accessible?1:0.55)).toFixed(2);
       const tb=[]; if(w<0.999)tb.push(`${Math.round(w*100)}% de que siga en el box`); if(!accessible)tb.push('en espera (no accesible ahora)');
       const wTitle=tb.length?` title="${tb.join(' · ')}"`:'';
+      // El chip del dorsal cicla la calidad a mano (reusa _enToggleQuality),
+      // solo en karts conocidos.
       let c=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op}"${wTitle}>
-        <div style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)">${vm.dorsal}</div>`;
+        <div${vm.isUnknown?'':` onclick="_enToggleQuality('${_esc(vm.dorsal)}',event)" title="Click: cambiar calidad"`} style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)${vm.isUnknown?'':';cursor:pointer'}">${vm.dorsal}</div>`;
       if(vm.isUnknown){
         c+=`<div style="flex:1;font-size:12.5px;color:${sub};font-family:sans-serif">Reserva · sin info</div>`;
       } else {
@@ -261,6 +266,14 @@ function _enRenderStrategy(eq, trackAvg){
       if(!accessible)c+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
       if(vm.isNextOut)c+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
       else if(vm.isMe)c+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
+      // Corrección manual: mover el kart un puesto hacia SALE (↑) o ENTRA (↓).
+      if(EnBox.queue.length>1){
+        const btn=`display:grid;place-items:center;width:20px;height:16px;border:none;border-radius:3px;background:rgba(0,0,0,0.22);color:${txt};font-size:11px;line-height:1;cursor:pointer;padding:0`;
+        c+=`<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+          <button type="button" title="Subir (hacia SALE)" onclick="_enMoveQueue('${k.id}','up',event)" style="${btn}">▲</button>
+          <button type="button" title="Bajar (hacia ENTRA)" onclick="_enMoveQueue('${k.id}','down',event)" style="${btn}">▼</button>
+        </div>`;
+      }
       c+=`</div>`;
       return c;
     };
@@ -466,6 +479,15 @@ function _enResetQueue(mode, ask){
   if(ask&&!window.confirm(`¿Reiniciar la cola del box a ${n} karts desconocidos?`))return;
   EnBox.queue=EnBoxModel.resetQueue(EnBox.queue, n, mode);
   if(EnBox.pending)EnBox.pending={};
+  _enRender();
+}
+
+// Corrección manual (incremento 2): mover un kart de la cola por su id.
+function _enMoveQueue(id, dir, ev){
+  if(ev)ev.stopPropagation();
+  const next=EnBoxModel.moveInQueue(EnBox.queue, id, dir);
+  if(next===EnBox.queue)return;   // sin cambio
+  EnBox.queue=next;
   _enRender();
 }
 function _enSetBoxColumns(v){EnBox.config.columns=parseInt(v)||2;}

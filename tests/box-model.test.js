@@ -574,5 +574,51 @@ test('sin entrada en eq → conocido pero sin datos enriquecidos', () => {
   strictEqual(vm.isNextOut, true); strictEqual(vm.name, 'EQ 9');
 });
 
+// ── Tablero de Box (incremento 2): moveInQueue ────────────────────────────
+console.log('\n▸ moveInQueue (corrección manual)\n');
+
+const Q = () => [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+
+test('up: intercambia con el anterior (acerca a SALE)', () => {
+  const r = M.moveInQueue(Q(), 'c', 'up');
+  strictEqual(r.map(k => k.id).join(''), 'acbd');
+});
+
+test('down: intercambia con el siguiente (acerca a ENTRA)', () => {
+  const r = M.moveInQueue(Q(), 'b', 'down');
+  strictEqual(r.map(k => k.id).join(''), 'acbd');
+});
+
+test('front: al principio (extremo SALE)', () => {
+  const r = M.moveInQueue(Q(), 'd', 'front');
+  strictEqual(r.map(k => k.id).join(''), 'dabc');
+});
+
+test('back: al final (extremo ENTRA)', () => {
+  const r = M.moveInQueue(Q(), 'a', 'back');
+  strictEqual(r.map(k => k.id).join(''), 'bcda');
+});
+
+test('up del primero → sin cambio (misma referencia)', () => {
+  const q = Q();
+  ok(M.moveInQueue(q, 'a', 'up') === q);
+});
+
+test('down del último → sin cambio (misma referencia)', () => {
+  const q = Q();
+  ok(M.moveInQueue(q, 'd', 'down') === q);
+});
+
+test('id inexistente → sin cambio (misma referencia)', () => {
+  const q = Q();
+  ok(M.moveInQueue(q, 'zzz', 'up') === q);
+});
+
+test('no muta el array original', () => {
+  const q = Q();
+  M.moveInQueue(q, 'a', 'back');
+  strictEqual(q.map(k => k.id).join(''), 'abcd');
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

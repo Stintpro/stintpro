@@ -371,6 +371,31 @@
     };
   }
 
-  return { committedCount, nextKartLine, boxCardVM, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  // Corrección manual (incremento 2): mover un kart de la cola por su id.
+  // dir: 'up'/'down' (un puesto) o 'front'/'back' (extremos). El índice 0 es el
+  // próximo en salir (extremo SALE); 'up' acerca a SALE, 'down' a ENTRA.
+  // Devuelve un array NUEVO; si el id no está o el movimiento no aplica, el
+  // mismo array (por referencia) para que el llamante pueda detectar "sin cambio".
+  function moveInQueue(queue, id, dir) {
+    const i = queue.findIndex(k => k && k.id === id);
+    if (i < 0) return queue;
+    const arr = queue.slice();
+    if (dir === 'up' || dir === 'down') {
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= arr.length) return queue;
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      return arr;
+    }
+    if (dir === 'front' || dir === 'back') {
+      const j = dir === 'front' ? 0 : arr.length - 1;
+      if (j === i) return queue;
+      const [item] = arr.splice(i, 1);
+      arr.splice(j, 0, item);
+      return arr;
+    }
+    return queue;
+  }
+
+  return { committedCount, nextKartLine, boxCardVM, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, applyPitOut, accessProb, forecast, stopsNeeded };
 });
