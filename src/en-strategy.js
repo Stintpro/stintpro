@@ -226,8 +226,8 @@ function _enRenderStrategy(eq, trackAvg){
     // Zona accesible según tipo de box: las tarjetas fuera de ella se atenúan y
     // se etiquetan "espera". Esto SUSTITUYE al antiguo Diagrama del box.
     const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
-    html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">`;
-    EnBox.queue.forEach((k,i)=>{
+    // Construye UNA tarjeta (string). Se reutiliza en las tres topologías.
+    const _cardHtml=(k,i)=>{
       const kart=(k.dorsal!=null)?eqByDorsal[String(k.dorsal).trim()]:null;
       const vm=EnBoxModel.boxCardVM(k, kart, {myDorsal:myD, isNextOut:i===0});
       const w=EnBoxModel.weight(k);
@@ -245,12 +245,12 @@ function _enRenderStrategy(eq, trackAvg){
       const op=Math.max(0.35, w*(accessible?1:0.55)).toFixed(2);
       const tb=[]; if(w<0.999)tb.push(`${Math.round(w*100)}% de que siga en el box`); if(!accessible)tb.push('en espera (no accesible ahora)');
       const wTitle=tb.length?` title="${tb.join(' · ')}"`:'';
-      html+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op}"${wTitle}>
+      let c=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op}"${wTitle}>
         <div style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)">${vm.dorsal}</div>`;
       if(vm.isUnknown){
-        html+=`<div style="flex:1;font-size:12.5px;color:${sub};font-family:sans-serif">Reserva · sin info</div>`;
+        c+=`<div style="flex:1;font-size:12.5px;color:${sub};font-family:sans-serif">Reserva · sin info</div>`;
       } else {
-        html+=`<div style="flex:1;min-width:0">
+        c+=`<div style="flex:1;min-width:0">
           <div style="display:flex;align-items:baseline;gap:6px">
             <span style="font-size:13px;font-weight:700;color:${txt};font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(vm.name||'#'+vm.dorsal)}</span>
             ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:rgba(0,0,0,0.32);border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
@@ -258,12 +258,32 @@ function _enRenderStrategy(eq, trackAvg){
           <div style="font-size:11px;color:${sub};font-family:monospace">${laps!=null?laps+'v':'—'}${last?' · '+last:''}${box?' · box '+box:''}</div>
         </div>`;
       }
-      if(!accessible)html+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
-      if(vm.isNextOut)html+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
-      else if(vm.isMe)html+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
+      if(!accessible)c+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
+      if(vm.isNextOut)c+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
+      else if(vm.isMe)c+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
+      c+=`</div>`;
+      return c;
+    };
+    const _grpHdr=(t)=>`<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin:2px 2px 4px">${t}</div>`;
+    // Las tarjetas ADOPTAN la topología del box (hacen de diagrama):
+    // - columnas: agrupadas por fila (fila 1 accesible, fila 2+ bloqueada)
+    // - línea: cola vertical, solo la de arriba accesible
+    // - batería: todas accesibles (sorteo)
+    if(boxType==='columns'){
+      const nRows=Math.ceil(EnBox.queue.length/nColsCfg);
+      for(let rr=0; rr<nRows; rr++){
+        const items=EnBox.queue.slice(rr*nColsCfg,(rr+1)*nColsCfg);
+        html+=_grpHdr(`Fila ${rr+1} · ${rr===0?'accesible (sorteo)':'bloqueada'}`);
+        html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">`;
+        items.forEach((k,ci)=>{ html+=_cardHtml(k, rr*nColsCfg+ci); });
+        html+=`</div>`;
+      }
+    } else {
+      html+=_grpHdr(boxType==='battery'?`Sorteo entre todos · ${fmtN(qTotalW)} karts`:'Cola · sale el de arriba');
+      html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">`;
+      EnBox.queue.forEach((k,i)=>{ html+=_cardHtml(k,i); });
       html+=`</div>`;
-    });
-    html+=`</div>`;
+    }
     const qSum=(q)=>fmtN(EnBox.queue.filter(k=>k.quality===q).reduce((a,k)=>a+EnBoxModel.weight(k),0));
     const qGood=qSum('good'), qBad=qSum('bad'), qNeutral=qSum('neutral'), qUnknown=qSum('unknown');
     html+=`<div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
