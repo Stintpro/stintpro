@@ -1088,13 +1088,24 @@ window.showEnduranceDashboard=function(cfg){
             EnBox.queue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
             // Reproducir eventos de pit en orden cronológico
             data.pitEvents.forEach(ev=>{
+              if(!EnBox.swapped)EnBox.swapped={};
+              // Parada = intercambio en el pit in (la reserva no crece). Ver boxOnPitEvent.
+              // En el historial no hay estado "en pista": un si de la misma dorsal más de
+              // 30s después del anterior es otra parada (el so de la previa no se grabó).
+              if(ev.event==='in'){
+                const lastIn=EnBox._lastInAt?.[ev.dorsal];
+                if(lastIn&&ev.time-lastIn>30000)
+                  EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped, {dorsal:ev.dorsal, kind:'track'}, 'line', 1);
+                (EnBox._lastInAt=EnBox._lastInAt||{})[ev.dorsal]=ev.time;
+              }
+              EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped,
+                {dorsal:ev.dorsal, kind:ev.event, quality:'unknown', time:ev.time},
+                EnBox.config.type||'line', EnBox.config.columns||2);
               if(ev.event==='in'){
                 if(!EnSession.pitCounts[ev.dorsal])EnSession.pitCounts[ev.dorsal]=0;
                 EnSession.pitCounts[ev.dorsal]++;
-                EnBox.queue.push({quality:'unknown',dorsal:ev.dorsal,time:ev.time});
                 EnSession.rivalPitOut[ev.dorsal]=null;
               } else if(ev.event==='out'){
-                EnBox.queue=EnBoxModel.applyPitOut(EnBox.queue, EnBox.config.type||'line', EnBox.config.columns||2);
                 EnSession.rivalPitOut[ev.dorsal]=ev.time;
               }
             });
@@ -1112,6 +1123,10 @@ window.showEnduranceDashboard=function(cfg){
                 }
               });
             }
+            // El historial ya aplicó las paradas en curso: el primer tick en directo
+            // parte de este estado, para no volver a contar un si/so que ya se replicó.
+            if(!EnSession.data._prevPitState)EnSession.data._prevPitState={};
+            (data.equipos||[]).forEach(e=>{if(e.dorsal)EnSession.data._prevPitState[e.dorsal]=e.pitState||null;});
             EnBox.queueInited=true;
           }catch(e){}
         }
@@ -1147,22 +1162,30 @@ window.showEnduranceDashboard=function(cfg){
         if(!EnSession.data._prevPitState)EnSession.data._prevPitState={};
         EnSession.data.equipos.forEach(e=>{
           const prev=EnSession.data._prevPitState[e.dorsal];
-          // Pit IN: el equipo entrega su kart → la cola CRECE (sin límite, refleja la realidad)
+          // Parada = INTERCAMBIO, hecho en el pit in: el equipo se lleva un kart de la
+          // zona accesible y deja el suyo al final → la reserva mantiene su tamaño
+          // (una ola de 15 paradas ya no la dispara). El so solo intercambia si no se
+          // vio el si de esa parada. Ver EnBoxModel.boxOnPitEvent.
+          if(!EnBox.swapped)EnBox.swapped={}; // defensivo: en-state.js cacheado de una versión previa
+          const boxEv=(e.pitState==='in'&&prev!=='in')?'in':(e.pitState==='out'&&prev!=='out')?'out'
+            :(!e.pit&&!e.pitState&&EnBox.swapped[e.dorsal])?'track':null;
+          if(boxEv){
+            const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
+            EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped,
+              {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now},
+              EnBox.config.type||'line', EnBox.config.columns||2);
+          }
+          // Pit IN: contadores y anclas
           if(e.pitState==='in'&&prev!=='in'){
             if(!EnSession.pitCounts[e.dorsal])EnSession.pitCounts[e.dorsal]=0;
             EnSession.pitCounts[e.dorsal]++;
-            const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
-            EnBox.queue.push({quality:q, dorsal:e.dorsal, name:e.name, time:now});
             // Guardar timestamp del último pase por meta antes del pit in
             if(EnSession.linePasses[e.dorsal])
               EnSession.pitInLastPass[e.dorsal]=EnSession.linePasses[e.dorsal];
             // Ancla del túnel de salida: mi pit-in real (deja de proyectar "si parara ahora")
             if(window.AppState?.config?.myDorsal===e.dorsal)EnSession.myPitInAt=now;
           }
-          // Pit OUT: el equipo se lleva un kart de la zona accesible → la cola DECRECE.
-          // Línea: el primero. Batería/columnas: sorteo → resta en valor esperado (pesos).
           if(e.pitState==='out'&&prev!=='out'){
-            EnBox.queue=EnBoxModel.applyPitOut(EnBox.queue, EnBox.config.type||'line', EnBox.config.columns||2);
             if(window.AppState?.config?.myDorsal===e.dorsal)EnSession.myPitInAt=null;
           }
           // Pit OUT: iniciar calibración de offset pit exit → meta
@@ -1341,6 +1364,7 @@ window._enGoBack=function(){
   EnBox.totalStops=0;
   EnBox.queue=[];
   EnBox.queueInited=false;
+  EnBox.swapped={};
   EnSession.pitCosts={};
   EnSession.pitCounts={};
   EnBox.stratConfigured=false;

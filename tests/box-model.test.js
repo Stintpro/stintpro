@@ -295,5 +295,98 @@ test('sin stint máximo o sin reloj → null (no se puede calcular)', () => {
   strictEqual(M.stopsNeeded(0, 40 * MIN, 0, 0), null);
 });
 
+// ── Parada = intercambio (la reserva no crece durante una ola) ──────────
+console.log('\n▸ Parada = intercambio en el pit in\n');
+
+const reserva = (n) => Array.from({ length: n }, () => K('unknown'));
+const totalW = (q) => q.reduce((a, k) => a + M.weight(k), 0);
+const ev = (dorsal, kind, quality) => ({ dorsal, kind, quality: quality || 'bad', name: 'EQ ' + dorsal });
+
+test('ola de 15 paradas con 10 de reserva: la cola sigue en 10 (no se dispara a 25)', () => {
+  for (const type of ['line', 'columns', 'battery']) {
+    let q = reserva(10); const sw = {};
+    for (let i = 1; i <= 15; i++) q = M.boxOnPitEvent(q, sw, ev(String(i), 'in'), type, 2);
+    approx(totalW(q), 10, type + ' tras los si');
+    for (let i = 1; i <= 15; i++) q = M.boxOnPitEvent(q, sw, ev(String(i), 'out'), type, 2);
+    approx(totalW(q), 10, type + ' tras los so');
+  }
+});
+
+test('línea: al entrar se lleva el primero y deja el suyo al final', () => {
+  const q = M.boxOnPitEvent([K('good', 'a'), K('bad', 'b'), K('neutral', 'c')], {}, ev('9', 'in', 'good'), 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), 'b,c,9');
+  strictEqual(q[2].quality, 'good');
+});
+
+test('línea en ola: el 11º en entrar se lleva el kart que dejó el 1º', () => {
+  let q = reserva(10); const sw = {};
+  for (let i = 1; i <= 10; i++) q = M.boxOnPitEvent(q, sw, ev(String(i), 'in', i === 1 ? 'good' : 'bad'), 'line', 2);
+  strictEqual(q[0].dorsal, '1', 'el primero de la cola es el kart del equipo 1');
+  strictEqual(M.accessProb(q, 'line', 2).prob, 100);
+});
+
+test('batería: no puede sortearse su propio kart (se saca antes de dejarlo)', () => {
+  const q = M.boxOnPitEvent([K('good', 'a')], {}, ev('9', 'in', 'bad'), 'battery', 2);
+  strictEqual(q.length, 1); strictEqual(q[0].dorsal, '9');
+});
+
+test('el so de una parada ya intercambiada no toca la cola', () => {
+  const sw = {};
+  let q = M.boxOnPitEvent([K('good', 'a'), K('bad', 'b')], sw, ev('9', 'in'), 'line', 2);
+  const antes = q.map(k => k.dorsal).join(',');
+  q = M.boxOnPitEvent(q, sw, ev('9', 'out'), 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), antes);
+});
+
+test('si repetido de la misma parada → un solo intercambio', () => {
+  const sw = {};
+  let q = M.boxOnPitEvent([K('good', 'a'), K('bad', 'b')], sw, ev('9', 'in'), 'line', 2);
+  q = M.boxOnPitEvent(q, sw, ev('9', 'in'), 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), 'b,9');
+});
+
+test('so sin si visto (conectado a mitad de parada) → intercambia en el so', () => {
+  const q = M.boxOnPitEvent([K('good', 'a'), K('bad', 'b')], {}, ev('9', 'out'), 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), 'b,9');
+});
+
+test('dos paradas seguidas del mismo equipo → dos intercambios', () => {
+  const sw = {};
+  let q = [K('good', 'a'), K('bad', 'b'), K('neutral', 'c')];
+  q = M.boxOnPitEvent(q, sw, ev('9', 'in'), 'line', 2);
+  q = M.boxOnPitEvent(q, sw, ev('9', 'out'), 'line', 2);
+  q = M.boxOnPitEvent(q, sw, ev('9', 'in'), 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), 'c,9,9');
+});
+
+test('ningún kart pesa más de 1 tras muchas olas', () => {
+  for (const type of ['columns', 'battery']) {
+    let q = reserva(10); const sw = {};
+    for (let i = 1; i <= 60; i++) { q = M.boxOnPitEvent(q, sw, ev(String(i % 20), 'in'), type, 3); q = M.boxOnPitEvent(q, sw, ev(String(i % 20), 'out'), type, 3); }
+    ok(q.every(k => M.weight(k) <= 1 + 1e-9), type);
+    approx(totalW(q), 10, type);
+  }
+});
+
+test('Apex se salta el so (si → en pista): la siguiente parada SÍ intercambia', () => {
+  const sw = {};
+  let q = [K('good', 'a'), K('bad', 'b'), K('neutral', 'c')];
+  q = M.boxOnPitEvent(q, sw, ev('9', 'in'), 'line', 2);
+  q = M.boxOnPitEvent(q, sw, { dorsal: '9', kind: 'track' }, 'line', 2);
+  q = M.boxOnPitEvent(q, sw, ev('9', 'in'), 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), 'c,9,9');
+});
+
+test('volver a pista no toca la cola', () => {
+  const q = M.boxOnPitEvent([K('good', 'a')], {}, { dorsal: '9', kind: 'track' }, 'line', 2);
+  strictEqual(q.map(k => k.dorsal).join(','), 'a');
+});
+
+test('boxOnPitEvent no muta la cola original', () => {
+  const orig = [K('good', 'a'), K('bad', 'b')];
+  M.boxOnPitEvent(orig, {}, ev('9', 'in'), 'line', 2);
+  strictEqual(orig.length, 2); strictEqual(orig[0].dorsal, 'a');
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

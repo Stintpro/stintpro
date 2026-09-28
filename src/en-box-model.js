@@ -150,9 +150,20 @@
     if (zoneTotal <= 0) return queue.slice();
     const take = Math.min(1, zoneTotal);
     const cut = new Map(zone.map(z => [z.k, z.share / zoneTotal * take]));
-    return queue
-      .map(k => cut.has(k) ? { ...k, w: weight(k) - cut.get(k) } : k)
-      .filter(k => weight(k) >= MIN_W);
+    const after = queue.map(k => cut.has(k) ? { ...k, w: weight(k) - cut.get(k) } : k);
+    return prune(after);
+  }
+
+  // Quita los restos (<5%) sin perder masa: su peso se reparte entre los que
+  // quedan según el hueco de cada uno hasta 1 (un kart no puede pesar más de 1),
+  // para que el tamaño de la reserva no se vaya encogiendo.
+  function prune(queue) {
+    const kept = queue.filter(k => weight(k) >= MIN_W);
+    const lost = queue.reduce((a, k) => a + (weight(k) >= MIN_W ? 0 : weight(k)), 0);
+    const room = kept.reduce((a, k) => a + (1 - weight(k)), 0);
+    if (lost < 1e-9 || room <= 1e-9) return kept;
+    const f = Math.min(1, lost / room);
+    return kept.map(k => weight(k) < 1 ? { ...k, w: weight(k) + (1 - weight(k)) * f } : k);
   }
 
   // Probabilidad de que te toque un kart BUENO si sales ahora. Los desconocidos
@@ -198,6 +209,30 @@
     return Math.ceil(rest / (stintMaxMs + (pitMs || 0)));
   }
 
-  return { isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  // Una parada es un INTERCAMBIO: el equipo se lleva un kart de la zona
+  // accesible y deja el suyo al final, así que la reserva no cambia de tamaño.
+  // El intercambio se hace en el PIT IN: desde que entra, el kart que se llevará
+  // ya está comprometido por su orden de llegada, aunque físicamente lo coja al
+  // salir. Antes la cola sumaba en el si y restaba en el so: en una ola de 15
+  // paradas de 3 min con 10 de reserva marcaba 25 karts disponibles.
+  // El so solo intercambia si no se vio el si de esa parada (conexión a mitad).
+  //   swapped → mapa dorsal → true mientras la parada en curso ya intercambió.
+  //   ev      → { dorsal, kind:'in'|'out'|'track', quality, name, time }
+  //             'track' = el kart vuelve a rodar: cierra la parada (Apex a veces
+  //             salta del si a en pista sin mandar so).
+  function boxOnPitEvent(queue, swapped, ev, type, cols) {
+    const d = String(ev.dorsal);
+    // De vuelta en pista: la parada terminó aunque no se viera el so.
+    if (ev.kind === 'track') { delete swapped[d]; return queue.slice(); }
+    if (ev.kind === 'in' && swapped[d]) return queue.slice();
+    if (ev.kind === 'out' && swapped[d]) { delete swapped[d]; return queue.slice(); }
+    const q = ev.quality === 'good' || ev.quality === 'neutral' || ev.quality === 'bad' ? ev.quality : 'unknown';
+    const next = applyPitOut(queue, type, cols)
+      .concat([{ quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time }]);
+    if (ev.kind === 'in') swapped[d] = true;
+    return next;
+  }
+
+  return { boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, applyPitOut, accessProb, forecast, stopsNeeded };
 });
