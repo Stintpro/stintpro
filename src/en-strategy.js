@@ -218,37 +218,49 @@ function _enRenderStrategy(eq, trackAvg){
     const eqByDorsal={};
     for(const e of eq){ if(e.dorsal!=null) eqByDorsal[String(e.dorsal).trim()]=e; }
     const _fmtBox=(sec)=>{ if(!(sec>0))return '—'; const s=Math.round(sec); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
-    const _qBorderCol=(q)=>q==='good'?'#22c55e':q==='bad'?'#ef4444':q==='neutral'?'#fbbf24':'#3a3b42';
+    // Colores de calidad para el fondo COMPLETO de la tarjeta (mismos que el
+    // antiguo diagrama) + texto de contraste por calidad.
+    const _qBg=(q)=>q==='good'?'#22c55e':q==='bad'?'#ef4444':q==='neutral'?'#fbbf24':'#2f3138';
+    const _qTxt=(q)=>q==='neutral'?'#3a2a02':q==='unknown'?'#c7ced6':'#0b1a10';
+    const _qSub=(q)=>q==='neutral'?'#5a4310':q==='unknown'?'#8b95a0':'rgba(0,0,0,0.6)';
+    // Zona accesible según tipo de box: las tarjetas fuera de ella se atenúan y
+    // se etiquetan "espera". Esto SUSTITUYE al antiguo Diagrama del box.
+    const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
     html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">`;
     EnBox.queue.forEach((k,i)=>{
       const kart=(k.dorsal!=null)?eqByDorsal[String(k.dorsal).trim()]:null;
       const vm=EnBoxModel.boxCardVM(k, kart, {myDorsal:myD, isNextOut:i===0});
       const w=EnBoxModel.weight(k);
+      const accessible=zoneSet.has(k);
       const kc=_enKartColor(vm.dorsal, kart&&kart.catColor);
-      const qb=_qBorderCol(vm.quality);
+      const bg=_qBg(vm.quality), txt=_qTxt(vm.quality), sub=_qSub(vm.quality);
       const r=vm.name?_enPilotRatings[vm.name]:null; const score=(r&&typeof r==='object')?r.score:r;
       // Vueltas totales del kart (kart.tours, fiable de Apex). _enStintLaps NO
       // sirve aquí: usa un contador global anclado a MI stint, no al de cada rival.
       const laps=(kart&&vm.hasData&&kart.tours>0)?kart.tours:null;
       const last=(kart&&kart.lastLap)?_enFmt(kart.lastLap):null;
       const box=(kart&&kart.pitS)?_fmtBox(kart.pitS):null;
-      const meBorder=vm.isMe?'2px solid #fff':'1px solid #1c1d24';
-      const wTitle=w<0.999?` title="${Math.round(w*100)}% de que siga en el box"`:'';
-      html+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:rgba(255,255,255,0.03);border:${meBorder};border-left:4px solid ${qb};opacity:${Math.max(0.5,w).toFixed(2)}"${wTitle}>
-        <div style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">${vm.dorsal}</div>`;
+      const meBorder=vm.isMe?'2px solid #fff':'1px solid rgba(0,0,0,0.25)';
+      // Opacidad = peso (prob. de seguir en box), atenuada extra si no es accesible.
+      const op=Math.max(0.35, w*(accessible?1:0.55)).toFixed(2);
+      const tb=[]; if(w<0.999)tb.push(`${Math.round(w*100)}% de que siga en el box`); if(!accessible)tb.push('en espera (no accesible ahora)');
+      const wTitle=tb.length?` title="${tb.join(' · ')}"`:'';
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op}"${wTitle}>
+        <div style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)">${vm.dorsal}</div>`;
       if(vm.isUnknown){
-        html+=`<div style="flex:1;font-size:12.5px;color:var(--text-3);font-family:sans-serif">Reserva · sin info</div>`;
+        html+=`<div style="flex:1;font-size:12.5px;color:${sub};font-family:sans-serif">Reserva · sin info</div>`;
       } else {
         html+=`<div style="flex:1;min-width:0">
           <div style="display:flex;align-items:baseline;gap:6px">
-            <span style="font-size:13px;font-weight:600;color:var(--text-1);font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(vm.name||'#'+vm.dorsal)}</span>
-            ${score!=null?`<span style="font-size:12px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;flex-shrink:0">${score}</span>`:''}
+            <span style="font-size:13px;font-weight:700;color:${txt};font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(vm.name||'#'+vm.dorsal)}</span>
+            ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:rgba(0,0,0,0.32);border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
           </div>
-          <div style="font-size:11px;color:var(--text-2);font-family:monospace">${laps!=null?laps+'v':'—'}${last?' · '+last:''}${box?' · box '+box:''}</div>
+          <div style="font-size:11px;color:${sub};font-family:monospace">${laps!=null?laps+'v':'—'}${last?' · '+last:''}${box?' · box '+box:''}</div>
         </div>`;
       }
-      if(vm.isNextOut)html+=`<span style="font-size:9px;font-weight:700;color:#F5A623;background:#F5A62318;border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
-      else if(vm.isMe)html+=`<span style="font-size:9px;font-weight:700;color:#fff;flex-shrink:0">TÚ</span>`;
+      if(!accessible)html+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
+      if(vm.isNextOut)html+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
+      else if(vm.isMe)html+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
       html+=`</div>`;
     });
     html+=`</div>`;
@@ -261,96 +273,10 @@ function _enRenderStrategy(eq, trackAvg){
       html+=`<div style="font-size:13.5px;color:#F5A623;margin-top:3px;font-weight:600">${ahead===0?'⬆ Tu kart es el próximo en salir':`⬆ ${ahead} kart${ahead>1?'s':''} delante del tuyo`}</div>`;
     }
 
-    // ── Diagrama visual del box ──
-    const qLen=EnBox.queue.length;
-    const qColor=(k)=>k.quality==='good'?'#22c55e':k.quality==='bad'?'#ef4444':k.quality==='neutral'?'#fbbf24':'#333';
-    const qLabel=(k)=>k.quality==='unknown'?'?':'';
-    const qBorder=(k,accessible)=>accessible?'1.5px solid #fff':'1.5px dashed #2a2b2e';
-    const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
-    const qOp=(k,accessible)=>Math.max(0.3,EnBoxModel.weight(k)*(accessible?1:0.6)).toFixed(2);
-    // _esc obligatorio: k.name/k.dorsal vienen del feed de Apex (no confiable)
-    // y esto se interpola en atributos title="..." del diagrama del box.
-    const qTitle=(k)=>k.quality==='unknown'?'Sin info':_esc((k.name||'#'+k.dorsal)+' ('+({good:'bueno',bad:'malo',neutral:'neutro'}[k.quality]||'?')+')');
-
-    if(qLen>0){
-      html+=`<div style="margin-top:10px;padding-top:8px;border-top:0.5px solid #1a1b22">`;
-      html+=`<div style="font-size:11.5px;color:var(--text-2);margin-bottom:6px;letter-spacing:0.5px">DIAGRAMA DEL BOX (${fmtN(qTotalW)} karts)</div>`;
-
-      if(boxType==='battery'){
-        // Batería: sorteo entre TODOS los karts del box (el campo Karts solo fija la reserva inicial)
-        html+=`<div style="display:flex;gap:6px;justify-content:center;padding:8px 0;flex-wrap:wrap">`;
-        EnBox.queue.forEach(k=>{
-          html+=`<div style="width:36px;height:28px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,true)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;box-shadow:0 0 6px ${qColor(k)}44;opacity:${qOp(k,true)}" title="${qTitle(k)}">${qLabel(k)}</div>`;
-        });
-        html+=`</div>`;
-        html+=`<div style="text-align:center;font-size:11.5px;color:var(--text-2)">Sorteo entre todos los karts del box${queueEstimated?' · la transparencia es la probabilidad de que el kart siga ahí':''}</div>`;
-
-      } else if(boxType==='line'){
-        // Línea: cola horizontal completa con wrap, solo el primero accesible
-        html+=`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-start;padding:8px 0;flex-wrap:wrap">`;
-        EnBox.queue.forEach((k,i)=>{
-          const isFirst=zoneSet.has(k);
-          html+=`<div style="width:32px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,isFirst)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;${isFirst?'box-shadow:0 0 6px '+qColor(k)+'66;':'opacity:0.8;'}" title="#${i+1} · ${qTitle(k)}">${qLabel(k)}</div>`;
-          if(i<qLen-1)html+=`<span style="color:#2a2b2e;font-size:13.5px">→</span>`;
-        });
-        html+=`</div>`;
-        html+=`<div style="text-align:center;font-size:11.5px;color:var(--text-2)">Solo el primero accesible · ${fmtN(qTotalW)} karts en cola</div>`;
-
-      } else if(boxType==='columns'){
-        // Columnas: TODAS las filas según la cola real
-        const nCols=EnBox.config.columns||2;
-        const nRows=Math.ceil(qLen/nCols);
-        html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;max-height:160px;overflow-y:auto">`;
-        for(let r=0;r<nRows;r++){
-          html+=`<div style="display:flex;gap:6px;align-items:center">`;
-          html+=`<span style="font-size:11px;color:${r===0?'#555':'#333'};width:32px;text-align:right">fila ${r+1} →</span>`;
-          for(let c=0;c<nCols;c++){
-            const idx=r*nCols+c;
-            if(idx<qLen){
-              const k=EnBox.queue[idx];
-              const accessible=zoneSet.has(k);
-              html+=`<div style="width:34px;height:26px;border-radius:5px;background:${qColor(k)};border:${qBorder(k,accessible)};display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;font-weight:600;${accessible?'box-shadow:0 0 6px '+qColor(k)+'44;':'opacity:0.55;'}" title="${qTitle(k)}${accessible?'':' (fila '+(r+1)+', bloqueado)'}">${qLabel(k)}</div>`;
-            } else {
-              html+=`<div style="width:34px;height:26px;border-radius:5px;background:transparent;border:1px dashed #1a1b22"></div>`;
-            }
-          }
-          html+=`</div>`;
-        }
-        html+=`</div>`;
-        const goodBlocked=Math.round(EnBox.queue.filter(k=>k.quality==='good'&&!zoneSet.has(k)).reduce((a,k)=>a+EnBoxModel.weight(k),0));
-        if(goodBlocked>0){
-          html+=`<div style="text-align:center;font-size:11.5px;color:var(--state-warn)">${goodBlocked} kart${goodBlocked>1?'s':''} bueno${goodBlocked>1?'s':''} en fila 2+ — necesita${goodBlocked>1?'n':''} salidas para desbloquearse</div>`;
-        } else {
-          html+=`<div style="text-align:center;font-size:11.5px;color:var(--text-2)">Fila 1: sorteo aleatorio entre columnas · Fila 2+: bloqueada hasta que se vacíe fila 1 · ${nRows} fila${nRows>1?'s':''}</div>`;
-        }
-      }
-      html+=`</div>`;
-    }
+    // (El diagrama del box se fusionó en las tarjetas de arriba: full-color por calidad + zona accesible atenuada. "Movimientos recientes" retirado, guardado en memoria box_board para reintroducir.)
   }
   html+=`</div>`;
 
-  // Movimientos recientes
-  html+=`<div class="en-strat-card" style="margin:0">
-    <div class="en-strat-title">Movimientos recientes</div>`;
-  const pitEvents=eq.filter(e=>e.pit||e.pitState==='out').slice(0,6);
-  if(pitEvents.length===0){
-    html+=`<div style="font-size:13.5px;color:var(--text-3);font-family:sans-serif;padding:8px 0">Sin movimientos</div>`;
-  } else {
-    pitEvents.forEach(e=>{
-      const kc=_enKartColor(e.dorsal, e.catColor);
-      const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
-      let qBorder=quality==='good'?'#22c55e':quality==='bad'?'#ef4444':quality==='neutral'?'#fbbf24':kc.border;
-      const stateLabel=e.pitState==='in'?'IN':e.pitState==='out'?'OUT':'PIT';
-      const stateCol=e.pitState==='in'?'var(--state-alert)':e.pitState==='out'?'#f97316':'#555';
-      html+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:0.5px solid #111">
-        <div style="width:30px;height:22px;border-radius:5px;background:${kc.bg};color:${kc.text};border:1.5px solid ${qBorder};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">${e.dorsal}</div>
-        <span style="font-size:11.5px;color:var(--text-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(e.name)}</span>
-        <span style="font-size:13.5px;color:${stateCol};font-weight:600">${stateLabel}</span>
-        <span style="font-size:11.5px;color:var(--text-2);width:32px;text-align:right">${e.pitS?e.pitS+'s':''}</span>
-      </div>`;
-    });
-  }
-  html+=`</div>`;
   html+=`</div>`; // cierra columna derecha
   html+=`</div>`; // cierra row 2
   html+=`<div class="en-strat-card">
