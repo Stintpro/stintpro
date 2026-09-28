@@ -388,5 +388,163 @@ test('boxOnPitEvent no muta la cola original', () => {
   strictEqual(orig.length, 2); strictEqual(orig[0].dorsal, 'a');
 });
 
+// ── Mejora 2: aviso de cola desincronizada + reset ────────────────────────
+console.log('\n▸ Desincronización y reset de la cola\n');
+
+test('makeReserve crea N desconocidos con id único', () => {
+  const r = M.makeReserve(4);
+  strictEqual(r.length, 4);
+  ok(r.every(k => k.quality === 'unknown' && k.dorsal === '?'));
+  strictEqual(new Set(r.map(k => k.id)).size, 4);
+});
+
+test('queueDrift: cola que pesa lo que la reserva → sin desincronización', () => {
+  const d = M.queueDrift(M.makeReserve(10), 10);
+  strictEqual(d.drift, false); approx(d.total, 10);
+});
+
+test('queueDrift: 12 en cola con reserva de 10 → desincronizada', () => {
+  const d = M.queueDrift(M.makeReserve(12), 10);
+  strictEqual(d.drift, true); approx(d.total, 12); strictEqual(d.reserve, 10);
+});
+
+test('queueDrift: tolera medio kart de ruido de redondeo', () => {
+  strictEqual(M.queueDrift([...M.makeReserve(9), { ...K('good'), w: 0.7 }], 10).drift, false);
+});
+
+test('reset "unknown": N desconocidos', () => {
+  const q = M.resetQueue([K('good'), K('bad')], 5, 'unknown');
+  strictEqual(q.length, 5); ok(q.every(k => k.quality === 'unknown'));
+});
+
+test('reset "keepLast": conserva los últimos N por peso (los más recientes)', () => {
+  const q = M.resetQueue([K('good', 'a'), K('bad', 'b'), K('neutral', 'c'), K('good', 'd')], 2, 'keepLast');
+  strictEqual(q.map(k => k.dorsal).join(','), 'c,d');
+  approx(totalW(q), 2);
+});
+
+test('reset "keepLast": recorta parcialmente el más antiguo para cuadrar la reserva', () => {
+  const q = M.resetQueue([K('good', 'a'), { ...K('bad', 'b'), w: 0.5 }, { ...K('neutral', 'c'), w: 0.8 }], 1, 'keepLast');
+  approx(totalW(q), 1);
+  strictEqual(q[q.length - 1].dorsal, 'c');
+});
+
+test('reset "keepLast" con menos karts que la reserva → rellena con desconocidos delante', () => {
+  const q = M.resetQueue([K('good', 'a')], 3, 'keepLast');
+  strictEqual(q.length, 3);
+  strictEqual(q[2].dorsal, 'a');
+  ok(q[0].quality === 'unknown' && q[1].quality === 'unknown');
+});
+
+// ── Mejora 1: corregir la cola con el ritmo del rival ────────────────────
+console.log('\n▸ Inferencia: qué kart se llevó el rival\n');
+
+const byDorsal = (q, d) => q.filter(k => k.dorsal === d);
+function batteryWithPending(quals) {
+  const sw = {}, pend = {};
+  const base = quals.map((q, i) => ({ ...K(q, 'r' + i), id: 'id' + i }));
+  const q = M.boxOnPitEvent(base, sw, { ...ev('9', 'in', 'bad'), lapIdx: 10 }, 'battery', 2, pend);
+  return { q, pend };
+}
+
+test('batería: el intercambio guarda cuánto se restó a cada kart (pendiente de confirmar)', () => {
+  const { pend } = batteryWithPending(['good', 'bad', 'bad', 'bad']);
+  ok(pend['9'], 'hay pendiente');
+  approx(Object.values(pend['9'].cut).reduce((a, b) => a + b, 0), 1);
+  strictEqual(pend['9'].lapIdx, 10);
+});
+
+test('línea: no hay nada que inferir (sabemos qué kart se llevó)', () => {
+  const pend = {};
+  M.boxOnPitEvent([K('good'), K('bad')], {}, ev('9', 'in'), 'line', 2, pend);
+  strictEqual(pend['9'], undefined);
+});
+
+test('rival rueda BUENO → el kart bueno es el que casi seguro salió', () => {
+  const { q, pend } = batteryWithPending(['good', 'bad', 'bad', 'bad']);
+  const r = M.resolvePending(q, pend, '9', 'good');
+  ok(M.weight(byDorsal(r, 'r0')[0] || { w: 0 }) < 0.3, 'el bueno casi se va');
+  ['r1', 'r2', 'r3'].forEach(d => ok(M.weight(byDorsal(r, d)[0]) > 0.9, d + ' casi intacto'));
+  approx(totalW(r), totalW(q), 'la masa se conserva');
+});
+
+test('rival rueda MALO → los malos pierden y el bueno recupera', () => {
+  const { q, pend } = batteryWithPending(['good', 'bad', 'bad', 'bad']);
+  const r = M.resolvePending(q, pend, '9', 'bad');
+  ok(M.weight(byDorsal(r, 'r0')[0]) > 0.95, 'el bueno vuelve casi entero');
+  approx(totalW(r), totalW(q));
+});
+
+test('un kart desconocido también pudo ser el bueno que se llevó', () => {
+  const { q, pend } = batteryWithPending(['unknown', 'bad', 'bad']);
+  const r = M.resolvePending(q, pend, '9', 'good');
+  ok(M.weight(byDorsal(r, 'r0')[0]) < M.weight(byDorsal(r, 'r1')[0]), 'el desconocido pierde más que los malos');
+});
+
+test('calidad observada que no está en la zona → sin cambio (se queda la resta uniforme)', () => {
+  const { q, pend } = batteryWithPending(['bad', 'bad', 'bad']);
+  const r = M.resolvePending(q, pend, '9', 'good');
+  W(r).forEach((w, i) => approx(w, W(q)[i]));
+});
+
+test('resolver consume el pendiente: una segunda llamada no hace nada', () => {
+  const { q, pend } = batteryWithPending(['good', 'bad']);
+  const r1 = M.resolvePending(q, pend, '9', 'good');
+  strictEqual(pend['9'], undefined);
+  const r2 = M.resolvePending(r1, pend, '9', 'bad');
+  W(r2).forEach((w, i) => approx(w, W(r1)[i]));
+});
+
+test('sin pendiente o calidad sin decidir → cola intacta', () => {
+  const q = [K('good'), K('bad')];
+  strictEqual(M.resolvePending(q, {}, '9', 'good').length, 2);
+  const { q: q2, pend } = batteryWithPending(['good', 'bad']);
+  M.resolvePending(q2, pend, '9', null);
+  ok(pend['9'], 'sin calidad no se consume');
+});
+
+test('karts que ya no están en la cola se ignoran sin romper', () => {
+  const { q, pend } = batteryWithPending(['good', 'bad', 'bad']);
+  const sinR0 = q.filter(k => k.dorsal !== 'r0');
+  const r = M.resolvePending(sinR0, pend, '9', 'good');
+  ok(r.every(k => M.weight(k) >= 0 && M.weight(k) <= 1 + 1e-9));
+});
+
+test('intercambios solapados: la inferencia conserva la masa aunque un kart ya no tenga peso que restar', () => {
+  for (const type of ['battery', 'columns']) {
+    const sw = {}, pend = {};
+    let q = [{ ...K('good', 'g'), id: 'g' }, { ...K('bad', 'b1'), id: 'b1' }, { ...K('bad', 'b2'), id: 'b2' }];
+    // ola: 6 equipos intercambian antes de que ninguno tenga calidad
+    for (let i = 1; i <= 6; i++) q = M.boxOnPitEvent(q, sw, { ...ev(String(i), 'in', i % 2 ? 'bad' : 'neutral'), lapIdx: 1 }, type, 2, pend);
+    const before = totalW(q);
+    // todos resultan haberse llevado un kart BUENO (poco probable, fuerza el recorte a cero)
+    for (let i = 1; i <= 6; i++) q = M.resolvePending(q, pend, String(i), 'good');
+    approx(totalW(q), before, type + ' masa');
+    ok(q.every(k => M.weight(k) >= 0 && M.weight(k) <= 1 + 1e-9), type + ' pesos en [0,1]');
+  }
+});
+
+// ── Mejora 4: karts comprometidos durante una ola ─────────────────────────
+console.log('\n▸ Karts comprometidos\n');
+
+test('cuenta los equipos EN BOXES cuyo intercambio ya está hecho', () => {
+  const eq = [{ dorsal: '1', pit: true }, { dorsal: '2', pit: true }, { dorsal: '3', pit: false }, { dorsal: '4', pit: true }];
+  strictEqual(M.committedCount(eq, { '1': true, '2': true, '3': true }), 2);
+});
+
+test('sin paradas en curso → 0', () => {
+  strictEqual(M.committedCount([{ dorsal: '1', pit: false }], {}), 0);
+  strictEqual(M.committedCount([], null), 0);
+});
+
+test('nextKartLine: en línea dice qué kart te toca y quién lo dejó', () => {
+  const k = M.nextKartLine([{ ...K('good', '12'), name: 'EQ 12' }, K('bad', '3')]);
+  strictEqual(k.quality, 'good'); strictEqual(k.dorsal, '12');
+});
+
+test('nextKartLine: cola vacía → null', () => {
+  strictEqual(M.nextKartLine([]), null);
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

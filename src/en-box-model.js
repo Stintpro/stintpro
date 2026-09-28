@@ -145,12 +145,67 @@
 
   // Salida de un equipo: devuelve una cola NUEVA (no muta la original).
   function applyPitOut(queue, type, cols) {
-    const zone = accessibleZone(queue, type, cols);
+    return pitOutWithCut(queue, type, cols).queue;
+  }
+
+  // Igual que applyPitOut, pero además devuelve cuánto se restó a cada kart
+  // (id → peso): es lo que luego corrige resolvePending con el ritmo del rival.
+  function pitOutWithCut(queue, type, cols) {
+    const q0 = queue.map(k => (k.id ? k : { ...k, id: newId() }));
+    const zone = accessibleZone(q0, type, cols);
     const zoneTotal = zone.reduce((a, z) => a + z.share, 0);
-    if (zoneTotal <= 0) return queue.slice();
+    if (zoneTotal <= 0) return { queue: q0, cut: {} };
     const take = Math.min(1, zoneTotal);
-    const cut = new Map(zone.map(z => [z.k, z.share / zoneTotal * take]));
-    const after = queue.map(k => cut.has(k) ? { ...k, w: weight(k) - cut.get(k) } : k);
+    const cut = {};
+    zone.forEach(z => { cut[z.k.id] = z.share / zoneTotal * take; });
+    const after = q0.map(k => cut[k.id] != null ? { ...k, w: weight(k) - cut[k.id] } : k);
+    return { queue: prune(after), cut };
+  }
+
+  // Inferencia por ritmo: en batería/columnas no sabemos qué kart se llevó un
+  // rival, así que se restó "un poco de cada uno". Cuando su kart nuevo ya tiene
+  // calidad (vueltas posteriores al intercambio), se rehace esa resta pesando
+  // cada candidato por lo compatible que es con lo observado:
+  //   misma calidad → 1 · desconocido → 0.4 · otra calidad → 0.1
+  // (no cero: la clasificación de calidad puede equivocarse). Se conserva la
+  // masa: solo cambia DE QUIÉN se restó. Consume el pendiente.
+  const LIKE_SAME = 1, LIKE_UNKNOWN = 0.4, LIKE_OTHER = 0.1;
+  function resolvePending(queue, pending, dorsal, observed) {
+    const d = String(dorsal);
+    const p = pending && pending[d];
+    if (!p || !(observed === 'good' || observed === 'neutral' || observed === 'bad')) return queue.slice();
+    delete pending[d];
+    const like = (k) => k.quality === observed ? LIKE_SAME
+      : (k.quality === 'good' || k.quality === 'neutral' || k.quality === 'bad') ? LIKE_OTHER : LIKE_UNKNOWN;
+    const present = queue.filter(k => k.id && p.cut[k.id] != null);
+    const tot = present.reduce((a, k) => a + p.cut[k.id], 0);
+    const norm = present.reduce((a, k) => a + p.cut[k.id] * like(k), 0);
+    if (tot <= 1e-9 || norm <= 1e-9) return queue.slice();
+    // Se deshace la resta original (cap = peso si no se le hubiera restado) y se
+    // vuelve a restar `tot` repartido por compatibilidad. Reparto por turnos
+    // ("water-filling"): lo que un kart no puede dar —se quedaría <0, porque
+    // intercambios posteriores ya le restaron— pasa a los demás. Así la masa se
+    // conserva aunque haya muchos intercambios solapados (olas).
+    const cap = new Map(present.map(k => [k.id, weight(k) + p.cut[k.id]]));
+    const take = new Map(present.map(k => [k.id, Math.max(0, cap.get(k.id) - 1)])); // no pasar de 1
+    let rest = tot - [...take.values()].reduce((a, b) => a + b, 0);
+    let open = present.filter(k => cap.get(k.id) - take.get(k.id) > 1e-12);
+    for (let it = 0; it < 50 && rest > 1e-12 && open.length; it++) {
+      const pw = open.reduce((a, k) => a + p.cut[k.id] * like(k), 0);
+      if (pw <= 1e-12) break;
+      let spill = 0;
+      const next = [];
+      open.forEach(k => {
+        const want = rest * p.cut[k.id] * like(k) / pw;
+        const room = cap.get(k.id) - take.get(k.id);
+        if (want >= room) { take.set(k.id, take.get(k.id) + room); spill += want - room; }
+        else { take.set(k.id, take.get(k.id) + want); next.push(k); }
+      });
+      rest = spill;
+      open = next;
+    }
+    const after = queue.map(k => cap.has(k.id)
+      ? { ...k, w: Math.min(1, Math.max(0, cap.get(k.id) - take.get(k.id))) } : k);
     return prune(after);
   }
 
@@ -220,19 +275,80 @@
   //   ev      → { dorsal, kind:'in'|'out'|'track', quality, name, time }
   //             'track' = el kart vuelve a rodar: cierra la parada (Apex a veces
   //             salta del si a en pista sin mandar so).
-  function boxOnPitEvent(queue, swapped, ev, type, cols) {
+  //   pending → (opcional) mapa dorsal → { cut, lapIdx, time }: en batería/columnas
+  //             guarda cuánto se restó a cada kart para corregirlo después con
+  //             el ritmo del rival (resolvePending). ev.lapIdx = nº de vueltas
+  //             del rival en el intercambio (las del kart nuevo van detrás).
+  function boxOnPitEvent(queue, swapped, ev, type, cols, pending) {
     const d = String(ev.dorsal);
     // De vuelta en pista: la parada terminó aunque no se viera el so.
     if (ev.kind === 'track') { delete swapped[d]; return queue.slice(); }
     if (ev.kind === 'in' && swapped[d]) return queue.slice();
     if (ev.kind === 'out' && swapped[d]) { delete swapped[d]; return queue.slice(); }
     const q = ev.quality === 'good' || ev.quality === 'neutral' || ev.quality === 'bad' ? ev.quality : 'unknown';
-    const next = applyPitOut(queue, type, cols)
-      .concat([{ quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time }]);
+    const out = pitOutWithCut(queue, type, cols);
+    if (pending) {
+      if (type !== 'line' && Object.keys(out.cut).length > 1) pending[d] = { cut: out.cut, lapIdx: ev.lapIdx, time: ev.time };
+      else delete pending[d];
+    }
+    const next = out.queue
+      .concat([{ id: newId(), quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time }]);
     if (ev.kind === 'in') swapped[d] = true;
     return next;
   }
 
-  return { boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  // ── Reserva, desincronización y reset ─────────────────────────────────────
+  // Id estable por kart de la cola: sobrevive a las copias ({...k}) que hacen
+  // applyPitOut/prune y permite referirse a él más tarde (inferencia por ritmo).
+  let _seq = 0;
+  function newId() { return 'k' + (++_seq).toString(36) + Date.now().toString(36); }
+
+  function makeReserve(n, time) {
+    return Array.from({ length: Math.max(0, n | 0) },
+      () => ({ id: newId(), quality: 'unknown', dorsal: '?', time: time || Date.now() }));
+  }
+
+  // Con "parada = intercambio" la cola siempre pesa lo que la reserva
+  // configurada. Si se aleja más de medio kart, algo se perdió (paradas no
+  // vistas, reconexiones, cambio de "Karts" a mitad) → aviso + reset.
+  function queueDrift(queue, reserve) {
+    const total = queue.reduce((a, k) => a + weight(k), 0);
+    return { total, reserve, drift: reserve > 0 && Math.abs(total - reserve) >= 0.5 };
+  }
+
+  // Rehace la cola con la reserva N:
+  //   'unknown'  → N desconocidos (no te fías de nada de lo que había)
+  //   'keepLast' → los últimos N karts por peso (los devueltos más recientes; el
+  //                más antiguo se recorta si hace falta) y desconocidos delante
+  //                si no llegan a N.
+  function resetQueue(queue, n, mode) {
+    if (mode !== 'keepLast') return makeReserve(n);
+    const kept = [];
+    let sum = 0;
+    for (let i = queue.length - 1; i >= 0 && sum < n - 1e-9; i--) {
+      const k = queue[i];
+      const w = Math.min(weight(k), n - sum);
+      kept.unshift(w < weight(k) ? { ...k, w } : k);
+      sum += w;
+    }
+    const pad = Math.round(n - sum);
+    return makeReserve(pad).concat(kept);
+  }
+
+  // Equipos en boxes cuya parada ya hizo el intercambio: su kart está asignado
+  // aunque no hayan salido. Explica por qué en plena ola el box "parece lleno"
+  // y la probabilidad no sube.
+  function committedCount(eq, swapped) {
+    if (!swapped || !eq) return 0;
+    return eq.filter(e => e.pit && swapped[String(e.dorsal)]).length;
+  }
+
+  // Box en línea: el kart que te toca si entras ahora (el primero, ya descontados
+  // los intercambios de quien entró antes que tú).
+  function nextKartLine(queue) {
+    return queue.length ? queue[0] : null;
+  }
+
+  return { committedCount, nextKartLine, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, applyPitOut, accessProb, forecast, stopsNeeded };
 });

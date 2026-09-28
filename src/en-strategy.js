@@ -110,6 +110,25 @@ function _enRenderStrategy(eq, trackAvg){
   else if(probAcceso>=30){probColor='var(--state-warn)'; probLabel='';}
   else if(totalInPit>0){probColor='var(--state-alert)'; probLabel='🔴 Box desfavorable';}
 
+  // Karts comprometidos (olas de parada): quien ya entró tiene su kart asignado.
+  // En línea, además, qué kart te toca a ti si entras ahora.
+  const committed=EnBoxModel.committedCount(eq, EnBox.swapped);
+  let committedHtml='';
+  if(committed>0||boxType==='line'){
+    const parts=[];
+    if(committed>0)parts.push(`🔒 <b>${committed} equipo${committed>1?'s':''} en boxes</b> ya tiene${committed>1?'n':''} su kart asignado — el % ya lo descuenta`);
+    if(boxType==='line'){
+      const nk=EnBoxModel.nextKartLine(EnBox.queue);
+      if(nk){
+        const qn=({good:'bueno',bad:'malo',neutral:'neutro'})[nk.quality]||'sin info';
+        const qc=nk.quality==='good'?'var(--state-ok)':nk.quality==='bad'?'var(--state-alert)':nk.quality==='neutral'?'var(--state-warn)':'var(--text-2)';
+        const who=nk.dorsal&&nk.dorsal!=='?'?`el que dejó #${_esc(nk.dorsal)}${nk.name?' ('+_esc(nk.name)+')':''}`:'un kart de reserva';
+        parts.push(`Si entras ahora te toca <b style="color:${qc}">${qn}</b> · ${who}`);
+      }
+    }
+    if(parts.length)committedHtml=`<div style="font-size:12px;color:var(--text-1);font-family:sans-serif;margin-top:6px;line-height:1.5">${parts.join('<br>')}</div>`;
+  }
+
   // Karts en pista por calidad
   // Techo del stint actual de cada rival: puede apurar al MÁXIMO mientras los stints
   // posteriores quepan con el mínimo. Solo cuando la deuda aprieta, el techo cae.
@@ -165,6 +184,7 @@ function _enRenderStrategy(eq, trackAvg){
     </div>
     <div class="en-prob-bar"><div class="en-prob-fill" style="width:${probAcceso||0}%;background:${probColor}"></div></div>
     <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:4px">${probExplain}</div>
+    ${committedHtml}
     <div style="display:flex;gap:8px;margin-top:6px">
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e"></div><span style="font-size:11.5px;color:var(--text-2)">${goodInPit}</span></div>
       <div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:#fbbf24"></div><span style="font-size:11.5px;color:var(--text-2)">${neutralInPit}</span></div>
@@ -250,7 +270,20 @@ function _enRenderStrategy(eq, trackAvg){
 
   // Cola del box
   html+=`<div class="en-strat-card" style="margin:0">
-    <div class="en-strat-title">Cola del box (${fmtN(qTotalW)} karts${queueEstimated?' · estimada':''})</div>`;
+    <div class="en-strat-title" style="display:flex;align-items:center;gap:8px">Cola del box (${fmtN(qTotalW)} karts${queueEstimated?' · estimada':''})
+      <button onclick="_enResetQueue('unknown',true)" title="Reiniciar la cola a la reserva configurada (karts desconocidos)" style="margin-left:auto;padding:2px 8px;border-radius:4px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-2);font-size:11.5px;cursor:pointer;font-family:sans-serif;text-transform:none;letter-spacing:0">↺ Reiniciar</button>
+    </div>`;
+  // Aviso de desincronización: la cola debería pesar lo que la reserva ("Karts")
+  const drift=EnBoxModel.queueDrift(EnBox.queue, boxPos);
+  if(drift.drift){
+    html+=`<div style="margin:4px 0 8px;padding:8px 10px;border-radius:6px;background:color-mix(in srgb, var(--state-warn) 8%, transparent);border:0.5px solid color-mix(in srgb, var(--state-warn) 30%, transparent)">
+      <div style="font-size:12.5px;color:var(--state-warn);font-family:sans-serif">⚠ La cola marca ${fmtN(drift.total)} karts y la reserva es ${boxPos} — posible parada perdida o reconexión</div>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button onclick="_enResetQueue('keepLast')" style="padding:4px 10px;border-radius:4px;border:0.5px solid var(--state-warn);background:transparent;color:var(--state-warn);font-size:12px;cursor:pointer;font-family:sans-serif">Rehacer conservando los últimos ${boxPos}</button>
+        <button onclick="_enResetQueue('unknown')" style="padding:4px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-2);font-size:12px;cursor:pointer;font-family:sans-serif">Rehacer con ${boxPos} desconocidos</button>
+      </div>
+    </div>`;
+  }
   if(EnBox.queue.length===0){
     html+=`<div style="font-size:13.5px;color:var(--text-3);font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
   } else {
@@ -318,7 +351,7 @@ function _enRenderStrategy(eq, trackAvg){
           if(i<qLen-1)html+=`<span style="color:#2a2b2e;font-size:13.5px">→</span>`;
         });
         html+=`</div>`;
-        html+=`<div style="text-align:center;font-size:11.5px;color:var(--text-2)">Solo el primero accesible · ${qLen} karts en cola</div>`;
+        html+=`<div style="text-align:center;font-size:11.5px;color:var(--text-2)">Solo el primero accesible · ${fmtN(qTotalW)} karts en cola</div>`;
 
       } else if(boxType==='columns'){
         // Columnas: TODAS las filas según la cola real
@@ -518,19 +551,33 @@ function _enSetBoxType(v){
 function _enSetBoxPositions(v){
   const newN=parseInt(v)||4;
   EnBox.config.positions=newN;
-  // La cola es dinámica (crece con entradas, decrece con salidas).
-  // Las posiciones solo definen los karts de reserva iniciales y la zona accesible.
-  if(newN>EnBox.queue.length){
+  // "Karts" = tamaño de la reserva. Cada parada es un intercambio, así que la
+  // cola siempre pesa eso; si no cuadra tras el ajuste, el aviso de
+  // desincronización de la tarjeta ofrece rehacerla.
+  const total=()=>EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0);
+  if(newN>total()){
     // Más reserva de la que tenemos → añadir desconocidos
-    while(EnBox.queue.length<newN)EnBox.queue.push({quality:'unknown',dorsal:'?',time:Date.now()});
-  } else if(newN<EnBox.queue.length){
+    EnBox.queue=EnBox.queue.concat(EnBoxModel.makeReserve(Math.round(newN-total())));
+  } else {
     // Reducir: solo quitar DESCONOCIDOS del final — nunca karts reales observados
-    while(EnBox.queue.length>newN){
+    while(total()>newN+0.5){
       const last=EnBox.queue[EnBox.queue.length-1];
-      if(last.quality==='unknown'&&last.dorsal==='?')EnBox.queue.pop();
+      if(last&&last.quality==='unknown'&&last.dorsal==='?')EnBox.queue.pop();
       else break;
     }
   }
+}
+
+// Rehace la cola del box (aviso de desincronización o botón ↺).
+//   'keepLast' → conserva los últimos N karts conocidos · 'unknown' → N desconocidos
+// Las paradas en curso conservan su intercambio (EnBox.swapped) para que su so
+// no descuente otra vez.
+function _enResetQueue(mode, ask){
+  const n=EnBox.config.positions||4;
+  if(ask&&!window.confirm(`¿Reiniciar la cola del box a ${n} karts desconocidos?`))return;
+  EnBox.queue=EnBoxModel.resetQueue(EnBox.queue, n, mode);
+  if(EnBox.pending)EnBox.pending={};
+  _enRender();
 }
 function _enSetBoxColumns(v){EnBox.config.columns=parseInt(v)||2;}
 
@@ -1085,7 +1132,7 @@ window.showEnduranceDashboard=function(cfg){
           try{
             const boxPos=EnBox.config.positions||4;
             // Inicializar cola con karts desconocidos (reserva inicial)
-            EnBox.queue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
+            EnBox.queue=EnBoxModel.makeReserve(boxPos, now);
             // Reproducir eventos de pit en orden cronológico
             data.pitEvents.forEach(ev=>{
               if(!EnBox.swapped)EnBox.swapped={};
@@ -1156,7 +1203,7 @@ window.showEnduranceDashboard=function(cfg){
         const trackAvgNow=_enTrackAvgLive(EnSession.data.equipos);
         if(!EnBox.queueInited){
           const boxPos=EnBox.config.positions||4;
-          EnBox.queue=Array.from({length:boxPos},()=>({quality:'unknown',dorsal:'?',time:now}));
+          EnBox.queue=EnBoxModel.makeReserve(boxPos, now);
           EnBox.queueInited=true;
         }
         if(!EnSession.data._prevPitState)EnSession.data._prevPitState={};
@@ -1167,13 +1214,28 @@ window.showEnduranceDashboard=function(cfg){
           // (una ola de 15 paradas ya no la dispara). El so solo intercambia si no se
           // vio el si de esa parada. Ver EnBoxModel.boxOnPitEvent.
           if(!EnBox.swapped)EnBox.swapped={}; // defensivo: en-state.js cacheado de una versión previa
+          if(!EnBox.pending)EnBox.pending={};
           const boxEv=(e.pitState==='in'&&prev!=='in')?'in':(e.pitState==='out'&&prev!=='out')?'out'
             :(!e.pit&&!e.pitState&&EnBox.swapped[e.dorsal])?'track':null;
           if(boxEv){
             const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
             EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped,
-              {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now},
-              EnBox.config.type||'line', EnBox.config.columns||2);
+              {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now, lapIdx:(e.lapHistory||[]).length},
+              EnBox.config.type||'line', EnBox.config.columns||2, EnBox.pending);
+          }
+          // Inferencia por ritmo (batería/columnas): cuando el kart NUEVO del rival ya
+          // tiene calidad, se corrige de quién se restó en su intercambio. Solo con la
+          // calidad automática (el override manual del dorsal puede ser del kart viejo)
+          // y solo si la máquina de stint reinició en la salida (stintStartIdx ≥ vueltas
+          // al intercambio): si Apex se saltó el so, la calidad sigue siendo la del kart
+          // viejo y se deja la resta uniforme.
+          const pend=EnBox.pending[e.dorsal];
+          if(pend&&!e.pit&&!e.pitState){
+            const st=EnSession.kartAutoState[e.dorsal];
+            if(st&&pend.lapIdx!=null&&st.stintStartIdx>=pend.lapIdx){
+              const obs=_enAutoKartQuality(e, trackAvgNow);
+              if(obs)EnBox.queue=EnBoxModel.resolvePending(EnBox.queue, EnBox.pending, e.dorsal, obs);
+            }
           }
           // Pit IN: contadores y anclas
           if(e.pitState==='in'&&prev!=='in'){
@@ -1365,6 +1427,7 @@ window._enGoBack=function(){
   EnBox.queue=[];
   EnBox.queueInited=false;
   EnBox.swapped={};
+  EnBox.pending={};
   EnSession.pitCosts={};
   EnSession.pitCounts={};
   EnBox.stratConfigured=false;
