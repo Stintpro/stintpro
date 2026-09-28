@@ -68,10 +68,12 @@
   // Agrupa ventanas en "olas": clusters de rivales cuyas paradas caen juntas.
   // Agrupación voraz por minLeft (tiempo hasta que TIENE que parar): se abre un
   // cluster con el más inminente y se le añaden los que estén dentro de
-  // bandwidthMin de ese primero. Ola = cluster de ≥2. Los de 1 son "singletons".
-  // Excluye a los que están en boxes (ya paran) y a los sin minLeft (sin máximo).
+  // bandwidthMin de ese primero. Ola = cluster de ≥minSize (por defecto 3): con
+  // menos equipos no se considera ola y va sin color. Los que no forman ola son
+  // "singletons". Excluye a los que están en boxes (ya paran) y a los sin minLeft.
   function detectWaves(windows, opts) {
     const bandwidthMin = (opts && opts.bandwidthMin) || 5;
+    const minSize = (opts && opts.minSize) || 3;
     const elig = (windows || [])
       .filter(w => !w.inPit && w.minLeft != null && w.minLeft >= 0)
       .slice()
@@ -89,7 +91,7 @@
         if (used[j]) continue;
         if (elig[j].minLeft - elig[i].minLeft <= bandwidthMin) { cluster.push(elig[j]); used[j] = true; }
       }
-      if (cluster.length >= 2) {
+      if (cluster.length >= minSize) {
         const composition = _emptyComp();
         cluster.forEach(k => { composition[k.quality] = (composition[k.quality] || 0) + 1; });
         waves.push({
@@ -100,7 +102,7 @@
           karts: cluster,
         });
       } else {
-        singletons.push(cluster[0]);
+        cluster.forEach(k => singletons.push(k));
       }
     }
     waves.sort((a, b) => a.earliestMin - b.earliestMin);

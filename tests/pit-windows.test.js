@@ -66,13 +66,27 @@ console.log('\n▸ detectWaves\n');
 
 const mkWin = (dorsal, minLeft, quality = 'neutral') => ({ dorsal, quality, minLeft, remainingMs: minLeft * MIN, inPit: false });
 
-test('dos grupos separados forman dos olas de 2', () => {
-  const wins = [mkWin('1', 2), mkWin('2', 3), mkWin('3', 9), mkWin('4', 10)];
+test('dos grupos de 3 separados forman dos olas (umbral por defecto 3)', () => {
+  const wins = [mkWin('1', 2), mkWin('2', 3), mkWin('3', 4), mkWin('4', 12), mkWin('5', 13), mkWin('6', 14)];
   const { waves } = W.detectWaves(wins, { bandwidthMin: 5 });
   strictEqual(waves.length, 2);
-  strictEqual(waves[0].count, 2);
+  strictEqual(waves[0].count, 3);
   strictEqual(waves[0].earliestMin, 2);
-  strictEqual(waves[1].earliestMin, 9);
+  strictEqual(waves[1].earliestMin, 12);
+});
+
+test('cluster de 2 NO forma ola con el umbral por defecto (min 3) → singletons', () => {
+  const wins = [mkWin('1', 2), mkWin('2', 3)];
+  const { waves, singletons } = W.detectWaves(wins, { bandwidthMin: 5 });
+  strictEqual(waves.length, 0);
+  strictEqual(singletons.length, 2);
+});
+
+test('minSize:2 permite olas de 2 (parámetro configurable)', () => {
+  const wins = [mkWin('1', 2), mkWin('2', 3)];
+  const { waves } = W.detectWaves(wins, { bandwidthMin: 5, minSize: 2 });
+  strictEqual(waves.length, 1);
+  strictEqual(waves[0].count, 2);
 });
 
 test('karts demasiado separados no forman ola → singletons', () => {
@@ -91,27 +105,27 @@ test('la composición cuenta la calidad de los karts de la ola', () => {
 });
 
 test('excluye a los que están en boxes (ya están parando)', () => {
-  const wins = [mkWin('1', 2), { ...mkWin('2', 3), inPit: true }, mkWin('3', 4)];
+  const wins = [mkWin('1', 2), { ...mkWin('2', 3), inPit: true }, mkWin('3', 4), mkWin('5', 5)];
   const { waves } = W.detectWaves(wins, { bandwidthMin: 5 });
-  strictEqual(waves[0].count, 2);
+  strictEqual(waves[0].count, 3);
   ok(!waves[0].karts.some(k => k.dorsal === '2'), 'el kart en boxes no debe estar en la ola');
 });
 
 test('ignora ventanas sin minLeft (sin stint máximo)', () => {
-  const wins = [mkWin('1', 2), { dorsal: '9', quality: 'neutral', minLeft: null, inPit: false }, mkWin('3', 3)];
+  const wins = [mkWin('1', 2), { dorsal: '9', quality: 'neutral', minLeft: null, inPit: false }, mkWin('3', 3), mkWin('4', 4)];
   const { waves } = W.detectWaves(wins, { bandwidthMin: 5 });
-  strictEqual(waves[0].count, 2);
+  strictEqual(waves[0].count, 3);
 });
 
 // ── nextWave: para el KPI de cabecera ─────────────────────────────────────
 console.log('\n▸ nextWave\n');
 
 test('nextWave devuelve la ola más inminente', () => {
-  const wins = [mkWin('1', 8), mkWin('2', 9), mkWin('3', 2), mkWin('4', 3)];
+  const wins = [mkWin('1', 12), mkWin('2', 13), mkWin('3', 14), mkWin('4', 2), mkWin('5', 3), mkWin('6', 4)];
   const { waves } = W.detectWaves(wins, { bandwidthMin: 5 });
   const nx = W.nextWave(waves);
   strictEqual(nx.earliestMin, 2);
-  strictEqual(nx.count, 2);
+  strictEqual(nx.count, 3);
 });
 
 test('sin olas → nextWave null', () => {
