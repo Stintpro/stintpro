@@ -160,6 +160,13 @@ function _enRender(){
   }catch(err){console.error('[StintPro] Error estrategia:',err);}
 
   try{
+    const waveBody=el.querySelector('#en-wave-body');
+    if(waveBody&&EnUi.tab==='wave'&&typeof _enRenderWave==='function'){
+      waveBody.innerHTML=_enRenderWave(eq, trackAvg);
+    }
+  }catch(err){console.error('[StintPro] Error olas:',err);}
+
+  try{
     const advBody=el.querySelector('#en-adv-body');
     if(advBody&&EnUi.tab==='adv'){
       const advCfg=advBody.querySelector('#en-adv-config');
@@ -246,6 +253,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div class="en-tab ${EnUi.tab==='grid'?'active':''}" onclick="_enSetTab('grid')">📊 Clasificación</div>
     <div class="en-tab ${EnUi.tab==='team'?'active':''}" onclick="_enSetTab('team')">👥 Mi equipo</div>
     <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
+    <div class="en-tab ${EnUi.tab==='wave'?'active':''}" onclick="_enSetTab('wave')">🌊 Olas</div>
     <div class="en-tab ${EnUi.tab==='adv'?'active':''}" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
   </div>
   <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
@@ -258,6 +266,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div id="en-strat-config"></div>
     <div id="en-strat-dynamic"></div>
   </div>
+  <div class="en-strat" id="en-wave-body" style="${EnUi.tab==='wave'?'':'display:none'}"></div>
   <div class="en-strat" id="en-adv-body" style="${EnUi.tab==='adv'?'':'display:none'}">
     <div id="en-adv-config"></div>
     <div id="en-adv-tunnel"></div>
@@ -592,12 +601,14 @@ function _enSetTab(tab){
   const grid=document.getElementById('en-grid-body');
   const team=document.getElementById('en-team-body');
   const strat=document.getElementById('en-strat-body');
+  const wave=document.getElementById('en-wave-body');
   const adv=document.getElementById('en-adv-body');
   const colBar=document.getElementById('en-col-bar');
   if(thead)thead.style.display=tab==='grid'?'':'none';
   if(grid)grid.style.display=tab==='grid'?'':'none';
   if(team)team.style.display=tab==='team'?'':'none';
   if(strat)strat.style.display=tab==='strat'?'':'none';
+  if(wave)wave.style.display=tab==='wave'?'':'none';
   if(adv)adv.style.display=tab==='adv'?'':'none';
   if(colBar)colBar.style.display=tab==='grid'?'':'none';
   if(tab!=='grid'){
