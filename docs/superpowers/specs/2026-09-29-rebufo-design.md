@@ -39,15 +39,21 @@ No toca `lapHistory` (lo escriben 4 sitios). Mantiene su propio estado por dorsa
   - Guarda `{lapMs, ts, tag, aheadDorsal, gapStart, gapEnd}` (buffer por dorsal, tope 60) y lo añade al muestreo del regalo.
 - `tagOf(dorsal, lapMs)` → registro cuyo `lapMs` coincide ±1 ms (el más reciente), o `null`.
 - `isTraffic(dorsal, lapSec)` → `train|blocked` para el tiempo en segundos de `lapHistory`.
-- `giftToday()` → `{giftSec, nTrain, nClean}`; `giftSec = mediana(Δ train) − mediana(Δ clean)`, con Δ = vuelta − mediana móvil de las últimas 15 vueltas del mismo dorsal (entre 0,92× y 1,08× de esa mediana). `giftSec = null` hasta `nTrain ≥ 100 && nClean ≥ 100`.
+- `giftToday()` → `{giftSec, nTrain, nClean}`; `giftSec = mediana(Δ train) − mediana(Δ clean)`, con Δ = vuelta − mediana de las últimas 15 vueltas LIMPIAS del mismo dorsal (mín. 6; solo vueltas entre 0,92× y 1,08× de esa mediana). Referencia solo-limpias para que un tren largo no absorba su propio rebufo. `giftSec = null` hasta `nTrain ≥ 100 && nClean ≥ 100`.
+- `ingest(equipos)` → alimenta los cruces nuevos (por `lastLapAt`) en orden temporal.
 - `reset()` en nueva sesión.
 
 Umbrales como constantes exportadas (`GAP_MIN=0.2, TRAIN_MAX=1.2, BLOCK_FROM=1.5, BLOCK_TO=0.6, MIN_GIFT_N=100`).
 
-### Enganche
+### Enganche (vía única para los 3 modos)
 
-- `apex-connector.js`: callback `onLap(dorsal, …, lapMs, n, ts)` del parser → `EnTraffic.onCrossing(dorsal, lapMs, Date.now())`; `onNewSession` → `EnTraffic.reset()`.
-- `replay-connector.js`: igual, pero `ts` = tiempo del log (`entry.t` de la línea en curso), no reloj de pared (a velocidad ×N los huecos se encogerían N veces). `reset()` al cargar/reiniciar el replay y en nueva sesión.
+El modo por defecto es **vía Logger**: el VPS manda fotos agrupadas (≤5/s) y el instante de cada cruce se perdería (error hasta ~0,4 s). Por eso el instante viaja DENTRO del estado:
+
+- `apex-protocol.js` (las DOS copias: `src/` y `stintpro-logger/`): al registrar una vuelta NUEVA (mismos puntos que `callbacks.onLap`), `k.lastLapAt = _now()`; se expone en el estado de cada kart como `lastLapAt`. `_now = callbacks.now || Date.now` (inyectable).
+- `replay-connector.js`: `createParser({ now: () => this._lines[this._currentIdx]?.t ?? Date.now() })` → reloj del log, inmune a la velocidad ×N.
+- Cliente: `EnTraffic.ingest(equipos)` en el manejador `onData` de `en-strategy.js` (tras el merge): alimenta, ordenados por `lastLapAt`, los karts cuyo `lastLapAt` cambió, con `lapMs = round(lastLap×1000)`.
+- `reset()`: al conectar (apex/logger), en nueva sesión, al recibir un snapshot `history` del logger y al recrear el parser del replay.
+- Logger: sin cambios de código aparte del parser (el `...state` del live ya reenvía `lastLapAt`). **Requiere despliegue al VPS (scp + restart) en un hueco sin carreras y con confirmación explícita.** Hasta entonces, en modo Logger no hay etiquetas (degrada a comportamiento actual).
 - `index.html`: cargar `en-traffic.js` antes de los conectores y de `en-state.js`.
 
 ### Corrección
@@ -80,4 +86,4 @@ Chip de estado "ahora en tren"; histórico/Score de pilotos; medir cuánto pierd
 
 ## Despliegue
 
-Solo cliente (Vercel vía push a main), **con confirmación explícita del usuario** antes de push.
+Cliente (Vercel vía push a main) + parser del logger (VPS, scp + restart en hueco sin carreras). Ambos **con confirmación explícita del usuario**.
