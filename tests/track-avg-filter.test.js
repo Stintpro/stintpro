@@ -73,5 +73,17 @@ group('Exclusión por dorsal (regresión)', () => {
   });
 });
 
+group('Tráfico — la media de pista ignora las vueltas en tren', () => {
+  test('vueltas etiquetadas fuera del M5 de cada kart', () => {
+    reset();
+    const k1 = { dorsal: '1', name: 'P1', lapHistory: [66, 66, 66, 62, 62], pit: false, pitState: null };
+    const k2 = kart('2', 66);
+    assert.ok(Math.abs(_enTrackAvgLive([k1, k2]) - 65.2) < 1e-9, 'sin motor: 65.2');
+    global.EnTraffic = { isTraffic: (d, t) => (String(d) === '1' && t < 64 ? 'train' : null) };
+    assert.ok(Math.abs(_enTrackAvgLive([k1, k2]) - 66) < 1e-9, 'con motor: 66');
+    delete global.EnTraffic;
+  });
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

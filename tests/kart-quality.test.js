@@ -377,6 +377,43 @@ group('Bloqueo — comportamiento del guard avg5 > trackAvg', () => {
   });
 });
 
+
+// ── Rebufo: las vueltas con tráfico (en-traffic.js) no cuentan ────────────────
+
+group('Tráfico — vueltas en tren/bloqueadas fuera de la calidad', () => {
+  const { _enTrafficFilter } = require('../src/en-state');
+  // Motor falso: en el kart '1' toda vuelta < 64 s fue en tren
+  const fake = { isTraffic: (d, t) => (String(d) === '1' && t < 64 ? 'train' : null) };
+
+  test('_enTrafficFilter quita las vueltas etiquetadas', () => {
+    global.EnTraffic = fake;
+    assert.deepEqual(_enTrafficFilter('1', [65, 65.2, 63.5, 65.1, 63.4]), [65, 65.2, 65.1]);
+    delete global.EnTraffic;
+  });
+
+  test('_enTrafficFilter: si quedarían < 3, devuelve todas (red de seguridad)', () => {
+    global.EnTraffic = fake;
+    const laps = [65, 63.5, 63.4, 63.6];
+    assert.deepEqual(_enTrafficFilter('1', laps), laps);
+    delete global.EnTraffic;
+  });
+
+  test('_enTrafficFilter sin motor cargado → intacto', () => {
+    const laps = [65, 63.5, 63.4];
+    assert.deepEqual(_enTrafficFilter('1', laps), laps);
+  });
+
+  test('un kart normal que va en tren NO pasa a bueno', () => {
+    reset();
+    const laps = [65.2, 65.1, 65.3, 65.2, 65.1, 63.5, 63.6, 63.4];
+    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'good', 'sin motor: el tren lo infla');
+    reset();
+    global.EnTraffic = fake;
+    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
+    delete global.EnTraffic;
+  });
+});
+
 // ── Resumen ───────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);

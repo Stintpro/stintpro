@@ -242,6 +242,18 @@ function _enStintLaps(myKart){
   return Math.max(0, myKart.tours-EnSession.data._stintStartTours);
 }
 
+// ── Rebufo: quitar vueltas con tráfico (en-traffic.js) ─────────────────────
+// Las vueltas en tren (rebufo, más rápidas) o bloqueadas (atascado, más
+// lentas) no dicen nada del kart. Red de seguridad: si al quitarlas quedan
+// menos de 3, se usan todas — un kart que va todo el stint en tren no se queda
+// sin calidad. Sin motor cargado (tests, sprint) devuelve las vueltas intactas.
+function _enTrafficFilter(dorsal, laps){
+  const T=typeof EnTraffic!=='undefined'?EnTraffic:null;
+  if(!T||!laps||!laps.length)return laps;
+  const kept=laps.filter(t=>!T.isTraffic(dorsal,t));
+  return kept.length>=3?kept:laps;
+}
+
 // ── Media de pista en vivo (usando últimas vueltas de todos) ──────────────
 function _enTrackAvgLive(eq){
   const laps=[];
@@ -249,7 +261,7 @@ function _enTrackAvgLive(eq){
     // Excluir: en pit, saliendo de pit, vueltas >180s, dorsales excluidos
     // manualmente, y karts cuya categoría esté excluida en bloque. Un kart sin
     // categoría nunca cae por esta última vía (solo por dorsal).
-    const m5=_enAvg5(e.lapHistory);
+    const m5=_enAvg5(_enTrafficFilter(e.dorsal, e.lapHistory));
     const catExcluded=e.category&&EnUi.excludedCategories[e.category];
     if(m5&&m5<180&&!e.pit&&e.pitState!=='out'&&!EnUi.excludedFromAvg[e.dorsal]&&!catExcluded)laps.push(m5);
   });
@@ -383,7 +395,7 @@ function _enAutoKartQuality(e, trackAvg){
 
   // Solo vueltas del KART ACTUAL (desde el último pit out)
   const startIdx=Math.min(state.stintStartIdx||0, e.lapHistory.length);
-  const stintLaps=e.lapHistory.slice(startIdx);
+  const stintLaps=_enTrafficFilter(e.dorsal, e.lapHistory.slice(startIdx));
   const clean=_enCleanLaps(stintLaps);
   if(clean.length<3)return null;
 
@@ -494,7 +506,7 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   // sin score, mostrando un delta que no era el que produjo el color.
   const state=EnSession.kartAutoState?.[dorsal];
   const stintStartIdx=state?.stintStartIdx||0;
-  const stintLaps=(e.lapHistory||[]).slice(stintStartIdx);
+  const stintLaps=_enTrafficFilter(e.dorsal, (e.lapHistory||[]).slice(stintStartIdx));
   const cleanStint=_enCleanLaps(stintLaps);
   const fewDataNote=cleanStint.length<5?`\n⚠ Datos provisionales (${cleanStint.length}/5 vueltas del kart actual)`:'';
 
@@ -535,6 +547,6 @@ function _enQualityTooltip(dorsal, e, trackAvg){
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings };
+  module.exports = { _enTrafficFilter, _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings };
 }
 
