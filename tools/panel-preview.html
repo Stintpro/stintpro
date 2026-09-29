@@ -43,7 +43,9 @@
   <script src="../src/circuits.js"></script>
   <script src="../src/state.js"></script>
   <script src="../src/clock.js"></script>
+  <script src="../src/en-blackbox.js"></script>
   <script src="../src/apex-protocol.js"></script>
+  <script src="../src/en-traffic.js"></script>
   <script src="../src/apex-connector.js"></script>
   <script src="../src/logger-connector.js"></script>
   <script src="../src/replay-connector.js"></script>
@@ -52,17 +54,22 @@
   <script src="../src/sprint.js"></script>
   <script src="../src/en-state.js"></script>
   <script src="../src/en-stint-machine.js"></script>
+  <script src="../src/en-box-model.js"></script>
+  <script src="../src/en-pit-windows.js"></script>
+  <script src="../src/en-messages.js"></script>
   <script src="../src/en-persist.js"></script>
   <script src="../src/en-columns.js"></script>
   <script src="../src/en-grid.js"></script>
   <script src="../src/en-advanced.js"></script>
   <script src="../src/en-team.js"></script>
   <script src="../src/en-strategy.js"></script>
+  <script src="../src/en-wave.js"></script>
   <script src="../src/en-ai-engineer.js"></script>
   <script src="../src/en-ai-alerts.js"></script>
 
   <script>
     // ?modo=sprint para el otro panel · ?hc=1 para el modo alto contraste
+    // ?replay=<ruta .ndjson> para cargar otra grabación (p.ej. un raw log real)
     const q = new URLSearchParams(location.search);
     if (q.get('hc') === '1') {
       document.body.classList.add('hc');
@@ -80,7 +87,7 @@
     };
 
     (async () => {
-      await window.ReplayConnector.loadUrl('../src/demo/demo-race.ndjson');
+      await window.ReplayConnector.loadUrl(q.get('replay') || '../src/demo/demo-race.ndjson');
       window.ReplayConnector.loopMode = true;
       window.ReplayConnector.speed = 1;
       window.ApexConnector = window.ReplayConnector;
