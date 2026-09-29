@@ -194,6 +194,9 @@
   // ── Factory ───────────────────────────────────────────────────────────────
 
   function createParser(callbacks = {}) {
+    // Reloj de los pases por meta (lastLapAt). Inyectable: el replay pasa el
+    // tiempo del log para que a velocidad ×N los huecos entre karts no encojan.
+    const _now = typeof callbacks.now === 'function' ? callbacks.now : Date.now;
     let _karts           = {};
     let _colMap          = {};
     let _colByNum        = {};
@@ -476,7 +479,7 @@
             } else {
               // Vuelta nueva (sin |*| previo, o llp tardío)
               k.lastLap = t;
-              k.lapHistory.push(t); _pushRecent(t);
+              k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
               if (k.lapHistory.length > 1500) k.lapHistory.shift();
               if (!k.bestLap || t < k.bestLap) k.bestLap = t;
               if (callbacks.onLap && k.dorsal)
@@ -622,7 +625,7 @@
               const lastH = k.lapHistory[k.lapHistory.length - 1];
               if (lastH === undefined || Math.abs(lastH - t) > 0.05) {
                 k.lastLap = t;
-                k.lapHistory.push(t); _pushRecent(t);
+                k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
                 if (k.lapHistory.length > 1500) k.lapHistory.shift();
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
@@ -793,6 +796,7 @@
             category: k.category || null,
             catColor: k.catColor || null, // color de categoría de Apex (dorsal), null si monoclase
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
+            lastLapAt: k._lastLapAt || 0, // instante del último pase (rebufo, en-traffic.js)
             lapHistory: k.lapHistory || [], gap: k.gap || '', interval: k.interval || '',
             pit: !!k.pit, pitState: k.pitState || null,
             // pitS = segundos en boxes. Preferir el crono oficial de Apex (otr) si

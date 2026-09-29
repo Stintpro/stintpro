@@ -1057,5 +1057,36 @@ group('categoría / clase', () => {
 
 // ── Results ───────────────────────────────────────────────────────────────────
 
+// ── lastLapAt: instante del pase por meta (rebufo, en-traffic.js) ───────────
+group('lastLapAt (instante de la vuelta, reloj inyectable)', () => {
+  test('vía |*| sin llp → lastLapAt = reloj inyectado', () => {
+    let now = 5000;
+    const p = createParser({ now: () => now });
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' }, karts: [{ rowId: 'r1', dorsal: '7' }] });
+    p.parse('r1|*|65000|');
+    assert.equal(p.getState().equipos[0].lastLapAt, 5000);
+    now = 70000;
+    p.parse('r1|*|66000|');
+    assert.equal(p.getState().equipos[0].lastLapAt, 70000);
+  });
+
+  test('vía llp → lastLapAt = reloj inyectado', () => {
+    const p = createParser({ now: () => 1234 });
+    p.setGrid({ colMap: { llp: 'c3', no: 'c1' }, colByNum: { c3: 'llp', c1: 'no' }, karts: [{ rowId: 'r1', dorsal: '7' }] });
+    p.parse('r1c3|tn|1:05.000');
+    assert.equal(p.getState().equipos[0].lastLap, 65);
+    assert.equal(p.getState().equipos[0].lastLapAt, 1234);
+  });
+
+  test('sin vuelta → lastLapAt 0; sin reloj inyectado usa Date.now', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' }, karts: [{ rowId: 'r1', dorsal: '7' }] });
+    assert.equal(p.getState().equipos[0].lastLapAt, 0);
+    const t0 = Date.now();
+    p.parse('r1|*|65000|');
+    assert.ok(p.getState().equipos[0].lastLapAt >= t0);
+  });
+});
+
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

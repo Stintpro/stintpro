@@ -885,6 +885,10 @@ window.showEnduranceDashboard=function(cfg){
           else if(prev)e._lapHistoryTotal=prev._lapHistoryTotal;
         });
         EnSession.data.equipos=data.equipos||[];
+        // Rebufo: alimentar los pases por meta nuevos (lastLapAt). Un snapshot
+        // del logger es una sesión (re)abierta → empezar de cero.
+        if(data._isHistory)window.EnTraffic?.reset();
+        window.EnTraffic?.ingest(EnSession.data.equipos);
         EnSession.data.leaderLap=data.leaderLap||0;
         EnSession.data.sessionMode=data.sessionMode||'';
         // colMap: qué columnas manda Apex en esta sesión. Una reconexión manda

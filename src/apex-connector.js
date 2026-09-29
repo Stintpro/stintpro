@@ -48,6 +48,7 @@ window.ApexConnector = {
     this._disarm(this.ws); this.ws = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
 
+    window.EnTraffic?.reset();
     this._parser = ApexProtocol.createParser({
       onGrid:       (html)     => this._parseGrid(html),
       onCountdown:  (ms, mode) => {
@@ -57,6 +58,7 @@ window.ApexConnector = {
       },
       onNewSession: ()         => {
         if (window.ApexClock?.reset) ApexClock.reset();
+        window.EnTraffic?.reset();
         if (this._raceTracker) this._raceTracker.onNewSession();
         this._raceStart = this._raceTracker ? this._raceTracker.raceStart : null;
         if (this._flagTracker) this._flagTracker.reset();

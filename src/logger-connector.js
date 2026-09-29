@@ -21,6 +21,7 @@ const Logger = {
     this._raceStart = null;
     this._flag = null;
     this._raceStopped = false;
+    window.EnTraffic?.reset();
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     // Desarmar el socket anterior ANTES de cerrarlo: su onclose (async) vería
     // this.slug ya fijado y programaría una reconexión paralela a los 5s →

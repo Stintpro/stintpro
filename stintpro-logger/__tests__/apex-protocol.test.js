@@ -612,3 +612,15 @@ describe('onNewSession entrega el estado saliente', () => {
     expect(saliente.equipos.filter(Boolean)).toHaveLength(2);      // pero el callback vio los 2
   });
 });
+
+// ── lastLapAt: instante del pase por meta (rebufo, en-traffic.js del cliente) ──
+describe('lastLapAt', () => {
+  test('se expone en el estado con el reloj inyectable y viaja en el live', () => {
+    const { createParser: cp } = require('../apex-protocol');
+    const p = cp({ now: () => 4242 });
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' }, karts: [{ rowId: 'r1', dorsal: '7' }] });
+    expect(p.getState().equipos[0].lastLapAt).toBe(0);
+    p.parse('r1|*|65000|');
+    expect(p.getState().equipos[0].lastLapAt).toBe(4242);
+  });
+});

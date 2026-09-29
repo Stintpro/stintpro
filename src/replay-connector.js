@@ -133,14 +133,19 @@ window.ReplayConnector = {
   // ── Lógica interna ────────────────────────────────────────────────────────
 
   _createParser() {
+    // Parser nuevo (carga, seek, bucle) → el rebufo empieza de cero.
+    window.EnTraffic?.reset();
     return ApexProtocol.createParser({
+      // Reloj del LOG, no de pared: a velocidad ×N los huecos entre karts
+      // (rebufo, en-traffic.js) se encogerían N veces.
+      now:          ()         => this._lines[this._currentIdx]?.t ?? Date.now(),
       onGrid:       (html)     => this._parseGrid(html),
       onCountdown:  (ms, mode) => {
         if (!window.ApexClock) return;
         if (mode === 'stop') ApexClock.stop();
         else ApexClock.sync(ms, mode);
       },
-      onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); },
+      onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); window.EnTraffic?.reset(); },
       onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
       onComment:    (html)     => this._parseComment(html),
       // Sanciones y avisos (canal msg|), igual que el conector directo.
