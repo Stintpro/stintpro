@@ -526,6 +526,7 @@ function _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal){
     toursSrc,
     kc, avg5, quality, trend, cons,
     lastCol, bestCol, delta, deltaStr, deltaCol, m5Col,
+    traffic:_enTrafficMark(e), // ≋ tren / ▮ bloqueo de la última vuelta (en-traffic.js)
     arrow, dotColor, pitBadge, fixBadge, chkBadge,
     kartBorder, barPct, barClass, gapHtml,
     flash:_flashing?'sp-flash':'',

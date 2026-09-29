@@ -116,7 +116,9 @@
       width: '86px', widthNarrow: '62px',
       source: 'apex',
       requires: cm => !!cm.llp,
-      cell: (e, d) => `<div class="sp-t" style="color:${e.lastLap ? d.lastCol : '#2d2f38'}">${_enFmt(e.lastLap)}</div>`,
+      // Glifo de rebufo (≋ tren / ▮ bloqueo) tras el tiempo: gris tenue, no
+      // compite con el color de la vuelta (morada/verde/ámbar/roja).
+      cell: (e, d) => `<div class="sp-t" style="color:${e.lastLap ? d.lastCol : '#2d2f38'}">${_enFmt(e.lastLap)}${d.traffic ? `<span class="sp-traffic" title="${_esc(d.traffic.tip)}" style="color:#9ca3af;font-size:10px;margin-left:2px;cursor:help">${d.traffic.glyph}</span>` : ''}</div>`,
     },
     {
       id: 'best', label: 'Mejor', align: 'right',

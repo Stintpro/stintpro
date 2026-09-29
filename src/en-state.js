@@ -254,6 +254,38 @@ function _enTrafficFilter(dorsal, laps){
   return kept.length>=3?kept:laps;
 }
 
+// Segundos con coma decimal (0,4) y regalo con signo tipográfico (−0,21).
+function _enTrafficSec(x){ return x.toFixed(1).replace('.',','); }
+function _enTrafficGift(g){ return (g<0?'−':'+')+Math.abs(g).toFixed(2).replace('.',','); }
+
+// Glifo + tooltip de la ÚLTIMA vuelta de un kart: ≋ en tren, ▮ bloqueada,
+// null si fue limpia o no hay dato. La coletilla "(fuera de calidad y media)"
+// solo si el filtro la quitó de verdad (no con la red de seguridad activa).
+function _enTrafficMark(e){
+  const T=typeof EnTraffic!=='undefined'?EnTraffic:null;
+  if(!T||!e||!e.lastLap)return null;
+  const r=T.tagOf(e.dorsal, Math.round(e.lastLap*1000));
+  if(!r||r.tag==='clean')return null;
+  const hist=e.lapHistory||[];
+  const tail=_enTrafficFilter(e.dorsal, hist)!==hist?' (fuera de calidad y media)':'';
+  if(r.tag==='train'){
+    const g=T.giftToday();
+    const gift=g.giftSec==null?'midiendo…'
+      :`${_enTrafficGift(g.giftSec)} s/vuelta · Vuelta limpia est.: ~${_enFmt(e.lastLap-g.giftSec)}`;
+    return {glyph:'≋', tip:`En tren tras #${r.aheadDorsal} a ${_enTrafficSec(r.gapEnd)} s · Rebufo hoy: ${gift}${tail}`};
+  }
+  return {glyph:'▮', tip:`Bloqueado: alcanzó a #${r.aheadDorsal} (de ${_enTrafficSec(r.gapStart)} s a ${_enTrafficSec(r.gapEnd)} s)${tail}`};
+}
+
+// Línea "Rebufo hoy" del popup de Media pista (cadena vacía sin motor).
+function _enTrafficGiftLine(){
+  const T=typeof EnTraffic!=='undefined'?EnTraffic:null;
+  if(!T)return'';
+  const g=T.giftToday();
+  if(g.giftSec==null)return`Rebufo hoy: midiendo… (${Math.min(g.nTrain,100)}/100 vueltas en tren)`;
+  return`Rebufo hoy: ${_enTrafficGift(g.giftSec)} s/vuelta (${g.nTrain} en tren · ${g.nClean} limpias)`;
+}
+
 // ── Media de pista en vivo (usando últimas vueltas de todos) ──────────────
 function _enTrackAvgLive(eq){
   const laps=[];
@@ -547,6 +579,6 @@ function _enQualityTooltip(dorsal, e, trackAvg){
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enTrafficFilter, _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings };
+  module.exports = { _enTrafficFilter, _enTrafficMark, _enTrafficGiftLine, _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings };
 }
 
