@@ -401,11 +401,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
       <span style="margin-left:auto">${_totalInPit} en pit · ${_fmtN(_qTotalW)} en cola</span>
     </div>
   </div>
-  <div class="sp-kpi">
-    <div class="sp-kpi-lbl">En boxes</div>
-    <div class="sp-kpi-val" style="color:${inPit>0?'#f87171':'var(--state-ok)'}">${inPit}</div>
-    <div class="sp-kpi-sub">karts actualmente</div>
-  </div>`;
+  ${(typeof _enWaveKpiHtml==='function')?_enWaveKpiHtml(eq, trackAvg):''}`;
 }
 
 function _enUpdateKpis(el, leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){

@@ -57,19 +57,17 @@ function _enWaveRivalCard(k, e, waveTag){
   </div>`;
 }
 
-function _enRenderWave(eq, trackAvg){
+// Motor de olas para la vista: monta el contexto desde el estado de la app y
+// devuelve ventanas + olas. Lo comparten la pestaña 🌊 Olas y el KPI "Próxima
+// ola" de en-grid.js (un solo cálculo). hasMax=false si no hay stint máximo.
+function _enComputeWaves(eq, trackAvg){
   const cfg=window.AppState?.config||{};
   const stintMaxMs=(cfg.stintMax||999)*60*1000;
   const stintMinMs=(cfg.stintMin||0)*60*1000;
   const myDorsal=cfg.myDorsal;
   const C=window.ApexClock;
   const remainingMs=(C&&!C.isCountUp())?C.remainingMs():0;
-
-  // Sin stint máximo no hay ventana de parada calculable → guía al usuario.
-  if(stintMaxMs>=999*60*1000){
-    return `<div style="padding:20px;text-align:center;color:var(--text-3);font-family:sans-serif;font-size:13.5px">Configura el <b>stint máximo</b> en la pestaña 🎯 Estrategia para detectar olas de paradas.</div>`;
-  }
-
+  if(stintMaxMs>=999*60*1000) return {hasMax:false, windows:[], waves:[], next:null, eqByDorsal:{}};
   const ctx={
     stintMaxMs, stintMinMs,
     pitDurationMs:(EnBox.pitDuration||120)*1000,
@@ -77,10 +75,8 @@ function _enRenderWave(eq, trackAvg){
     remainingMs,
     nowMs:Date.now(),
   };
-
   const eqByDorsal={};
   (eq||[]).forEach(e=>{ if(e.dorsal!=null)eqByDorsal[String(e.dorsal).trim()]=e; });
-
   const rivals=(eq||[]).filter(e=>!EnBoxModel.isMine(e, myDorsal)).map(e=>{
     const startMs=(typeof _enRivalStintStart==='function')?_enRivalStintStart(e):null;
     const elapsedMs=startMs?(Date.now()-startMs):null;
@@ -92,14 +88,26 @@ function _enRenderWave(eq, trackAvg){
       elapsedMs,
     };
   });
-
   const windows=EnPitWindows.computeWindows(rivals, ctx);
   const bandwidthMin=(typeof EnUi==='object'&&EnUi.waveBandwidthMin)||5;
   const {waves}=EnPitWindows.detectWaves(windows, {bandwidthMin, minSize:3});
+  return {hasMax:true, windows, waves, next:EnPitWindows.nextWave(waves), eqByDorsal};
+}
+
+function _enRenderWave(eq, trackAvg){
+  const wc=_enComputeWaves(eq, trackAvg);
+
+  // Sin stint máximo no hay ventana de parada calculable → guía al usuario.
+  if(!wc.hasMax){
+    return `<div style="padding:20px;text-align:center;color:var(--text-3);font-family:sans-serif;font-size:13.5px">Configura el <b>stint máximo</b> en la pestaña 🎯 Estrategia para detectar olas de paradas.</div>`;
+  }
+
+  const {windows, waves, eqByDorsal}=wc;
+  const bandwidthMin=(typeof EnUi==='object'&&EnUi.waveBandwidthMin)||5;
   const card=(k)=>_enWaveRivalCard(k, eqByDorsal[String(k.dorsal).trim()]);
 
   // ── Cabecera ──
-  const next=EnPitWindows.nextWave(waves);
+  const next=wc.next;
   let head;
   if(next){
     const c=_enWaveUrgencyColor(next.earliestMin);
@@ -191,4 +199,24 @@ function _enSetWaveSort(v){
 function _enSetWaveBandwidth(v){
   if(typeof EnUi==='object')EnUi.waveBandwidthMin=v;
   if(typeof _enRender==='function')_enRender();
+}
+
+// KPI de cabecera "Próxima ola" (en-grid.js). Reusa el motor compartido; al
+// clicar abre la pestaña 🌊 Olas. Sustituye al KPI "En boxes" (redundante con
+// "Estado de Box", que ya muestra los karts en pit).
+function _enWaveKpiHtml(eq, trackAvg){
+  const wc=_enComputeWaves(eq, trackAvg);
+  let val, color, sub;
+  if(!wc.hasMax){ val='—'; color='#555'; sub='configura stint máx'; }
+  else if(wc.next){
+    const n=wc.next;
+    color=_enWaveUrgencyColor(n.earliestMin);
+    val=`~${n.earliestMin}m`;
+    sub=`${n.count} equipos · ${_enWaveCompDots(n.composition)}`;
+  } else { val='—'; color='var(--state-ok)'; sub='sin olas previstas'; }
+  return `<div class="sp-kpi" style="cursor:pointer" onclick="_enSetTab('wave')" title="Ir a la pestaña 🌊 Olas">
+    <div class="sp-kpi-lbl">🌊 Próxima ola</div>
+    <div class="sp-kpi-val" style="color:${color}">${val}</div>
+    <div class="sp-kpi-sub">${sub}</div>
+  </div>`;
 }
