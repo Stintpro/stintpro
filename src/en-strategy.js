@@ -133,7 +133,9 @@ function _enRenderStrategy(eq, trackAvg){
     // antiguo diagrama) + texto de contraste por calidad.
     const _qBg=(q)=>q==='good'?'#22c55e':q==='bad'?'#ef4444':q==='neutral'?'#fbbf24':'#2f3138';
     const _qTxt=(q)=>q==='neutral'?'#3a2a02':q==='unknown'?'#c7ced6':'#0b1a10';
-    const _qSub=(q)=>q==='neutral'?'#5a4310':q==='unknown'?'#8b95a0':'rgba(0,0,0,0.6)';
+    // _qSub: sólido y ≥4.5:1 sobre su _qBg (medido en tests/contrast.test.js);
+    // el antiguo rgba(0,0,0,0.6) daba 3,35:1 sobre el rojo.
+    const _qSub=(q)=>q==='neutral'?'#5a4310':q==='unknown'?'#9ca3af':q==='bad'?'#2a0808':'#0e3a1d';
     // Zona accesible según tipo de box: las tarjetas fuera de ella se atenúan y
     // se etiquetan "espera". Esto SUSTITUYE al antiguo Diagrama del box.
     const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
@@ -169,7 +171,7 @@ function _enRenderStrategy(eq, trackAvg){
         c+=`<div style="flex:1;min-width:0">
           <div style="display:flex;align-items:baseline;gap:6px">
             <span style="font-size:13px;font-weight:700;color:${txt};font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(vm.name||'#'+vm.dorsal)}</span>
-            ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:rgba(0,0,0,0.32);border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
+            ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:#111318;border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
           </div>
           <div style="font-size:11px;color:${sub};font-family:monospace">${laps!=null?laps+'v':'—'}${last?' · '+last:''}${box?' · box '+box:''}</div>
         </div>`;

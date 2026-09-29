@@ -365,7 +365,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   const _totalInPit=_pitKarts.length;
   // Color por umbrales, idéntico a la tarjeta de Estrategia.
   let boxColor='#9ca3af', boxVal;
-  if(probAcceso===null){boxColor='#555'; boxVal='—';}
+  if(probAcceso===null){boxColor='var(--text-3)'; boxVal='—';}
   else{
     boxVal=probAcceso+'%';
     if(probAcceso>=70)boxColor='var(--state-ok)';

@@ -633,8 +633,10 @@ test('los colores exceptuados aparecen solo donde y las veces documentadas — n
 //     triar esos apagados y una decisión sobre la capa de profundidad que NO
 //     es del test. Queda reportado con sus números, no exceptuado: EXCEPCIONES
 //     sigue vacía.
-const FICHEROS_BALDOSA = ['en-grid.js', 'sprint.js'];
-const BALDOSAS_ESPERADAS = { 'en-grid.js': 5, 'sprint.js': 4 };
+// en-wave.js entra con el KPI "Próxima ola" (233f241), que sustituyó a la
+// baldosa "En boxes" de en-grid.js: 5 baldosas en en-grid pasan a 4 + 1 aquí.
+const FICHEROS_BALDOSA = ['en-grid.js', 'en-wave.js', 'sprint.js'];
+const BALDOSAS_ESPERADAS = { 'en-grid.js': 4, 'en-wave.js': 1, 'sprint.js': 4 };
 
 // Recorta el <div class="LA-CLASE"> … </div> completo emparejando <div>/</div>.
 // No vale "hasta el siguiente </div>": cada baldosa lleva tres divs dentro
@@ -765,6 +767,16 @@ function recogerColoresDeCajas(f, clase, destino, opacas) {
 for (const f of FICHEROS_BALDOSA) {
   baldosasPorFichero[f] = recogerColoresDeCajas(f, 'sp-kpi', valoresBaldosa, interpolacionesOpacas);
 }
+// La baldosa "Próxima ola" (src/en-wave.js) pinta `color:${color}`, y `color`
+// recibe en una rama el resultado de _enWaveUrgencyColor() —una función, que
+// resolverInterpolacion() no sigue—. Sus ramas se leen aquí del texto crudo de
+// la función y entran en el mismo barrido: sin esto, re-literalizar el rojo de
+// "ola inminente" pasaría en verde.
+{
+  const decl = leer('src/en-wave.js').match(/function _enWaveUrgencyColor\([^)]*\)\{[\s\S]*?\n\}/);
+  if (!decl) throw new Error('no se encuentra _enWaveUrgencyColor en src/en-wave.js — ajusta el regex del barrido de baldosas');
+  for (const c of literalesDeExpresion(decl[0])) valoresBaldosa.add(c);
+}
 
 // Resuelve el juego entero de valores DENTRO DE UN MODO y separa lo medible de
 // lo que hex() no sabe leer: un hex de 4 u 8 dígitos (lleva alfa) o un token
@@ -804,6 +816,10 @@ const VALORES_BALDOSA_ESPERADOS = [
   // ("—"/esperando salida). --text-3 ya cumple 4.5:1 sobre las superficies del
   // panel (grupo de tests de --text-3 más arriba).
   'var(--text-3)',
+  // "Estado de Box" (a83e4ca): gris de dato cuando el acceso es <30% pero no
+  // hay nadie en pit (no es una alarma). Pasa 4.5:1 en los dos modos.
+  // (Su "sin datos" era #555 a 2,3:1 y ahora va por var(--text-3).)
+  '#9ca3af',
 ];
 // Interpolaciones que no resuelven a literales, por fichero. Ver el bloque de
 // alcance de arriba.
@@ -936,28 +952,30 @@ test('la cabecera mate es más oscura que la baldosa que sostiene (no hay doble 
 //
 // LO QUE EL BARRIDO NO PUEDE VER (documentado, no ignorado):
 //   - Un color que llega a la tarjeta a través de una función auxiliar
-//     definida FUERA del recorte (kartRow en src/en-strategy.js, que pinta
-//     `color:${minCol}` con el minCol que recibe). Se ha tokenizado igualmente
-//     —los píxeles son lo que importa— pero el recorte por tarjeta no alcanza
-//     a comprobarlo. Cubierto aparte, más abajo: un test nominal lee el texto
-//     crudo de las declaraciones de minCol y stintWindowInfo (la otra función
-//     que vive antes del <div class="en-strat-card"> y de la que minCol
-//     cuelga) y exige que sus ramas de estado sean var(--state-*). Sin ese
-//     test, re-literalizar minCol Y stintWindowInfo a la vez deja hasta 24
-//     elementos de texto de "Karts en pista" (3 columnas × hasta 8 karts) rotos
-//     en ☀ sin que ningún test lo diga.
+//     definida FUERA del recorte. (El caso histórico, kartRow/minCol/
+//     stintWindowInfo de "Karts en pista", se borró con esa tarjeta en
+//     d491a94; su guardián nominal se retiró con ella.)
 //   - Una expresión que mezcla un literal con algo que no resuelve
 //     (`${t.evColor||'#555'}`): se queda con el '#555' y da la expresión por
 //     resuelta. El origen de t.evColor también se ha tokenizado a mano.
 //   - Las interpolaciones que no resuelven a nada, que sí quedan fijadas en
 //     INTERPOLACIONES_OPACAS_TARJETA: una nueva pone el test en rojo.
 const FICHEROS_TARJETA = { 'en-strategy.js': 'en-strat-card', 'en-team.js': 'en-team-card' };
-const TARJETAS_ESPERADAS = { 'en-strategy.js': 7, 'en-team.js': 6 };
+// en-strategy.js: 7 → 4. Salieron la Fila 1 (a83e4ca, pasó al KPI "Estado de
+// Box"), "Movimientos recientes"/diagrama del box (68f4746, fundidos en las
+// tarjetas del Tablero de Box) y "Karts en pista" (d491a94, pasó a 🌊 Olas).
+const TARJETAS_ESPERADAS = { 'en-strategy.js': 4, 'en-team.js': 6 };
 const INTERPOLACIONES_OPACAS_TARJETA = {
   // kc.text: el color del dorsal, que sale de _enKartColor (otro fichero).
   // tacticColor: sale de EnBoxModel.tacticalAdvice (src/en-box-model.js); sus
   // ramas de estado se fijan como var(--state-*) en tests/box-model.test.js.
-  'en-strategy.js': ['kc.text', 'tacticColor'],
+  // txt, sub: el texto de las tarjetas del Tablero de Box, que NO se pinta
+  // sobre el cristal sino sobre el fondo OPACO de calidad de la propia tarjeta
+  // (_qBg). No se miden aquí (la superficie sería la equivocada): los mide el
+  // grupo "texto de las tarjetas de calidad" contra su fondo real. (La
+  // puntuación, _enScoreColor, lleva su propio fondo opaco #111318 y este
+  // barrido ya la salta; también la mide ese grupo.)
+  'en-strategy.js': ['kc.text', 'sub', 'tacticColor', 'txt'],
   'en-team.js': ['col'],         // la paleta de identidad del piloto: colors[idx%colors.length]
 };
 
@@ -1047,49 +1065,13 @@ test('los colores de estado de las tarjetas llegan a 4.5:1 sobre la tarjeta de �
   }
 });
 
-test('minCol y stintWindowInfo (fuera del recorte de tarjetas) pintan sus estados por token', () => {
-  // El agujero que este test cierra: kartRow (que pinta `color:${minCol}` en su
-  // propia plantilla) y stintWindowInfo están definidas ANTES de que se abra el
-  // <div class="en-strat-card"> de "Karts en pista" — cajasPorClase() empieza a
-  // emparejar llaves desde ahí, así que ninguna de las dos entra JAMÁS en el
-  // recorte de la tarjeta: ni para verlas como token, ni para pillarlas si
-  // volvieran a ser literal. Demostrado: re-literalizar a la vez la rama
-  // "atrapado" de stintWindowInfo y las dos ramas coloreadas de minCol deja la
-  // suite en 28/28 verde con unos 24 elementos de texto rotos en ☀ (3 columnas
-  // × hasta 8 karts). Mismo patrón que el guardián de stintColor de arriba:
-  // aserción nominal sobre las ramas conocidas, leyendo el texto crudo del
-  // fichero — no confiada a un recorte por caja que aquí no llega.
-  const srcEstrategia = leer('src/en-strategy.js');
-  const literalesDeEstado = Object.values(ESTADO_EN_NORMAL);
-
-  const declStintWindowInfo = srcEstrategia.match(/const stintWindowInfo=\(e\)=>\{[\s\S]*?\n  \};/);
-  ok(declStintWindowInfo,
-    'no se encuentra la declaración de stintWindowInfo en src/en-strategy.js — ¿cambió de forma? ' +
-    'ajusta el regex de este test para que la siga viendo');
-  const coloresStintWindowInfo = literalesDeExpresion(declStintWindowInfo[0]);
-  ok(coloresStintWindowInfo.includes('var(--state-alert)'),
-    'stintWindowInfo debería seguir marcando el caso "atrapado por deuda de paradas" con var(--state-alert)');
-  for (const lit of literalesDeEstado)
-    ok(!coloresStintWindowInfo.includes(lit),
-      `stintWindowInfo pinta un estado con el literal ${lit} en vez de var(--state-*) — ` +
-      `vive fuera del recorte de la tarjeta (antes del <div class="en-strat-card">), así que ` +
-      `ningún barrido de arriba lo pilla; el modo ☀ tampoco podría aclararlo`);
-
-  const declMinCol = srcEstrategia.match(/const minCol=info\.color\|\|[^\n]+;/);
-  ok(declMinCol,
-    'no se encuentra la declaración de minCol (columna "Buenos") en src/en-strategy.js — ¿cambió de forma? ' +
-    'ajusta el regex de este test para que la siga viendo');
-  const coloresMinCol = literalesDeExpresion(declMinCol[0]);
-  for (const v of ['var(--state-ok)', 'var(--state-warn)'])
-    ok(coloresMinCol.includes(v),
-      `minCol debería tener la rama ${v} (según el tiempo restante hasta el mínimo) — ` +
-      `¿ha dejado de resolver el ternario, o ha vuelto a escribirse como literal?`);
-  for (const lit of literalesDeEstado)
-    ok(!coloresMinCol.includes(lit),
-      `minCol pinta un estado con el literal ${lit} en vez de var(--state-*) — ` +
-      `kartRow, que usa minCol en \`color:\${minCol}\`, vive fuera del recorte de la tarjeta, así ` +
-      `que ningún barrido de arriba lo pilla; el modo ☀ tampoco podría aclararlo`);
-});
+// (Aquí vivía el guardián nominal de minCol y stintWindowInfo: kartRow y
+// stintWindowInfo pintaban "Karts en pista" desde fuera del recorte de la
+// tarjeta. Esa tarjeta salió de Estrategia en d491a94 —la lista pasó a 🌊 Olas,
+// que calcula las ventanas en src/en-pit-windows.js y pinta tarjetas de fondo
+// opaco de calidad— y las dos funciones se borraron, así que el guardián se
+// retira a propósito. El texto de esas tarjetas lo mide el grupo "texto de las
+// tarjetas de calidad", al final del fichero.)
 
 // ─────────────────────────────────────────────────────────────────────────
 // BARRIDO COMPLETO DE COLOR DE LAS TARJETAS (auditoría 2026-09) — abre el frente
@@ -1129,8 +1111,8 @@ test('minCol y stintWindowInfo (fuera del recorte de tarjetas) pintan sus estado
 // Nunca entra nada en EXCEPCIONES: los apagados quedan fuera por ser marcadores
 // declarados, no por ser una excepción al umbral.
 const MARCADORES_TENUES = {
-  '#2a2b2e': 'flecha “→” separadora entre karts de la cola del box (en-strategy.js) — glifo decorativo, no texto de lectura',
-  '#333':    'etiquetas de fila “fila N →” del diagrama de columnas del box (en-strategy.js) — marcador de posición atenuado, no texto de lectura',
+  // #2a2b2e (flecha "→" de la cola) y #333 ("fila N →" del diagrama) se
+  // retiraron con el diagrama del box (68f4746): la cola son ahora tarjetas.
   '#555':    'fallback de “sin dato”: calidad de kart desconocida, gap sin medir y evento sin color propio (en-strategy.js) — marcador, no texto de lectura',
 };
 
@@ -1594,6 +1576,74 @@ test('todo literal de texto de las filas de "Deuda de paradas" llega a 4.5:1 sob
   deepStrictEqual(fallos.sort(), [],
     `literal(es) de fila por debajo de 4.5:1 sobre el cristal denso: ${fallos.join('; ')} — ` +
     `tokeniza (estado), usa var(--text-3) (texto apagado legible) o documéntalo en MARCADORES_TENUES; nunca el umbral`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// TEXTO DE LAS TARJETAS DE CALIDAD — Tablero de Box (src/en-strategy.js) y
+// 🌊 Olas (src/en-wave.js).
+//
+// Estas tarjetas NO van sobre el cristal: su fondo es un color OPACO de calidad
+// (_qBg / _enWaveQBg: verde, rojo, ámbar o gris), idéntico en modo normal y en
+// ☀, y encima pintan texto con _qTxt/_qSub. Los barridos de arriba las ven como
+// interpolaciones opacas (txt, sub) porque medirlas contra el cristal sería
+// medir la superficie equivocada. Aquí se miden contra la suya.
+// Al abrirlo (2026-09-29) el subtítulo rgba(0,0,0,0.6) daba 3,35:1 sobre el
+// rojo y la puntuación del piloto, sobre un chip rgba(0,0,0,0.32), bajaba a
+// 1,06:1 en las tarjetas ámbar: se pasó a subtítulos sólidos y chip #111318.
+console.log('\ntexto de las tarjetas de calidad (Tablero de Box + 🌊 Olas) sobre su propio fondo');
+
+const CALIDADES = ['good', 'bad', 'neutral', 'unknown'];
+const srcBox = leer('src/en-strategy.js');
+const srcOla = leer('src/en-wave.js');
+function flechaDe(src, nombre) {
+  const m = src.match(new RegExp(`const ${nombre}=(\\(q\\)=>[^\\n]+);`));
+  if (!m) throw new Error(`no se encuentra ${nombre} en src/en-strategy.js — ajusta el regex`);
+  return new Function(`return ${m[1]}`)();
+}
+function funcionDe(src, nombre) {
+  const m = src.match(new RegExp(`function ${nombre}\\(q\\)\\{[^\\n]+\\}`));
+  if (!m) throw new Error(`no se encuentra ${nombre} en src/en-wave.js — ajusta el regex`);
+  return new Function(`${m[0]}; return ${nombre};`)();
+}
+const paletaBox = { bg: flechaDe(srcBox, '_qBg'), txt: flechaDe(srcBox, '_qTxt'), sub: flechaDe(srcBox, '_qSub') };
+const paletaOla = { bg: funcionDe(srcOla, '_enWaveQBg'), txt: funcionDe(srcOla, '_enWaveQTxt'), sub: funcionDe(srcOla, '_enWaveQSub') };
+
+for (const [nombre, pal] of [['Tablero de Box', paletaBox], ['🌊 Olas', paletaOla]]) {
+  test(`${nombre}: txt y sub llegan a 4.5:1 sobre el fondo de cada calidad`, () => {
+    const fallos = [];
+    for (const q of CALIDADES) {
+      const bg = pal.bg(q);
+      for (const rol of ['txt', 'sub']) {
+        const c = pal[rol](q);
+        if (!HEX_OPACO.test(c) || !HEX_OPACO.test(bg)) { fallos.push(`${q}.${rol}=${c} sobre ${bg}: no es hex opaco medible`); continue; }
+        const r = contraste(hex(c), hex(bg));
+        if (r < 4.5) fallos.push(`${q}.${rol} ${c} sobre ${bg} da ${r.toFixed(3)}:1`);
+      }
+    }
+    deepStrictEqual(fallos, [],
+      `texto de tarjeta de calidad por debajo de 4.5:1: ${fallos.join('; ')} — oscurece/aclara el color de texto; nunca el umbral`);
+  });
+}
+
+test('las tarjetas de 🌊 Olas usan la misma paleta de calidad que el Tablero de Box', () => {
+  for (const q of CALIDADES)
+    for (const rol of ['bg', 'txt', 'sub'])
+      strictEqual(paletaOla[rol](q), paletaBox[rol](q),
+        `${rol}(${q}) difiere entre en-wave.js y en-strategy.js — las dos tarjetas prometen ser idénticas`);
+});
+
+test('la puntuación del piloto llega a 4.5:1 sobre su chip en las tarjetas del box', () => {
+  const chip = srcBox.match(/color:\$\{_enScoreColor\(score\)\};[^"]*?background:(#[0-9a-fA-F]{3,6})/);
+  ok(chip, 'el chip de puntuación no tiene un fondo hex opaco (¿volvió a rgba? entonces depende de la calidad y no llega)');
+  const decl = leer('src/en-state.js').match(/function _enScoreColor\(score\) \{[\s\S]*?\n\}/);
+  ok(decl, 'no se encuentra _enScoreColor en src/en-state.js');
+  // La rama de score==null (#475569) no se pinta: la plantilla solo dibuja el
+  // chip con score!=null.
+  const colores = literalesDeExpresion(decl[0].replace(/if \(score == null\)[^\n]*/, ''));
+  ok(colores.length >= 5, 'la escala de _enScoreColor debería tener 5 escalones');
+  const fallos = colores.map(c => [c, contraste(hex(c), hex(chip[1]))]).filter(([, r]) => r < 4.5)
+    .map(([c, r]) => `${c} da ${r.toFixed(3)}:1`);
+  deepStrictEqual(fallos, [], `puntuación ilegible sobre el chip ${chip[1]}: ${fallos.join('; ')}`);
 });
 
 console.log(`\n${passed} pasados, ${failed} fallidos`);

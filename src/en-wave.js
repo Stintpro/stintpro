@@ -16,7 +16,7 @@ function _enWaveUrgencyColor(min){
 // Calidad = fondo COMPLETO de la tarjeta (idéntico a la cola de box en-strategy).
 function _enWaveQBg(q){ return q==='good'?'#22c55e':q==='bad'?'#ef4444':q==='neutral'?'#fbbf24':'#2f3138'; }
 function _enWaveQTxt(q){ return q==='neutral'?'#3a2a02':q==='unknown'?'#c7ced6':'#0b1a10'; }
-function _enWaveQSub(q){ return q==='neutral'?'#5a4310':q==='unknown'?'#8b95a0':'rgba(0,0,0,0.6)'; }
+function _enWaveQSub(q){ return q==='neutral'?'#5a4310':q==='unknown'?'#9ca3af':q==='bad'?'#2a0808':'#0e3a1d'; }
 
 function _enWaveWinLabel(w){
   return w.earliestMin===w.latestMin?`~${w.earliestMin} min`:`~${w.earliestMin}-${w.latestMin} min`;
@@ -206,8 +206,10 @@ function _enSetWaveBandwidth(v){
 // "Estado de Box", que ya muestra los karts en pit).
 function _enWaveKpiHtml(eq, trackAvg){
   const wc=_enComputeWaves(eq, trackAvg);
-  let val, color, sub;
-  if(!wc.hasMax){ val='—'; color='#555'; sub='configura stint máx'; }
+  // color arranca en --text-3 (sin stint máx: tenue pero legible) y se declara
+  // con valor para que el barrido de baldosas de tests/contrast.test.js lo resuelva.
+  let color='var(--text-3)', val, sub;
+  if(!wc.hasMax){ val='—'; sub='configura stint máx'; }
   else if(wc.next){
     const n=wc.next;
     color=_enWaveUrgencyColor(n.earliestMin);
