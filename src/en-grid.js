@@ -30,7 +30,8 @@ function _enSyncThead(cols){
 }
 
 // El grid-template-columns deja de estar cableado en el CSS: se calcula desde
-// los anchos del catálogo. Dos reglas, una por breakpoint, en un <style> propio.
+// los anchos del catálogo. Tres tramos (escritorio >1180 · medio 901–1180, iPad
+// en horizontal · estrecho ≤900, iPad en vertical), en un <style> propio.
 // Se escribe en el DOM solo si el texto cambia: cada asignación a textContent
 // fuerza un reparse de CSSOM, y en vivo esto se evalúa varias veces por segundo.
 let _enLastColStyle=null;
@@ -38,9 +39,11 @@ function _enApplyColumnStyle(cols){
   let el=document.getElementById('en-col-style');
   if(!el){ el=document.createElement('style'); el.id='en-col-style'; document.head.appendChild(el); }
   const ancho=EnColumns.gridTemplate(cols,false);
-  const estrecho=EnColumns.gridTemplate(cols,true);
+  const medio=EnColumns.gridTemplate(cols,'mid');
+  const estrecho=EnColumns.gridTemplate(cols,'narrow');
   const css=
     `.en-thead,.en-row{grid-template-columns:${ancho};}`+
+    `@media (max-width:1180px){.en-thead,.en-row{grid-template-columns:${medio};}}`+
     `@media (max-width:900px){.en-thead,.en-row{grid-template-columns:${estrecho};}}`;
   if(css===_enLastColStyle)return;
   el.textContent=css;

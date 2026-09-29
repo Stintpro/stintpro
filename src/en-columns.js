@@ -13,7 +13,9 @@
 //   id           identificador estable — se persiste en localStorage
 //   label        texto de cabecera
 //   align        alineación de la cabecera ('left'|'center'|'right')
-//   width        ancho CSS en pantalla ancha
+//   width        ancho CSS en pantalla ancha (>1180px)
+//   widthMid     ancho CSS en 901–1180px (iPad en horizontal): letra normal,
+//                anchos ajustados al contenido real para que el piloto respire
 //   widthNarrow  ancho CSS en ≤900px
 //   source       'apex' (pinta un dato de Apex) | 'stintpro' (lo calculamos)
 //   fixed        true → no se puede desmarcar
@@ -37,7 +39,7 @@
   const COLUMNS = [
     {
       id: 'dot', label: '', align: 'center',
-      width: '20px', widthNarrow: '16px',
+      width: '20px', widthMid: '18px', widthNarrow: '16px',
       source: 'stintpro', fixed: true,
       // Sin requires a propósito: el parser deduce el estado también sin
       // grp/sta, por los códigos sueltos y la secuencia si→so
@@ -48,7 +50,7 @@
     },
     {
       id: 'pos', label: 'Pos', align: 'center',
-      width: '42px', widthNarrow: '30px',
+      width: '42px', widthMid: '34px', widthNarrow: '30px',
       source: 'apex', fixed: true,
       requires: cm => !!cm.rk,
       head: sortMode => `<span style="cursor:pointer;color:${sortMode === 'pos' ? '#F5A623' : '#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${sortMode === 'pos' ? ' ▼' : ''}</span>`,
@@ -56,28 +58,28 @@
     },
     {
       id: 'kart', label: 'Kart', align: 'right',
-      width: '42px', widthNarrow: '34px',
+      width: '42px', widthMid: '38px', widthNarrow: '34px',
       source: 'apex', fixed: true,
       requires: cm => !!cm.no,
       cell: (e, d) => `<div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>`,
     },
     {
       id: 'driver', label: 'Piloto', align: 'left',
-      width: '1fr', widthNarrow: '1fr',
+      width: '1fr', widthMid: '1fr', widthNarrow: '1fr',
       source: 'apex', fixed: true,
       requires: cm => !!cm.dr,
       cell: (e, d) => `<div class="sp-name">${d.chkBadge}${_esc(e.name)}${d.pitBadge}${d.fixBadge}${_enPilotHistory?.[e.name] ? `<span class="en-info-btn" onclick="_enShowPilotHistory(${_esc(JSON.stringify(e.name || ''))},event)" title="Ver historial">ℹ</span>` : ''}</div>`,
     },
     {
       id: 'team', label: 'Equipo', align: 'left',
-      width: 'minmax(0,120px)', widthNarrow: 'minmax(0,60px)',
+      width: 'minmax(0,120px)', widthMid: 'minmax(0,90px)', widthNarrow: 'minmax(0,60px)',
       source: 'stintpro',
       requires: null,
       cell: (e, d) => `<div class="sp-name" style="font-size:12px;color:var(--text-3)">${(() => { const tn = (e.teamName && e.teamName !== e.name) ? e.teamName : null; return tn ? _esc(tn) : '—'; })()}</div>`,
     },
     {
       id: 'class', label: 'Clase', align: 'center',
-      width: '64px', widthNarrow: '46px',
+      width: '64px', widthMid: '50px', widthNarrow: '46px',
       // Sin `default:false`: se selecciona por defecto, pero `requires` la deja
       // oculta salvo que Apex mande la columna de categoría. Efecto neto: aparece
       // sola en carreras multicategoría (PRO/AM, cilindradas) y sigue invisible
@@ -88,7 +90,7 @@
     },
     {
       id: 'tours', label: 'Vtas', align: 'right',
-      width: '44px', widthNarrow: '30px',
+      width: '44px', widthMid: '36px', widthNarrow: '30px',
       source: 'apex',
       // Esta columna NO se oculta nunca, y la razón está medida sobre los raw
       // logs del VPS (rkc, agosto 2026): Apex manda el contador oficial en 11 de
@@ -113,7 +115,7 @@
     },
     {
       id: 'last', label: 'Última', align: 'right',
-      width: '86px', widthNarrow: '62px',
+      width: '86px', widthMid: '80px', widthNarrow: '66px',
       source: 'apex',
       requires: cm => !!cm.llp,
       // Glifo de rebufo (≋ tren / ▮ bloqueo) tras el tiempo: gris tenue, no
@@ -122,14 +124,14 @@
     },
     {
       id: 'best', label: 'Mejor', align: 'right',
-      width: '86px', widthNarrow: '62px',
+      width: '86px', widthMid: '76px', widthNarrow: '62px',
       source: 'apex',
       requires: cm => !!cm.blp,
       cell: (e, d) => `<div class="sp-t" style="color:${e.bestLap ? d.bestCol : '#2d2f38'}">${_enFmt(e.bestLap)}</div>`,
     },
     {
       id: 'm5v', label: 'M5v', align: 'right',
-      width: '78px', widthNarrow: '56px',
+      width: '78px', widthMid: '78px', widthNarrow: '64px',
       source: 'stintpro',
       requires: null,
       head: sortMode => `<span style="cursor:pointer;color:${sortMode === 'm5v' ? '#F5A623' : 'rgba(245,166,35,0.55)'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por media de 5 vueltas (ritmo real)">M5v${sortMode === 'm5v' ? ' ▼' : ''}</span>`,
@@ -137,35 +139,35 @@
     },
     {
       id: 'delta', label: 'Δ Pista', align: 'right',
-      width: '62px', widthNarrow: '44px',
+      width: '62px', widthMid: '52px', widthNarrow: '44px',
       source: 'stintpro',
       requires: null,
       cell: (e, d) => `<div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>`,
     },
     {
       id: 'gap', label: 'Gap', align: 'right',
-      width: '64px', widthNarrow: '46px',
+      width: '64px', widthMid: '62px', widthNarrow: '51px',
       source: 'apex',
       requires: cm => !!cm.gap,
       cell: (e, d) => `<div class="sp-gap">${d.gapHtml}</div>`,
     },
     {
       id: 'int', label: 'Int', align: 'right',
-      width: '62px', widthNarrow: '44px',
+      width: '62px', widthMid: '60px', widthNarrow: '51px',
       source: 'apex',
       requires: cm => !!cm.int,
       cell: (e, d) => `<div class="sp-gap">${e.interval || '—'}</div>`,
     },
     {
       id: 'score', label: 'Score', align: 'right',
-      width: '68px', widthNarrow: '48px',
+      width: '68px', widthMid: '50px', widthNarrow: '48px',
       source: 'stintpro',
       requires: null,
       cell: (e, d) => `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)" title="Ver vueltas de la sesión">${(() => { const r = _enPilotRatings[e.name]; const s = typeof r === 'object' ? r?.score : r; return s != null ? `<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>` : '<span style="color:#2d2f38">—</span>'; })()}</div>`,
     },
     {
       id: 'pit', label: 'Pit', align: 'right',
-      width: '38px', widthNarrow: '30px',
+      width: '38px', widthMid: '30px', widthNarrow: '30px',
       // El contador lo llevamos nosotros, pero se alimenta de la columna pit
       // de Apex: sin ella el número sería siempre 0.
       source: 'stintpro',
@@ -196,8 +198,10 @@
     return COLUMNS.filter(c => (c.fixed || sel.has(c.id)) && isAvailable(c, colMap));
   }
 
-  function gridTemplate(cols, narrow) {
-    return cols.map(c => (narrow ? c.widthNarrow : c.width)).join(' ');
+  // tramo: false → escritorio · 'mid' → 901–1180px · true | 'narrow' → ≤900px
+  function gridTemplate(cols, tramo) {
+    const key = tramo === 'mid' ? 'widthMid' : tramo ? 'widthNarrow' : 'width';
+    return cols.map(c => c[key]).join(' ');
   }
 
   function theadHtml(cols, sortMode) {

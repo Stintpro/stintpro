@@ -169,11 +169,22 @@ function _enInjectStyles(){
        .sp-pos, .sp-name, .sp-t y .sp-gap viven ahora en panel.css: sus reglas quedan
        fuera de este bloque a propósito, para no reactivar un tamaño que era letra
        muerta antes de esta rama. */
+    /* Tramo medio (901–1180px, iPad en horizontal): la letra NO baja; solo se
+       estrechan huecos y márgenes. Los anchos por columna salen de widthMid
+       (en-columns.js) para que al piloto le queden >=200px a 1024px. */
+    @media (max-width:1180px){
+      .en-thead,.en-row{column-gap:6px;padding-left:10px;padding-right:10px;}
+    }
     @media (max-width:900px){
       .en-thead,.en-row{column-gap:4px;padding-left:8px;padding-right:8px;}
       .en-thead span{font-size:10px;}
       .en-kart{width:26px;height:20px;font-size:12px;}
       .sp-vtas,.en-m5,.en-delta,.sp-pitc{font-size:12px;}
+      /* Tiempos y gaps (iPad en vertical): a su tamaño de escritorio no caben en
+         widthNarrow y se montaban en la columna vecina. Acotado a .en-row porque
+         .sp-t/.sp-gap también los usa el panel sprint. */
+      .en-row .sp-t,.en-row .sp-gap{font-size:12px;}
+      .en-row .en-m5{font-size:11.5px;}
     }
     .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;cursor:pointer;position:relative;}
     .en-kart-q{position:absolute;top:-3px;right:-3px;font-size:8.5px;line-height:1;}

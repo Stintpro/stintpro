@@ -64,9 +64,10 @@ group('catálogo', () => {
     ]);
   });
 
-  test('toda columna tiene ancho en los dos breakpoints', () => {
+  test('toda columna tiene ancho en los tres tramos (escritorio, medio, estrecho)', () => {
     COLUMNS.forEach(c => {
       ok(c.width, `${c.id} sin width`);
+      ok(c.widthMid, `${c.id} sin widthMid`);
       ok(c.widthNarrow, `${c.id} sin widthNarrow`);
     });
   });
@@ -180,9 +181,27 @@ group('gridTemplate', () => {
       '20px 42px 42px 1fr minmax(0,120px) 44px 86px 86px 78px 62px 64px 62px 68px 38px');
   });
 
-  test('reproduce exactamente el de ≤900px', () => {
+  test('reproduce exactamente el de ≤900px (Última/M5v/Gap/Int ampliados 2026-09-29: se montaban en iPad vertical)', () => {
     strictEqual(gridTemplate(visibleColumns(FULL_COLMAP, DEFAULT_SEL), true),
-      '16px 30px 34px 1fr minmax(0,60px) 30px 62px 62px 56px 44px 46px 44px 48px 30px');
+      '16px 30px 34px 1fr minmax(0,60px) 30px 66px 62px 64px 44px 51px 51px 48px 30px');
+  });
+
+  test('el tramo medio (iPad en horizontal, 901-1180px) usa widthMid', () => {
+    strictEqual(gridTemplate(visibleColumns(FULL_COLMAP, DEFAULT_SEL), 'mid'),
+      '18px 34px 38px 1fr minmax(0,90px) 36px 80px 76px 78px 52px 62px 60px 50px 30px');
+  });
+
+  test('el tramo estrecho acepta true o "narrow" (compatibilidad)', () => {
+    const cols = visibleColumns(FULL_COLMAP, DEFAULT_SEL);
+    strictEqual(gridTemplate(cols, 'narrow'), gridTemplate(cols, true));
+  });
+
+  test('en el tramo medio el piloto conserva >=200px a 1024px (iPad horizontal)', () => {
+    // Suma de los anchos fijos + huecos (13 × 6px) + padding lateral (2 × 10px).
+    const fijos = visibleColumns(FULL_COLMAP, DEFAULT_SEL)
+      .map(c => c.widthMid).filter(w => w !== '1fr')
+      .reduce((a, w) => a + parseFloat(w.replace('minmax(0,', '')), 0);
+    ok(1024 - fijos - 13 * 6 - 20 >= 200, `al piloto le quedarían ${1024 - fijos - 13 * 6 - 20}px`);
   });
 
   test('quitar una columna quita su tramo', () => {
