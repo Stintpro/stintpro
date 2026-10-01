@@ -140,8 +140,120 @@
     return pl[Math.min(pl.length - 1, Math.max(0, Math.round(f * (pl.length - 1))))];
   }
 
+  const CAP = 0.98;        // fracción máxima sin pase real: espera en la meta
+  const SLIDE_MS = 400;    // deslizamiento hasta la meta al llegar el pase
+  const STALE_LAPS = 3;    // vueltas de ritmo sin pase → sin datos
+  const REF_N = 5;         // vueltas limpias para el ritmo de referencia
+  const OUTLIER = 1.5;     // vuelta > 1,5× la mediana = no limpia (box, incidente)
+
+  // ── Ritmo ──────────────────────────────────────────────────────────────────
+  // lapHistory llega en SEGUNDOS (como en apex-protocol.js); se devuelve en ms.
+  // Solo las últimas 40 vueltas: basta para la mediana de control y evita
+  // ordenar historiales de cientos de vueltas en cada tick.
+  function refLapMs(lapHistory) {
+    const laps = (lapHistory || []).filter(t => typeof t === 'number' && t > 0)
+      .slice(-40).map(t => Math.round(t * 1000));
+    if (!laps.length) return null;
+    const med = median(laps);
+    return median(laps.filter(ms => ms < med * OUTLIER).slice(-REF_N));
+  }
+
+  // ── Motor ──────────────────────────────────────────────────────────────────
+  function createTrackPos(opts) {
+    const errRing = (opts && opts.errRing) || 200;
+    const karts = new Map();   // dorsal → estado interno
+    const errs = [];           // |vuelta real − ritmo previsto| en s
+    let fieldRef = null;
+    let ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: 0 };
+
+    function update(equipos, nowMs, c) {
+      if (c) ctx = Object.assign({}, ctx, c);
+      const refs = [], seen = new Set();
+      (equipos || []).forEach(e => {
+        if (!e || !e.dorsal) return;
+        const d = String(e.dorsal);
+        seen.add(d);
+        let k = karts.get(d);
+        if (!k) {
+          k = { dorsal: d, lastLapAt: 0, pit: false, outAt: null, slideFrom: null, slideAt: 0, shown: 0, ref: null };
+          karts.set(d, k);
+        }
+        k.name = e.teamName || e.name || ('#' + d);
+        k.lastLapMs = e.lastLap ? Math.round(e.lastLap * 1000) : null;
+        const pit = !!e.pit;
+        const at = e.lastLapAt || 0;
+        if (at && at !== k.lastLapAt) {
+          // Error en vivo con el ritmo de ANTES de esta vuelta
+          const lap = k.lastLapAt ? at - k.lastLapAt : null;
+          if (lap && k.ref && !k.pit && !pit && !k.outAt && lap < k.ref * OUTLIER) {
+            errs.push(Math.abs(lap - k.ref) / 1000);
+            if (errs.length > errRing) errs.shift();
+          }
+          // Desliza hasta la meta solo si venía de la 2ª mitad de la vuelta: un kart
+          // que no se estaba pintando (shown≈0) barrería la vuelta entera en 0,4 s.
+          if (k.lastLapAt && k.shown > 0.5) { k.slideFrom = k.shown; k.slideAt = nowMs; }
+          else k.slideFrom = null;
+          k.lastLapAt = at;
+          if (k.outAt && at > k.outAt) k.outAt = null;   // el pase cierra la vuelta de salida
+        }
+        if (k.pit && !pit) k.outAt = nowMs;               // acaba de salir de box
+        if (pit) k.outAt = null;
+        k.pit = pit;
+        k.pitS = e.pitS || 0;
+        k.pitSAt = nowMs;
+        k.ref = refLapMs(e.lapHistory);
+        if (k.ref) refs.push(k.ref);
+      });
+      for (const d of [...karts.keys()]) if (!seen.has(d)) karts.delete(d);
+      fieldRef = median(refs);
+    }
+
+    function place(k, now) {
+      const ref = k.ref || fieldRef;
+      if (k.pit) return { mode: 'pit', t: null };
+      if (k.outAt) {
+        const el = now - k.outAt, out = ctx.outTimeFrac || 0;
+        if (ref && el > STALE_LAPS * ref) return { mode: 'stale', t: k.shown };
+        // p = avance hacia la meta (0..1): por el offset del túnel si se conoce, si no por ritmo
+        const p = ctx.tunnelOffsetS > 0 ? el / (ctx.tunnelOffsetS * 1000)
+          : ref ? (el / ref) / (1 - out || 1) : 0;
+        return { mode: 'outlap', t: wrap(out + (1 - out) * Math.min(p, CAP)) };
+      }
+      if (!k.lastLapAt || !ref) return { mode: 'stale', t: k.shown || 0 };
+      const el = now - k.lastLapAt;
+      if (el > STALE_LAPS * ref) return { mode: 'stale', t: k.shown };
+      if (k.slideFrom != null) {
+        const s = (now - k.slideAt) / SLIDE_MS;
+        if (s < 1) return { mode: 'track', t: k.slideFrom + (1 - k.slideFrom) * s };
+        k.slideFrom = null;
+      }
+      return { mode: 'track', t: Math.min(el / ref, CAP) };
+    }
+
+    function positions(now) {
+      const out = [];
+      karts.forEach(k => {
+        const p = place(k, now);
+        if (p.t != null) k.shown = p.t;
+        out.push({ dorsal: k.dorsal, name: k.name, mode: p.mode, t: p.t });
+      });
+      return out;
+    }
+
+    function info(dorsal) {
+      const k = karts.get(String(dorsal));
+      return k ? { dorsal: k.dorsal, name: k.name, refMs: k.ref || fieldRef, lastLapMs: k.lastLapMs } : null;
+    }
+
+    function errorStats() {
+      return { medianS: median(errs), p90S: quantile(errs, 0.9), n: errs.length };
+    }
+
+    return { update, positions, info, errorStats, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
+  }
+
   return {
-    ovalTrack, loadTrack, mirrorProfile, pointAt, distToTime, pointAtDist,
-    pitLanePolyline, pitSlot, median, quantile,
+    CAP, ovalTrack, loadTrack, mirrorProfile, pointAt, distToTime, pointAtDist,
+    pitLanePolyline, pitSlot, median, quantile, refLapMs, createTrackPos,
   };
 });
