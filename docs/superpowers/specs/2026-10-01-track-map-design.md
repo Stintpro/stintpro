@@ -49,8 +49,14 @@ parada **medida** (ellos: escrita a mano) y offset de túnel por circuito.
 - Box: con `--pit-lap N` (vuelta que pasa por box) deriva la entrada y salida
   (fracciones de distancia donde la traza se separa y se reúne con la de pista)
   y la geometría del pit lane. Sin vuelta de box: `--pit-in F --pit-out F` a mano.
-- `--direction normal|inverso`: escribe o añade el perfil de ese sentido en el mismo
-  fichero.
+  **v1 (ajuste 2026-10-01): solo `--pit-in/--pit-out` a mano**, eligiéndolos sobre una
+  vista previa SVG numerada que genera la herramienta; derivar de `--pit-lap` queda
+  para v2. El pit lane se dibuja paralelo a la pista entre esas dos fracciones.
+- `--direction normal|inverso`: sentido en que se grabó la vuelta. **v1: un fichero
+  por grabación**; añadir el segundo sentido a un fichero existente queda para v2.
+- Dragy: se convierte antes con `tools/dragy_to_csv.py` de Track Engineer (sale en
+  formato RaceBox); la herramienta lee CSV de RaceBox y de RaceChrono.
+- El fichero NO guarda lat/lon: solo la geometría normalizada.
 
 ### 2. Formato `src/tracks/<slug>.json`
 
@@ -116,7 +122,11 @@ helpers puros exportados para tests: `pointAt(track, timeFrac)`, `ovalTrack()`.
 - Columna "En box": dorsal, equipo, tiempo parado, "Sale en m:ss"; ordenada por
   salida más próxima.
 - Etiqueta honesta: "Trazado genérico · posición aproximada" (óvalo) o
-  "Trazado GPS · error medio ±x s" (cifra de la validación por circuito).
+  "Trazado GPS · error medio ±x s". **Ajuste 2026-10-01:** el error se mide EN VIVO
+  (en cada pase por meta, |previsto − real|, mediana de los últimos 200) → sale por
+  circuito y con datos del día; con < 20 pases muestra "midiendo…".
+- Duración esperada de parada = `EnBox.pitDuration` (la app ya la aprende del crono
+  oficial de Apex salvo que el usuario la fije a mano).
 - Tocar un kart → ficha mínima (última vuelta, ritmo).
 - Rendimiento: solo con la pestaña visible; `requestAnimationFrame` (~10 Hz);
   el SVG se crea una vez y solo se mueven los `transform` de los dorsales (lección
@@ -130,9 +140,11 @@ helpers puros exportados para tests: `pointAt(track, timeFrac)`, `ovalTrack()`.
   deslizamiento en el pase.
 - **Herramienta:** con los GPS reales (Cabanillas con el Dragy, Torrejón con RaceChrono
   y RaceBox): longitud cercana a la oficial, `timeFrac` monótono 0→1, bucle cerrado.
-- **Validación con replay real** (banco + raw logs del VPS): para cada pase por meta,
-  error = |instante previsto de llegada − real|. Se reporta la mediana y el p90 por
-  circuito, y esa cifra alimenta la etiqueta de la UI.
+- **Validación con carrera real** (`tests/fixtures/traffic-2314.json`, 7H Los Santos):
+  para cada pase por meta, error = |instante previsto − real|. Medido el 2026-10-01:
+  **mediana 0,20 s · p90 0,66 s · p99 1,83 s** (8.090 pases). Umbrales del test:
+  mediana ≤ 0,35 s y p90 ≤ 1,0 s.
+- Verificación visual en el banco con el replay real (`tools/_replays/`).
 - La pestaña no rompe con un fichero corrupto o ausente (prueba de caída al óvalo).
 
 ## Riesgos
