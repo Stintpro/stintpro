@@ -135,5 +135,25 @@ test('fmtLap en m:ss.sss', () => {
   strictEqual(G.fmtLap(38.85), '0:38.850');
 });
 
+test('CSV real de RaceBox con preambuló e ISO-8601 Time', () => {
+  const baseTime = Date.UTC(2026, 3, 19, 8, 21, 7);
+  const raceBoxRealWithPreamble = rs => [
+    'Format,RaceBox CSV',
+    'Track,Henakart sentido Normal',
+    'Lap 1, 36.648, sectors, 10.167,12.115,0,14.366',
+    '',
+    'Record,Time,Latitude,Longitude,Altitude (m),Speed (m/s),GForceX (g),GForceY (g),GForceZ (g),Lap,Heading,GyroX (deg/s),GyroY (deg/s),GyroZ (deg/s)',
+    ...rs.map((r, i) => {
+      const isoTime = new Date(baseTime + r.t * 1000).toISOString();
+      return `${i + 1},${isoTime},${r.lat.toFixed(7)},${r.lon.toFixed(7)},582.4,1.43,-0.755,-0.031,0.693,${r.lap},51.95,1.84,0.81,-1.33`;
+    })
+  ].join('\n');
+  const s = G.parseGpsCsv(raceBoxRealWithPreamble(LAPS));
+  strictEqual(s.length, LAPS.length);
+  near(s[1].t - s[0].t, 0.04, 1e-3);
+  const laps = G.splitLaps(s);
+  deepStrictEqual(laps.map(l => l.lap), [2, 3]);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);
