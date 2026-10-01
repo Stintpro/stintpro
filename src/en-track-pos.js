@@ -194,7 +194,7 @@
         if (at && at !== k.lastLapAt) {
           // Error en vivo con el ritmo de ANTES de esta vuelta
           const lap = k.lastLapAt ? at - k.lastLapAt : null;
-          if (lap && k.ref && !k.pit && !pit && !wasOut && lap < k.ref * OUTLIER) {
+          if (lap > 0 && k.ref && !k.pit && !pit && !wasOut && lap < k.ref * OUTLIER) {
             errs.push(Math.abs(lap - k.ref) / 1000);
             if (errs.length > errRing) errs.shift();
           }
@@ -250,7 +250,8 @@
           : ref ? (el / ref) / (1 - out || 1) : 0;
         return { mode: 'outlap', t: wrap(out + (1 - out) * Math.min(p, CAP)) };
       }
-      if (!k.lastLapAt || !ref) return { mode: 'stale', t: k.shown || 0 };
+      if (!k.lastLapAt) return { mode: 'hidden', t: null };   // aún sin ningún pase
+      if (!ref) return { mode: 'stale', t: k.shown || 0 };
       const el = now - (skew || 0) - k.lastLapAt;
       if (el > STALE_LAPS * ref) return { mode: 'stale', t: k.shown };
       if (k.slideFrom != null) {
@@ -305,15 +306,24 @@
         if (!ahead || delta < ahead.delta) ahead = { p, delta };
         if (!behind || delta > behind.delta) behind = { p, delta };
       });
+      if (behind && ahead && behind.p === ahead.p) behind = null;   // un solo rival: solo delante
       const out = (x, frac) => x && { dorsal: x.p.dorsal, name: x.p.name, gapS: frac * ref / 1000 };
       return { ahead: out(ahead, ahead && ahead.delta), behind: out(behind, behind && (1 - behind.delta)) };
+    }
+
+    // Cambio de circuito/sentido: nada del anterior vale.
+    function reset() {
+      karts.clear();
+      errs.length = 0;
+      skews.length = 0;
+      fieldRef = null;
     }
 
     function errorStats() {
       return { medianS: median(errs), p90S: quantile(errs, 0.9), n: errs.length };
     }
 
-    return { update, positions, info, errorStats, pitList, gapsFor, clockSkewMs, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
+    return { update, positions, info, errorStats, pitList, gapsFor, clockSkewMs, reset, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
   }
 
   return {

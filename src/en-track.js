@@ -30,10 +30,15 @@ function _enTrackNow(){
 function _enTrackEsc(s){
   return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function _enTrackFmtGap(s){ return (s>=0?'+':'−')+Math.abs(s).toFixed(1).replace('.',',')+' s'; }
+function _enTrackFmtGap(s){
+  if(!Number.isFinite(s))return '—';
+  if(Math.abs(s)<0.05)return '+0,0 s';
+  return (s>=0?'+':'−')+Math.abs(s).toFixed(1).replace('.',',')+' s';
+}
 function _enTrackClock(s){ s=Math.max(0,Math.round(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 function _enTrackFmtLap(ms){
   if(ms==null)return '—';
+  ms=Math.round(ms);
   const m=Math.floor(ms/60000), r=Math.round(ms-m*60000);
   return `${m}:${String(Math.floor(r/1000)).padStart(2,'0')}.${String(r%1000).padStart(3,'0')}`;
 }
@@ -114,14 +119,17 @@ function _enTrackEnsure(){
   const slug=cfg.slug||'', dir=cfg.trackDirection||'normal', key=slug+'|'+dir;
   if(!EnTrack.engine)EnTrack.engine=P.createTrackPos();
   if(EnTrack.key===key&&EnTrack.track)return EnTrack.track;
+  if(EnTrack.key!=null&&EnTrack.key!==key)EnTrack.engine.reset();   // otro circuito/sentido
   EnTrack.key=key;
   EnTrack.track=P.ovalTrack();
   const apply=j=>{ if(EnTrack.key!==key)return; const t=j&&P.loadTrack(j,dir); if(t)EnTrack.track=t; };
   if(slug){
     if(slug in EnTrack.cache)apply(EnTrack.cache[slug]);
+    // Solo se cachea un JSON bueno o un 404 (no hay trazado): un fallo de red o
+    // del servidor se reintenta en el próximo cambio de clave o al recargar.
     else fetch((window.EnTrackBase||'tracks/')+encodeURIComponent(slug)+'.json')
-      .then(r=>r.ok?r.json():null).catch(()=>null)
-      .then(j=>{EnTrack.cache[slug]=j;apply(j);});
+      .then(r=>r.ok?r.json():(r.status===404?null:Promise.reject(r.status)))
+      .then(j=>{EnTrack.cache[slug]=j;apply(j);},()=>{});
   }
   return EnTrack.track;
 }
@@ -280,6 +288,8 @@ function _enTrackFrame(){
   EnTrack.lastFrame=wall;
   const g=document.getElementById('en-trk-karts');
   if(!g){_enStopTrackRaf();return;}
+  // Llegó otro trazado y el SVG aún es del anterior: espera a que _enRenderTrack lo reconstruya.
+  if(EnTrack.shellFor!==EnTrack.track)return;
   const P=window.EnTrackPos, track=EnTrack.track, now=_enTrackNow();
   const me=String(window.AppState?.config?.myDorsal||'');
   const pos=EnTrack.engine.positions(now);
@@ -321,6 +331,6 @@ function _enStartTrackRaf(){ if(EnTrack.raf==null&&typeof requestAnimationFrame=
 function _enStopTrackRaf(){ if(EnTrack.raf!=null&&typeof cancelAnimationFrame==='function')cancelAnimationFrame(EnTrack.raf); EnTrack.raf=null; }
 
 if (typeof module !== 'undefined') {
-  module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
+  module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
     _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml };
 }

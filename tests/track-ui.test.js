@@ -142,5 +142,77 @@ test('en-grid llama a _enTrackUpdate en cada render, antes del bloque de la pest
   assert.ok(iu > 0 && ir > iu, `update ${iu} render ${ir}`);
 });
 
-console.log(`\n${passed} OK, ${failed} fallos\n`);
-if (failed) process.exit(1);
+console.log('\nmenores (revisión final)');
+
+test('vuelta: redondea antes de partir (59999,6 ms → 1:00.000)', () => {
+  assert.strictEqual(U._enTrackFmtLap(59999.6), '1:00.000');
+});
+test('hueco: no finito → guion; casi cero → +0,0 s', () => {
+  assert.strictEqual(U._enTrackFmtGap(NaN), '—');
+  assert.strictEqual(U._enTrackFmtGap(Infinity), '—');
+  assert.strictEqual(U._enTrackFmtGap(-0.01), '+0,0 s');
+});
+
+const tick = () => new Promise(r => setTimeout(r, 0));
+async function atest(name, fn) {
+  try { await fn(); console.log(`  ✓ ${name}`); passed++; }
+  catch (e) { console.error(`  ✗ ${name}\n    ${e.message}`); failed++; }
+}
+const resetUi = () => { U.EnTrack.engine = null; U.EnTrack.key = null; U.EnTrack.track = null; U.EnTrack.cache = {}; };
+
+(async () => {
+  await atest('cambiar de circuito/sentido resetea el motor', async () => {
+    resetUi();
+    global.fetch = () => Promise.resolve({ ok: false, status: 404 });
+    global.window = { EnTrackPos: PTP, AppState: { config: { slug: 'a', trackDirection: 'normal' } } };
+    let at = Date.now() - 400000;
+    for (let i = 0; i < 6; i++) { U._enTrackUpdate([kartUi('7', at)]); at += 60300; }
+    await tick();
+    let resets = 0;
+    const orig = U.EnTrack.engine.reset;
+    U.EnTrack.engine.reset = () => { resets++; return orig(); };
+    U._enTrackUpdate([kartUi('7', at)]);
+    assert.strictEqual(resets, 0, 'misma clave no resetea');
+    window.AppState.config.trackDirection = 'inverso';
+    U._enTrackEnsure();
+    assert.strictEqual(resets, 1);
+    assert.deepStrictEqual(U.EnTrack.engine.positions(Date.now()), []);
+    U.EnTrack.engine.reset = orig;
+  });
+  await atest('trazado: cachea JSON y 404; un fallo de red o 500 se reintenta', async () => {
+    let calls = 0, mode = 'net';
+    global.fetch = () => { calls++;
+      if (mode === 'net') return Promise.reject(new Error('offline'));
+      if (mode === '500') return Promise.resolve({ ok: false, status: 500 });
+      return Promise.resolve({ ok: false, status: 404 }); };
+    resetUi();
+    global.window = { EnTrackPos: PTP, AppState: { config: { slug: 'x', trackDirection: 'normal' } } };
+    U._enTrackEnsure(); await tick(); await tick();
+    assert.ok(!('x' in U.EnTrack.cache), 'fallo de red no se cachea');
+    mode = '500'; U.EnTrack.key = null;
+    U._enTrackEnsure(); await tick(); await tick();
+    assert.ok(!('x' in U.EnTrack.cache), '500 no se cachea');
+    mode = '404'; U.EnTrack.key = null;
+    U._enTrackEnsure(); await tick(); await tick();
+    assert.ok('x' in U.EnTrack.cache && U.EnTrack.cache.x === null, '404 se cachea como null');
+    assert.strictEqual(calls, 3);
+    U.EnTrack.key = null; U._enTrackEnsure(); await tick();
+    assert.strictEqual(calls, 3, 'tras el 404 no se vuelve a pedir');
+  });
+  await atest('fotograma con el trazado nuevo sin su SVG → no pinta hasta reconstruir', async () => {
+    let raf = 0, posCalls = 0;
+    global.requestAnimationFrame = () => ++raf;
+    global.document = { getElementById: () => ({ appendChild() {}, insertBefore() {}, firstChild: null }) };
+    U.EnTrack.engine.positions = () => { posCalls++; return []; };
+    U.EnTrack.shellFor = { otro: true };
+    U.EnTrack.lastFrame = 0;
+    U._enTrackFrame();
+    assert.strictEqual(raf, 1, 'sigue programando');
+    assert.strictEqual(posCalls, 0, 'no pinta');
+    delete global.requestAnimationFrame;
+    U.EnTrack.raf = null;
+  });
+  delete global.window; delete global.document; delete global.fetch;
+  console.log(`\n${passed} OK, ${failed} fallos\n`);
+  if (failed) process.exit(1);
+})();

@@ -344,5 +344,47 @@ test('por defecto (sin ctx) no hay pit lane: la salida va oculta', () => {
   strictEqual(e.positions(405 * S)[0].mode, 'hidden');
 });
 
+console.log('\nmenores (revisión final)');
+
+test('error en vivo: una vuelta negativa (seek del replay / cambio de sesión) no cuenta', () => {
+  const e = P.createTrackPos();
+  e.update([kart('7', 100 * S)], 100 * S);
+  e.update([kart('7', 50 * S)], 101 * S);
+  strictEqual(e.errorStats().n, 0);
+});
+
+test('kart sin ningún pase todavía → oculto, sin huecos', () => {
+  const now = 1000 * S;
+  const e = P.createTrackPos();
+  e.update([kart('1', now - 30000), kart('9', 0)], now);
+  const p = e.positions(now).find(x => x.dorsal === '9');
+  strictEqual(p.mode, 'hidden');
+  strictEqual(p.t, null);
+  const g = e.gapsFor('1', now);
+  ok(!g.ahead || g.ahead.dorsal !== '9');
+  ok(!g.behind || g.behind.dorsal !== '9');
+});
+
+test('reset() vacía karts, errores y desfase', () => {
+  const e = P.createTrackPos();
+  let at = 100 * S;
+  for (let i = 0; i < 6; i++) { e.update([kart('7', at)], at + 2000); at += 60300; }
+  ok(e.errorStats().n > 0);
+  e.reset();
+  strictEqual(e.errorStats().n, 0);
+  deepStrictEqual(e.positions(at), []);
+  strictEqual(e.clockSkewMs(), 0);
+  strictEqual(e._fieldRef(), null);
+});
+
+test('un solo rival: delante sí, detrás null (no el mismo kart dos veces)', () => {
+  const now = 1000 * S;
+  const e = P.createTrackPos();
+  e.update([kart('1', now - 30000), kart('2', now - 33000)], now);
+  const g = e.gapsFor('1', now);
+  strictEqual(g.ahead.dorsal, '2');
+  strictEqual(g.behind, null);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);
