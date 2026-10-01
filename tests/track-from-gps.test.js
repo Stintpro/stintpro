@@ -135,7 +135,7 @@ test('fmtLap en m:ss.sss', () => {
   strictEqual(G.fmtLap(38.85), '0:38.850');
 });
 
-test('CSV real de RaceBox con preambuló e ISO-8601 Time', () => {
+test('CSV real de RaceBox con preámbulo e ISO-8601 Time', () => {
   const baseTime = Date.UTC(2026, 3, 19, 8, 21, 7);
   const raceBoxRealWithPreamble = rs => [
     'Format,RaceBox CSV',
@@ -147,7 +147,7 @@ test('CSV real de RaceBox con preambuló e ISO-8601 Time', () => {
       const isoTime = new Date(baseTime + r.t * 1000).toISOString();
       return `${i + 1},${isoTime},${r.lat.toFixed(7)},${r.lon.toFixed(7)},582.4,1.43,-0.755,-0.031,0.693,${r.lap},51.95,1.84,0.81,-1.33`;
     })
-  ].join('\n');
+  ].join('\n') + '\n';
   const s = G.parseGpsCsv(raceBoxRealWithPreamble(LAPS));
   strictEqual(s.length, LAPS.length);
   near(s[1].t - s[0].t, 0.04, 1e-3);

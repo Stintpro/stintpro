@@ -37,7 +37,7 @@ function parseGpsCsv(text) {
   const samples = [];
   for (let r = hi + 1; r < lines.length; r++) {
     const f = lines[r].split(',');
-    const tCell = f[iT].trim();
+    const tCell = (f[iT] || '').trim();
     const t = /^-?\d+(\.\d+)?$/.test(tCell) ? parseFloat(tCell) : Date.parse(tCell) / 1000;
     const lat = parseFloat(f[iLat]), lon = parseFloat(f[iLon]), lap = parseInt(f[iLap], 10);
     if ([t, lat, lon].some(Number.isNaN)) continue;
