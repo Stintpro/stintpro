@@ -168,6 +168,9 @@ function _enRender(){
       waveBody.innerHTML=_enRenderWave(eq, trackAvg);
     }
   }catch(err){console.error('[StintPro] Error olas:',err);}
+  try{
+    if(EnUi.tab==='track'&&typeof _enRenderTrack==='function')_enRenderTrack(eq);
+  }catch(err){console.error('[StintPro] Error pista:',err);}
 
   try{
     const advBody=el.querySelector('#en-adv-body');
@@ -253,11 +256,12 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     </div>
   </div>
   <div class="en-tabs">
-    <div class="en-tab ${EnUi.tab==='grid'?'active':''}" onclick="_enSetTab('grid')">📊 Clasificación</div>
-    <div class="en-tab ${EnUi.tab==='team'?'active':''}" onclick="_enSetTab('team')">👥 Mi equipo</div>
-    <div class="en-tab ${EnUi.tab==='strat'?'active':''}" onclick="_enSetTab('strat')">🎯 Estrategia</div>
-    <div class="en-tab ${EnUi.tab==='wave'?'active':''}" onclick="_enSetTab('wave')">🌊 Olas</div>
-    <div class="en-tab ${EnUi.tab==='adv'?'active':''}" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
+    <div class="en-tab ${EnUi.tab==='grid'?'active':''}" data-tab="grid" onclick="_enSetTab('grid')">📊 Clasificación</div>
+    <div class="en-tab ${EnUi.tab==='team'?'active':''}" data-tab="team" onclick="_enSetTab('team')">👥 Mi equipo</div>
+    <div class="en-tab ${EnUi.tab==='strat'?'active':''}" data-tab="strat" onclick="_enSetTab('strat')">🎯 Estrategia</div>
+    <div class="en-tab ${EnUi.tab==='wave'?'active':''}" data-tab="wave" onclick="_enSetTab('wave')">🌊 Olas</div>
+    <div class="en-tab ${EnUi.tab==='track'?'active':''}" data-tab="track" onclick="_enSetTab('track')">🗺️ Pista</div>
+    <div class="en-tab ${EnUi.tab==='adv'?'active':''}" data-tab="adv" id="en-tab-adv" onclick="_enSetTab('adv')">🔬 Avanzado</div>
   </div>
   <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
   <div class="sp-body" id="en-grid-body" style="${EnUi.tab==='grid'?'':'display:none'}"></div>
@@ -270,6 +274,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
     <div id="en-strat-dynamic"></div>
   </div>
   <div class="en-strat" id="en-wave-body" style="${EnUi.tab==='wave'?'':'display:none'}"></div>
+  <div class="en-strat" id="en-track-body" style="${EnUi.tab==='track'?'':'display:none'}"></div>
   <div class="en-strat" id="en-adv-body" style="${EnUi.tab==='adv'?'':'display:none'}">
     <div id="en-adv-config"></div>
     <div id="en-adv-tunnel"></div>
@@ -602,6 +607,7 @@ function _enSetTab(tab){
   const team=document.getElementById('en-team-body');
   const strat=document.getElementById('en-strat-body');
   const wave=document.getElementById('en-wave-body');
+  const trackBody=document.getElementById('en-track-body');
   const adv=document.getElementById('en-adv-body');
   const colBar=document.getElementById('en-col-bar');
   if(thead)thead.style.display=tab==='grid'?'':'none';
@@ -609,6 +615,7 @@ function _enSetTab(tab){
   if(team)team.style.display=tab==='team'?'':'none';
   if(strat)strat.style.display=tab==='strat'?'':'none';
   if(wave)wave.style.display=tab==='wave'?'':'none';
+  if(trackBody)trackBody.style.display=tab==='track'?'':'none';
   if(adv)adv.style.display=tab==='adv'?'':'none';
   if(colBar)colBar.style.display=tab==='grid'?'':'none';
   if(tab!=='grid'){
@@ -616,6 +623,7 @@ function _enSetTab(tab){
     if(panelWrap)panelWrap.innerHTML='';
   }
   if(tab!=='adv')_enStopAdvRaf(); else _enStartAdvRaf();
+  if(tab!=='track'&&typeof _enStopTrackRaf==='function')_enStopTrackRaf();
   // Entrar en Avanzado apaga el parpadeo de alertas del ingeniero de pista
   if(tab==='adv'&&typeof _enClearAlertBlink==='function')_enClearAlertBlink();
   // Reset config cuando se entra a estrategia
@@ -646,8 +654,8 @@ function _enSetTab(tab){
     const tcfg=document.getElementById('en-team-config');
     if(tcfg)tcfg.innerHTML=_enRenderTeamConfig();
   }
-  document.querySelectorAll('.en-tab').forEach((t,i)=>{
-    t.classList.toggle('active',i===(tab==='grid'?0:tab==='team'?1:tab==='strat'?2:3));
+  document.querySelectorAll('.en-tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.tab===tab);
   });
   _enRender();
 }
