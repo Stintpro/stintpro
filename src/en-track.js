@@ -15,8 +15,14 @@ const EnTrack = {
 function _enTrackNow(){
   const R=typeof window!=='undefined'?window.ReplayConnector:null;
   if(R&&R._lines&&R._lines.length&&R._playing){
-    if(!R._paused&&R.speed>0)return R._mediaStart+(Date.now()-R._wallStart)*R.speed;
-    return R._lines[R._currentIdx]?.t??Date.now();
+    const lineT=R._lines[R._currentIdx]?.t;
+    if(lineT==null)return Date.now();
+    if(R._paused||!(R.speed>0))return lineT;
+    // Interpola entre líneas con el reloj de pared, pero nunca fuera de
+    // [línea actual, +5 s]: si alguien sustituye Date.now() (el banco con
+    // reloj virtual lo hace) la fórmula deja de ser fiable.
+    const t=R._mediaStart+(Date.now()-R._wallStart)*R.speed;
+    return Math.min(Math.max(t,lineT),lineT+5000);
   }
   return Date.now();
 }

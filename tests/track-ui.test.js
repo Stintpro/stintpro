@@ -87,9 +87,13 @@ test('sin replay → reloj del sistema', () => {
 });
 test('replay en marcha → reloj de la grabación a su velocidad', () => {
   const wall = Date.now() - 2000;
-  global.window = { ReplayConnector: { _lines: [{ t: 5000 }], _currentIdx: 0, _playing: true, _paused: false, speed: 4, _mediaStart: 1000000, _wallStart: wall } };
+  global.window = { ReplayConnector: { _lines: [{ t: 1000000 }], _currentIdx: 0, _playing: true, _paused: false, speed: 2, _mediaStart: 1000000, _wallStart: wall } };
   const t = U._enTrackNow();
-  assert.ok(Math.abs(t - (1000000 + (Date.now() - wall) * 4)) < 200, `t ${t}`);
+  assert.ok(Math.abs(t - (1000000 + (Date.now() - wall) * 2)) < 200, `t ${t}`);
+});
+test('reloj cambiado por fuera → se queda en la línea actual', () => {
+  global.window = { ReplayConnector: { _lines: [{ t: 5000000 }], _currentIdx: 0, _playing: true, _paused: false, speed: 1, _mediaStart: 0, _wallStart: Date.now() } };
+  assert.strictEqual(U._enTrackNow(), 5000000);
 });
 test('replay en pausa → instante de la línea actual', () => {
   global.window = { ReplayConnector: { _lines: [{ t: 5000 }, { t: 7000 }], _currentIdx: 1, _playing: true, _paused: true, speed: 4, _mediaStart: 0, _wallStart: 0 } };
