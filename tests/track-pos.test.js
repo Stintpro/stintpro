@@ -196,5 +196,90 @@ test('error en vivo: |vuelta real − ritmo previsto| en cada pase limpio', () =
   strictEqual(P.createTrackPos().errorStats().n, 0);
 });
 
+console.log('\nbox, salida y huecos');
+
+test('en box: aparcado y con cuenta atrás que corre entre updates', () => {
+  const e = P.createTrackPos();
+  e.update([kart('7', 100 * S, { pit: true, pitS: 30 })], 200 * S, { pitDurationS: 120 });
+  strictEqual(e.positions(200 * S)[0].mode, 'pit');
+  const a = e.pitList(200 * S)[0];
+  strictEqual(a.dorsal, '7');
+  near(a.remainingS, 90);
+  near(e.pitList(210 * S)[0].remainingS, 80);
+  near(e.pitList(210 * S)[0].pitS, 40);
+});
+
+test('se pasa de la parada → remainingS negativo; orden por salida más próxima', () => {
+  const e = P.createTrackPos();
+  e.update([
+    kart('7', 100 * S, { pit: true, pitS: 40 }),
+    kart('9', 100 * S, { pit: true, pitS: 150 }),
+    kart('3', 100 * S, { pit: true, pitS: 100 }),
+  ], 200 * S, { pitDurationS: 120 });
+  deepStrictEqual(e.pitList(200 * S).map(p => p.dorsal), ['9', '3', '7']);
+  near(e.pitList(200 * S)[0].remainingS, -30);
+});
+
+test('vuelta de salida con offset de túnel: avanza de la salida a la meta', () => {
+  const e = P.createTrackPos();
+  const ctx = { pitDurationS: 120, tunnelOffsetS: 20, outTimeFrac: 0.5 };
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S, ctx);
+  e.update([kart('7', 100 * S, { pit: false })], 400 * S, ctx);
+  const p = e.positions(410 * S)[0];
+  strictEqual(p.mode, 'outlap');
+  near(p.t, 0.75);
+  near(e.positions(440 * S)[0].t, 0.5 + 0.5 * P.CAP);
+});
+
+test('vuelta de salida sin offset: avanza a su ritmo', () => {
+  const e = P.createTrackPos();
+  const ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: 0.5 };
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S, ctx);
+  e.update([kart('7', 100 * S, { pit: false })], 400 * S, ctx);
+  near(e.positions(415 * S)[0].t, 0.75);
+});
+
+test('el primer pase tras salir cierra la vuelta de salida', () => {
+  const e = P.createTrackPos();
+  const ctx = { tunnelOffsetS: 20, outTimeFrac: 0.5 };
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S, ctx);
+  e.update([kart('7', 100 * S)], 400 * S, ctx);
+  e.update([kart('7', 420 * S)], 420 * S, ctx);
+  strictEqual(e.positions(430 * S)[0].mode, 'track');
+});
+
+test('huecos en pista: delante y detrás, en segundos con mi ritmo', () => {
+  const now = 1000 * S;
+  const e = P.createTrackPos();
+  e.update([
+    kart('1', now - 30000),                         // yo, en 0,50
+    kart('2', now - 33000),                         // 0,55 → delante a 3,0 s
+    kart('3', now - 27000),                         // 0,45 → detrás a 3,0 s
+    kart('4', now - 31000, { pit: true }),          // en box: no cuenta
+  ], now);
+  const g = e.gapsFor('1', now);
+  strictEqual(g.ahead.dorsal, '2');
+  near(g.ahead.gapS, 3.0, 1e-9);
+  strictEqual(g.behind.dorsal, '3');
+  near(g.behind.gapS, 3.0, 1e-9);
+});
+
+test('huecos que cruzan la meta', () => {
+  const now = 1000 * S;
+  const e = P.createTrackPos();
+  e.update([kart('1', now - 57000), kart('2', now - 1200)], now); // yo 0,95 · él 0,02
+  const g = e.gapsFor('1', now);
+  strictEqual(g.ahead.dorsal, '2');
+  near(g.ahead.gapS, 4.2, 1e-9);
+});
+
+test('sin mi kart o con mi kart en box → sin huecos', () => {
+  const now = 1000 * S;
+  const e = P.createTrackPos();
+  e.update([kart('1', now - 30000, { pit: true }), kart('2', now - 33000)], now);
+  deepStrictEqual(e.gapsFor('1', now), { ahead: null, behind: null });
+  deepStrictEqual(e.gapsFor('99', now), { ahead: null, behind: null });
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

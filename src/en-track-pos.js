@@ -245,11 +245,44 @@
       return k ? { dorsal: k.dorsal, name: k.name, refMs: k.ref || fieldRef, lastLapMs: k.lastLapMs } : null;
     }
 
+    function pitList(now) {
+      const out = [];
+      karts.forEach(k => {
+        if (!k.pit) return;
+        const pitS = k.pitS + Math.max(0, now - k.pitSAt) / 1000;
+        out.push({ dorsal: k.dorsal, name: k.name, pitS, remainingS: (ctx.pitDurationS || 0) - pitS });
+      });
+      return out.sort((a, b) => a.remainingS - b.remainingS);
+    }
+
+    // Huecos EN PISTA (no en clasificación): el primero por delante y el primero
+    // por detrás, sin karts en box ni sin datos, en segundos con MI ritmo.
+    function gapsFor(dorsal, now) {
+      const none = { ahead: null, behind: null };
+      const me = karts.get(String(dorsal));
+      if (!me) return none;
+      const pos = positions(now).filter(p => p.mode === 'track' || p.mode === 'outlap');
+      const mine = pos.find(p => p.dorsal === me.dorsal);
+      if (!mine) return none;
+      const ref = me.ref || fieldRef;
+      if (!ref) return none;
+      let ahead = null, behind = null;
+      pos.forEach(p => {
+        if (p.dorsal === me.dorsal) return;
+        const delta = wrap(p.t - mine.t);
+        if (delta === 0) return;
+        if (!ahead || delta < ahead.delta) ahead = { p, delta };
+        if (!behind || delta > behind.delta) behind = { p, delta };
+      });
+      const out = (x, frac) => x && { dorsal: x.p.dorsal, name: x.p.name, gapS: frac * ref / 1000 };
+      return { ahead: out(ahead, ahead && ahead.delta), behind: out(behind, behind && (1 - behind.delta)) };
+    }
+
     function errorStats() {
       return { medianS: median(errs), p90S: quantile(errs, 0.9), n: errs.length };
     }
 
-    return { update, positions, info, errorStats, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
+    return { update, positions, info, errorStats, pitList, gapsFor, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
   }
 
   return {
