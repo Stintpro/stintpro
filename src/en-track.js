@@ -193,7 +193,7 @@ function _enRenderTrack(eq){
   EnTrack.engine.update(eq,_enTrackNow(),{
     pitDurationS:(typeof EnBox!=='undefined'&&EnBox.pitDuration)||120,
     tunnelOffsetS:_enTunnelOffsetS(),
-    outTimeFrac:track.pitLane?P.distToTime(track,track.pitLane.outFrac):0,
+    outTimeFrac:track.pitLane?P.distToTime(track,track.pitLane.outFrac):null,
   });
   if(EnTrack.shellFor!==track||!body.querySelector('#en-trk-karts')){
     body.innerHTML=_enTrackShellHtml(track);
@@ -217,8 +217,10 @@ function _enTrackFrame(){
   const inPit=pos.filter(p=>p.mode==='pit');
   const seen=new Set();
   pos.forEach(p=>{
+    if(p.mode==='hidden')return;
+    // en box: fuera del mapa (solo en la columna "En box") salvo que el trazado tenga pit lane
     const pt=p.mode==='pit'
-      ?P.pitSlot(track,inPit.indexOf(p),inPit.length,track.widthUnits*1.6)   // sin pit lane: solo en la columna
+      ?P.pitSlot(track,inPit.indexOf(p),inPit.length,track.widthUnits*1.6)
       :P.pointAt(track,p.t);
     if(!pt)return;
     seen.add(p.dorsal);

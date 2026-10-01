@@ -31,7 +31,7 @@ test('óvalo: 120 puntos, perfil lineal, genérico', () => {
   strictEqual(o.timeFrac.length, 120);
   near(o.timeFrac[30], 0.25);
   strictEqual(o.generic, true);
-  ok(o.pitLane && o.pitLane.inFrac > 0.5 && o.pitLane.outFrac < 0.5);
+  strictEqual(o.pitLane, null);
 });
 
 test('pointAt: 0 es la meta, 0,25 es el punto 30 y se envuelve', () => {
@@ -95,7 +95,7 @@ test('sin ningún perfil: lineal y aproximado', () => {
 });
 
 test('pit lane: 40 puntos, por FUERA de la pista; sin pitLane → null', () => {
-  const o = P.ovalTrack();
+  const o = { ...P.ovalTrack(), pitLane: { inFrac: 0.92, outFrac: 0.06 } };
   const pl = P.pitLanePolyline(o, 20);
   strictEqual(pl.length, 40);
   const c = [500, 330];
@@ -107,7 +107,7 @@ test('pit lane: 40 puntos, por FUERA de la pista; sin pitLane → null', () => {
 });
 
 test('pitSlot reparte los karts a lo largo del pit lane', () => {
-  const o = P.ovalTrack();
+  const o = { ...P.ovalTrack(), pitLane: { inFrac: 0.92, outFrac: 0.06 } };
   const pl = P.pitLanePolyline(o, 20);
   const a = P.pitSlot(o, 0, 2, 20), b = P.pitSlot(o, 1, 2, 20);
   ok(pl.some(p => p[0] === a[0] && p[1] === a[1]));
@@ -279,6 +279,38 @@ test('sin mi kart o con mi kart en box → sin huecos', () => {
   e.update([kart('1', now - 30000, { pit: true }), kart('2', now - 33000)], now);
   deepStrictEqual(e.gapsFor('1', now), { ahead: null, behind: null });
   deepStrictEqual(e.gapsFor('99', now), { ahead: null, behind: null });
+});
+
+console.log('\nsin pit lane (sin marcas de box)');
+
+test('salida de box sin pit lane: reaparece a "offset del túnel" de la meta', () => {
+  const e = P.createTrackPos();
+  const ctx = { pitDurationS: 120, tunnelOffsetS: 20, outTimeFrac: null };
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S, ctx);
+  e.update([kart('7', 100 * S)], 400 * S, ctx);
+  const p = e.positions(410 * S)[0];
+  strictEqual(p.mode, 'outlap');
+  near(p.t, (1 - 20 / 60) + (20 / 60) * 0.5, 1e-9);   // salida en 0,667 y a mitad de camino
+});
+
+test('salida de box sin pit lane ni offset: oculto hasta el siguiente pase', () => {
+  const e = P.createTrackPos();
+  const ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: null };
+  e.update([kart('7', 100 * S, { pit: true }), kart('1', 395 * S)], 300 * S, ctx);
+  e.update([kart('7', 100 * S), kart('1', 395 * S)], 400 * S, ctx);
+  const p = e.positions(410 * S).find(x => x.dorsal === '7');
+  strictEqual(p.mode, 'hidden');
+  strictEqual(p.t, null);
+  deepStrictEqual(e.gapsFor('1', 410 * S), { ahead: null, behind: null });
+  e.update([kart('7', 420 * S), kart('1', 395 * S)], 420 * S, ctx);
+  strictEqual(e.positions(425 * S).find(x => x.dorsal === '7').mode, 'track');
+});
+
+test('por defecto (sin ctx) no hay pit lane: la salida va oculta', () => {
+  const e = P.createTrackPos();
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S);
+  e.update([kart('7', 100 * S)], 400 * S);
+  strictEqual(e.positions(405 * S)[0].mode, 'hidden');
 });
 
 console.log(`\n${passed} OK, ${failed} fallos\n`);

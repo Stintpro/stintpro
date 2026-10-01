@@ -39,7 +39,7 @@
     return {
       slug: null, name: 'Óvalo', generic: true, lengthM: null,
       viewBox: { w: 1000, h: 660 }, widthUnits: 16, points, timeFrac,
-      pitLane: { inFrac: 0.92, outFrac: 0.06 }, approxProfile: false,
+      pitLane: null, approxProfile: false,
     };
   }
 
@@ -164,7 +164,7 @@
     const karts = new Map();   // dorsal → estado interno
     const errs = [];           // |vuelta real − ritmo previsto| en s
     let fieldRef = null;
-    let ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: 0 };
+    let ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: null };
 
     function update(equipos, nowMs, c) {
       if (c) ctx = Object.assign({}, ctx, c);
@@ -208,12 +208,20 @@
       fieldRef = median(refs);
     }
 
+    // mode: 'track'|'outlap'|'pit'|'stale'|'hidden' (hidden: salió de box sin pit lane ni offset)
     function place(k, now) {
       const ref = k.ref || fieldRef;
       if (k.pit) return { mode: 'pit', t: null };
       if (k.outAt) {
-        const el = now - k.outAt, out = ctx.outTimeFrac || 0;
+        const el = now - k.outAt;
         if (ref && el > STALE_LAPS * ref) return { mode: 'stale', t: k.shown };
+        let out = ctx.outTimeFrac;
+        if (out == null) {
+          // Sin pit lane conocido: la salida queda a "offset del túnel" de la meta.
+          // Sin offset no sabemos dónde reaparece → oculto hasta su siguiente pase.
+          if (!(ctx.tunnelOffsetS > 0) || !ref) return { mode: 'hidden', t: null };
+          out = wrap(1 - Math.min(ctx.tunnelOffsetS * 1000, ref * CAP) / ref);
+        }
         // p = avance hacia la meta (0..1): por el offset del túnel si se conoce, si no por ritmo
         const p = ctx.tunnelOffsetS > 0 ? el / (ctx.tunnelOffsetS * 1000)
           : ref ? (el / ref) / (1 - out || 1) : 0;

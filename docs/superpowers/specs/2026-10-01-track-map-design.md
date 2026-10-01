@@ -103,6 +103,11 @@ helpers puros exportados para tests: `pointAt(track, timeFrac)`, `ovalTrack()`.
 - **Salida de box:** se guarda el instante en que `pit` pasa a falso; el kart arranca
   en `pitLane.outFrac` y avanza a su ritmo, sumando el offset de túnel de
   `circuits.js` hasta su siguiente paso por meta.
+- **Ajuste 2026-10-01 (decisión del usuario): sin marcas de box.** El óvalo y los
+  trazados no llevan pit lane hasta que el usuario pase las marcas. En box el kart
+  desaparece del mapa y solo sale en la columna "En box". Al salir, sin pit lane, se
+  coloca a "offset del túnel" de la meta (`out = 1 − offset/ritmo`); sin offset, va
+  oculto (`mode: 'hidden'`) hasta su siguiente pase.
 - **Sin datos:** > 3 vueltas de ritmo sin pase → congelado y atenuado.
 - **Huecos de mi kart:** primer kart con fracción mayor (delante) y menor (detrás),
   con la diferencia cruzando meta correctamente, en segundos con mi ritmo. Se excluyen
