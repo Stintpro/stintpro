@@ -39,31 +39,45 @@ function _enTrackFmtLap(ms){
 }
 
 // ── HTML puro (testeado en tests/track-ui.test.js) ─────────────────────────
-const _ENTRK_TXT='font-family:sans-serif;font-size:12.5px';
+// Tipografía y medidas del resto del panel (styles.css/en-state.js): Inter para
+// el texto, JetBrains Mono con cifras tabulares para tiempos y huecos.
+const _ENTRK_TXT="font-family:var(--font-sans,'Inter',sans-serif);font-size:12.5px";
+const _ENTRK_MONO="font-family:var(--font-mono,'JetBrains Mono',monospace);font-variant-numeric:tabular-nums";
+const _ENTRK_ME='#F5A623';
 
+// Tira de huecos = marcador de tres casillas: delante | MI KART | detrás. El
+// hueco es lo que se lee de un vistazo, así que es lo más grande de la tira.
 function _enTrackGapStripHtml(gaps, me){
-  if(!me)return `<span style="${_ENTRK_TXT};color:var(--text-3)">Configura tu dorsal para ver tus huecos en pista</span>`;
-  const side=(g,arrow,sign)=>g
-    ?`<span style="white-space:nowrap">${arrow} <b style="color:var(--text-1)">#${_enTrackEsc(g.dorsal)}</b> <span style="color:var(--text-2)">${_enTrackEsc(g.name)}</span> <span style="font-family:'JetBrains Mono',monospace;color:var(--text-1)">${_enTrackFmtGap(sign*g.gapS)}</span></span>`
-    :`<span style="color:var(--text-3)">${arrow} —</span>`;
+  if(!me)return `<div style="${_ENTRK_TXT};color:var(--text-3);text-align:center;padding:2px 0">Configura tu dorsal para ver tus huecos en pista</div>`;
+  const side=(g,arrow,sign,align)=>{
+    const base=`display:flex;flex-direction:column;gap:1px;min-width:0;align-items:${align}`;
+    if(!g)return `<div style="${base}"><span style="${_ENTRK_MONO};font-size:15.5px;color:var(--text-3)">${arrow} —</span></div>`;
+    return `<div style="${base}">
+      <span style="${_ENTRK_MONO};font-size:15.5px;font-weight:600;color:var(--text-1);white-space:nowrap"><span style="color:var(--text-3);font-size:11.5px">${arrow}</span> ${_enTrackFmtGap(sign*g.gapS)}</span>
+      <span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)"><b style="color:var(--text-1);font-weight:600">#${_enTrackEsc(g.dorsal)}</b> ${_enTrackEsc(g.name)}</span></div>`;
+  };
   const g=gaps||{ahead:null,behind:null};
-  return `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;${_ENTRK_TXT}">
-    ${side(g.ahead,'▲',1)}
-    <span style="color:#F5A623;font-weight:600;letter-spacing:.04em">· MI KART #${_enTrackEsc(me)} ·</span>
-    ${side(g.behind,'▼',-1)}</div>`;
+  return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:center;${_ENTRK_TXT}">
+    ${side(g.ahead,'▲',1,'flex-start')}
+    <span style="${_ENTRK_MONO};font-size:12.5px;font-weight:700;letter-spacing:.06em;color:${_ENTRK_ME};padding:4px 10px;border-radius:999px;border:0.5px solid rgba(245,166,35,0.55);background:rgba(245,166,35,0.10);white-space:nowrap">MI KART #${_enTrackEsc(me)}</span>
+    ${side(g.behind,'▼',-1,'flex-end')}</div>`;
 }
 
+// Columna "En box": cada fila dice quién, cuánto lleva parado y —lo que se mira—
+// cuándo sale (ámbar) o cuánto se ha pasado (rojo).
 function _enTrackPitListHtml(list){
-  const head=`<div style="${_ENTRK_TXT};color:var(--text-2);margin-bottom:6px">🅿︎ En box · ${list.length}</div>`;
+  const me=typeof window!=='undefined'?String(window.AppState?.config?.myDorsal||''):'';
+  const head=`<div class="en-strat-title" style="display:flex;align-items:baseline;margin-bottom:8px">En box · ${list.length}</div>`;
   if(!list.length)return head+`<div style="${_ENTRK_TXT};color:var(--text-3)">Nadie en box</div>`;
   return head+list.map(p=>{
-    const over=p.remainingS<0;
+    const over=p.remainingS<0, mine=me&&String(p.dorsal)===me;
     const txt=over?`+${_enTrackClock(-p.remainingS)}`:`Sale en ${_enTrackClock(p.remainingS)}`;
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.035);margin-bottom:4px;${_ENTRK_TXT}">
-      <span style="min-width:30px;text-align:center;font-weight:600;color:#fff;background:#1b1d24;border-radius:5px;padding:2px 4px">${_enTrackEsc(p.dorsal)}</span>
-      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-1)">${_enTrackEsc(p.name)}</span>
-      <span style="font-family:'JetBrains Mono',monospace;color:var(--text-3)">${_enTrackClock(p.pitS)}</span>
-      <span style="font-family:'JetBrains Mono',monospace;color:${over?'#ef4444':'#fbbf24'}">${txt}</span></div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.035);border:0.5px solid ${mine?'rgba(245,166,35,0.55)':'rgba(255,255,255,0.06)'};margin-bottom:5px;${_ENTRK_TXT}">
+      <span style="min-width:32px;text-align:center;${_ENTRK_MONO};font-size:13.5px;font-weight:700;color:${mine?'#1a1205':'#fff'};background:${mine?_ENTRK_ME:'#1b1d24'};border:0.5px solid rgba(255,255,255,0.18);border-radius:6px;padding:2px 5px">${_enTrackEsc(p.dorsal)}</span>
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-1)">${_enTrackEsc(p.name)}</span>
+        <span style="font-size:11.5px;color:var(--text-3)">parado <span style="${_ENTRK_MONO}">${_enTrackClock(p.pitS)}</span></span></span>
+      <span style="${_ENTRK_MONO};font-size:13.5px;font-weight:600;white-space:nowrap;color:${over?'#ef4444':'#fbbf24'}">${txt}</span></div>`;
   }).join('');
 }
 
@@ -76,10 +90,11 @@ function _enTrackNoteHtml(track, err){
 
 function _enTrackSelHtml(info){
   if(!info)return '';
-  return `<div style="display:flex;gap:12px;align-items:center;${_ENTRK_TXT};color:var(--text-2)">
-    <b style="color:var(--text-1)">#${_enTrackEsc(info.dorsal)}</b> ${_enTrackEsc(info.name)}
-    <span>Última <span style="font-family:'JetBrains Mono',monospace;color:var(--text-1)">${_enTrackFmtLap(info.lastLapMs)}</span></span>
-    <span>Ritmo <span style="font-family:'JetBrains Mono',monospace;color:var(--text-1)">${_enTrackFmtLap(info.refMs)}</span></span></div>`;
+  const v=ms=>`<span style="${_ENTRK_MONO};color:var(--text-1)">${_enTrackFmtLap(ms)}</span>`;
+  return `<div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;${_ENTRK_TXT};color:var(--text-2)">
+    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b style="color:var(--text-1);font-weight:600">#${_enTrackEsc(info.dorsal)}</b> ${_enTrackEsc(info.name)}</span>
+    <span>Última ${v(info.lastLapMs)}</span>
+    <span>Ritmo ${v(info.refMs)}</span></div>`;
 }
 
 // ── Trazado y contexto ─────────────────────────────────────────────────────
@@ -124,10 +139,13 @@ function _enTrackShellHtml(track){
   const q=P.pointAtDist(track,0.03), q2=P.pointAtDist(track,0.045);
   const ang=Math.atan2(q2[1]-q[1],q2[0]-q[0])*180/Math.PI;
   const fs=Math.max(14,wu*0.85);
-  return `<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;padding:4px 2px">
-    <div style="flex:1 1 420px;min-width:0">
-      <div id="en-trk-gaps" style="padding:8px 12px;border-radius:10px;background:rgba(255,255,255,0.035);border:0.5px solid var(--glass-border,#22242b);margin-bottom:8px"></div>
-      <svg id="en-trk-svg" viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block" role="img" aria-label="Mapa de pista">
+  // El mapa se acota a la altura visible (62vh) y se centra conservando la
+  // proporción: así mapa + tira caben en pantalla y "En box" queda al lado.
+  return `<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
+    <div style="flex:1 1 380px;min-width:0">
+      <div id="en-trk-gaps" class="en-strat-card" style="padding:10px 14px;margin-bottom:10px"></div>
+      <div class="en-strat-card" style="padding:10px 12px;margin-bottom:0">
+      <svg id="en-trk-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:62vh;display:block;margin:0 auto" role="img" aria-label="Mapa de pista">
         <defs><pattern id="en-trk-chk" width="${wu/2}" height="${wu/2}" patternUnits="userSpaceOnUse">
           <rect width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/><rect x="${wu/4}" y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/>
           <rect x="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#111"/><rect y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#111"/></pattern></defs>
@@ -140,10 +158,13 @@ function _enTrackShellHtml(track){
         <path d="M0 ${f(-wu*0.45)} L${f(wu*0.9)} 0 L0 ${f(wu*0.45)} Z" fill="rgba(255,255,255,0.5)" transform="translate(${f(q[0])} ${f(q[1])}) rotate(${ang.toFixed(1)})"/>
         <g id="en-trk-karts"></g>
       </svg>
-      <div id="en-trk-sel" style="margin-top:6px;min-height:18px"></div>
-      <div id="en-trk-note" style="font-family:sans-serif;font-size:11px;color:var(--text-3);margin-top:4px"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid rgba(255,255,255,0.07)">
+        <div id="en-trk-sel" style="min-height:19px;min-width:0"></div>
+        <div id="en-trk-note" style="font-family:var(--font-sans,'Inter',sans-serif);font-size:11.5px;color:var(--text-3)"></div>
+      </div>
+      </div>
     </div>
-    <div id="en-trk-pit" style="flex:1 1 240px;min-width:220px"></div>
+    <div id="en-trk-pit" class="en-strat-card" style="flex:0 1 270px;min-width:220px;margin-bottom:0;padding:12px 12px 7px"></div>
   </div>`;
 }
 
@@ -153,25 +174,31 @@ function _enTrackKartNode(dorsal, isMe, wu){
   const g=document.createElementNS(NS,'g');
   g.setAttribute('data-d',dorsal);
   g.style.cursor='pointer';
+  // Canto oscuro: separa los dorsales que quedan pegados tras el desplazamiento.
+  const rim=document.createElementNS(NS,'circle');
+  rim.setAttribute('r',(r+wu*0.14).toFixed(1));
+  rim.setAttribute('fill','rgba(8,9,10,0.6)');
+  g.appendChild(rim);
   if(isMe){
     const halo=document.createElementNS(NS,'circle');
     halo.setAttribute('r',(r*1.55).toFixed(1));
     halo.setAttribute('fill','rgba(245,166,35,0.22)');
-    g.appendChild(halo);
+    g.insertBefore(halo,rim);
   }
   const c=document.createElementNS(NS,'circle');
   c.setAttribute('r',r.toFixed(1));
   c.setAttribute('fill',isMe?'#F5A623':'#1b1d24');
-  c.setAttribute('stroke',isMe?'#fff5e0':'rgba(255,255,255,0.45)');
+  c.setAttribute('stroke',isMe?'#fff5e0':'rgba(255,255,255,0.55)');
   c.setAttribute('stroke-width',(wu*0.09).toFixed(1));
   g.appendChild(c);
   const t=document.createElementNS(NS,'text');
   t.textContent=dorsal;
   t.setAttribute('text-anchor','middle');
   t.setAttribute('dominant-baseline','central');
-  t.setAttribute('font-family','sans-serif');
+  t.setAttribute('font-family',"Inter, sans-serif");
   t.setAttribute('font-weight','700');
-  t.setAttribute('font-size',(r*(dorsal.length>=3?0.8:1.0)).toFixed(1));
+  t.setAttribute('letter-spacing',dorsal.length>=3?'-0.04em':'0');
+  t.setAttribute('font-size',(r*(dorsal.length>=3?0.82:dorsal.length===2?1.0:1.12)).toFixed(1));
   t.setAttribute('fill',isMe?'#1a1205':'#ffffff');
   g.appendChild(t);
   g.addEventListener('click',()=>_enTrackSelect(dorsal));
@@ -204,6 +231,40 @@ function _enRenderTrack(eq){
   _enStartTrackRaf();
 }
 
+// Dorsales amontonados: los que quedan a menos de 1,6 radios se agrupan (unión
+// de pares, O(n²) sobre ≤60 karts) y cada grupo se abre en carriles a lo largo
+// de la NORMAL de la pista: 0, +1, −1, +2, −2… en el orden de pista. Solo se
+// mueven de lado, así que el orden a lo largo del trazado no cambia. Mi kart, si
+// está en el grupo, se queda en el carril 0 (sobre la línea real).
+function _enTrackSpread(items, track){
+  const P=window.EnTrackPos, wu=track.widthUnits, rr=wu*0.72;
+  const minD=rr*1.6, step=rr*1.75;
+  const L=items.filter(it=>it.t!=null);
+  const n=L.length; if(n<2)return;
+  const par=L.map((_,i)=>i), find=i=>{while(par[i]!==i)i=par[i]=par[par[i]];return i;};
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+    const dx=L[i].x-L[j].x, dy=L[i].y-L[j].y;
+    if(dx*dx+dy*dy<minD*minD)par[find(i)]=find(j);
+  }
+  const groups={};
+  L.forEach((it,i)=>{(groups[find(i)]=groups[find(i)]||[]).push(it);});
+  Object.values(groups).forEach(gr=>{
+    if(gr.length<2)return;
+    // orden de pista estable aunque el grupo cruce la meta: referencia = el primero
+    const t0=gr[0].t, rel=t=>((t-t0)%1+1.5)%1-0.5;
+    gr.sort((a,b)=>rel(a.t)-rel(b.t)||String(a.d).localeCompare(String(b.d)));
+    const meI=gr.findIndex(it=>it.me);
+    const order=meI>=0?[gr[meI],...gr.filter((_,i)=>i!==meI)]:gr;
+    order.forEach((it,k)=>{
+      if(!k)return;
+      const lane=((k-1)%6>>1)+1, sgn=(k-1)%2?-1:1;   // +1,−1,+2,−2,+3,−3, y vuelta a empezar
+      const a=P.pointAt(track,it.t-0.003), b=P.pointAt(track,it.t+0.003);
+      const tx=b[0]-a[0], ty=b[1]-a[1], l=Math.hypot(tx,ty)||1;
+      it.x+=(-ty/l)*sgn*lane*step; it.y+=(tx/l)*sgn*lane*step;
+    });
+  });
+}
+
 function _enTrackFrame(){
   EnTrack.raf=requestAnimationFrame(_enTrackFrame);
   const wall=Date.now();
@@ -215,7 +276,7 @@ function _enTrackFrame(){
   const me=String(window.AppState?.config?.myDorsal||'');
   const pos=EnTrack.engine.positions(now);
   const inPit=pos.filter(p=>p.mode==='pit');
-  const seen=new Set();
+  const seen=new Set(), items=[];
   pos.forEach(p=>{
     if(p.mode==='hidden')return;
     // en box: fuera del mapa (solo en la columna "En box") salvo que el trazado tenga pit lane
@@ -230,9 +291,11 @@ function _enTrackFrame(){
       EnTrack.nodes[p.dorsal]=node;
       if(p.dorsal===me)g.appendChild(node); else g.insertBefore(node,g.firstChild);   // mi kart, encima
     }
-    node.setAttribute('transform',`translate(${pt[0].toFixed(1)} ${pt[1].toFixed(1)})`);
+    items.push({node,x:pt[0],y:pt[1],t:p.mode==='pit'?null:p.t,me:p.dorsal===me,d:p.dorsal});
     node.style.opacity=p.mode==='stale'?'0.35':'1';
   });
+  _enTrackSpread(items,track);
+  items.forEach(it=>it.node.setAttribute('transform',`translate(${it.x.toFixed(1)} ${it.y.toFixed(1)})`));
   Object.keys(EnTrack.nodes).forEach(d=>{ if(!seen.has(d)){EnTrack.nodes[d].remove();delete EnTrack.nodes[d];} });
   if(wall-EnTrack.lastSide>=250){
     EnTrack.lastSide=wall;
