@@ -155,5 +155,34 @@ test('CSV real de RaceBox con preámbulo e ISO-8601 Time', () => {
   deepStrictEqual(laps.map(l => l.lap), [2, 3]);
 });
 
+test('RaceChrono Format 3 (Campillos): timestamp unix, lap_number, preambuló, CRLF', () => {
+  const baseTime = 1779023901;
+  const raceChronoFormat3 = rs => [
+    'This file is created using RaceChrono Pro v10.2.4 ( http://racechrono.com/ ).',
+    'Format,3',
+    'Session title,"Campillos"',
+    'Session type,Lap timing',
+    'Track name,"Campillos"',
+    'Driver name,',
+    'Created,17/05/2026,13:18',
+    'Note,',
+    'timestamp,fragment_id,lap_number,elapsed_time,distance_traveled,accuracy,altitude,bearing,device_battery_level,device_update_rate,fix_type,latitude,longitude,satellites,speed,...',
+    'unix time,,,s,m,m,m,deg,%,Hz,,deg,deg,sats,m/s,...',
+    ',,,,,100: gps,100: gps,100: gps,100: gps,100: gps,100: gps,100: gps,100: gps,100: gps,100: gps,calc,...',
+    ...rs.map((r, i) => {
+      const timestamp = (baseTime + r.t).toFixed(2);
+      const lapNum = r.lap; // lap_number: 1, 2, 3, ... from synthetic data
+      return `${timestamp},,${lapNum},${r.t.toFixed(2)},0,1.299,564.628,223.867,93.0,25.0,3.0,${r.lat.toFixed(7)},${r.lon.toFixed(7)},15.0,0,...`;
+    })
+  ].join('\r\n') + '\r\n';
+  const s = G.parseGpsCsv(raceChronoFormat3(LAPS));
+  strictEqual(s.length, LAPS.length);
+  const laps = G.splitLaps(s);
+  deepStrictEqual(laps.map(l => l.lap), [2, 3]);
+  const lap = laps[0];
+  const j = G.buildTrack(s, lap, { slug: 'test' });
+  near(j.lengthM, L, L * 0.01);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

@@ -28,11 +28,11 @@ function fmtLap(s) {
 
 function parseGpsCsv(text) {
   const lines = text.split(/\r?\n/);
-  const hi = lines.findIndex(l => /latitude/i.test(l) && /(^|,)\s*lap( #)?\s*(,|$)/i.test(l));
+  const hi = lines.findIndex(l => /latitude/i.test(l) && /(^|,)\s*(lap( #)?|lap_number)\s*(,|$)/i.test(l));
   if (hi < 0) throw new Error('no encuentro la cabecera (Latitude/Longitude/Lap): ¿es un CSV de RaceBox o RaceChrono?');
   const cols = lines[hi].split(',').map(c => c.trim());
   const find = re => cols.findIndex(c => re.test(c));
-  const iT = find(/^time( \(s\))?$/i), iLat = find(/^latitude/i), iLon = find(/^longitude/i), iLap = find(/^lap( #)?$/i);
+  const iT = find(/^(time( \(s\))?|timestamp)$/i), iLat = find(/^latitude/i), iLon = find(/^longitude/i), iLap = find(/^(lap( #)?|lap_number)$/i);
   if ([iT, iLat, iLon, iLap].some(i => i < 0)) throw new Error('faltan columnas Time/Latitude/Longitude/Lap en la cabecera');
   const samples = [];
   for (let r = hi + 1; r < lines.length; r++) {
