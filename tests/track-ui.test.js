@@ -101,5 +101,46 @@ test('replay en pausa → instante de la línea actual', () => {
   delete global.window;
 });
 
+
+console.log('\nmotor en todas las pestañas');
+
+const PTP = require('../src/en-track-pos');
+const S = 1000;
+const kartUi = (d, lastLapAt, extra = {}) => ({
+  dorsal: d, teamName: 'Equipo ' + d, lastLap: 60, lastLapAt,
+  lapHistory: [60, 60, 60, 60, 60], pit: false, pitS: 0, ...extra,
+});
+
+test('_enTrackUpdate alimenta el motor sin la pestaña abierta (sin DOM)', () => {
+  global.window = { EnTrackPos: PTP, AppState: { config: {} } };
+  U.EnTrack.engine = null; U.EnTrack.key = null; U.EnTrack.track = null;
+  const now = Date.now();
+  U._enTrackUpdate([kartUi('7', now - 30000)]);
+  const p = U.EnTrack.engine.positions(now);
+  assert.strictEqual(p.length, 1);
+  assert.strictEqual(p[0].dorsal, '7');
+  delete global.window;
+});
+test('_enRenderTrack ya no llama a update (lo hace _enTrackUpdate)', () => {
+  global.window = { EnTrackPos: PTP, AppState: { config: {} } };
+  const body = { innerHTML: '', querySelector: () => null };
+  global.document = { getElementById: id => id === 'en-track-body' ? body : null };
+  U._enTrackUpdate([kartUi('7', Date.now() - 30000)]);
+  let calls = 0;
+  const orig = U.EnTrack.engine.update;
+  U.EnTrack.engine.update = (...a) => { calls++; return orig(...a); };
+  U._enRenderTrack([kartUi('7', Date.now() - 30000)]);
+  assert.strictEqual(calls, 0);
+  assert.ok(body.innerHTML.includes('en-trk-karts'));
+  U.EnTrack.engine.update = orig;
+  delete global.window; delete global.document;
+});
+test('en-grid llama a _enTrackUpdate en cada render, antes del bloque de la pestaña Pista', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../src/en-grid.js'), 'utf8');
+  const iu = src.indexOf("if(typeof _enTrackUpdate==='function')_enTrackUpdate(eq);");
+  const ir = src.indexOf("if(EnUi.tab==='track'&&typeof _enRenderTrack==='function')_enRenderTrack(eq);");
+  assert.ok(iu > 0 && ir > iu, `update ${iu} render ${ir}`);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

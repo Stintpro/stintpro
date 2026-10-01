@@ -169,6 +169,9 @@ function _enRender(){
     }
   }catch(err){console.error('[StintPro] Error olas:',err);}
   try{
+    if(typeof _enTrackUpdate==='function')_enTrackUpdate(eq);
+  }catch(err){console.error('[StintPro] Error motor pista:',err);}
+  try{
     if(EnUi.tab==='track'&&typeof _enRenderTrack==='function')_enRenderTrack(eq);
   }catch(err){console.error('[StintPro] Error pista:',err);}
 

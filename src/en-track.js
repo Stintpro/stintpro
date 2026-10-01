@@ -211,10 +211,11 @@ function _enTrackSelect(dorsal){
   if(el)el.innerHTML=EnTrack.selected?_enTrackSelHtml(EnTrack.engine.info(EnTrack.selected)):'';
 }
 
-// ── Render (cada tick de _enRender) y animación (~10 Hz) ──────────────────
-function _enRenderTrack(eq){
-  const body=document.getElementById('en-track-body');
-  if(!body||!window.EnTrackPos)return;
+// ── Motor (cada tick de _enRender, en TODAS las pestañas) ─────────────────
+// Si solo se actualizara con la pestaña Pista abierta, el motor se perdería las
+// salidas de box ocurridas mientras se mira otra pestaña.
+function _enTrackUpdate(eq){
+  if(!window.EnTrackPos)return;
   const P=window.EnTrackPos;
   const track=_enTrackEnsure();
   EnTrack.engine.update(eq,_enTrackNow(),{
@@ -222,6 +223,13 @@ function _enRenderTrack(eq){
     tunnelOffsetS:_enTunnelOffsetS(),
     outTimeFrac:track.pitLane?P.distToTime(track,track.pitLane.outFrac):null,
   });
+}
+
+// ── Render (solo con la pestaña Pista abierta) y animación (~10 Hz) ───────
+function _enRenderTrack(eq){
+  const body=document.getElementById('en-track-body');
+  if(!body||!window.EnTrackPos)return;
+  const track=_enTrackEnsure();
   if(EnTrack.shellFor!==track||!body.querySelector('#en-trk-karts')){
     body.innerHTML=_enTrackShellHtml(track);
     EnTrack.shellFor=track;
@@ -313,6 +321,6 @@ function _enStartTrackRaf(){ if(EnTrack.raf==null&&typeof requestAnimationFrame=
 function _enStopTrackRaf(){ if(EnTrack.raf!=null&&typeof cancelAnimationFrame==='function')cancelAnimationFrame(EnTrack.raf); EnTrack.raf=null; }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
+  module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
     _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml };
 }
