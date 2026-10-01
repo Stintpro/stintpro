@@ -175,17 +175,22 @@
         seen.add(d);
         let k = karts.get(d);
         if (!k) {
-          k = { dorsal: d, lastLapAt: 0, pit: false, outAt: null, slideFrom: null, slideAt: 0, shown: 0, ref: null };
+          k = { dorsal: d, lastLapAt: 0, pit: false, outAt: null, outFromLapAt: 0, slideFrom: null, slideAt: 0, shown: 0, ref: null };
           karts.set(d, k);
         }
         k.name = e.teamName || e.name || ('#' + d);
         k.lastLapMs = e.lastLap ? Math.round(e.lastLap * 1000) : null;
         const pit = !!e.pit;
         const at = e.lastLapAt || 0;
+        const wasOut = !!k.outAt;
+        // Transición de box ANTES del pase: si sale y pasa en el mismo update,
+        // ese pase ya cierra la vuelta de salida.
+        if (k.pit && !pit) { k.outAt = nowMs; k.outFromLapAt = k.lastLapAt; }   // acaba de salir de box
+        if (pit) k.outAt = null;
         if (at && at !== k.lastLapAt) {
           // Error en vivo con el ritmo de ANTES de esta vuelta
           const lap = k.lastLapAt ? at - k.lastLapAt : null;
-          if (lap && k.ref && !k.pit && !pit && !k.outAt && lap < k.ref * OUTLIER) {
+          if (lap && k.ref && !k.pit && !pit && !wasOut && lap < k.ref * OUTLIER) {
             errs.push(Math.abs(lap - k.ref) / 1000);
             if (errs.length > errRing) errs.shift();
           }
@@ -194,10 +199,11 @@
           if (k.lastLapAt && k.shown > 0.5) { k.slideFrom = k.shown; k.slideAt = nowMs; }
           else k.slideFrom = null;
           k.lastLapAt = at;
-          if (k.outAt && at > k.outAt) k.outAt = null;   // el pase cierra la vuelta de salida
+          // El primer cambio de lastLapAt tras salir cierra la vuelta de salida.
+          // Se compara con el pase de antes de salir, no con outAt: lastLapAt va
+          // con el reloj del VPS/replay y outAt con el reloj local.
+          if (k.outAt && at !== k.outFromLapAt) k.outAt = null;
         }
-        if (k.pit && !pit) k.outAt = nowMs;               // acaba de salir de box
-        if (pit) k.outAt = null;
         k.pit = pit;
         k.pitS = e.pitS || 0;
         k.pitSAt = nowMs;

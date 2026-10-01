@@ -248,6 +248,23 @@ test('el primer pase tras salir cierra la vuelta de salida', () => {
   strictEqual(e.positions(430 * S)[0].mode, 'track');
 });
 
+test('el primer pase tras salir cierra la vuelta aunque el reloj del VPS vaya por detrás', () => {
+  const e = P.createTrackPos();
+  const ctx = { tunnelOffsetS: 20, outTimeFrac: 0.5 };
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S, ctx);
+  e.update([kart('7', 100 * S, { pit: false })], 400 * S, ctx);
+  e.update([kart('7', 395 * S)], 420 * S, ctx);       // lastLapAt por detrás del outAt local
+  strictEqual(e.positions(425 * S)[0].mode, 'track');
+});
+
+test('salida y pase en el mismo update cierran la vuelta de salida', () => {
+  const e = P.createTrackPos();
+  const ctx = { tunnelOffsetS: 20, outTimeFrac: 0.5 };
+  e.update([kart('7', 100 * S, { pit: true })], 300 * S, ctx);
+  e.update([kart('7', 399 * S, { pit: false })], 400 * S, ctx);
+  strictEqual(e.positions(405 * S)[0].mode, 'track');
+});
+
 test('huecos en pista: delante y detrás, en segundos con mi ritmo', () => {
   const now = 1000 * S;
   const e = P.createTrackPos();
