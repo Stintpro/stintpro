@@ -196,6 +196,20 @@ test('error en vivo: |vuelta real − ritmo previsto| en cada pase limpio', () =
   strictEqual(P.createTrackPos().errorStats().n, 0);
 });
 
+test('desfase de reloj: si el VPS va 3 s por detrás, se compensa', () => {
+  const e = P.createTrackPos();
+  let L = 0;
+  for (let i = 0; i < 6; i++) { L = 100 * S + i * 60 * S; e.update([kart('7', L)], L + 3000); }
+  near(e.clockSkewMs(), 3000, 1e-6);
+  near(e.positions(L + 3000 + 30000)[0].t, 0.5, 1e-6);
+});
+
+test('pases viejos (historial al conectar) no cuentan para el desfase', () => {
+  const e = P.createTrackPos();
+  for (let i = 0; i < 6; i++) { const at = 100 * S + i * 60 * S; e.update([kart('7', at)], at + 120000); }
+  strictEqual(e.clockSkewMs(), 0);
+});
+
 console.log('\nbox, salida y huecos');
 
 test('en box: aparcado y con cuenta atrás que corre entre updates', () => {

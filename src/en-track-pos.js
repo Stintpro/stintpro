@@ -145,6 +145,9 @@
   const STALE_LAPS = 3;    // vueltas de ritmo sin pase → sin datos
   const REF_N = 5;         // vueltas limpias para el ritmo de referencia
   const OUTLIER = 1.5;     // vuelta > 1,5× la mediana = no limpia (box, incidente)
+  const SKEW_N = 50;       // pases recientes para estimar el desfase de reloj
+  const SKEW_MIN = 5;      // mínimo de pases para fiarse del desfase
+  const SKEW_FRESH_MS = 30000; // pase "fresco": llega a < 30 s de su sello
 
   // ── Ritmo ──────────────────────────────────────────────────────────────────
   // lapHistory llega en SEGUNDOS (como en apex-protocol.js); se devuelve en ms.
@@ -163,6 +166,7 @@
     const errRing = (opts && opts.errRing) || 200;
     const karts = new Map();   // dorsal → estado interno
     const errs = [];           // |vuelta real − ritmo previsto| en s
+    const skews = [];          // (reloj del mapa − lastLapAt) en cada pase fresco, ms
     let fieldRef = null;
     let ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: null };
 
@@ -198,6 +202,12 @@
           // que no se estaba pintando (shown≈0) barrería la vuelta entera en 0,4 s.
           if (k.lastLapAt && k.shown > 0.5) { k.slideFrom = k.shown; k.slideAt = nowMs; }
           else k.slideFrom = null;
+          // Desfase reloj del mapa ↔ reloj de lastLapAt (en modo Logger lo sella el
+          // VPS). Solo pases frescos: el historial que llega al conectar es viejo.
+          if (Math.abs(nowMs - at) < SKEW_FRESH_MS) {
+            skews.push(nowMs - at);
+            if (skews.length > SKEW_N) skews.shift();
+          }
           k.lastLapAt = at;
           // El primer cambio de lastLapAt tras salir cierra la vuelta de salida.
           // Se compara con el pase de antes de salir, no con outAt: lastLapAt va
@@ -215,7 +225,14 @@
     }
 
     // mode: 'track'|'outlap'|'pit'|'stale'|'hidden' (hidden: salió de box sin pit lane ni offset)
-    function place(k, now) {
+    // Cuantil bajo: el retardo de entrega solo suma, así que el desfase real es
+    // lo que queda en los pases que llegaron más rápido.
+    function clockSkewMs() {
+      return skews.length >= SKEW_MIN ? quantile(skews, 0.1) : 0;
+    }
+
+    // skew: solo para lo calculado desde lastLapAt (outAt/pitSAt son reloj local)
+    function place(k, now, skew) {
       const ref = k.ref || fieldRef;
       if (k.pit) return { mode: 'pit', t: null };
       if (k.outAt) {
@@ -234,7 +251,7 @@
         return { mode: 'outlap', t: wrap(out + (1 - out) * Math.min(p, CAP)) };
       }
       if (!k.lastLapAt || !ref) return { mode: 'stale', t: k.shown || 0 };
-      const el = now - k.lastLapAt;
+      const el = now - (skew || 0) - k.lastLapAt;
       if (el > STALE_LAPS * ref) return { mode: 'stale', t: k.shown };
       if (k.slideFrom != null) {
         const s = (now - k.slideAt) / SLIDE_MS;
@@ -245,9 +262,9 @@
     }
 
     function positions(now) {
-      const out = [];
+      const out = [], skew = clockSkewMs();
       karts.forEach(k => {
-        const p = place(k, now);
+        const p = place(k, now, skew);
         if (p.t != null) k.shown = p.t;
         out.push({ dorsal: k.dorsal, name: k.name, mode: p.mode, t: p.t });
       });
@@ -296,7 +313,7 @@
       return { medianS: median(errs), p90S: quantile(errs, 0.9), n: errs.length };
     }
 
-    return { update, positions, info, errorStats, pitList, gapsFor, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
+    return { update, positions, info, errorStats, pitList, gapsFor, clockSkewMs, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
   }
 
   return {
