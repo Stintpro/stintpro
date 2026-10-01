@@ -8,3 +8,6 @@ stintpro-logger/tools/*.log
 # Mockups de brainstorming (herramienta local, no forma parte del producto)
 .superpowers/
 tools/_replays/
+
+# Vistas previas de la herramienta de trazados (se regeneran)
+tools/_tracks/
