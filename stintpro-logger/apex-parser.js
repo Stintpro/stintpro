@@ -2,7 +2,7 @@
 // Responsabilidades: grid HTML (node-html-parser), callbacks de BD, relay de estado.
 
 const { parse: parseHTML }                    = require('node-html-parser');
-const { createParser, parseTime, isValidCategory, notcToHex } = require('./apex-protocol');
+const { createParser, parseTime, isValidCategory, isStateCode, notcToHex } = require('./apex-protocol');
 
 // Cabeceras que delatan una columna de categoría/cilindrada. Se testea sobre el
 // texto normalizado sin diacríticos (ver stripAccents): el francés manda
@@ -18,8 +18,12 @@ const RESERVED_DTYPES = new Set([
 ]);
 
 class ApexParser {
-  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag, onMessage } = {}) {
+  // now: reloj de los pases (opcional). En vivo es Date.now; un replay offline
+  // (ingest-raw-log) pasa la hora del frame para que los intervalos entre vueltas
+  // sean los reales y no se tomen por reenvíos de la misma vuelta.
+  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag, onMessage, now } = {}) {
     this._proto = createParser({
+      now,
       onLap,
       onPit,
       onSessionEnd,
@@ -92,11 +96,12 @@ class ApexParser {
         const kg   = { rowId };
         const cell = col => row.querySelector(`[data-id="${rowId}${col}"]`);
 
-        const stCol  = colMap.grp || colMap.sta || 'c1';
-        const stCell = cell(stCol);
-        if (stCell) {
-          const cls = (stCell.getAttribute('class') || '').trim().split(/\s+/)[0];
-          if (cls && cls !== 'in') kg.state = cls;
+        // Estado: con grp y sta a la vez (Sevilla) el código va en sta y grp trae
+        // la marca de grupo 'in'. Se toma la primera celda cuya clase es un código.
+        for (const col of [colMap.sta, colMap.grp, 'c1']) {
+          const c = col && cell(col);
+          const cls = c ? (c.getAttribute('class') || '').trim().split(/\s+/)[0] : '';
+          if (cls && isStateCode(cls)) { kg.state = cls; break; }
         }
 
         kg.pos = gridPos;

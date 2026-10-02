@@ -102,6 +102,21 @@ test('nombre: no toma como equipo un código de estado colado en la columna dr',
   strictEqual(g.karts[0].name, undefined);
 });
 
+test('PARSER-3: con columnas grp y sta, el estado se lee de la que trae el código (sta=si)', () => {
+  const g = makeCtx().ApexGrid.parseGridHtml(
+    '<tr data-id="r0"><td data-id="c1" data-type="grp"></td><td data-id="c2" data-type="sta"></td><td data-id="c3" data-type="no"></td></tr>' +
+    '<tr data-id="r2"><td data-id="r2c1" class="in"></td><td data-id="r2c2" class="si"></td><td data-id="r2c3" class="no"><div>7</div></td></tr>');
+  strictEqual(g.karts[0].state, 'si');
+});
+
+test('PARSER-3: el logger también lee sta=si al llegar la parrilla (Sevilla: karts en boxes)', () => {
+  const ApexParser = require(path.join(ROOT, 'stintpro-logger', 'apex-parser.js'));
+  const p = new ApexParser();
+  const first = SEVILLA.find((o) => /(^|\n)grid\|/.test(o.raw || ''));
+  p.parse(first.raw);
+  ok(p.getState().equipos.some((e) => e.pit && e.pitState === 'in'), 'ningún kart en boxes tras la primera parrilla');
+});
+
 // ── Historial HTTP del modo directo (request.php vía proxy) ──────────────
 function gridOf(n) {
   let h = 'grid||<tr data-id="r0"><td data-id="c1" data-type="no"></td><td data-id="c2" data-type="dr"></td></tr>';

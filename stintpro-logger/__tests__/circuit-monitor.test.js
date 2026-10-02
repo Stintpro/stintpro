@@ -374,9 +374,13 @@ describe('_onState', () => {
     const m  = createMonitor();
     // Grid con colMap (c3=llp) + 3 vueltas reales por celda llp
     m.parser.parse(buildGrid(kartRow('r1', '7', 'JAVIER')));
-    m.parser.parse('r1c3|ti|1:04.100');
-    m.parser.parse('r1c3|ti|1:04.200');
+    // Una vuelta real cada ~64 s (dos vueltas no caben en el mismo milisegundo:
+    // el parser toma un llp inmediato como reenvío de la misma vuelta).
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    m.parser.parse('r1c3|ti|1:04.100'); T += 64200;
+    m.parser.parse('r1c3|ti|1:04.200'); T += 64100;
     m.parser.parse('r1c3|ti|1:04.100'); // tiempo repetido — cuenta igual
+    spy.mockRestore();
 
     const ws = fakeClientWs();
     m.subscribe(ws); // primer envío es el snapshot 'history'
@@ -590,13 +594,15 @@ describe('_sendHistoryTo (enriquecido desde BD)', () => {
     const m = createMonitor();
     // Construye estado real vía el parser (igual que llegaría por WS)
     m.parser.parse(buildGrid(kartRow('r1', '7', 'JAVIER')));
-    m.parser.parse('r1c3|llp|1:04.000');
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    m.parser.parse('r1c3|llp|1:04.000'); T += 63500;   // una vuelta real después
     m.parser.parse('r1c3|llp|1:03.500');
+    spy.mockRestore();
     expect(m.sessionId).not.toBeNull();
 
     // Simula una vuelta ya persistida que el parser en memoria no tiene
     // (p.ej. tras un reinicio del servidor a mitad de sesión)
-    db.insertLap(m.sessionId, '7', 'JAVIER', null, 62000, 3, Date.now());
+    db.insertLap(m.sessionId, '7', 'JAVIER', null, 62000, 3, T + 62000); // después de las dos anteriores
 
     const ws = fakeClientWs();
     m.subscribe(ws);

@@ -250,9 +250,13 @@ group('llp cell handling', () => {
       colByNum: { c3: 'llp', c1: 'no' },
       karts: [{ rowId: 'r1', dorsal: '7' }],
     });
-    p.parse('r1|*|65000|');
-    p.parse('r1c3|llp|1:05.000');  // refine (consume flash)
-    p.parse('r1c3|llp|1:06.000');  // new lap (no |*| ref)
+    const realNow = Date.now; let T = realNow(); Date.now = () => T;
+    try {
+      p.parse('r1|*|65000|');
+      p.parse('r1c3|llp|1:05.000');  // refine (consume flash)
+      T += 66000;                    // la siguiente vuelta, ~66 s después
+      p.parse('r1c3|llp|1:06.000');  // new lap (no |*| ref)
+    } finally { Date.now = realNow; }
     assert.equal(lapCount, 2);
     assert.equal(p.getState().equipos[0].lapHistory.length, 2);
   });
@@ -723,15 +727,20 @@ group('sesión realista (flujo |*| + llp)', () => {
     const laps = [];
     const p = buildRealParser((d, n, tn, ms, lapN) => laps.push({ d, ms, lapN }), null);
 
-    // Vuelta 1 kart 7
-    p.parse('r1|*|65000|');
-    p.parse('r1c3|llp|1:05.000');
-    // Vuelta 1 kart 12
-    p.parse('r2|*|66500|');
-    p.parse('r2c3|llp|1:06.500');
-    // Vuelta 2 kart 7
-    p.parse('r1|*|64800|');
-    p.parse('r1c3|llp|1:04.800');
+    const realNow = Date.now; let T = realNow(); Date.now = () => T;
+    try {
+      // Vuelta 1 kart 7
+      p.parse('r1|*|65000|');
+      p.parse('r1c3|llp|1:05.000');
+      // Vuelta 1 kart 12
+      T += 1500;
+      p.parse('r2|*|66500|');
+      p.parse('r2c3|llp|1:06.500');
+      // Vuelta 2 kart 7, una vuelta después
+      T += 63300;
+      p.parse('r1|*|64800|');
+      p.parse('r1c3|llp|1:04.800');
+    } finally { Date.now = realNow; }
 
     assert.equal(laps.length, 3);
     assert.equal(laps[0].d, '7');  assert.equal(laps[0].lapN, 1);
@@ -747,6 +756,7 @@ group('sesión realista (flujo |*| + llp)', () => {
   test('pit stop: so bloquea parcial box→meta, after sr la vuelta siguiente es válida', () => {
     let lapCount = 0;
     const p = buildRealParser(() => lapCount++, null);
+    const realNow = Date.now; let T = realNow(); Date.now = () => T;   // tiempos reales de pista
 
     // Vuelta normal antes del pit
     p.parse('r1|*|65000|');
@@ -754,9 +764,12 @@ group('sesión realista (flujo |*| + llp)', () => {
     assert.equal(lapCount, 1);
 
     // Entra a boxes
+    T += 40000;
     p.parse('r1c0|si|');
+    T += 180000;
     // Sale de boxes → marca la siguiente vuelta como inválida (box→meta)
     p.parse('r1c0|so|');
+    T += 30000;
     p.parse('r1|*|30000|');         // parcial box→meta: BLOQUEADO
     p.parse('r1c3|llp|0:30.000');   // llp de parcial (< 20s en parseTime? No, 30s ≥ 20)
     // Nota: el llp de 30s sí pasaría el filtro de parseTime (≥20 && <300),
@@ -768,8 +781,10 @@ group('sesión realista (flujo |*| + llp)', () => {
     p.parse('r1c0|sr|');
 
     // Primera vuelta completa tras salir
+    T += 65500;
     p.parse('r1|*|65500|');
     p.parse('r1c3|llp|1:05.500');
+    Date.now = realNow;
 
     // lapCount: 1 (inicial) + 1 (llp del parcial post-so sin |*| válido) + 1 (tras sr) = 3
     // Pero el |*| del parcial estaba bloqueado → onLap no se disparó desde |*|
@@ -967,12 +982,14 @@ group('tours reconciliado con lapHistory.length', () => {
     p.setGrid({ colMap:   { no: 'c1', dr: 'c2', llp: 'c3', tlp: 'c4' },
                 colByNum: { c1: 'no', c2: 'dr', c3: 'llp', c4: 'tlp' },
                 karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
-    p.parse('r1c3|tn|1:05.000');      // vuelta 1 (por columna llp)
-    p.parse('r1c3|tn|1:05.200');      // vuelta 2
-    p.parse('r1c3|ti|1:05.200');      // REENVÍO mismo tiempo + color → vuelta fantasma
+    const realNow = Date.now; let T = realNow(); Date.now = () => T;
+    p.parse('r1c3|tn|1:05.000'); T += 65200;   // vuelta 1 (por columna llp)
+    p.parse('r1c3|tn|1:05.200'); T += 200;     // vuelta 2
+    p.parse('r1c3|ti|1:05.200');      // REENVÍO mismo tiempo + color (antes: vuelta fantasma)
+    Date.now = realNow;
     p.parse('r1c4||2');               // columna oficial de Apex: 2 vueltas
     const e = p.getState().equipos[0];
-    assert.equal(e.lapHistory.length, 3, 'lapHistory se infla con el reenvío (entrada conocida)');
+    assert.equal(e.lapHistory.length, 2, 'el reenvío ya no infla lapHistory (LOGGER-1)');
     assert.equal(e.tours, 2, 'el contador usa la columna oficial de Apex, no el historial inflado');
   });
 

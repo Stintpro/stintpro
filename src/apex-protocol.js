@@ -25,6 +25,16 @@
   // Texto de "coche doblado" en la col gap/int, multiidioma. Apex lo emite en el
   // idioma del organizador: tour(fr) lap(en) vuelta(es) giro/giri(it) volta(pt) runde(de).
   const LAPS_BEHIND_RE = /tour|lap|vuelta|giro|giri|volta|runde|tr\b/i;
+  // "Vuelta 105" / "Lap 12" (palabra delante del número) en la celda gap/int del
+  // LÍDER es su contador de vuelta en curso, no vueltas de retraso. El doblado
+  // viene como "2 Vueltas" / "1 Lap" (número delante).
+  const LEADER_LAP_RE  = /^\s*(tours?|laps?|vueltas?|giri|giro|volta|runde)\s+\d+/i;
+  // Dorsal real: empieza por cifra y solo lleva alfanuméricos (7, 12A). Apex se
+  // validaba solo con parseInt: "7<img …>" o "7');…" pasaban enteros y acababan en
+  // el HTML del panel y en la BD.
+  const DORSAL_RE = /^\d[0-9A-Za-z_-]{0,7}/;
+  function safeDorsal(v) { const m = DORSAL_RE.exec(String(v == null ? '' : v).trim()); return m ? m[0] : ''; }
+  function isStateCode(v) { return STATE_CODES.has(String(v == null ? '' : v).trim()); }
   const SKIP_NAMES  = new Set(['in','tn','ti','tb','ib','sr','sd','su','si','ss','sf','gf','gl','gm','gs','to','so','sl']);
   // Tokens que nunca son una categoría aunque caigan en su columna: marcas de
   // agrupación visual, kart doblado y demás ruido de la columna de estado.
@@ -196,7 +206,7 @@
   function createParser(callbacks = {}) {
     // Reloj de los pases por meta (lastLapAt). Inyectable: el replay pasa el
     // tiempo del log para que a velocidad ×N los huecos entre karts no encojan.
-    const _now = typeof callbacks.now === 'function' ? callbacks.now : Date.now;
+    const _now = typeof callbacks.now === 'function' ? callbacks.now : () => Date.now();
     let _karts           = {};
     let _colMap          = {};
     let _colByNum        = {};
@@ -210,7 +220,9 @@
     let _title2          = '';
     let _sessionMode     = '';   // 'p' = practice/clasificación · 'r' = carrera (letra del init|X|)
     let _recentLaps      = [];   // últimas vueltas válidas de la sesión (ritmo de pista, para filtro de glitches)
-    let _flag            = null; // bandera del panel de luces: 'green'|'red'|'yellow'|null (lg/lr/ly)
+    let _flag            = null;
+    let _gridAfterIdle   = false;// grid llegado tras >10 min sin vueltas (ver setGrid)
+    let _modeAtGrid      = null; // modo de sesión (init|X|) de la última parrilla // bandera del panel de luces: 'green'|'red'|'yellow'|null (lg/lr/ly)
     let _otrIsPit        = false;// la columna otr es cronómetro de PIT (cabecera "Tiempo en PIT"/"Box"),
                                  // no "tiempo en pista" (En piste/Tijd op circuit) — lo fija el grid wrapper
     let _pitDurations    = [];   // duraciones oficiales de paradas completadas (para estimar la obligatoria)
@@ -286,6 +298,15 @@
       return bestN >= 2 ? best : null;
     }
 
+    // Cierra la sesión en curso y avisa. La parrilla saliente ES la clasificación
+    // final: se captura ANTES de limpiar para que el consumidor pueda persistirla
+    // (el logger guarda con ella el snapshot); si no, solo vería el estado vaciado.
+    function _startNewSession() {
+      const _saliente = callbacks.onNewSession ? getState() : null;
+      _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
+      if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
+    }
+
     function _kart(rowId) {
       if (!_karts[rowId]) _karts[rowId] = {
         _rowId: rowId, lapHistory: [], state: 'sr', tours: 0,
@@ -323,14 +344,14 @@
       // transponder) como dorsal. Excepción: con bandera a cuadros ya dada, el
       // título nuevo SÍ abre sesión.
       if (!_sessionFinished && _lastGridTime && Date.now() - _lastGridTime < 120000) return;
+      // Sin ninguna vuelta desde la última parrilla no hay historial que perder:
+      // el título que llega tarde (aunque sea pasados los 120 s, con los karts aún
+      // en parrilla) solo se actualiza. Borrar aquí dejaba la carrera entera con el
+      // rowId (transponder) como dorsal, porque la celda 'no' no se reenvía.
+      if (!_sessionFinished && _lastGridTime && !(_lastLapTime > _lastGridTime)) return;
       const lapFlowing = _lastLapTime && (Date.now() - _lastLapTime) < 60000;
       if (lapFlowing && !_sessionFinished) return;   // parpadeo/inyección → no borrar
-      // La parrilla saliente ES la clasificación final de la sesión que termina: se
-      // captura ANTES de limpiar para que el consumidor pueda persistirla (el logger
-      // guarda con ella el snapshot). Si no, solo vería el estado ya vaciado.
-      const _saliente = callbacks.onNewSession ? getState() : null;
-      _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
-      if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
+      _startNewSession();
     }
 
     function _applyCell(k, col, type, val) {
@@ -385,7 +406,9 @@
             if (k.dorsal) callbacks.onPit(k.dorsal, 'out', k.standsCount, Date.now(), pitDur);
             else k._pendingPitEvent = { type: 'out', standsCount: k.standsCount, time: Date.now(), pitDur };
           }
-        } else if (type === 'sr' || type === 'su') {
+        } else if (type === 'sr' || type === 'su' || type === 'sd') {
+          // 'sd' también es rodando: tras el 'so' Apex manda 'sd' en más de la mitad
+          // de las paradas y el kart seguía "en boxes" ~50 s ya en pista.
           if (!k._pitTimerActive) k.pit = false;
           k.pitState = null; k._pitInTime = null;
         }
@@ -405,8 +428,8 @@
 
       // ── Dorsal ────────────────────────────────────────────────────────
       if (dtype === 'no') {
-        const d = (v || '').trim();
-        if (d && !isNaN(parseInt(d))) {
+        const d = safeDorsal(v);
+        if (d) {
           k.dorsal = d;
           if (k._pendingPitEvent && callbacks.onPit) {
             const pe = k._pendingPitEvent;
@@ -471,13 +494,33 @@
         if (t && t >= 20 && t < 300) {
           if (!k._lapInvalid && !isGlitchLap(k.lapHistory, t, _fieldMedian())) {
             const flashAge = k._lapFromFlashTs ? Date.now() - k._lapFromFlashTs : Infinity;
-            if (k._lapFromFlash !== undefined && flashAge < 5000 && k.lapHistory.length) {
+            // La misma celda llp reenviada (cambio de color ti→tb, o corrección del
+            // tiempo) NO es otra vuelta. Solo es reenvío si el kart NO ha pasado por
+            // meta desde la última vuelta registrada (_passCount, contado al inicio
+            // del lote: el llp llega antes que su |*|) y además es inmediato. El
+            // tiempo solo no basta: hay circuitos (rkc) que entregan pases acumulados
+            // a ráfagas, con dos vueltas reales del mismo kart a 600 ms.
+            const sinceLast = k._lastLapAt ? _now() - k._lastLapAt : Infinity;
+            const newPass = (k._passCount || 0) !== (k._passCountAtLap || 0);
+            // Reenvío = mismo tiempo (recoloreo) o corrección pequeña (≤0,5 s). Un
+            // valor muy distinto (p.ej. la vuelta de parada de 3:18 tras una normal)
+            // no es una corrección: se trata como antes, como vuelta nueva.
+            const resend = k.lapHistory.length && !newPass && sinceLast < Math.min(t * 500, 20000)
+              && Math.abs(t - k.lastLap) <= 0.5;
+            if (resend) {
+              if (t !== k.lastLap) {   // corrección: sustituye, sin contar otra vuelta
+                k.lapHistory[k.lapHistory.length - 1] = t;
+                k.lastLap = t;
+                k.bestLap = Math.min(...k.lapHistory.filter(x => x >= 20 && x < 300));
+              }
+            } else if (k._lapFromFlash !== undefined && flashAge < 5000 && k.lapHistory.length) {
               // Refinamiento: llp llegó poco después de |*| (misma vuelta)
               k.lapHistory[k.lapHistory.length - 1] = t;
               k.lastLap = t;
               if (!k.bestLap || t < k.bestLap) k.bestLap = t;
             } else {
               // Vuelta nueva (sin |*| previo, o llp tardío)
+              k._passCountAtLap = k._passCount || 0;
               k.lastLap = t;
               k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
               if (k.lapHistory.length > 1500) k.lapHistory.shift();
@@ -507,6 +550,7 @@
       // ── Gap ───────────────────────────────────────────────────────────
       if (dtype === 'gap') {
         const vRaw = v || '';
+        if (LEADER_LAP_RE.test(vRaw)) { k.gap = ''; return; }
         if (LAPS_BEHIND_RE.test(vRaw)) {
           const n = parseInt(vRaw.replace(/[^\d]/g, ''));
           k.gap = !isNaN(n) && n > 0 ? '+' + n + 'v' : '';
@@ -524,6 +568,7 @@
       // ── Intervalo ─────────────────────────────────────────────────────
       if (dtype === 'int') {
         const vRaw = v || '';
+        if (LEADER_LAP_RE.test(vRaw)) { k.interval = ''; return; }
         if (LAPS_BEHIND_RE.test(vRaw)) {
           const n = parseInt(vRaw.replace(/[^\d]/g, ''));
           k.interval = !isNaN(n) && n > 0 ? '+' + n + 'v' : '';
@@ -555,7 +600,7 @@
           // Solo se limpia el pit por estado si el feed TIENE columna de estado (sr/su
           // reales). Sin ella, k.state queda en su 'sr' por defecto y este incremento de
           // Stands borraría el pit que el crono 'to' de otr acaba de marcar (Le Mans 24H).
-          if (_hasStateCol && (k.state === 'sr' || k.state === 'su')) k.pit = false;
+          if (_hasStateCol && (k.state === 'sr' || k.state === 'su' || k.state === 'sd')) k.pit = false;
           const n = parseInt(v);
           if (!isNaN(n) && n > 0) k.standsCount = n;
         }
@@ -669,14 +714,12 @@
       // ── GRID ──────────────────────────────────────────────────────────
       if (line.startsWith('grid|')) {
         const inactiveTooLong = _lastLapTime && (Date.now() - _lastLapTime) > 600000;
-        if (_sessionActive && (_sessionFinished || inactiveTooLong)) {
-          // La parrilla saliente ES la clasificación final de la sesión que termina: se
-          // captura ANTES de limpiar para que el consumidor pueda persistirla (el logger
-          // guarda con ella el snapshot). Si no, solo vería el estado ya vaciado.
-          const _saliente = callbacks.onNewSession ? getState() : null;
-          _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
-          if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
-        }
+        if (_sessionActive && _sessionFinished) _startNewSession();
+        // Tras >10 min sin vueltas la parrilla puede ser una sesión nueva... o la
+        // misma carrera reenviada al reconectar (bandera roja larga, feed caído,
+        // pestaña dormida). Lo decide setGrid, que ya ve la parrilla entrante:
+        // solo es nueva si cambian los inscritos o el modo (init|p|→init|r|).
+        else if (_sessionActive && inactiveTooLong) _gridAfterIdle = true;
         _sessionActive = true;
         if (callbacks.onGrid) callbacks.onGrid(line.substring(5));
         return true;
@@ -837,6 +880,17 @@
       parse(raw) {
         const lines = raw.split('\n');
         let changed = false;
+        // Pases por meta del lote, contados ANTES de las celdas: el llp de la vuelta
+        // llega en el mismo lote que su |*| y a veces antes. Un |*| reenviado con el
+        // mismo tiempo no cuenta como pase nuevo.
+        for (const raw0 of lines) {
+          const m = /^(r\d+)\|\*\|(\d+)\|/.exec(raw0.trim());
+          if (!m) continue;
+          const ms = parseInt(m[2]);
+          if (ms < 20000 || ms >= 300000) continue;
+          const k = _kart(m[1]);
+          if (ms !== k._lastPassMs) { k._passCount = (k._passCount || 0) + 1; k._lastPassMs = ms; }
+        }
         for (let line of lines) {
           line = line.trim();
           if (!line) continue;
@@ -857,27 +911,40 @@
         // pocos dorsales con el estado actual, es una parrilla nueva y hay que limpiar el
         // estado para no acumular vueltas de la sesión anterior (grids repetidos sin
         // bandera a cuadros previa). Exige ≥3 karts a cada lado para evitar falsos positivos.
+        for (const kg of (gridKarts || [])) if (kg.dorsal) kg.dorsal = safeDorsal(kg.dorsal);
         const _newDorsals = new Set((gridKarts || []).map(kg => kg.dorsal).filter(Boolean));
+        let _isNew = false;
         if (_newDorsals.size >= 3) {
-          const _curDorsals = Object.values(_karts).map(k => k.dorsal).filter(Boolean);
-          if (_curDorsals.length >= 3) {
-            const _overlap = _curDorsals.filter(d => _newDorsals.has(d)).length;
-            if (_overlap < _curDorsals.length * 0.4) {
-              // La parrilla saliente ES la clasificación final de la sesión que termina: se
-              // captura ANTES de limpiar para que el consumidor pueda persistirla (el logger
-              // guarda con ella el snapshot). Si no, solo vería el estado ya vaciado.
-              const _saliente = callbacks.onNewSession ? getState() : null;
-              _karts = {}; _leaderLap = 0; _sessionFinished = false; _lastLapTime = 0; _recentLaps = []; _pitDurations = []; _flag = null;
-              if (callbacks.onNewSession) callbacks.onNewSession(_saliente);
-            }
+          const _cur = Object.values(_karts).filter(k => k.dorsal);
+          if (_cur.length >= 3) {
+            const _overlap = _cur.filter(k => _newDorsals.has(k.dorsal)).length;
+            if (_overlap < _cur.length * 0.4) _isNew = true;
+            // Mismos dorsales pero rowIds casi todos nuevos: Apex numera las filas por
+            // participante, así que es la tanda siguiente con los mismos karts (alquiler
+            // por tandas). Sin esto se fusionaban las dos tandas y quedaban filas
+            // fantasma con el dorsal duplicado.
+            const _newRows = new Set((gridKarts || []).map(kg => kg.rowId));
+            const _rowOverlap = _cur.filter(k => _newRows.has(k._rowId)).length;
+            if (_rowOverlap < _cur.length * 0.4) _isNew = true;
           }
         }
+        // Tras >10 min sin vueltas: misma parrilla y mismo modo = reconexión a la
+        // misma carrera (se conserva todo); cambio de modo = sesión nueva.
+        if (_gridAfterIdle && !_isNew && _modeAtGrid !== null && _sessionMode !== _modeAtGrid) _isNew = true;
+        _gridAfterIdle = false;
+        if (_isNew) _startNewSession();
+        if ((gridKarts || []).length) _modeAtGrid = _sessionMode;
 
         if ((gridKarts || []).length) _lastGridTime = Date.now();
 
         for (const kg of (gridKarts || [])) {
           const k = _kart(kg.rowId);
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
+          // Kart que ya está en boxes al llegar la parrilla (conectar tarde, reinicio):
+          // se marca en pit para que no salga "en pista". No se emite onPit('in'): esa
+          // entrada pudo grabarse antes (reinicio del logger) y se duplicaría.
+          if (kg.state === 'si' && !k.pit) { k.pit = true; k.pitState = 'in'; k._pitInTime = Date.now(); k._lapInvalid = true; k._otrPeak = null; k._otrTimer = null; }
+          else if (kg.state === 'so' && !k.pit) { k.pit = true; k.pitState = 'out'; }
           if (kg.pos)                          k.pos          = kg.pos;
           if (kg.dorsal)                       k.dorsal       = kg.dorsal;
           if (kg.pilotName && !k._pilotName) k._pilotName = kg.pilotName; // nombre con [X:XX] confirmado
@@ -904,7 +971,7 @@
         _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null; _lastGridTime = 0;
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
-        _otrIsPit = false; _hasStateCol = false; _pitDurations = [];
+        _otrIsPit = false; _hasStateCol = false; _pitDurations = []; _gridAfterIdle = false; _modeAtGrid = null;
       },
 
       get colMap()          { return _colMap; },
@@ -1084,5 +1151,5 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, notcToHex, classifyApexMessage };
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, isStateCode, safeDorsal, notcToHex, classifyApexMessage };
 });

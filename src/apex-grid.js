@@ -54,8 +54,13 @@ window.ApexGrid = {
       // id exacto (r12c1), no sufijo: [data-id$="c1"] casaría también c11/c21
       const cell = col => row.querySelector(`[data-id="${rowId}${col}"]`);
 
-      const stCell = cell(colMap.grp || colMap.sta || 'c1');
-      if (stCell) { const cls = (stCell.className || '').trim().split(/\s+/)[0]; if (cls && cls !== 'in') kg.state = cls; }
+      // Estado: con grp y sta a la vez (Sevilla) el código va en sta y grp trae
+      // la marca de grupo 'in'. Se toma la primera celda cuya clase es un código.
+      for (const col of [colMap.sta, colMap.grp, 'c1']) {
+        const c = col && cell(col);
+        const cls = c ? (c.className || '').trim().split(/\s+/)[0] : '';
+        if (cls && ApexProtocol.isStateCode(cls)) { kg.state = cls; break; }
+      }
 
       const rkP = row.querySelector('td.rk p');
       kg.pos = rkP ? (parseInt(rkP.textContent.trim()) || gridPos) : gridPos;

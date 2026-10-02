@@ -105,6 +105,9 @@ function replayLog(file) {
   let frameTs = frames[0].t;
 
   const parser = new ApexParser({
+    // Reloj de los pases = hora del frame: sin él todas las vueltas del replay
+    // caerían en el mismo milisegundo y el parser las tomaría por reenvíos.
+    now: () => frameTs,
     // El `timestamp` que llega en el argumento es el Date.now() del replay: se ignora
     // a propósito y se sustituye por el del frame en curso.
     onLap: (dorsal, name, teamName, lapMs, lapNumber, _ts, category) => {

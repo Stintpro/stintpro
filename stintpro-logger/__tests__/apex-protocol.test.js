@@ -164,8 +164,10 @@ describe('detección de vueltas via llp', () => {
   test('dos llp separados generan dos vueltas distintas', () => {
     const onLap = jest.fn();
     const p = makeParserWithLlp({ onLap });
-    parse(p, 'r1c3|llp|1:04.500');
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    parse(p, 'r1c3|llp|1:04.500'); T += 63200;   // la siguiente vuelta, ~63 s después
     parse(p, 'r1c3|llp|1:03.200');
+    spy.mockRestore();
     expect(onLap).toHaveBeenCalledTimes(2);
     expect(kart7(p).lapHistory).toHaveLength(2);
   });
@@ -578,12 +580,14 @@ describe('contador de vueltas: la columna oficial de Apex manda', () => {
       colByNum: { c1: 'no', c2: 'dr', c3: 'llp', c4: 'tlp' },
       karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }],
     });
-    p.parse('r1c3|tn|1:05.000');   // vuelta 1 (por columna llp)
-    p.parse('r1c3|tn|1:05.200');   // vuelta 2
-    p.parse('r1c3|ti|1:05.200');   // REENVÍO mismo tiempo + color → vuelta fantasma en lapHistory
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    p.parse('r1c3|tn|1:05.000'); T += 65200;   // vuelta 1 (por columna llp)
+    p.parse('r1c3|tn|1:05.200'); T += 200;     // vuelta 2
+    p.parse('r1c3|ti|1:05.200');   // REENVÍO mismo tiempo + color (antes: vuelta fantasma)
+    spy.mockRestore();
     p.parse('r1c4||2');            // columna oficial de Apex: 2 vueltas
     const e = p.getState().equipos.find(x => x.dorsal === '7');
-    expect(e.lapHistory.length).toBe(3);   // lapHistory se infla con el reenvío
+    expect(e.lapHistory.length).toBe(2);   // el reenvío ya no infla lapHistory (LOGGER-1)
     expect(e.tours).toBe(2);               // el contador sigue la columna oficial, no el historial
   });
 });
