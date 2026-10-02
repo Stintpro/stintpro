@@ -118,6 +118,8 @@ describe('sessionOffset / planPits — paradas del hueco', () => {
     expect(G.sessionOffset({ '10': pits }, dbPits)).toBeNull();
   });
 
+  // Convención de las paradas grabadas en vivo (240/240 en la 7H de Los Santos):
+  // la entrada lleva el contador de ANTES de la parada y la salida el de después.
   test('inserta entrada y salida de las paradas del hueco, con su duración oficial', () => {
     const dbPits = [
       { dorsal: '10', event_type: 'in', timestamp: abs(pits[0], 'inMs') },
@@ -128,9 +130,9 @@ describe('sessionOffset / planPits — paradas del hueco', () => {
     const win = { from: abs(pits[1], 'outMs') + 1000, to: abs(pits[3], 'outMs') + 1000 };
     const plan = G.planPits({ apexPits: pits, dbPits, offset: O, window: win });
     expect(plan).toEqual([
-      { eventType: 'in', standsCount: 3, timestamp: abs(pits[2], 'inMs'), durationMs: null },
+      { eventType: 'in', standsCount: 2, timestamp: abs(pits[2], 'inMs'), durationMs: null },
       { eventType: 'out', standsCount: 3, timestamp: abs(pits[2], 'outMs'), durationMs: 91214 },
-      { eventType: 'in', standsCount: 4, timestamp: abs(pits[3], 'inMs'), durationMs: null },
+      { eventType: 'in', standsCount: 3, timestamp: abs(pits[3], 'inMs'), durationMs: null },
       { eventType: 'out', standsCount: 4, timestamp: abs(pits[3], 'outMs'), durationMs: 113034 },
     ]);
   });

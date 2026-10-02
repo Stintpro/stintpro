@@ -131,7 +131,9 @@ function planPits({ apexPits, dbPits, offset, window }) {
   const plan = [];
   for (const p of apexPits) {
     const tin = offset + p.inMs;
-    if (inWin(tin) && !have('in', tin)) plan.push({ eventType: 'in', standsCount: p.n, timestamp: tin, durationMs: null });
+    // Misma convención que las paradas grabadas en vivo: la entrada lleva el
+    // contador de antes de la parada (n − 1) y la salida el de después (n).
+    if (inWin(tin) && !have('in', tin)) plan.push({ eventType: 'in', standsCount: p.n - 1, timestamp: tin, durationMs: null });
     if (p.outMs != null) {
       const tout = offset + p.outMs;
       if (inWin(tout) && !have('out', tout)) plan.push({ eventType: 'out', standsCount: p.n, timestamp: tout, durationMs: p.durMs ?? null });
