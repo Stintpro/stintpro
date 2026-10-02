@@ -164,7 +164,7 @@ function _enRenderStrategy(eq, trackAvg){
       // El chip del dorsal cicla la calidad a mano (reusa _enToggleQuality),
       // solo en karts conocidos.
       let c=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op}"${wTitle}>
-        <div${vm.isUnknown?'':` onclick="_enToggleQuality('${_esc(vm.dorsal)}',event)" title="Click: cambiar calidad"`} style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)${vm.isUnknown?'':';cursor:pointer'}">${vm.dorsal}</div>`;
+        <div${vm.isUnknown?'':` onclick="_enToggleQuality(${_esc(JSON.stringify(String(vm.dorsal)))},event)" title="Click: cambiar calidad"`} style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)${vm.isUnknown?'':';cursor:pointer'}">${_esc(vm.dorsal)}</div>`;
       if(vm.isUnknown){
         c+=`<div style="flex:1;font-size:12.5px;color:${sub};font-family:sans-serif">Reserva · sin info</div>`;
       } else {
@@ -295,19 +295,20 @@ function _enRenderStrategy(eq, trackAvg){
     const myKart=eq.find(e=>EnBoxModel.isMine(e, myDorsal));
     // standsCount de Apex es la fuente de verdad (correcto aunque conectes tarde);
     // stintHistory local solo sirve de fallback si aún no hay señal oficial.
-    const stopsDone=myKart&&myKart.standsCount>0?myKart.standsCount:(EnSession.stintHistory.length||0);
-    const stopsRemaining=EnBox.totalStops>0?Math.max(0,EnBox.totalStops-stopsDone):0;
     const stintMaxMin2=(cfg2?.stintMax||999);
     const stintMaxMs2=stintMaxMin2*60*1000;
-    let raceRemMs=0;
-    if(window.ApexClock&&window.ApexClock._synced&&!window.ApexClock.isCountUp())raceRemMs=Math.max(0,window.ApexClock.remainingMs());
-    const raceRemMin=Math.round(raceRemMs/60000);
-    // Paradas que el stint máximo obliga a hacer (descuenta el stint en curso y el
-    // reloj que consume cada parada). Sin stint máx → todas obligadas; sin reloj → ninguna.
+    // Reloj: cuenta atrás → lo que marca; ascendente → duración configurada −
+    // transcurrido; sin nada → null (estratégicas desconocidas, no "todas").
+    const _clk=window.ApexClock;
+    const raceRemMsOrNull=EnBoxModel.raceRemainingMs(_clk?{synced:_clk._synced,countUp:_clk.isCountUp(),remainingMs:_clk.remainingMs()}:null,(cfg2?.duration||0)*3600*1000);
+    const raceRemMin=raceRemMsOrNull==null?null:Math.round(raceRemMsOrNull/60000);
     const stintElapsedNow=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
-    const minNecCalc=stintMaxMin2<999?EnBoxModel.stopsNeeded(raceRemMs, stintMaxMs2, stintElapsedNow, EnBox.pitDuration*1000):null;
-    const minNec=minNecCalc!==null?minNecCalc:(stintMaxMin2<999?0:stopsRemaining);
-    const strategic=EnBox.totalStops>0?Math.max(0,stopsRemaining-minNec):0;
+    const plan=EnBoxModel.stopPlan({
+      totalStops:EnBox.totalStops, standsCount:myKart?.standsCount||0, histLen:EnSession.stintHistory.length||0,
+      raceRemMs:raceRemMsOrNull, stintMaxMs:stintMaxMin2<999?stintMaxMs2:null,
+      stintElapsedMs:stintElapsedNow, pitMs:EnBox.pitDuration*1000,
+    });
+    const stopsDone=plan.stopsDone, strategic=plan.strategic;
 
     // Calidad kart actual de mi equipo
     const myQuality=myKart?_enEffectiveQuality(myDorsal, myKart, trackAvg):null;
@@ -332,7 +333,7 @@ function _enRenderStrategy(eq, trackAvg){
       <div style="padding:8px 12px;border-radius:6px;background:color-mix(in srgb, ${tacticColor} 6.67%, transparent);border:0.5px solid color-mix(in srgb, ${tacticColor} 20%, transparent)">
         <span style="font-size:13.5px;color:${tacticColor};font-family:sans-serif">${tacticIcon} ${tacticHtml}</span>
       </div>
-      <div style="font-size:11.5px;color:var(--text-2);margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+strategic+' · ':''} Pool: ${EnBoxModel.poolLabel(probAcceso)} · Mi kart: ${myQuality||'sin info'}</div>
+      <div style="font-size:11.5px;color:var(--text-2);margin-top:6px;font-family:sans-serif">${EnBox.totalStops>0?'Paradas: '+stopsDone+'/'+EnBox.totalStops+' · Estratégicas: '+(strategic==null?'— (sin reloj)':strategic)+' · ':''} Pool: ${EnBoxModel.poolLabel(probAcceso)} · Mi kart: ${myQuality||'sin info'}</div>
     </div>`;
   }
 
@@ -662,7 +663,7 @@ function _enUpdateCfg(key, val){
     window.AppState.config[key]=parseInt(val)||0;
     EnBox.stratConfigured=true;
   } else {
-    window.AppState.config[key]=val;
+    window.AppState.config[key]=key==='myDorsal'?String(val??'').trim():val;
   }
 }
 
@@ -765,6 +766,15 @@ function _enUpdateFlagBanner(){
   else el.style.display='none';
 }
 
+// Paradas de MI equipo: standsCount oficial de Apex o, sin él, las contadas por
+// la app (incluidas las reconstruidas del historial del logger).
+function _enMyStops(){
+  const myD=window.AppState?.config?.myDorsal;
+  const k=(EnSession.data.equipos||[]).find(e=>EnBoxModel.isMine(e,myD));
+  if(k&&k.standsCount>0)return k.standsCount;
+  return EnSession.pitCounts[String(myD)]||0;
+}
+
 // ── API pública ───────────────────────────────────────────────────────────
 window.showEnduranceDashboard=function(cfg){
   _enInjectStyles();
@@ -773,6 +783,12 @@ window.showEnduranceDashboard=function(cfg){
   EnSession.stintFrozen=null;
   EnSession._myPitInDetected=false;
   EnSession.myPitInAt=null;
+  // Salida, bandera y eventos son de la sesión anterior: sin esto el primer
+  // stint se anclaba a la salida vieja (_enApplyRaceState restaura raceStart después).
+  EnSession.raceStart=null;
+  EnSession.flag=null;
+  EnSession.raceStopped=false;
+  EnSession.raceEvents=[];
 
   if(window.ApexClock&&!window.ApexClock.fmt){
     window.ApexClock.fmt=function(){return this.fmtMs(this.remainingMs());};
@@ -799,7 +815,7 @@ window.showEnduranceDashboard=function(cfg){
       // regresiva en marcha o salida oficial (verde com|). El reloj de warmup
       // ascendente (prácticas) y los relojes rancios NO cuentan — antes disparaban
       // el stint 2-10 min antes de la salida. Ver EnStintMachine.raceStintStart.
-      if(!EnSession.stintStart){
+      if(!EnSession.stintStart&&_enMyStops()===0){
         const snap=window.ApexClock?{synced:window.ApexClock._synced,countUp:window.ApexClock.isCountUp(),remainingMs:window.ApexClock.remainingMs()}:null;
         const ss=EnStintMachine.raceStintStart(snap,EnSession.raceStart,(cfg?.duration||0)*3600*1000,Date.now());
         if(ss!==null)EnSession.stintStart=ss;
@@ -862,6 +878,9 @@ window.showEnduranceDashboard=function(cfg){
           return;
         }
         const now=Date.now();
+        // Dorsal saneado antes de que llegue a ningún render (ver _safeDorsal).
+        (data.equipos||[]).forEach(e=>{if(e.dorsal!=null)e.dorsal=_safeDorsal(e.dorsal);});
+        if(Array.isArray(data.pitEvents))data.pitEvents.forEach(ev=>{if(ev&&ev.dorsal!=null)ev.dorsal=_safeDorsal(ev.dorsal);});
         (data.equipos||[]).forEach(e=>{
           const prev=EnSession.data.equipos.find(p=>p.dorsal===e.dorsal);
           if(prev&&prev.lastLap!==e.lastLap)e._lapStart=now;
@@ -908,7 +927,10 @@ window.showEnduranceDashboard=function(cfg){
         if(EnSession._toursSuelo===undefined&&!EnSession._toursCompleto){
           EnSession._toursSuelo=(data.equipos||[]).some(e=>e.lastLap);
         }
-        if(data.sessionFinished)EnSession._finished=true;
+        // Sigue el estado de ESTA sesión: la parrilla nueva trae false y baja el
+        // finished de la clasificación anterior (si no, el guardado salía como
+        // carrera terminada y no se ofrecía reanudar).
+        if(data.sessionFinished!==undefined)EnSession._finished=!!data.sessionFinished;
 
         // ── Salida oficial (com|): ancla del arranque de carrera ──────────────
         // Llega vía data.raceStart en ambos modos (directo y logger). Reancla el
@@ -917,7 +939,7 @@ window.showEnduranceDashboard=function(cfg){
         // Tras el primer pit out, stintStart pertenece al stint vigente → no se toca.
         if(data.raceStart&&data.raceStart.at){
           EnSession.raceStart=data.raceStart;
-          if(EnSession.stintHistory.length===0&&!EnSession.stintFrozen&&
+          if(EnSession.stintHistory.length===0&&_enMyStops()===0&&!EnSession.stintFrozen&&
              (!EnSession.stintStart||Math.abs(EnSession.stintStart-data.raceStart.at)>1000)){
             EnSession.stintStart=data.raceStart.at;
           }
@@ -1022,6 +1044,13 @@ window.showEnduranceDashboard=function(cfg){
             EnSession.kartAutoState[e.dorsal].stintStartIdx=
               Math.max(0,(e.lapHistory||[]).length-e.stintLapCount);
           });
+        }
+
+        // Conectar tarde con paradas ya hechas (otro dispositivo, estado borrado):
+        // mi stint arranca en mi último pit-out conocido, no en la salida de carrera.
+        if(!EnSession.stintStart&&!EnSession.stintFrozen&&EnSession.stintHistory.length===0&&_enMyStops()>0){
+          const po=EnSession.rivalPitOut[String(cfg.myDorsal)];
+          if(typeof po==='number')EnSession.stintStart=po;
         }
 
         // ── Tracking blindado: un error aquí NUNCA debe congelar el dashboard ──
@@ -1219,9 +1248,18 @@ function _enInjectColumnsBtn() {
 }
 
 window._enGoBack=function(){
+  // Carrera en marcha: confirmar y conservar el guardado (el setup ofrecerá
+  // "Reanudar carrera"). Solo se borra si la carrera ya terminó.
+  const cfgNow=window.AppState?.config;
+  const live=!EnSession._finished&&!cfgNow?.simMode&&(EnSession.stintStart||EnSession.stintHistory.length);
+  if(live){
+    if(!window.confirm('¿Volver al setup? La carrera queda guardada y podrás reanudarla desde allí.'))return;
+    _enSaveRaceState();
+  } else {
+    _enClearRaceState();
+  }
   document.querySelector('.sp-nav-setup')?.remove();
   document.getElementById('en-col-bar')?.remove();   // vive en la barra superior
-  _enClearRaceState();
   document.getElementById('en-reconcile-banner')?.remove();
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();
   if(window.ApexClock)window.ApexClock.reset();
@@ -1230,7 +1268,8 @@ window._enGoBack=function(){
   if(_enSimTimer){clearInterval(_enSimTimer);_enSimTimer=null;}
   if(_enBarTimer){clearInterval(_enBarTimer);_enBarTimer=null;}
   _enStopAdvRaf();
-  EnSession.data={equipos:[],leaderLap:0,_stintStartTours:0,_myWasOut:false,_myWasIn:false};
+  if(typeof _enStopTrackRaf==='function')_enStopTrackRaf();
+  EnSession.data={equipos:[],leaderLap:0,_stintStartTours:null,_myWasOut:false,_myWasIn:false};
   EnSession.colMapSeen = {};
   EnSession._toursCompleto = false;   // ¿el historial de vueltas viene entero del logger?
   EnSession._toursSuelo = undefined;  // sin evaluar hasta el primer snapshot de la sesión

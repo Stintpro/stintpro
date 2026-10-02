@@ -102,16 +102,26 @@ function _serialize(events, meta){
 
 async function _flush(){
   if (!_store) return;
+  // Sin eventos ni circuito no hay nada que guardar: admin.html carga su propia
+  // copia del módulo y llenaba IndexedDB de claves vacías "…_sin-circuito_0".
+  if (!_theRing.size && !_meta.circuito) return;
   const payload = _serialize(_theRing.snapshot(), _meta);
   await _store.put(_sesionKey(), payload);
 }
 
-async function recoverLast(){
+// Clave → día (YYYY-MM-DD) dentro de los últimos `days` días
+const RETAIN_DAYS = 7;
+function _keyDay(k){ return String(k).slice(0, 10); }
+function _cutoffDay(days){ return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10); }
+
+// La carrera guardada más reciente de los últimos días (no solo la de hoy UTC:
+// una carrera de ayer o que cruza la medianoche UTC también cuenta).
+async function recoverLast(days){
   if (!_store) return null;
-  const hoy = new Date().toISOString().slice(0, 10);
+  const desde = _cutoffDay(days != null ? days : RETAIN_DAYS);
   const actual = _sesionKey();
   const keys = (await _store.listKeys())
-    .filter(k => k.startsWith(hoy) && k !== actual);
+    .filter(k => _keyDay(k) >= desde && k !== actual);
   if (!keys.length) return null;
   let best = null, bestHasta = -Infinity;
   for (const key of keys) {
@@ -123,17 +133,24 @@ async function recoverLast(){
   return best;
 }
 
-function _filename(){
+function _filename(circuito){
   const n = new Date();
   const p = x => String(x).padStart(2, '0');
   const stamp = `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}_${p(n.getHours())}${p(n.getMinutes())}`;
-  return `stintpro-blackbox_${_meta.circuito || 'sesion'}_${stamp}.json`;
+  return `stintpro-blackbox_${circuito || _meta.circuito || 'sesion'}_${stamp}.json`;
 }
 
-async function exportLog(){
-  await _flush();
-  const payload = _serialize(_theRing.snapshot(), _meta);
-  const filename = _filename();
+// Sin clave: lo que lleva esta página (ring en memoria). Con clave: la carrera
+// guardada en IndexedDB — es lo que exporta admin → Diagnóstico, cuya copia del
+// módulo no tiene en memoria los eventos de la carrera (los grabó index.html).
+async function exportLog(key){
+  let payload = null;
+  if (key && _store) payload = await _store.get(key);
+  if (!payload) {
+    await _flush();
+    payload = _serialize(_theRing.snapshot(), _meta);
+  }
+  const filename = _filename(payload.resumen && payload.resumen.circuito);
   if (typeof document !== 'undefined' && typeof Blob !== 'undefined') {
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -145,9 +162,21 @@ async function exportLog(){
   return { filename, payload };
 }
 
-async function clear(){
+// Sin clave: el log de esta página. Con clave: esa carrera guardada.
+async function clear(key){
+  if (key) { try { if (_store) await _store.del(key); } catch(_){} return; }
   try { _theRing.clear(); } catch(_){}
   try { if (_store) await _store.del(_sesionKey()); } catch(_){}
+}
+
+// Cada conexión abre una clave nueva (sesion = Date.now()) de hasta 5000
+// eventos: sin limpieza IndexedDB crecía sin fin. Se borra lo de más de N días.
+async function gc(days){
+  if (!_store) return;
+  const desde = _cutoffDay(days != null ? days : RETAIN_DAYS);
+  try {
+    for (const k of await _store.listKeys()) if (_keyDay(k) < desde) await _store.del(k);
+  } catch (_) { /* fail-safe */ }
 }
 
 // _armAutoFlush: vuelca a IndexedDB de forma periódica y en eventos de ciclo de
@@ -238,12 +267,15 @@ function _idbStore(dbName, storeName){
 
 const Blackbox = {
   event, clear, _makeRing, _scrub, _serialize, _ring: () => _theRing, MAX_EVENTS, MAX_MS,
-  setMeta, _setStore, _flush, recoverLast, export: exportLog, _idbStore, _armAutoFlush,
+  setMeta, _setStore, _flush, recoverLast, export: exportLog, gc, _idbStore, _armAutoFlush,
 };
 
 if (typeof window !== 'undefined') window.Blackbox = Blackbox;
 if (typeof module !== 'undefined') module.exports = Blackbox;
 
 if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
-  try { _setStore(_idbStore('stintpro', 'blackbox')); _armAutoFlush(); } catch(_){}
+  try {
+    _setStore(_idbStore('stintpro', 'blackbox')); _armAutoFlush();
+    const p = gc(); if (p && p.catch) p.catch(() => {});
+  } catch(_){}
 }

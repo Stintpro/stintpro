@@ -485,29 +485,24 @@ function _enRenderTeam(myKart, trackAvg){
 
   // ── Estrategia de paradas ────────────────────────────────────
   if(EnBox.totalStops>0){
-    const stopsDone=EnSession.stintHistory.length;
-    const stopsRemaining=Math.max(0,EnBox.totalStops-stopsDone);
     const cfg=window.AppState?.config;
     const stintMaxMin=(cfg?.stintMax||999);
-    const stintMaxMs2=stintMaxMin*60*1000;
-
-    // Tiempo restante de carrera
-    let raceRemainingMs=0;
-    if(window.ApexClock&&window.ApexClock._synced&&!window.ApexClock.isCountUp()){
-      raceRemainingMs=Math.max(0,window.ApexClock.remainingMs());
-    }
-    const raceRemainingMin=Math.round(raceRemainingMs/60000);
-
-    // Paradas mínimas necesarias para cubrir el tiempo restante
-    const minNecessary=stintMaxMin<999?Math.ceil(raceRemainingMin/stintMaxMin):stopsRemaining;
-    const strategic=Math.max(0,stopsRemaining-minNecessary);
-
-    // Stint medio necesario
-    const avgStintNeeded=stopsRemaining>0?Math.round(raceRemainingMin/stopsRemaining):0;
+    const myKart=(EnSession.data.equipos||[]).find(e=>EnBoxModel.isMine(e,cfg?.myDorsal));
+    // Mismo plan que la Recomendación táctica de Estrategia (EnBoxModel.stopPlan).
+    const _clk=window.ApexClock;
+    const plan=EnBoxModel.stopPlan({
+      totalStops:EnBox.totalStops, standsCount:myKart?.standsCount||0, histLen:EnSession.stintHistory.length,
+      raceRemMs:EnBoxModel.raceRemainingMs(_clk?{synced:_clk._synced,countUp:_clk.isCountUp(),remainingMs:_clk.remainingMs()}:null,(cfg?.duration||0)*3600*1000),
+      stintMaxMs:stintMaxMin<999?stintMaxMin*60000:null,
+      stintElapsedMs:EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0),
+      pitMs:EnBox.pitDuration*1000,
+    });
+    const {stopsDone, stopsRemaining, strategic}=plan;
+    const avgStintNeeded=plan.avgStintMin;
 
     // Colores
-    const stratColor=strategic>0?'var(--state-ok)':'var(--state-warn)';
-    const avgColor=avgStintNeeded<stintMaxMin*0.7?'var(--state-ok)':avgStintNeeded<stintMaxMin?'var(--state-warn)':'var(--state-alert)';
+    const stratColor=strategic==null?'var(--text-3)':strategic>0?'var(--state-ok)':'var(--state-warn)';
+    const avgColor=avgStintNeeded==null?'var(--text-3)':avgStintNeeded<stintMaxMin*0.7?'var(--state-ok)':avgStintNeeded<stintMaxMin?'var(--state-warn)':'var(--state-alert)';
 
     html+=`<div class="en-team-card">
       <div class="en-strat-title">Estrategia de paradas</div>
@@ -522,16 +517,18 @@ function _enRenderTeam(myKart, trackAvg){
         </div>
         <div>
           <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">Estratégicas</div>
-          <div style="font-size:22px;font-weight:600;color:${stratColor};font-family:monospace">${strategic}</div>
+          <div style="font-size:22px;font-weight:600;color:${stratColor};font-family:monospace">${strategic==null?'—':strategic}</div>
         </div>
         <div>
           <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">Stint medio</div>
-          <div style="font-size:22px;font-weight:600;color:${avgColor};font-family:monospace">${avgStintNeeded}m</div>
+          <div style="font-size:22px;font-weight:600;color:${avgColor};font-family:monospace">${avgStintNeeded==null?'—':avgStintNeeded+'m'}</div>
           <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">máx ${stintMaxMin}m</div>
         </div>
       </div>
       ${strategic>0?`<div style="margin-top:10px;padding:6px 10px;border-radius:6px;background:#22c55e11;border:0.5px solid #22c55e33">
         <span style="font-size:11.5px;color:var(--state-ok);font-family:sans-serif">🎯 Tienes <b>${strategic}</b> parada${strategic>1?'s':''} estratégica${strategic>1?'s':''} disponible${strategic>1?'s':''} para cazar kart bueno</span>
+      </div>`:strategic==null?`<div style="margin-top:10px;padding:6px 10px;border-radius:6px;border:0.5px solid var(--border)">
+        <span style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">Sin reloj de carrera: no se puede saber cuántas paradas te sobran</span>
       </div>`:`<div style="margin-top:10px;padding:6px 10px;border-radius:6px;background:#fbbf2411;border:0.5px solid #fbbf2433">
         <span style="font-size:11.5px;color:var(--state-warn);font-family:sans-serif">⚠ Sin paradas estratégicas — apura cada stint al máximo</span>
       </div>`}

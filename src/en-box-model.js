@@ -70,8 +70,11 @@
     const pool = p.probAcceso;
     const known = pool != null;
     const P = poolLabel(pool);
-    const free = p.strategic > 0 || p.totalStops === 0;
-    const lateEnough = p.stintPct >= 30 || p.raceRemMin < p.stintMaxMin * 1.5;
+    // strategic null = sin reloj de carrera: no se sabe si sobran paradas, así
+    // que ni caza ni parada anticipada (gastarías una que el stint máx exige).
+    const unknownStops = p.strategic == null && p.totalStops > 0;
+    const free = !unknownStops && (p.strategic > 0 || p.totalStops === 0);
+    const lateEnough = p.stintPct >= 30 || (p.raceRemMin != null && p.raceRemMin < p.stintMaxMin * 1.5);
     const r = (icon, color, html) => ({ icon, color, html });
 
     if (!p.canPit) {
@@ -91,6 +94,8 @@
       if (q === 'bad' && free && pool < 25)
         return r('⏳', 'var(--state-warn)', `Kart malo + pool bajo (${P}) → <b>Espera mejor momento</b>`);
     }
+    if (q === 'bad' && unknownStops)
+      return r('📊', 'var(--state-warn)', `Kart malo · <b>Sin reloj de carrera</b> — no se sabe si te sobra alguna parada para cambiar de kart`);
     if (q === 'bad' && p.strategic === 0 && p.totalStops > 0)
       return r('😤', 'var(--state-alert)', `Kart malo + sin paradas extra → <b>Apura stint, no puedes cazar</b>`);
     if (q === 'bad' && !known)
@@ -242,13 +247,16 @@
   }
 
   // Previsión: cada rival que para deja su kart al final de la cola y sale con
-  // uno de la zona accesible. predictions en el orden en que van a parar.
+  // uno de la zona accesible. Se ordenan por minuto aquí (el llamante las pasa
+  // por posición) y cada paso es el mismo intercambio que boxOnPitEvent:
+  // primero se lleva uno de la zona y luego deja el suyo al final.
   function forecast(queue, type, cols, predictions) {
     let q = queue.slice();
     const steps = [];
-    for (const p of predictions) {
+    const ordered = predictions.slice().sort((a, b) => (a.minLeft ?? Infinity) - (b.minLeft ?? Infinity));
+    for (const p of ordered) {
       const qual = p.quality === 'good' || p.quality === 'neutral' || p.quality === 'bad' ? p.quality : 'unknown';
-      q = applyPitOut(q.concat([{ quality: qual, dorsal: p.dorsal, name: p.name }]), type, cols);
+      q = pitOutWithCut(q, type, cols).queue.concat([{ quality: qual, dorsal: p.dorsal, name: p.name }]);
       steps.push({ ...p, prob: accessProb(q, type, cols).prob });
     }
     return { now: accessProb(queue, type, cols).prob, steps };
@@ -262,6 +270,48 @@
     const rest = raceRemMs - Math.max(0, stintMaxMs - (stintElapsedMs || 0));
     if (rest <= 0) return 0;
     return Math.ceil(rest / (stintMaxMs + (pitMs || 0)));
+  }
+
+  // Tiempo de carrera que queda, o null si no se puede saber. Cuenta atrás →
+  // lo que marca; ascendente → duración configurada − transcurrido.
+  //   clock → { synced, countUp, remainingMs } (en ascendente remainingMs es lo transcurrido)
+  function raceRemainingMs(clock, raceDurMs) {
+    if (!clock || !clock.synced || clock.remainingMs == null) return null;
+    if (!clock.countUp) return Math.max(0, clock.remainingMs);
+    if (!(raceDurMs > 0)) return null;
+    return Math.max(0, raceDurMs - clock.remainingMs);
+  }
+
+  // Plan de paradas de MI equipo, el mismo para Estrategia y Mi equipo.
+  // standsCount de Apex manda (correcto aunque conectes tarde); el historial
+  // local es el respaldo. raceRemMs null = sin reloj → estratégicas desconocidas
+  // (null), nunca "todas libres". stintMaxMs null/0 = sin stint máximo.
+  function stopPlan(p) {
+    const stopsDone = p.standsCount > 0 ? p.standsCount : (p.histLen || 0);
+    const stopsRemaining = p.totalStops > 0 ? Math.max(0, p.totalStops - stopsDone) : 0;
+    const hasMax = p.stintMaxMs > 0;
+    const pitMs = p.pitMs || 0;
+    let minNec, strategic;
+    if (!hasMax) { minNec = stopsRemaining; strategic = 0; }
+    else if (p.raceRemMs == null) { minNec = null; strategic = null; }
+    else {
+      minNec = p.raceRemMs > 0 ? stopsNeeded(p.raceRemMs, p.stintMaxMs, p.stintElapsedMs, pitMs) : 0;
+      strategic = p.totalStops > 0 ? Math.max(0, stopsRemaining - minNec) : 0;
+    }
+    // Duración media de los stints que quedan (el actual completo + los nuevos).
+    const avgStintMin = p.raceRemMs == null ? null
+      : Math.round(Math.max(0, p.raceRemMs - stopsRemaining * pitMs + (p.stintElapsedMs || 0)) / (stopsRemaining + 1) / 60000);
+    return { stopsDone, stopsRemaining, minNec, strategic, avgStintMin };
+  }
+
+  // ¿Apurar el stint máximo? trackTimeMin ya incluye lo que queda del stint en
+  // curso, así que apurar consume solo lo que falta hasta el máximo, no un
+  // stint máximo entero. canPush null = no aplica (sin máximo o sin paradas).
+  function pushCheck(p) {
+    if (!(p.stintMaxM > 0 && p.stintMaxM < 999) || !(p.stopsLeft > 0)) return { canPush: null, afterPushAvg: null, pushLeftMin: null };
+    const pushLeftMin = Math.max(0, p.stintMaxM - (p.stintElapsedMin || 0));
+    const afterPushAvg = (p.trackTimeMin - pushLeftMin) / p.stopsLeft;
+    return { canPush: afterPushAvg >= (p.stintMinM || 0), afterPushAvg, pushLeftMin };
   }
 
   // Una parada es un INTERCAMBIO: el equipo se lleva un kart de la zona
@@ -331,8 +381,16 @@
       kept.unshift(w < weight(k) ? { ...k, w } : k);
       sum += w;
     }
-    const pad = Math.round(n - sum);
-    return makeReserve(pad).concat(kept);
+    // Relleno con desconocidos hasta pesar justo N: si falta una fracción,
+    // el primero (el más antiguo) lleva solo esa fracción.
+    const missing = n - sum;
+    const pad = Math.ceil(missing - 1e-9);
+    const fill = makeReserve(pad);
+    if (pad > 0) {
+      const frac = missing - (pad - 1);
+      if (frac < 1 - 1e-9) fill[0].w = frac;
+    }
+    return fill.concat(kept);
   }
 
   // Equipos en boxes cuya parada ya hizo el intercambio: su kart está asignado
@@ -396,6 +454,6 @@
     return queue;
   }
 
-  return { committedCount, nextKartLine, boxCardVM, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, applyPitOut, accessProb, forecast, stopsNeeded };
 });

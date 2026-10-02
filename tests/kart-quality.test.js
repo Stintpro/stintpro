@@ -414,6 +414,36 @@ group('Tráfico — vueltas en tren/bloqueadas fuera de la calidad', () => {
   });
 });
 
+group('Historial lleno (tope de 1500 vueltas) — APP-11', () => {
+  // Al llegar al tope el parser descarta la más antigua por cada vuelta nueva:
+  // la longitud ya no crece y el índice de inicio de stint debe correrse.
+  const CAP = 1500;
+
+  function lap(k, t, v) { k.lapHistory = [...k.lapHistory.slice(1), v]; k.lastLapAt = t; }
+
+  test('con el historial lleno, el kart nuevo tras pit out se evalúa y no se congela', () => {
+    reset();
+    let t = 1000;
+    const k = { dorsal: '9', name: 'X', pitState: 'out', lapHistory: Array(CAP).fill(70), lastLapAt: t };
+    _enAutoKartQuality(k, 65);          // pit out con el historial ya lleno
+    k.pitState = null;
+    for (let i = 0; i < 3; i++) { lap(k, t += 65000, 65.0); _enAutoKartQuality(k, 65); }
+    assert.equal(_enAutoKartQuality(k, 65), 'neutral', 'las 3 vueltas del kart nuevo cuentan');
+    for (let i = 0; i < 5; i++) { lap(k, t += 63000, 63.0); _enAutoKartQuality(k, 65); }
+    assert.equal(_enAutoKartQuality(k, 65), 'good', 'las vueltas siguientes siguen evaluándose');
+  });
+
+  test('llamadas repetidas sin vuelta nueva no corren el índice', () => {
+    reset();
+    let t = 1000;
+    const k = { dorsal: '9', name: 'X', pitState: 'out', lapHistory: Array(CAP).fill(70), lastLapAt: t };
+    _enAutoKartQuality(k, 65);
+    k.pitState = null;
+    for (let i = 0; i < 3; i++) { lap(k, t += 65000, 65.0); for (let j = 0; j < 8; j++) _enAutoKartQuality(k, 65); }
+    assert.equal(EnSession.kartAutoState['9'].stintStartIdx, CAP - 3);
+  });
+});
+
 // ── Resumen ───────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);

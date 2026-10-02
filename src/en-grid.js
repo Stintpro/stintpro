@@ -203,7 +203,7 @@ function _enRender(){
       if(advAi){
         const now=Date.now();
         if(!advAi._lastRender||now-advAi._lastRender>5000){
-          advAi.innerHTML=_enRenderAiEngineerPanel();
+          _enRefreshAiPanel(advAi);
           advAi._lastRender=now;
         }
       }

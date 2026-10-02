@@ -523,6 +523,26 @@ group('mergeHttpHistory()', () => {
     assert.equal(p.getState().equipos[0].lapHistory.length, 2);
   });
 
+  test('PARSER-7: una vuelta antigua con el mismo tiempo que una reciente NO se descarta', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },
+      karts: [{ rowId: 'r1', dorsal: '7' }] });
+    p.parse('r1|*|65000|');
+    p.parse('r1|*|66000|');
+    // HTTP: historial completo por nº de vuelta; su cola (65.0) es la 1ª vuelta del WS
+    p.mergeHttpHistory('r1', [65.01, 60.0, 65.0], 4);
+    assert.deepEqual(p.getState().equipos[0].lapHistory, [65.01, 60.0, 65.0, 66.0]);
+  });
+
+  test('PARSER-7: sin solape con el WS, se antepone todo el historial HTTP', () => {
+    const p = createParser({});
+    p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },
+      karts: [{ rowId: 'r1', dorsal: '7' }] });
+    p.parse('r1|*|65000|');
+    p.mergeHttpHistory('r1', [64.0, 64.5], 3);
+    assert.deepEqual(p.getState().equipos[0].lapHistory, [64.0, 64.5, 65.0]);
+  });
+
   test('updates bestLap from HTTP history', () => {
     const p = createParser({});
     p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },

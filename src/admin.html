@@ -273,7 +273,7 @@
           <div style="font-size:13px;color:var(--text-3);line-height:1.5;margin-bottom:20px">Descarga un volcado <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--bg-raised);padding:1px 6px;border-radius:4px">.json</code> con los últimos eventos registrados en esta sesión, o bórralo si ya no lo necesitas.</div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-p" id="bb-export" onclick="exportBlackbox()">Exportar caja negra</button>
-            <button class="btn btn-d" id="bb-clear" onclick="clearBlackboxLog()">Borrar log actual</button>
+            <button class="btn btn-d" id="bb-clear" onclick="clearBlackboxLog()">Borrar esta carrera</button>
           </div>
         </div>
       </div>
@@ -695,26 +695,34 @@ async function toggleDemoMode() {
 }
 
 // ── CAJA NEGRA (DIAGNÓSTICO) ──────────────────────────────────
+// admin carga su propia copia de en-blackbox.js (ring vacío): lo que interesa es
+// la carrera que grabó el panel en IndexedDB. Se anuncia la más reciente de los
+// últimos 7 días y export/borrar actúan sobre esa clave.
+let _bbKey = null;
 async function loadBlackboxDiag() {
   const p = document.getElementById('bb-recover');
   if (!p) return;
   const rec = await window.Blackbox?.recoverLast?.();
+  _bbKey = rec ? rec.key : null;
   if (rec) {
     p.hidden = false;
-    p.textContent = `Hay un log previo de hoy (${rec.key}, ${rec.resumen.totalEventos} eventos). Exporta la caja negra para incluirlo.`;
+    p.textContent = `Última carrera grabada: ${rec.key} (${rec.resumen.totalEventos} eventos). "Exportar" descarga esa carrera.`;
   } else {
     p.hidden = true;
   }
 }
 
 async function exportBlackbox() {
-  const res = await window.Blackbox?.export?.();
+  const res = await window.Blackbox?.export?.(_bbKey);
   if (res) toast('Caja negra exportada: ' + res.filename);
 }
 
-function clearBlackboxLog() {
-  window.Blackbox?.clear?.();
-  toast('Log actual borrado');
+async function clearBlackboxLog() {
+  if (!_bbKey) { toast('No hay ninguna carrera grabada'); return; }
+  if (!confirm(`¿Borrar la caja negra ${_bbKey}?`)) return;
+  await window.Blackbox?.clear?.(_bbKey);
+  toast('Caja negra borrada');
+  loadBlackboxDiag();
 }
 
 // ── UTILS ─────────────────────────────────────────────────────

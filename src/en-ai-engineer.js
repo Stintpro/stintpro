@@ -20,13 +20,29 @@ const _enAiEngineer = {
 // escribiendo en el cuadro de consulta — sin esto, el repintado periódico
 // (cada 5s en en-grid.js) o el de un boletín/alerta en curso borraría la
 // pregunta a mitad de escribirla.
+// También devuelve el foco y el cursor si estaba escribiendo (en el iPad, sin
+// esto el teclado se cierra con cada repintado).
 function _enRepaintAiPanel(container){
   if(!container)return;
   const qEl=container.querySelector('#en-adv-ai-question');
   const qVal=qEl?qEl.value:'';
+  const hadFocus=!!qEl&&typeof document!=='undefined'&&document.activeElement===qEl;
+  const selS=qEl?qEl.selectionStart:null, selE=qEl?qEl.selectionEnd:null;
   container.innerHTML=_enRenderAiEngineerPanel();
   const newQEl=container.querySelector('#en-adv-ai-question');
   if(newQEl&&qVal)newQEl.value=qVal;
+  if(newQEl&&hadFocus){
+    newQEl.focus();
+    if(selS!=null&&typeof newQEl.setSelectionRange==='function')newQEl.setSelectionRange(selS,selE);
+  }
+}
+
+// Refresco periódico (cada 5 s desde en-grid.js): solo actualiza el "hace X
+// min", así que mientras se escribe la pregunta no se repinta.
+function _enRefreshAiPanel(container){
+  if(!container)return;
+  if(typeof document!=='undefined'&&document.activeElement&&document.activeElement.id==='en-adv-ai-question')return;
+  _enRepaintAiPanel(container);
 }
 
 // ── Snapshot compacto para la IA (≈1-2 KB) ───────────────────────────────

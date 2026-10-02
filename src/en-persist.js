@@ -25,7 +25,11 @@ function _enSaveRaceState() {
         posIn: EnSession.posIn,
         stintBestLap: EnSession.stintBestLap,
         stintLapTimes: EnSession.stintLapTimes,
-        stintStartTours: EnSession.data?._stintStartTours || 0,
+        stintStartTours: EnSession.data?._stintStartTours ?? null,
+        // Flancos de la máquina de stint: sin ellos, recargar con el kart en boxes
+        // volvía a disparar el pit in y duplicaba el stint.
+        wasIn: !!EnSession.data?._myWasIn,
+        wasOut: !!EnSession.data?._myWasOut,
         raceStart: EnSession.raceStart,
       },
       // Reglas de la organización configuradas a mano — el feed de Apex/Logger no las
@@ -88,7 +92,9 @@ function _enApplyRaceState(snap) {
   EnSession.posIn = snap.en.posIn || null;
   EnSession.stintBestLap = snap.en.stintBestLap || null;
   EnSession.stintLapTimes = snap.en.stintLapTimes || [];
-  EnSession.data._stintStartTours = snap.en.stintStartTours || 0;
+  EnSession.data._stintStartTours = snap.en.stintStartTours ?? null;
+  EnSession.data._myWasIn = snap.en.wasIn ?? !!snap.en.myPitInDetected;
+  EnSession.data._myWasOut = !!snap.en.wasOut;
   EnSession.raceStart = snap.en.raceStart || null;
   // showEnduranceDashboard() ya reseteó EnBox a sus valores por defecto — restauramos
   // encima solo si el snapshot trae `box` (snapshots guardados antes de este fix no lo

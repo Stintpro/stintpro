@@ -145,10 +145,10 @@ function _enInjectStyles(){
   s.textContent=`
     /* El chrome compartido con el otro modo vive en src/panel.css.
        Aquí solo lo específico de endurance. */
-    .en-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;width:100%;-webkit-app-region:no-drag;}
+    .en-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;width:100%;-webkit-app-region:no-drag;}
     .en-thead{display:grid;column-gap:10px;padding:5px 14px;border-bottom:0.5px solid #1a1b20;flex-shrink:0;overflow-x:auto;scrollbar-width:none;}
     .en-thead::-webkit-scrollbar{display:none;}
-    .en-thead span{font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
+    .en-thead span{font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
     .en-col-bar{position:relative;flex-shrink:0;}
     .en-col-btn{cursor:pointer;}
     .en-col-panel{position:absolute;z-index:50;top:30px;left:0;border:0.5px solid var(--glass-border);border-radius:10px;padding:10px 12px;display:flex;gap:18px;}
@@ -176,6 +176,9 @@ function _enInjectStyles(){
       .en-thead,.en-row{column-gap:6px;padding-left:10px;padding-right:10px;}
     }
     @media (max-width:900px){
+      /* KPIs (iPad en vertical): 3 por fila en vez de 5 apretados; con 1fr a
+         secas la baldosa con subtítulo largo empujaba la rejilla fuera de pantalla. */
+      .en-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
       .en-thead,.en-row{column-gap:4px;padding-left:8px;padding-right:8px;}
       .en-thead span{font-size:10px;}
       .en-kart{width:26px;height:20px;font-size:12px;}
@@ -185,6 +188,9 @@ function _enInjectStyles(){
          .sp-t/.sp-gap también los usa el panel sprint. */
       .en-row .sp-t,.en-row .sp-gap{font-size:12px;}
       .en-row .en-m5{font-size:11.5px;}
+    }
+    @media (max-width:600px){
+      .en-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
     }
     .en-kart{display:inline-flex;align-items:center;justify-content:center;width:30px;height:22px;border-radius:5px;font-size:13.5px;font-weight:700;margin:auto;cursor:pointer;position:relative;}
     .en-kart-q{position:absolute;top:-3px;right:-3px;font-size:8.5px;line-height:1;}
@@ -222,7 +228,7 @@ function _enInjectStyles(){
     .en-queue-stat{font-size:11.5px;color:var(--text-3);font-family:monospace;}
     .en-stint-row{display:grid;grid-template-columns:24px 1fr 62px 46px 82px 82px 64px 48px;padding:6px 0;border-bottom:0.5px solid #111;align-items:center;font-size:13.5px;font-family:monospace;}
     .en-stint-row:last-child{border-bottom:none;}
-    .en-stint-head{color:#333;font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;}
+    .en-stint-head{color:var(--text-3);font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;}
     /* Estrategia */
     .en-strat{padding:14px 18px;overflow-y:auto;flex:1;}
     .en-strat-card{border:0.5px solid var(--glass-border);border-radius:8px;padding:14px;margin-bottom:12px;}
@@ -248,8 +254,14 @@ function _enEstLaps(trackAvg){
 // ── Vueltas en stint actual (mi equipo) ──────────────────────────────────
 function _enStintLaps(myKart){
   if(!myKart||!EnSession.stintStart)return 0;
-  if(!EnSession.data._stintStartTours&&myKart.tours>0)EnSession.data._stintStartTours=myKart.tours;
-  if(!EnSession.data._stintStartTours)return 0;
+  // null = base sin fijar. En el primer stint (sin paradas) la base es la salida
+  // (0 vueltas); con paradas y sin pit-out visto, lo mejor que hay es el
+  // contador actual (cuenta desde aquí: un mínimo).
+  if(EnSession.data._stintStartTours==null&&myKart.tours>0){
+    const firstStint=EnSession.stintHistory.length===0&&!(myKart.standsCount>0);
+    EnSession.data._stintStartTours=firstStint?0:myKart.tours;
+  }
+  if(EnSession.data._stintStartTours==null)return 0;
   return Math.max(0, myKart.tours-EnSession.data._stintStartTours);
 }
 
@@ -396,10 +408,22 @@ function _enToggleQuality(dorsal, ev){
 // stintStartIdx siga al kart físico. Sin esto, al volver de un override a
 // 'auto' se evaluarían vueltas del kart anterior como si fueran del actual (B4).
 // Devuelve el objeto de estado del dorsal (nunca null si e.lapHistory existe).
+const _EN_LAP_CAP=1500; // tope de lapHistory (apex-protocol.js / _enMergeLapHistory)
 function _enTrackKartStint(e){
   if(!e||!e.lapHistory)return null;
   if(!EnSession.kartAutoState[e.dorsal])EnSession.kartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
   const state=EnSession.kartAutoState[e.dorsal];
+
+  // Historial lleno (tope de 1500): cada vuelta nueva entra por el final y la
+  // más antigua sale por delante, así que la longitud no cambia y el índice
+  // absoluto de inicio de stint hay que correrlo una posición por vuelta.
+  // Una vuelta nueva = cambio de lastLapAt (pase por meta).
+  const len=e.lapHistory.length;
+  if(len>=_EN_LAP_CAP&&state._seenLen>=_EN_LAP_CAP&&e.lastLapAt&&state._seenLapAt&&e.lastLapAt!==state._seenLapAt){
+    state.stintStartIdx=Math.max(0,(state.stintStartIdx||0)-1);
+  }
+  state._seenLen=len;
+  if(e.lastLapAt)state._seenLapAt=e.lastLapAt;
 
   // Pit IN: guardar calidad previa (para tracking de box)
   if(e.pitState==='in'){
@@ -452,9 +476,8 @@ function _enAutoKartQuality(e, trackAvg){
   // cambio de kart invalide el caché, incluidos los escritores externos del
   // índice — p.ej. la reconstrucción desde stintLapCount al reconectar con el
   // logger (en-strategy.js, snapshot _isHistory), que no conoce este caché.
-  // Nota: si lapHistory llegara al tope de 1500 la longitud dejaría de crecer
-  // y el caché se congelaría dentro de un mismo stint; inalcanzable en la
-  // práctica (9 h a ~65 s/vuelta ≈ 500 vueltas por kart).
+  // Con el historial lleno la longitud no crece, pero stintStartIdx se corre
+  // con cada vuelta nueva (_enTrackKartStint), así que la llave sigue cambiando.
   const evalKey=startIdx+':'+e.lapHistory.length;
   if(state.lastEvalKey===evalKey)return state.quality;
   state.lastEvalKey=evalKey;

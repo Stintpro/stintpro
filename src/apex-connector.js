@@ -6,17 +6,7 @@
 // la app Electron (origen file://), que no puede resolver rutas relativas.
 const APEX_PROXY_URL = 'https://stintpro.vercel.app/api/apex-proxy';
 
-// Cabeceras que delatan una columna de categoría/cilindrada
-// var (no const): apex-connector.js y replay-connector.js son <script> clásicos
-// cargados en el mismo scope global de index.html — un `const` duplicado entre
-// ambos lanza "Identifier ha sido declarado" y aborta el segundo script entero.
-var CAT_HEADER = /categor|clase|classe|cilindr|^\s*(cat|cls|cc)\.?\s*$/i;
-// Quita acentos antes de testear la cabecera: el francés manda "Catégorie" con é
-// y /categor/ no casa con la é → la columna Clase no se ofrecía (Le Mans). var por
-// el mismo motivo que CAT_HEADER (scope global compartido con replay-connector).
-var stripAccents = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-// dtypes que ya tienen significado propio: nunca son la columna de categoría
-var RESERVED_DTYPES = new Set(['rk','no','dr','llp','blp','gap','int','tlp','lc','pit','otr','s1','s2','s3','grp','sta','nat','rku']);
+// CAT_HEADER / stripAccents / RESERVED_DTYPES viven en apex-grid.js.
 
 window.ApexConnector = {
   ws: null, slug: null, port: 7913, connected: false,
@@ -141,88 +131,8 @@ window.ApexConnector = {
   _parseGrid(html) {
     if (!html || html.length < 10) return;
     try {
-      const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
-      const colMap = {}, colByNum = {};
-      let otrIsPit = false;
-      let catCol = null;
-
-      const r0 = doc.querySelector('tr[data-id="r0"]');
-      if (r0) {
-        r0.querySelectorAll('td[data-id]').forEach(td => {
-          const cid   = td.getAttribute('data-id');
-          const dtype = (td.getAttribute('data-type') || '').trim();
-          if (cid && dtype) { colMap[dtype] = cid; colByNum[cid] = dtype; }
-          // otr = "Tiempo en PIT" en unos circuitos, "tiempo en pista" en otros:
-          // se discrimina por el texto de la cabecera.
-          if (dtype === 'otr' && /\b(pit|box)\b/i.test(td.textContent || '')) otrIsPit = true;
-
-          if (dtype === 'class') catCol = cid;
-          else if (!catCol && CAT_HEADER.test(stripAccents(td.textContent)) && !RESERVED_DTYPES.has(dtype)) {
-            catCol = cid;
-            // Solo colMap.class, NUNCA colByNum[cid]: colByNum fija el dtype que usa
-            // _applyCell para decidir el parseo de la celda (estado, tiempos...), y no
-            // debe cambiar solo porque el texto de cabecera delate una categoría. Aquí
-            // únicamente se alimenta `requires: cm => !!cm.class` del catálogo de
-            // columnas (en-columns.js), para que la columna Clase se pueda marcar como
-            // disponible también cuando la categoría se detectó por texto y no por
-            // data-type="class" — si no, el dato llegaría pero la columna seguiría oculta.
-            colMap.class = cid;
-          }
-        });
-      }
-
-      const gridKarts = [];
-      let gridPos = 0;
-      doc.querySelectorAll('tr[data-id]').forEach(row => {
-        const rowId = row.getAttribute('data-id');
-        if (!rowId || rowId === 'r0') return;
-        gridPos++;
-        const kg = { rowId };
-
-        const stCol  = colMap.grp || colMap.sta || 'c1';
-        const stCell = row.querySelector(`[data-id$="${stCol}"]`);
-        if (stCell) { const cls = stCell.className.trim(); if (cls && cls !== 'in') kg.state = cls; }
-
-        const rkP = row.querySelector('td.rk p');
-        kg.pos = rkP ? (parseInt(rkP.textContent.trim()) || gridPos) : gridPos;
-
-        if (colMap.no) {
-          const noDiv = row.querySelector(`[data-id$="${colMap.no}"] div`) || row.querySelector('td.no div');
-          if (noDiv) {
-            const d = noDiv.textContent.trim(); if (d && !isNaN(parseInt(d))) kg.dorsal = d;
-            // Categoría por color del dorsal: la clase notcNNN codifica el color (BGR).
-            const cm = (noDiv.className || '').match(/notc(\d+)/);
-            if (cm) { const hex = ApexProtocol.notcToHex(cm[1]); if (hex) kg.catColor = hex; }
-          }
-        }
-
-        const drCell = colMap.dr ? row.querySelector(`[data-id$="${colMap.dr}"]`) : row.querySelector('.dr');
-        if (drCell) { const n = drCell.textContent.trim(); if (n && !/^\d+(\.\d+)?$/.test(n)) kg.name = n; }
-
-        if (colMap.blp) {
-          const c = row.querySelector(`[data-id$="${colMap.blp}"]`);
-          if (c) { const t = ApexProtocol.parseTime(c.textContent); if (t && t >= 20 && t < 300) kg.bestLap = t; }
-        }
-
-        if (colMap.llp) {
-          const c = row.querySelector(`[data-id$="${colMap.llp}"]`);
-          if (c) { const t = ApexProtocol.parseTime(c.textContent); if (t && t >= 20 && t < 300) kg.lastLap = t; }
-        }
-
-        if (colMap.tlp) {
-          const c = row.querySelector(`[data-id$="${colMap.tlp}"]`);
-          if (c) { const n = parseInt(c.textContent.trim()); if (!isNaN(n) && n > 0) kg.tours = n; }
-        }
-
-        if (colMap.pit) {
-          const c = row.querySelector(`[data-id$="${colMap.pit}"]`);
-          if (c) { const n = parseInt(c.textContent.trim()); if (!isNaN(n) && n >= 0) kg.standsCount = n; }
-        }
-
-        gridKarts.push(kg);
-      });
-
-      this._parser.setGrid({ colMap, colByNum, karts: gridKarts, otrIsPit, catCol });
+      // Lectura común con ReplayConnector: src/apex-grid.js
+      this._parser.setGrid(ApexGrid.parseGridHtml(html));
       if (!this._historyFetched) this._fetchLapHistories();
     } catch(e) { console.error('[ApexConnector] parseGrid:', e); }
   },
@@ -277,6 +187,10 @@ window.ApexConnector = {
       const { text } = await res.json();
       const m = (text || '').match(/var configPort\s*=\s*(\d+)/);
       if (m) this._httpPort = parseInt(m[1]);
+      // Si el grid llegó antes que el puerto, el historial no se pudo pedir
+      // entonces: pedirlo ahora (no habrá otro grid en una carrera estable).
+      if (this._httpPort && !this._historyFetched && this._parser && this._parser.getKartIds().length)
+        this._fetchLapHistories();
     } catch(e) {}
   },
 
@@ -294,7 +208,8 @@ window.ApexConnector = {
     // bloque en cuanto se haya inspeccionado una respuesta real.
     let _debugLogged = false;
 
-    await Promise.allSettled(kartIds.slice(0, 30).map(async ({ rowId }) => {
+    // Toda la parrilla (Campillos lleva 46 equipos), en lotes para no saturar el proxy.
+    const fetchOne = async ({ rowId }) => {
       const id = rowId.replace('r', '');
       try {
         const controller = new AbortController();
@@ -344,7 +259,10 @@ window.ApexConnector = {
         if (laps.length && this._parser)
           this._parser.mergeHttpHistory(rowId, laps.map(l => l.t), laps.length);
       } catch(e) {}
-    }));
+    };
+    const BATCH = 12;
+    for (let i = 0; i < kartIds.length; i += BATCH)
+      await Promise.allSettled(kartIds.slice(i, i + BATCH).map(fetchOne));
 
     if (this.onStatus) this.onStatus('connected', '● Apex conectado');
     if (this._parser) this._emit(this._parser.getState());

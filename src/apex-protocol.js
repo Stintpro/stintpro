@@ -927,8 +927,18 @@
         const k = _kart(rowId);
         if (!lapTimes.length) return;
         const current = k.lapHistory;
-        const toAdd   = lapTimes.filter(t => !current.some(l => Math.abs(l - t) < 0.05));
-        k.lapHistory  = [...toAdd, ...current];
+        // Unir por POSICIÓN, no por valor: lapTimes es el historial completo por
+        // nº de vuelta y su cola puede repetir las primeras vueltas ya llegadas por
+        // WS. Se busca el solape más largo (cola HTTP ≈ cabeza WS, ±0.05 s) y se
+        // antepone el resto. Filtrar por valor tiraba vueltas antiguas legítimas
+        // con el mismo tiempo que alguna reciente (ritmo constante en alquiler).
+        let overlap = 0;
+        for (let n = Math.min(lapTimes.length, current.length); n > 0; n--) {
+          let ok = true;
+          for (let i = 0; i < n && ok; i++) ok = Math.abs(lapTimes[lapTimes.length - n + i] - current[i]) < 0.05;
+          if (ok) { overlap = n; break; }
+        }
+        k.lapHistory  = [...lapTimes.slice(0, lapTimes.length - overlap), ...current];
         if (k.lapHistory.length > 1500) k.lapHistory = k.lapHistory.slice(-1500);
         k.tours = Math.max(k.tours || 0, tourCount);
         const best = Math.min(...k.lapHistory.filter(t => t >= 20 && t < 300 && !isGlitchLap(k.lapHistory, t, _fieldMedian())));

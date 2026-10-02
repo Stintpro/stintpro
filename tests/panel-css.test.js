@@ -126,5 +126,30 @@ group('el orden de carga es el correcto', () => {
   });
 });
 
+group('KPIs en pantallas estrechas (APP-10)', () => {
+  const css = extractInjectedCss(leer('src/en-state.js'));
+  test('las baldosas KPI pueden estrecharse (minmax(0,1fr)), no empujan la rejilla', () => {
+    const r = endur.find(x => x.selector === '.en-kpis');
+    strictEqual(/repeat\(5,\s*minmax\(0,\s*1fr\)\)/.test(r.body), true, r.body);
+  });
+  test('iPad en vertical (≤900px) y móvil (≤600px) reparten los KPI en más filas', () => {
+    strictEqual(/@media \(max-width:900px\)\{[^@]*\.en-kpis\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/.test(css), true);
+    strictEqual(/@media \(max-width:600px\)\{[^@]*\.en-kpis\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/.test(css), true);
+  });
+});
+
+group('cabecera en el móvil (APP-10)', () => {
+  const idx = leer('src/index.html');
+  const m = idx.match(/@media \(max-width:600px\)\{([\s\S]*?)\n    \}/);
+  test('index.html tiene un tramo ≤600px para la barra superior', () => strictEqual(!!m, true));
+  test('≤600px: la cabecera deja de reservar 270px a la izquierda', () => {
+    strictEqual(/\.sp-topbar\{[^}]*padding-left:0/.test(m ? m[1] : ''), true);
+  });
+  test('≤600px: los botones de arriba se parten en filas, sin salirse ni recortar el desplegable', () => {
+    strictEqual(/#sp-topnav\{[^}]*right:0[^}]*flex-wrap:wrap/.test(m ? m[1] : ''), true);
+    strictEqual(/#sp-topnav\{[^}]*overflow/.test(m ? m[1] : ''), false);
+  });
+});
+
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);

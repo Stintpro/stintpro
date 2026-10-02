@@ -69,7 +69,8 @@ window.ApexClock = {
 
   fmtLapS(s) {
     if(!s||s<=0) return '—';
-    if(s>=60){const m=Math.floor(s/60),sc=(s%60).toFixed(3);return `${m}:${sc.padStart(6,'0')}`;}
+    s=Math.round(s*1000)/1000; // redondeo antes de partir: 119.9996 → 2:00.000, no 1:60.000
+    if(s>=60){const m=Math.floor(s/60),sc=(s-m*60).toFixed(3);return `${m}:${sc.padStart(6,'0')}`;}
     return `${s.toFixed(3)}s`;
   }
 };

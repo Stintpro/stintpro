@@ -53,7 +53,7 @@
       width: '42px', widthMid: '34px', widthNarrow: '30px',
       source: 'apex', fixed: true,
       requires: cm => !!cm.rk,
-      head: sortMode => `<span style="cursor:pointer;color:${sortMode === 'pos' ? '#F5A623' : '#333'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${sortMode === 'pos' ? ' ▼' : ''}</span>`,
+      head: sortMode => `<span style="cursor:pointer;color:${sortMode === 'pos' ? '#F5A623' : 'var(--text-3)'};text-decoration:underline dotted;text-underline-offset:3px" onclick="_enToggleSort()" title="Ordenar por posición real">Pos${sortMode === 'pos' ? ' ▼' : ''}</span>`,
       cell: (e, d) => `<div class="sp-pos">${e.pos === 99 ? '—' : e.pos}${d.arrow}</div>`,
     },
     {

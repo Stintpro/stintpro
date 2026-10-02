@@ -183,6 +183,59 @@ await group('persistencia — _flush / recoverLast / clear / export', async () =
   });
 });
 
+await group('admin → Diagnóstico exporta la carrera guardada (APP-4)', async () => {
+  // admin.html carga su PROPIA copia del módulo: su ring en memoria está vacío.
+  // La carrera vive en IndexedDB bajo la clave que escribió index.html.
+  const fresh = () => { delete require.cache[require.resolve('../src/en-blackbox')]; return require('../src/en-blackbox'); };
+  const dia = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+
+  await test('el export desde otra instancia lleva los eventos de la carrera', async () => {
+    const store = fakeStore();
+    const A = fresh(); A._setStore(store); A.setMeta({ app: '1', circuito: 'lossantos', sesion: 111 });
+    for (let i = 0; i < 301; i++) A.event('in', 'live', { i });
+    await A._flush();
+    const B = fresh(); B._setStore(store);           // admin
+    const rec = await B.recoverLast();
+    assert.ok(rec, 'debe anunciar la carrera');
+    const out = await B.export(rec.key);
+    assert.equal(out.payload.resumen.totalEventos, 301);
+    assert.equal(out.payload.resumen.circuito, 'lossantos');
+    assert.ok(/lossantos/.test(out.filename), out.filename);
+  });
+
+  await test('abrir admin no crea claves vacías en IndexedDB', async () => {
+    const store = fakeStore();
+    const B = fresh(); B._setStore(store);
+    await B._flush();
+    assert.deepEqual(await store.listKeys(), []);
+  });
+
+  await test('recoverLast encuentra la carrera de ayer (no solo la de hoy UTC)', async () => {
+    const store = fakeStore();
+    await store.put(`${dia(1)}_campillos_5`, { resumen: { totalEventos: 40, hasta: 1 }, eventos: [] });
+    const B = fresh(); B._setStore(store);
+    const rec = await B.recoverLast();
+    assert.ok(rec && rec.key.startsWith(dia(1)));
+  });
+
+  await test('borrar actúa sobre la clave de la carrera elegida', async () => {
+    const store = fakeStore();
+    await store.put(`${dia(0)}_campillos_5`, { resumen: { totalEventos: 40, hasta: 1 }, eventos: [] });
+    const B = fresh(); B._setStore(store);
+    await B.clear(`${dia(0)}_campillos_5`);
+    assert.deepEqual(await store.listKeys(), []);
+  });
+
+  await test('gc borra las cajas negras de más de 7 días y deja las recientes', async () => {
+    const store = fakeStore();
+    await store.put(`${dia(10)}_x_1`, { resumen: {}, eventos: [] });
+    await store.put(`${dia(2)}_x_2`, { resumen: {}, eventos: [] });
+    const B = fresh(); B._setStore(store);
+    await B.gc(7);
+    assert.deepEqual(await store.listKeys(), [`${dia(2)}_x_2`]);
+  });
+});
+
 await group('_scrub — contenido de string (credenciales/URLs)', async () => {
   await test('enmascara token=/key= y credenciales de URL dentro de strings', () => {
     const out = bb._scrub({ raw: 'x token=abc123 y http://user:pass@h/z' });

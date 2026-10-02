@@ -28,7 +28,7 @@ function _spInjectStyles(){
        Aquí solo lo específico de sprint. */
     .sp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;-webkit-app-region:no-drag;}
     .sp-thead{display:grid;grid-template-columns:20px 48px 44px 1fr 48px 88px 88px 72px 64px 76px 36px;padding:5px 14px;border-bottom:0.5px solid #1a1b20;flex-shrink:0;}
-    .sp-thead span{font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
+    .sp-thead span{font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;text-align:right;}
     .sp-thead span:nth-child(4){text-align:left;}
     .sp-thead span:nth-child(1),.sp-thead span:nth-child(2){text-align:center;}
     .sp-body{overflow-y:auto;flex:1;}
@@ -407,6 +407,7 @@ window.showSprintDashboard=function(cfg){
       (data)=>{
         // Guardar _lapStart para barra de progreso
         const now=Date.now();
+        (data.equipos||[]).forEach(e=>{if(e.dorsal!=null)e.dorsal=_safeDorsal(e.dorsal);});
         (data.equipos||[]).forEach(e=>{
           const prev=_spData.equipos.find(p=>p.dorsal===e.dorsal);
           if(prev&&prev.lastLap!==e.lastLap)e._lapStart=now;

@@ -1646,5 +1646,20 @@ test('la puntuación del piloto llega a 4.5:1 sobre su chip en las tarjetas del 
   deepStrictEqual(fallos, [], `puntuación ilegible sobre el chip ${chip[1]}: ${fallos.join('; ')}`);
 });
 
+// APP-14: los rótulos de cabecera de la clasificación y de la tabla de stints
+// iban con #333 a pelo (1,5:1 sobre el fondo, también en modo ☀, que solo
+// aclara tokens). Tienen que salir de un token que body.hc pueda redefinir.
+test('rótulos de cabecera (grid y stints) usan un token, no #333 fijo', () => {
+  const reglas = rulesOf(extractInjectedCss(leer('src/en-state.js')));
+  for (const sel of ['.en-thead span', '.en-stint-head']) {
+    const r = reglas.find(x => x.selector === sel);
+    ok(r, `falta la regla ${sel}`);
+    ok(/color:\s*var\(--/.test(r.body), `${sel} → ${r.body}`);
+  }
+  const sp = rulesOf(extractInjectedCss(leer('src/sprint.js'))).find(x => x.selector === '.sp-thead span');
+  ok(sp && /color:\s*var\(--/.test(sp.body), `.sp-thead span → ${sp && sp.body}`);
+  ok(!/'#333'/.test(leer('src/en-columns.js')), 'la cabecera Pos sigue con #333 inline');
+});
+
 console.log(`\n${passed} pasados, ${failed} fallidos`);
 process.exit(failed ? 1 : 0);

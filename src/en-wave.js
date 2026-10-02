@@ -48,9 +48,9 @@ function _enWaveRivalCard(k, e, waveTag){
     : `<span style="font-size:11px;color:${sub}">queda</span> <b style="font-size:15px;color:${txt}">~${k.minLeft}m</b>`;
   return `
   <div style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;background:${bg};color:${txt};border:1px solid rgba(0,0,0,0.25);margin-bottom:4px">
-    <div style="width:34px;height:26px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)">${k.dorsal}</div>
+    <div style="width:34px;height:26px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)">${_esc(k.dorsal)}</div>
     <div style="flex:1;min-width:0">
-      <div style="font-size:13.5px;font-weight:700;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${teamTxt}${waveTag?` <span style="font-size:10px;font-weight:700;font-family:monospace;color:${waveTag.color};background:rgba(0,0,0,0.25);border-radius:4px;padding:1px 5px;vertical-align:middle">🌊${waveTag.n}</span>`:''}</div>
+      <div style="font-size:13.5px;font-weight:700;font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(teamTxt)}${waveTag?` <span style="font-size:10px;font-weight:700;font-family:monospace;color:${waveTag.color};background:rgba(0,0,0,0.25);border-radius:4px;padding:1px 5px;vertical-align:middle">🌊${waveTag.n}</span>`:''}</div>
       <div style="font-size:11px;color:${sub};font-family:monospace">🏁 ${stint} stint${fast?` · ⚡ ${fast}`:''}${laps?` · ${laps}`:''}</div>
     </div>
     <div style="text-align:right;flex-shrink:0;font-family:monospace">${count}</div>

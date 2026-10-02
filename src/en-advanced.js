@@ -117,11 +117,25 @@ function _enRenderTunnelShell(calibrated, calibCount, offset){
   </div>`;
 }
 
-// RAF loop — solo mueve chips de posición, no reconstruye DOM
+// RAF loop — solo mueve chips de posición, no reconstruye DOM.
+// Recalcula como mucho cada 250 ms (cada cálculo recorre el historial de todos
+// los karts: a 60 fps saturaba el iPad en carreras largas); las transiciones
+// CSS de chips y barras mantienen el movimiento fluido. El siguiente frame se
+// pide ANTES de calcular: una excepción ya no deja el túnel congelado.
+const _EN_ADV_TICK_MS=250;
+let _enAdvLastTick=0;
 function _enAdvRafTick(){
   const advTunnel=document.getElementById('en-adv-tunnel');
   if(!advTunnel){_enAdvRafId=null;return;}
+  _enAdvRafId=requestAnimationFrame(_enAdvRafTick);
+  const wall=Date.now();
+  if(wall-_enAdvLastTick<_EN_ADV_TICK_MS&&wall>=_enAdvLastTick)return;
+  _enAdvLastTick=wall;
+  try{_enAdvTickBody(advTunnel);}
+  catch(e){console.error('[StintPro] Error en el túnel de Avanzado:',e);}
+}
 
+function _enAdvTickBody(advTunnel){
   const eq=EnSession.data.equipos||[];
   const cfg=window.AppState?.config;
   const myDorsal=cfg?.myDorsal;
@@ -293,8 +307,6 @@ function _enAdvRafTick(){
       if(row)crossEl.appendChild(row);
     });
   }
-
-  _enAdvRafId=requestAnimationFrame(_enAdvRafTick);
 }
 
 // Arranca el RAF del túnel cuando se entra a la pestaña Avanzado
@@ -327,12 +339,8 @@ function _enRenderAdvPlan(){
     const trackTimeMin=remainMin-(stopsLeft*pitDurMin);
     const avgStintAvail=stopsLeft>=0?trackTimeMin/(stopsLeft+1):remainMin;
 
-    let canPush=null, afterPushAvg=null;
-    if(stintMaxM>0&&stintMaxM<999&&stopsLeft>0){
-      const afterPushTrack=trackTimeMin-stintMaxM;
-      afterPushAvg=afterPushTrack/stopsLeft;
-      canPush=afterPushAvg>=stintMinM;
-    }
+    const stintElapsedMin=(EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?Date.now()-EnSession.stintStart:0))/60000;
+    const {canPush, afterPushAvg, pushLeftMin}=EnBoxModel.pushCheck({trackTimeMin, stintMaxM, stintMinM, stopsLeft, stintElapsedMin});
 
     let planColor='#22c55e', planIcon='🟢', planMsg='Plan holgado';
     if(stintMinM>0&&avgStintAvail<stintMinM){planColor='#ef4444';planIcon='🔴';planMsg='IMPOSIBLE cumplir paradas — stint medio por debajo del mínimo';}
@@ -360,7 +368,7 @@ function _enRenderAdvPlan(){
     </div>`;
     html+=`<div style="font-size:11.5px;color:${planColor};font-family:sans-serif">${planIcon} ${planMsg}</div>`;
     if(canPush!==null&&stintMaxM>0){
-      html+=`<div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif;margin-top:4px">Si apuras ${stintMaxM}m ahora → los ${stopsLeft} stints restantes quedan a ${afterPushAvg.toFixed(0)}m de media${canPush?'':' (por debajo del mínimo de '+stintMinM+'m)'}</div>`;
+      html+=`<div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif;margin-top:4px">Si apuras hasta el máximo (${Math.round(pushLeftMin)}m más) → los ${stopsLeft} stints restantes quedan a ${afterPushAvg.toFixed(0)}m de media${canPush?'':' (por debajo del mínimo de '+stintMinM+'m)'}</div>`;
     }
 
     // Rivales comprometidos — incluye equipos con 0 paradas hechas (los más expuestos)

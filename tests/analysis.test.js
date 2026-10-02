@@ -37,6 +37,32 @@ group('_enFmtGap (ms → string con +)', () => {
   test('65000ms → "+1:05.000"', () => assert.equal(_enFmtGap(65000), '+1:05.000'));
 });
 
+// ── Redondeo que cruza el minuto (APP-12) ──────────────────────────────────
+
+group('formato m:ss.sss — el redondeo pasa al minuto siguiente', () => {
+  const vm = require('vm'), fs = require('fs'), path = require('path');
+  const ctx = { window: {}, Math, Date, setInterval: () => 0, clearInterval() {} };
+  vm.createContext(ctx);
+  for (const f of ['clock.js', 'helpers.js'])
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8'), ctx);
+  const clock = ctx.window.ApexClock, H = ctx.window.H;
+
+  test('_enFmt(119.9996) → "2:00.000"', () => assert.equal(_enFmt(119.9996), '2:00.000'));
+  test('_enFmt(59.9997) → "1:00.000"',  () => assert.equal(_enFmt(59.9997), '1:00.000'));
+  test('_enFmtGap(119999.6) → "+2:00.000"', () => assert.equal(_enFmtGap(119999.6), '+2:00.000'));
+  test('_enFmtGap(59999.7) → "+1:00.000"',  () => assert.equal(_enFmtGap(59999.7), '+1:00.000'));
+  test('ApexClock.fmtLapS(119.9996) → "2:00.000"', () => assert.equal(clock.fmtLapS(119.9996), '2:00.000'));
+  test('ApexClock.fmtLapS(59.9997) → "1:00.000"',  () => assert.equal(clock.fmtLapS(59.9997), '1:00.000'));
+  test('H.fmtLap sin reloj (119.9996) → "2:00.000"', () => {
+    const saved = ctx.window.ApexClock; delete ctx.window.ApexClock;
+    try { assert.equal(H.fmtLap(119.9996), '2:00.000'); } finally { ctx.window.ApexClock = saved; }
+  });
+  test('sin regresión: 67.234 → "1:07.234"', () => {
+    assert.equal(_enFmt(67.234), '1:07.234');
+    assert.equal(clock.fmtLapS(67.234), '1:07.234');
+  });
+});
+
 // ── _enFmtDelta ───────────────────────────────────────────────────────────────
 
 group('_enFmtDelta (delta vs pista)', () => {

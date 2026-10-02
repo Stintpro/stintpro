@@ -268,6 +268,28 @@ test('previsión no muta la cola real', () => {
   strictEqual(q.length, 2); strictEqual(q[0].w, undefined);
 });
 
+test('previsión: las paradas se aplican por minuto, no por el orden en que llegan', () => {
+  // Rivales por posición: P1 para en 9 min, P2 en 1, P3 en 2.
+  const q = [K('bad'), K('bad'), K('good'), K('good')];
+  const f = M.forecast(q, 'line', 2, [
+    { quality: 'neutral', minLeft: 9, dorsal: '1' },
+    { quality: 'neutral', minLeft: 1, dorsal: '2' },
+    { quality: 'neutral', minLeft: 2, dorsal: '3' },
+  ]);
+  strictEqual(f.steps.map(s => s.minLeft).join(','), '1,2,9');
+  strictEqual(f.steps[0].prob, 0, 'al minuto 1 solo ha parado uno: el primero sigue siendo malo');
+  strictEqual(f.steps[1].prob, 100, 'al minuto 2 ya toca el bueno');
+});
+
+test('previsión: cada paso coincide con el modelo vivo (boxOnPitEvent)', () => {
+  for (const type of ['battery', 'columns', 'line']) {
+    const q = [K('good'), K('bad'), K('neutral'), K('bad')];
+    const f = M.forecast(q, type, 2, [{ quality: 'good', minLeft: 1, dorsal: '7' }]);
+    const live = M.boxOnPitEvent(q, {}, { dorsal: '7', kind: 'in', quality: 'good' }, type, 2);
+    strictEqual(f.steps[0].prob, M.accessProb(live, type, 2).prob, type);
+  }
+});
+
 // ── #4 Paradas obligadas por el stint máximo ─────────────────────────────
 console.log('\n▸ Paradas necesarias\n');
 
@@ -293,6 +315,82 @@ test('la parada consume reloj: 81 min, máx 40, parada 2 → 2 paradas', () => {
 test('sin stint máximo o sin reloj → null (no se puede calcular)', () => {
   strictEqual(M.stopsNeeded(60 * MIN, 0, 0, 0), null);
   strictEqual(M.stopsNeeded(0, 40 * MIN, 0, 0), null);
+});
+
+// ── Plan de paradas común (Estrategia y Mi equipo) ───────────────────────
+console.log('\n▸ Plan de paradas\n');
+
+const basePlan = { totalStops: 6, standsCount: 4, histLen: 4, raceRemMs: 60 * MIN,
+  stintMaxMs: 40 * MIN, stintElapsedMs: 5 * MIN, pitMs: 3 * MIN };
+
+test('plan: 4/6 hechas, 60 min, máx 40 → 1 obligada y 1 estratégica', () => {
+  const p = M.stopPlan(basePlan);
+  strictEqual(p.stopsDone, 4); strictEqual(p.stopsRemaining, 2);
+  strictEqual(p.minNec, 1); strictEqual(p.strategic, 1);
+});
+
+test('plan: conectando tarde (sin historial local) manda el standsCount de Apex', () => {
+  const p = M.stopPlan({ ...basePlan, histLen: 0 });
+  strictEqual(p.stopsDone, 4); strictEqual(p.strategic, 1);
+});
+
+test('plan: sin columna oficial usa el historial local', () => {
+  strictEqual(M.stopPlan({ ...basePlan, standsCount: 0, histLen: 3 }).stopsDone, 3);
+});
+
+test('plan: sin reloj de carrera las estratégicas son desconocidas (null), no todas', () => {
+  const p = M.stopPlan({ ...basePlan, raceRemMs: null });
+  strictEqual(p.strategic, null); strictEqual(p.minNec, null); strictEqual(p.avgStintMin, null);
+});
+
+test('plan: sin stint máximo todas las restantes son obligadas', () => {
+  const p = M.stopPlan({ ...basePlan, stintMaxMs: null });
+  strictEqual(p.minNec, 2); strictEqual(p.strategic, 0);
+});
+
+test('plan: stint medio = tiempo de pista restante (con el stint en curso) entre los stints que quedan', () => {
+  // (60 − 2×3 + 5) / 3 = 19,7 → 20
+  strictEqual(M.stopPlan(basePlan).avgStintMin, 20);
+});
+
+test('plan: reloj a cero (fin de carrera) → 0 obligadas', () => {
+  strictEqual(M.stopPlan({ ...basePlan, raceRemMs: 0 }).minNec, 0);
+});
+
+test('raceRemainingMs: cuenta atrás → lo que marca; ascendente con duración → duración − transcurrido', () => {
+  strictEqual(M.raceRemainingMs({ synced: true, countUp: false, remainingMs: 30 * MIN }, 0), 30 * MIN);
+  strictEqual(M.raceRemainingMs({ synced: true, countUp: true, remainingMs: 100 * MIN }, 180 * MIN), 80 * MIN);
+  strictEqual(M.raceRemainingMs({ synced: true, countUp: true, remainingMs: 100 * MIN }, 0), null);
+  strictEqual(M.raceRemainingMs({ synced: false, countUp: false, remainingMs: null }, 180 * MIN), null);
+});
+
+test('táctica sin reloj (strategic null): con kart malo NO recomienda cazar', () => {
+  const a = M.tacticalAdvice({ ...baseTactic, strategic: null, raceRemMin: null });
+  ok(!a.html.includes('caza'), a.html);
+  ok(/sin reloj/i.test(a.html), a.html);
+});
+
+test('táctica sin reloj: con kart bueno no propone parada anticipada', () => {
+  const a = M.tacticalAdvice({ ...baseTactic, myQuality: 'good', strategic: null, raceRemMin: null, probAcceso: 80 });
+  ok(!/anticipada/.test(a.html), a.html);
+});
+
+test('¿Apurar máx?: descuenta lo que ya llevas del stint en curso', () => {
+  // 60 min de pista, máx 40, mín 20, 2 paradas, llevo 30 → me quedan 10 de apurar
+  const r = M.pushCheck({ trackTimeMin: 60, stintMaxM: 40, stintMinM: 20, stopsLeft: 2, stintElapsedMin: 30 });
+  strictEqual(r.pushLeftMin, 10);
+  strictEqual(r.afterPushAvg, 25);
+  strictEqual(r.canPush, true);
+});
+
+test('¿Apurar máx?: recién salido resta el stint máximo entero', () => {
+  const r = M.pushCheck({ trackTimeMin: 60, stintMaxM: 40, stintMinM: 20, stopsLeft: 2, stintElapsedMin: 0 });
+  strictEqual(r.afterPushAvg, 10); strictEqual(r.canPush, false);
+});
+
+test('¿Apurar máx?: sin stint máximo o sin paradas pendientes → null', () => {
+  strictEqual(M.pushCheck({ trackTimeMin: 60, stintMaxM: 0, stintMinM: 20, stopsLeft: 2, stintElapsedMin: 0 }).canPush, null);
+  strictEqual(M.pushCheck({ trackTimeMin: 60, stintMaxM: 40, stintMinM: 20, stopsLeft: 0, stintElapsedMin: 0 }).canPush, null);
 });
 
 // ── Parada = intercambio (la reserva no crece durante una ola) ──────────
@@ -434,6 +532,15 @@ test('reset "keepLast" con menos karts que la reserva → rellena con desconocid
   strictEqual(q.length, 3);
   strictEqual(q[2].dorsal, 'a');
   ok(q[0].quality === 'unknown' && q[1].quality === 'unknown');
+});
+
+test('reset "keepLast" con peso fraccionario por debajo de la reserva → pesa justo N', () => {
+  for (const w of [0.5, 0.3, 0.7]) {
+    const q = M.resetQueue([{ ...K('good', 'a'), w }], 3, 'keepLast');
+    const d = M.queueDrift(q, 3);
+    ok(Math.abs(d.total - 3) < 1e-9, `w=${w}: total ${d.total}`);
+    strictEqual(q[q.length - 1].dorsal, 'a');
+  }
 });
 
 // ── Mejora 1: corregir la cola con el ritmo del rival ────────────────────

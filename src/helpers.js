@@ -30,7 +30,8 @@ window.H = {
   fmtLap(s) {
     if(!s||s<=0)return '—';
     if(window.ApexClock)return window.ApexClock.fmtLapS(s);
-    if(s>=60){const m=Math.floor(s/60),sc=(s%60).toFixed(3);return`${m}:${sc.padStart(6,'0')}`;}
+    s=Math.round(s*1000)/1000;
+    if(s>=60){const m=Math.floor(s/60),sc=(s-m*60).toFixed(3);return`${m}:${sc.padStart(6,'0')}`;}
     return`${s.toFixed(3)}s`;
   },
 
@@ -105,3 +106,13 @@ function _esc(str) {
     .replace(/'/g, '&#39;');
 }
 window._esc = _esc;
+
+// Dorsal tal como lo usa la app: solo el token inicial alfanumérico (7, 12A).
+// Apex lo valida solo con parseInt, así que "7<img …>" o "7');…" pasaban enteros
+// y acababan en innerHTML/onclick por decenas de sitios. Se sanea al entrar
+// (handlers del dashboard y del sprint) para cubrirlos todos de una vez.
+function _safeDorsal(d) {
+  const m = String(d == null ? '' : d).trim().match(/^[0-9A-Za-z_-]{1,8}/);
+  return m ? m[0] : '';
+}
+window._safeDorsal = _safeDorsal;

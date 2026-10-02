@@ -19,6 +19,16 @@
     #sp-topnav .sp-nav-btn:hover { color:#EDF0F4;border-color:#4E5E72; }
     #sp-topnav .sp-nav-hc { color:#F5A623;border-color:#F5A623; }
     #sp-topnav .sp-nav-hc:hover { color:#fff;border-color:#fff; }
+    /* Móvil: los botones de arriba no caben en 270px. Pasan a ocupar el ancho y
+       a partirse en dos filas (sin overflow: recortaría el desplegable de
+       Columnas, que cuelga de aquí), y la cabecera del panel baja debajo de
+       ellos en vez de reservarles 270px a la izquierda (empujaba el reloj
+       fuera de pantalla). El correo se oculta para que quepan en dos filas. */
+    @media (max-width:600px){
+      #sp-topnav{right:0;flex-wrap:wrap;padding:8px 12px;gap:8px;}
+      #sp-topnav .sp-nav-user{display:none;}
+      .sp-topbar{padding-left:0;padding-right:0;padding-top:64px;}
+    }
   </style>
   <div id="sp-topnav">
     <span class="sp-nav-user" id="sp-nav-user"></span>
@@ -65,6 +75,7 @@
   <script src="en-blackbox.js"></script>
   <script src="apex-protocol.js"></script>
   <script src="en-traffic.js"></script>
+  <script src="apex-grid.js"></script>
   <script src="apex-connector.js"></script>
   <script src="logger-connector.js"></script>
   <script src="replay-connector.js"></script>

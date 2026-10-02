@@ -3,16 +3,18 @@
 // argumentos. Testeable de forma aislada.
 
 // ── Formato tiempo (segundos → "1:07.234" o "47.234") ─────────────────────
+// Se redondea a ms ANTES de separar minutos: si no, 119.9996 salía "1:60.000".
 function _enFmt(s){
   if(!s&&s!==0)return'—';
-  const m=Math.floor(s/60),sec=(s%60).toFixed(3).padStart(6,'0');
+  const t=Math.round(s*1000)/1000;
+  const m=Math.floor(t/60),sec=(t-m*60).toFixed(3).padStart(6,'0');
   return m>0?`${m}:${sec}`:sec;
 }
 
 function _enFmtGap(ms){
   if(!ms||ms<=0)return'—';
-  const s=ms/1000;
-  const m=Math.floor(s/60),sec=(s%60).toFixed(3).padStart(6,'0');
+  const s=Math.round(ms)/1000;
+  const m=Math.floor(s/60),sec=(s-m*60).toFixed(3).padStart(6,'0');
   return m>0?`+${m}:${sec}`:`+${s.toFixed(3)}`;
 }
 

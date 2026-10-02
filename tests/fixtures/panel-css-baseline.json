@@ -158,7 +158,7 @@
     },
     {
       "selector": ".en-kpis",
-      "body": "display:grid;grid-template-columns:repeat(5,1fr);gap:10px;width:100%;-webkit-app-region:no-drag;"
+      "body": "display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;width:100%;-webkit-app-region:no-drag;"
     },
     {
       "selector": ".en-thead",
@@ -170,7 +170,7 @@
     },
     {
       "selector": ".en-thead span",
-      "body": "font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;"
+      "body": "font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;text-align:right;"
     },
     {
       "selector": ".en-col-bar",
@@ -222,7 +222,7 @@
     },
     {
       "selector": "@media (max-width:900px)",
-      "body": ".en-thead,.en-row{column-gap:4px;padding-left:8px;padding-right:8px;} .en-thead span{font-size:10px;} .en-kart{width:26px;height:20px;font-size:12px;} .sp-vtas,.en-m5,.en-delta,.sp-pitc{font-size:12px;} .en-row .sp-t,.en-row .sp-gap{font-size:12px;} .en-row .en-m5{font-size:11.5px;}"
+      "body": ".en-kpis{grid-template-columns:repeat(3,minmax(0,1fr));} .en-thead,.en-row{column-gap:4px;padding-left:8px;padding-right:8px;} .en-thead span{font-size:10px;} .en-kart{width:26px;height:20px;font-size:12px;} .sp-vtas,.en-m5,.en-delta,.sp-pitc{font-size:12px;} .en-row .sp-t,.en-row .sp-gap{font-size:12px;} .en-row .en-m5{font-size:11.5px;}"
     },
     {
       "selector": ".en-kart",
@@ -350,7 +350,7 @@
     },
     {
       "selector": ".en-stint-head",
-      "body": "color:#333;font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;"
+      "body": "color:var(--text-3);font-size:11.5px;text-transform:uppercase;font-family:sans-serif;letter-spacing:0.5px;"
     },
     {
       "selector": ".en-strat",
@@ -383,6 +383,10 @@
     {
       "selector": ".en-pred-row:last-child",
       "body": "border-bottom:none;"
+    },
+    {
+      "selector": "@media (max-width:600px)",
+      "body": ".en-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}"
     }
   ],
   "sprint": [
@@ -552,7 +556,7 @@
     },
     {
       "selector": ".sp-thead span",
-      "body": "font-size:11.5px;color:#333;text-transform:uppercase;letter-spacing:0.5px;text-align:right;"
+      "body": "font-size:11.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.5px;text-align:right;"
     },
     {
       "selector": ".sp-thead span:nth-child(4)",
