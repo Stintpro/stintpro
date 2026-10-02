@@ -63,6 +63,19 @@ test('distToTime y pointAtDist', () => {
   nearPt(P.pointAtDist(t, 0.0625), [75, 50]);
 });
 
+test('timeToDist es la inversa de distToTime (también al dar la vuelta)', () => {
+  const t = P.loadTrack(SQ, 'normal');
+  near(P.timeToDist(t, 0.10), 0.25);
+  near(P.timeToDist(t, 0.20), 0.3125);
+  [0, 0.07, 0.33, 0.61, 0.999].forEach(d => near(P.timeToDist(t, P.distToTime(t, d)), d));
+  near(P.timeToDist(t, 1.10), 0.25);
+});
+
+test('trackLengthUnits: perímetro cerrado del trazado en unidades del SVG', () => {
+  const t = P.loadTrack(SQ, 'normal');
+  near(P.trackLengthUnits(t), 400);
+});
+
 test('loadTrack rechaza ficheros inválidos', () => {
   strictEqual(P.loadTrack(null, 'normal'), null);
   strictEqual(P.loadTrack({ ...SQ, version: 2 }, 'normal'), null);

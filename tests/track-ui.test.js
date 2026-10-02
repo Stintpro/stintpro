@@ -5,6 +5,7 @@
 
 const assert = require('assert');
 const U = require('../src/en-track');
+const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≉ ${b}`);
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -143,54 +144,65 @@ test('en-grid llama a _enTrackUpdate en cada render, antes del bloque de la pest
 });
 
 
-console.log('\npíldoras (karts juntos)');
+console.log('\ngusanos (karts juntos)');
 
-const R = 10;   // radio de un dorsal en unidades del SVG
-const it = (d, x, y, t, extra = {}) => ({ d, x, y, t, me: false, stale: false, ...extra });
+const SP = 0.02;   // hueco entre dorsales de un gusano, en fracción de vuelta
+const it = (d, pos, extra = {}) => ({ d, pos, me: false, stale: false, ...extra });
+const ids = g => g.members.map(m => m.d);
 
-test('píldora: una casilla por dorsal, más ancha con más cifras, en fila', () => {
-  const L = U._enTrackPillLayout(['5', '12', '104'], R);
-  assert.strictEqual(L.chips.length, 3);
-  assert.ok(L.chips[0].w < L.chips[1].w && L.chips[1].w < L.chips[2].w);
-  assert.ok(L.chips[1].x > L.chips[0].x && L.chips[2].x > L.chips[1].x, 'de izquierda a derecha');
-  assert.strictEqual(L.rows, 1);
-  assert.ok(L.w > L.chips.reduce((a, c) => a + c.w, 0), 'con margen');
-});
-test('píldora de muchos karts se parte en filas', () => {
-  const L = U._enTrackPillLayout(Array.from({ length: 10 }, (_, i) => String(i + 10)), R);
-  assert.strictEqual(L.rows, 2);
-  assert.ok(L.h > U._enTrackPillLayout(['1', '2'], R).h);
-});
 test('karts separados → cada uno solo', () => {
-  const g = U._enTrackGroup([it('1', 0, 0, 0.1), it('2', 100, 0, 0.3)], R);
+  const g = U._enTrackWorms([it('1', 0.1), it('2', 0.3)], SP);
   assert.strictEqual(g.length, 2);
   assert.ok(g.every(x => x.members.length === 1));
 });
-test('karts que se tocan → una sola píldora, el que va delante primero', () => {
-  const g = U._enTrackGroup([it('1', 0, 0, 0.10), it('2', 12, 0, 0.12), it('3', 200, 0, 0.5)], R);
+test('karts juntos en pista → un gusano, el que va delante en cabeza', () => {
+  const g = U._enTrackWorms([it('1', 0.100), it('2', 0.115), it('3', 0.5)], SP);
   assert.strictEqual(g.length, 2);
-  const pill = g.find(x => x.members.length === 2);
-  assert.deepStrictEqual(pill.members.map(m => m.d), ['2', '1']);
-  assert.strictEqual(pill.x, 6, 'centrada en el grupo');
+  const w = g.find(x => x.members.length === 2);
+  assert.deepStrictEqual(ids(w), ['2', '1']);
+  near(w.at[0], 0.1175); near(w.at[1], 0.0975);   // separados SP, centrados en el grupo
+  near(w.a, 0.0975); near(w.b, 0.1175);
 });
-test('una píldora que crece y pisa a otro kart se lo traga (sin solapes)', () => {
-  // 10 y 11 se juntan; la píldora (más ancha que un círculo) alcanza al 12, que solo no tocaba al 11
-  const g = U._enTrackGroup([it('10', 0, 0, 0.1), it('11', 15, 0, 0.11), it('12', 38, 0, 0.12)], R);
+test('si caben (más separados que SP), cada dorsal en su sitio real', () => {
+  const w = U._enTrackWorms([it('1', 0.100), it('2', 0.125)], SP, { 1: 'k', 2: 'k' })[0];
+  near(w.at[0], 0.125); near(w.at[1], 0.100);
+});
+test('un gusano que se alarga y alcanza a otro kart se lo traga', () => {
+  // 3 casi pegados → gusano de 2·SP (0,081..0,121); el 4 en 0,135 queda a <SP de la cabeza
+  const g = U._enTrackWorms([it('1', 0.100), it('2', 0.101), it('3', 0.102), it('4', 0.135)], SP);
   assert.strictEqual(g.length, 1);
-  assert.strictEqual(g[0].members.length, 3);
+  assert.deepStrictEqual(ids(g[0]), ['4', '3', '2', '1']);
 });
-test('orden de pista estable al cruzar la meta', () => {
-  const g = U._enTrackGroup([it('1', 0, 0, 0.99), it('2', 12, 0, 0.01)], R);
-  assert.deepStrictEqual(g[0].members.map(m => m.d), ['2', '1'], 'el 2 ya cruzó: va delante');
+test('cruzando la meta: un solo gusano, el que ya cruzó delante', () => {
+  const g = U._enTrackWorms([it('1', 0.995), it('2', 0.005)], SP);
+  assert.strictEqual(g.length, 1);
+  assert.deepStrictEqual(ids(g[0]), ['2', '1']);
+  assert.ok(g[0].b > g[0].a, 'extremos desenrollados');
 });
 test('histéresis: los que iban juntos siguen juntos un poco más separados', () => {
-  const pair = () => [it('1', 0, 0, 0.1), it('2', 25, 0, 0.12)];
-  assert.strictEqual(U._enTrackGroup(pair(), R).length, 2, 'sin historia: separados');
-  assert.strictEqual(U._enTrackGroup(pair(), R, { 1: '1|2', 2: '1|2' }).length, 1, 'venían juntos: siguen');
+  const pair = () => [it('1', 0.100), it('2', 0.125)];
+  assert.strictEqual(U._enTrackWorms(pair(), SP).length, 2, 'sin historia: separados');
+  assert.strictEqual(U._enTrackWorms(pair(), SP, { 1: '1|2', 2: '1|2' }).length, 1, 'venían juntos: siguen');
 });
-test('karts en box (sin t) no se agrupan', () => {
-  const g = U._enTrackGroup([it('1', 0, 0, null), it('2', 1, 0, 0.1)], R);
+test('karts en box (sin posición) no se agrupan', () => {
+  const g = U._enTrackWorms([it('1', null), it('2', 0.1), it('3', 0.105)], SP);
   assert.strictEqual(g.length, 2);
+  assert.ok(g.some(x => x.members.length === 1 && x.members[0].d === '1'));
+});
+test('toda la parrilla junta no se muerde la cola', () => {
+  const g = U._enTrackWorms(Array.from({ length: 60 }, (_, i) => it(String(i), i / 60)), SP);
+  assert.strictEqual(g.length, 1);
+  assert.ok(g[0].b - g[0].a < 1, 'más corto que una vuelta');
+});
+test('trazo del gusano: sigue la pista de a a b (también cruzando la meta)', () => {
+  const t = PTP.ovalTrack();
+  const d = U._enTrackWormPath(t, 0.98, 1.02);
+  const nums = d.match(/-?\d+(\.\d+)?/g).map(Number);
+  const p0 = PTP.pointAtDist(t, 0.98), p1 = PTP.pointAtDist(t, 1.02);
+  assert.ok(d.startsWith('M'));
+  assert.ok(Math.abs(nums[0] - p0[0]) < 0.1 && Math.abs(nums[1] - p0[1]) < 0.1);
+  assert.ok(Math.abs(nums[nums.length - 2] - p1[0]) < 0.1 && Math.abs(nums[nums.length - 1] - p1[1]) < 0.1);
+  assert.ok((d.match(/L/g) || []).length >= 4, 'varios puntos: hace la curva');
 });
 
 console.log('\nsentido de pista');
@@ -216,6 +228,34 @@ test('hueco: no finito → guion; casi cero → +0,0 s', () => {
   assert.strictEqual(U._enTrackFmtGap(NaN), '—');
   assert.strictEqual(U._enTrackFmtGap(Infinity), '—');
   assert.strictEqual(U._enTrackFmtGap(-0.01), '+0,0 s');
+});
+
+console.log('\nzoom del mapa');
+
+test('paso a paso entre niveles, con tope por arriba y por abajo', () => {
+  const Z = U._ENTRK_ZOOMS;
+  assert.strictEqual(U._enTrackZoomStep(Z[1], +1), Z[2]);
+  assert.strictEqual(U._enTrackZoomStep(Z[1], -1), Z[0]);
+  assert.strictEqual(U._enTrackZoomStep(Z[0], -1), Z[0]);
+  assert.strictEqual(U._enTrackZoomStep(Z[Z.length - 1], +1), Z[Z.length - 1]);
+});
+test('un valor guardado raro → nivel más cercano (o el de por defecto)', () => {
+  assert.strictEqual(U._enTrackZoomLevel('0.72'), 0.7);
+  assert.strictEqual(U._enTrackZoomLevel(null), U._ENTRK_ZOOM_DEFAULT);
+  assert.strictEqual(U._enTrackZoomLevel('basura'), U._ENTRK_ZOOM_DEFAULT);
+  assert.strictEqual(U._enTrackZoomLevel('9'), U._ENTRK_ZOOMS[U._ENTRK_ZOOMS.length - 1]);
+});
+test('el tamaño escala ancho y alto máximo a la vez (mapa y karts juntos)', () => {
+  const s = U._enTrackSvgSize(0.5);
+  assert.ok(s.includes('width:50%') && s.includes('max-height:31vh'));
+  assert.ok(U._enTrackSvgSize(1).includes('width:100%') && U._enTrackSvgSize(1).includes('max-height:62vh'));
+});
+test('controles: − porcentaje +, deshabilitados en los topes', () => {
+  const Z = U._ENTRK_ZOOMS;
+  const h = U._enTrackZoomHtml(0.7);
+  assert.ok(h.includes('70 %') && h.includes("_enTrackSetZoom(-1)") && h.includes("_enTrackSetZoom(1)"));
+  assert.ok(U._enTrackZoomHtml(Z[0]).match(/_enTrackSetZoom\(-1\)"[^>]*disabled/));
+  assert.ok(U._enTrackZoomHtml(Z[Z.length - 1]).match(/_enTrackSetZoom\(1\)"[^>]*disabled/));
 });
 
 const tick = () => new Promise(r => setTimeout(r, 0));

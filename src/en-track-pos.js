@@ -104,6 +104,26 @@
     return tf[i] + (tNext - tf[i]) * k;
   }
 
+  // Inversa de distToTime: fracción de DISTANCIA a la que va un kart que lleva
+  // la fracción t del tiempo de vuelta (points está a distancia uniforme).
+  function timeToDist(track, t) {
+    const tf = track.timeFrac, n = tf.length;
+    t = wrap(t);
+    let lo = 0, hi = n - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (tf[m] <= t) lo = m; else hi = m - 1; }
+    const tNext = lo + 1 < n ? tf[lo + 1] : 1;
+    const k = tNext > tf[lo] ? (t - tf[lo]) / (tNext - tf[lo]) : 0;
+    return (lo + k) / n;
+  }
+
+  // Perímetro cerrado del trazado en unidades del SVG (se cachea en el track).
+  function trackLengthUnits(track) {
+    if (track._lenU) return track._lenU;
+    const P = track.points; let L = 0;
+    for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; L += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+    return (track._lenU = L);
+  }
+
   function pointAtDist(track, d) {
     const P = track.points, n = P.length;
     const x = wrap(d) * n, i = Math.floor(x) % n;
@@ -346,7 +366,7 @@
   }
 
   return {
-    CAP, ovalTrack, loadTrack, mirrorProfile, pointAt, distToTime, pointAtDist,
+    CAP, ovalTrack, loadTrack, mirrorProfile, pointAt, distToTime, timeToDist, trackLengthUnits, pointAtDist,
     pitLanePolyline, pitSlot, median, quantile, refLapMs, createTrackPos,
   };
 });

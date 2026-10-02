@@ -8,7 +8,7 @@
 const EnTrack = {
   engine: null, track: null, key: null, shellFor: null, nodes: {},
   raf: null, lastFrame: 0, lastSide: 0, selected: null, cache: {},
-  pills: {}, groupOf: {}, dirDismissedAt: null,
+  worms: {}, groupOf: {}, dirDismissedAt: null, zoom: null,
 };
 
 // Reloj del mapa: el mismo que usa lastLapAt. En un replay es el tiempo de la
@@ -136,6 +136,43 @@ function _enTrackEnsure(){
 }
 
 // ── SVG ────────────────────────────────────────────────────────────────────
+// ── Zoom ───────────────────────────────────────────────────────────────────
+// Escala el SVG entero (ancho y alto máximo a la vez): trazado y dorsales se
+// hacen pequeños juntos, sin tocar el maquetado de píldoras. Por dispositivo.
+const _ENTRK_ZOOMS=[0.4,0.5,0.6,0.7,0.85,1];
+const _ENTRK_ZOOM_DEFAULT=0.7;
+const _ENTRK_ZOOM_KEY='stintpro_track_zoom';
+function _enTrackZoomLevel(v){
+  const z=parseFloat(v);
+  if(!Number.isFinite(z))return _ENTRK_ZOOM_DEFAULT;
+  return _ENTRK_ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);
+}
+function _enTrackZoomStep(z, dir){
+  const i=_ENTRK_ZOOMS.indexOf(_enTrackZoomLevel(z));
+  return _ENTRK_ZOOMS[Math.min(_ENTRK_ZOOMS.length-1,Math.max(0,i+dir))];
+}
+function _enTrackSvgSize(z){
+  return `width:${Math.round(z*100)}%;max-height:${Math.round(62*z)}vh`;
+}
+function _enTrackZoomHtml(z){
+  const Z=_ENTRK_ZOOMS;
+  const btn=(dir,lbl,off)=>`<button type="button" onclick="_enTrackSetZoom(${dir})" ${off?'disabled':''} aria-label="${dir<0?'Alejar':'Acercar'} mapa" style="${_ENTRK_TXT};font-size:14px;line-height:1;width:26px;height:26px;border-radius:999px;border:0.5px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);color:var(--text-1);cursor:${off?'default':'pointer'};opacity:${off?0.35:1}">${lbl}</button>`;
+  return `${btn(-1,'−',z<=Z[0])}<span style="${_ENTRK_MONO};font-size:11.5px;color:var(--text-2);min-width:40px;text-align:center">${Math.round(z*100)} %</span>${btn(1,'+',z>=Z[Z.length-1])}`;
+}
+function _enTrackGetZoom(){
+  if(EnTrack.zoom==null){ let v=null; try{v=localStorage.getItem(_ENTRK_ZOOM_KEY);}catch(e){} EnTrack.zoom=_enTrackZoomLevel(v); }
+  return EnTrack.zoom;
+}
+function _enTrackSetZoom(dir){
+  const z=_enTrackZoomStep(_enTrackGetZoom(),dir);
+  EnTrack.zoom=z;
+  try{localStorage.setItem(_ENTRK_ZOOM_KEY,String(z));}catch(e){}
+  const svg=document.getElementById('en-trk-svg');
+  if(svg)svg.style.cssText=`${_enTrackSvgSize(z)};height:auto;display:block;margin:0 auto`;
+  const ctl=document.getElementById('en-trk-zoom');
+  if(ctl)ctl.innerHTML=_enTrackZoomHtml(z);
+}
+
 function _enTrackShellHtml(track){
   const P=window.EnTrackPos;
   const pts=track.points, w=track.viewBox.w, h=track.viewBox.h, wu=track.widthUnits;
@@ -148,14 +185,18 @@ function _enTrackShellHtml(track){
   const q=P.pointAtDist(track,0.03), q2=P.pointAtDist(track,0.045);
   const ang=Math.atan2(q2[1]-q[1],q2[0]-q[0])*180/Math.PI;
   const fs=Math.max(14,wu*0.85);
-  // El mapa se acota a la altura visible (62vh) y se centra conservando la
+  const z=_enTrackGetZoom();
+  // El mapa se acota a la altura visible (62vh × zoom) y se centra conservando la
   // proporción: así mapa + tira caben en pantalla y "En box" queda al lado.
   return `<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
     <div style="flex:1 1 380px;min-width:0">
       <div id="en-trk-gaps" class="en-strat-card" style="padding:10px 14px;margin-bottom:10px"></div>
       <div class="en-strat-card" style="padding:10px 12px;margin-bottom:0">
-      <div id="en-trk-dir" style="display:flex;justify-content:flex-end;margin-bottom:4px"></div>
-      <svg id="en-trk-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:62vh;display:block;margin:0 auto" role="img" aria-label="Mapa de pista">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;margin-bottom:4px">
+        <div id="en-trk-zoom" style="display:flex;align-items:center;gap:4px">${_enTrackZoomHtml(z)}</div>
+        <div id="en-trk-dir" style="display:flex;justify-content:flex-end;flex:1 1 auto;min-width:0"></div>
+      </div>
+      <svg id="en-trk-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="${_enTrackSvgSize(z)};height:auto;display:block;margin:0 auto" role="img" aria-label="Mapa de pista">
         <defs><pattern id="en-trk-chk" width="${wu/2}" height="${wu/2}" patternUnits="userSpaceOnUse">
           <rect width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/><rect x="${wu/4}" y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/>
           <rect x="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#111"/><rect y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#111"/></pattern></defs>
@@ -167,7 +208,7 @@ function _enTrackShellHtml(track){
         <line x1="${f(m[0]-nx*half)}" y1="${f(m[1]-ny*half)}" x2="${f(m[0]+nx*half)}" y2="${f(m[1]+ny*half)}" stroke="url(#en-trk-chk)" stroke-width="${wu*0.5}"/>
         <path d="M0 ${f(-wu*0.45)} L${f(wu*0.9)} 0 L0 ${f(wu*0.45)} Z" fill="rgba(255,255,255,0.5)" transform="translate(${f(q[0])} ${f(q[1])}) rotate(${ang.toFixed(1)})"/>
         <g id="en-trk-karts"></g>
-        <g id="en-trk-pills"></g>
+        <g id="en-trk-worms"></g>
       </svg>
       <div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid rgba(255,255,255,0.07)">
         <div id="en-trk-sel" style="min-height:19px;min-width:0"></div>
@@ -245,104 +286,95 @@ function _enRenderTrack(eq){
     body.innerHTML=_enTrackShellHtml(track);
     EnTrack.shellFor=track;
     EnTrack.nodes={};
-    EnTrack.pills={};
+    EnTrack.worms={};
     EnTrack.groupOf={};
     EnTrack.lastSide=0;
   }
   _enStartTrackRaf();
 }
 
-// ── Karts juntos → una píldora ────────────────────────────────────────────
-// Antes se abrían en abanico a los lados de la pista y, con mucho tráfico,
-// quedaba un racimo de círculos pisándose. Ahora los que se tocan se funden en
-// UNA píldora horizontal con sus dorsales en fila (el que va delante, primero),
-// centrada en el grupo. Se agrupa de forma iterativa: si una píldora al crecer
-// pisa a otro kart u otra píldora, se los traga → nunca hay solapes.
-const _ENTRK_PILL_ROW=6;   // dorsales por fila; más → la píldora se parte en filas
+// ── Karts juntos → un gusano ──────────────────────────────────────────────
+// Los que van pegados se dibujan como UN trazo grueso que recorre la pista
+// (hace las curvas) con sus dorsales encadenados, el que va delante en cabeza.
+// Se agrupa por distancia A LO LARGO DE LA PISTA (no en pantalla): dos karts en
+// tramos paralelos que se ven cerca no se funden. Cada dorsal va en su sitio
+// real salvo que no quepa: entonces se abren a SP de distancia, centrados en el
+// grupo. Si al alargarse un gusano alcanza a otro kart, se lo traga.
 
-// Maquetado de una píldora en unidades del SVG, relativo a su centro. r = radio
-// de un dorsal suelto (la píldora tiene su misma altura para que lean igual).
-function _enTrackPillLayout(dorsals, r){
-  const fs=r*1.05, padX=r*0.35, rowH=r*1.8;
-  const cw=d=>Math.max(fs*1.25,String(d).length*fs*0.6+fs*0.5);
-  const n=dorsals.length, rows=Math.max(1,Math.ceil(n/_ENTRK_PILL_ROW)), per=Math.ceil(n/rows);
-  const lines=[];
-  for(let i=0;i<n;i+=per)lines.push(dorsals.slice(i,i+per));
-  const widths=lines.map(l=>l.reduce((a,d)=>a+cw(d),0));
-  const w=Math.max(...widths)+padX*2, h=rows===1?r*2:rows*rowH+r*0.3;
-  const chips=[];
-  lines.forEach((l,ri)=>{
-    let x=-widths[ri]/2;
-    const y=rows===1?0:-h/2+r*0.15+rowH*(ri+0.5);
-    l.forEach(d=>{const cwd=cw(d);chips.push({d:String(d),x:x+cwd/2,y,w:cwd});x+=cwd;});
-  });
-  return {w,h,rows,fs,chips};
-}
-
-// items: {d, x, y, t, me, stale} (t=null → en box, no se agrupa). prevOf: dorsal →
-// clave del grupo en el fotograma anterior (histéresis: los que iban juntos solo
-// se separan con algo más de aire, para que la píldora no parpadee). Devuelve
-// grupos {members (el que va delante primero), x, y, layout|null si va solo}.
-function _enTrackGroup(items, r, prevOf){
+// items: {d, pos (fracción de distancia; null = en box, no se agrupa), me, stale, …}.
+// sp: hueco mínimo entre dorsales (fracción de vuelta). prevOf: dorsal → clave del
+// grupo en el fotograma anterior (histéresis: los que iban juntos solo se
+// separan con algo más de aire). Devuelve {members (cabeza primero), at
+// (posición de cada dorsal, desenrollada), a, b (cola y cabeza)}.
+function _enTrackWorms(items, sp, prevOf){
   prevOf=prevOf||{};
-  const box=g=>g.members.length===1
-    ?{hw:r*(g.members[0].me?1.32:1),hh:r*(g.members[0].me?1.32:1)}
-    :{hw:g.layout.w/2,hh:g.layout.h/2};
-  const make=members=>{
-    const L=members.filter(m=>m.t!=null);
-    if(L.length>1){
-      const t0=L[0].t, rel=t=>((t-t0)%1+1.5)%1-0.5;
-      members=[...members].sort((a,b)=>rel(b.t)-rel(a.t)||String(a.d).localeCompare(String(b.d)));
-    }
-    const x=members.reduce((a,m)=>a+m.x,0)/members.length, y=members.reduce((a,m)=>a+m.y,0)/members.length;
-    return {members,x,y,layout:members.length>1?_enTrackPillLayout(members.map(m=>m.d),r):null};
+  const out=[], L=items.filter(it=>it.pos!=null);
+  items.forEach(it=>{ if(it.pos==null)out.push({members:[it],at:[null],a:null,b:null}); });
+  if(!L.length)return out;
+  L.sort((x,y)=>x.pos-y.pos);
+  const n=L.length;
+  // Se empieza tras el mayor hueco de la vuelta: así un grupo nunca queda partido por la meta.
+  let gi=n-1, gmax=-1;
+  for(let i=0;i<n;i++){ const gap=(i+1<n?L[i+1].pos:L[0].pos+1)-L[i].pos; if(gap>gmax){gmax=gap;gi=i;} }
+  const seq=[];
+  for(let k=1;k<=n;k++)seq.push({it:L[(gi+k)%n],u:L[(gi+k)%n].pos+(gi+k>=n?1:0)});
+  const base=Math.floor(seq[0].u);
+  seq.forEach(s=>{s.u-=base;});
+  const layout=ms=>{   // ms de cola a cabeza
+    const spE=Math.min(sp,(1-sp)/Math.max(1,ms.length-1));
+    const real=ms.map(m=>m.u).reverse(), p=[real[0]];   // cabeza primero
+    for(let i=1;i<real.length;i++)p.push(Math.min(real[i],p[i-1]-spE));
+    const shift=(real.reduce((s,v)=>s+v,0)-p.reduce((s,v)=>s+v,0))/p.length;
+    const at=p.map(v=>v+shift);
+    return {ms,members:ms.map(m=>m.it).reverse(),at,a:at[at.length-1],b:at[0]};
   };
-  const wasWith=(a,b)=>a.members.some(m=>prevOf[m.d]&&b.members.some(o=>prevOf[o.d]===prevOf[m.d]));
-  let groups=items.map(it=>make([it]));
+  const wasWith=(g,h)=>g.ms.some(m=>prevOf[m.it.d]&&h.ms.some(o=>prevOf[o.it.d]===prevOf[m.it.d]));
+  let groups=seq.map(s=>layout([s]));
   for(let merged=true;merged;){
     merged=false;
-    for(let i=0;i<groups.length&&!merged;i++){
-      if(groups[i].members[0].t==null)continue;
-      for(let j=i+1;j<groups.length;j++){
-        if(groups[j].members[0].t==null)continue;
-        const a=groups[i], b=groups[j], A=box(a), B=box(b);
-        const m=wasWith(a,b)?r*0.8:r*0.1;
-        if(Math.abs(a.x-b.x)<A.hw+B.hw+m&&Math.abs(a.y-b.y)<A.hh+B.hh+m){
-          groups[i]=make([...a.members,...b.members]);
-          groups.splice(j,1);
-          merged=true; break;
-        }
-      }
+    for(let i=0;i+1<groups.length;i++){
+      const g=groups[i], h=groups[i+1];
+      if(h.a-g.b<(wasWith(g,h)?sp*1.5:sp)){ groups.splice(i,2,layout([...g.ms,...h.ms])); merged=true; break; }
     }
   }
-  return groups;
+  return out.concat(groups.map(g=>({members:g.members,at:g.at,a:g.a,b:g.b})));
 }
 
-// Nodo SVG de una píldora. Se reutiliza mientras no cambien sus miembros (solo
-// se mueve su transform); el clic en un dorsal lo selecciona como un kart suelto.
-function _enTrackPillNode(group, r){
-  const NS='http://www.w3.org/2000/svg', L=group.layout;
+// Trazo del gusano por la pista, de la cola (a) a la cabeza (b).
+function _enTrackWormPath(track, a, b){
+  const P=(typeof window!=='undefined'&&window.EnTrackPos)||require('./en-track-pos');
+  const n=Math.max(2,Math.ceil((b-a)*track.points.length)+1);
+  let d='';
+  for(let i=0;i<n;i++){ const p=P.pointAtDist(track,a+(b-a)*i/(n-1)); d+=(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1); }
+  return d;
+}
+
+// Nodo SVG de un gusano: canto oscuro + borde + cuerpo (tres trazos) y un
+// dorsal por miembro. Se reutiliza mientras no cambien sus miembros; en cada
+// fotograma solo cambian el trazo y la posición de los dorsales.
+function _enTrackWormNode(group, r, wu){
+  const NS='http://www.w3.org/2000/svg';
   const hasMe=group.members.some(m=>m.me);
   const el=(tag,attrs,parent)=>{const e=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));parent.appendChild(e);return e;};
   const g=document.createElementNS(NS,'g');
   g.style.cursor='pointer';
-  const rx=L.rows===1?L.h/2:r*0.9;
-  el('rect',{x:(-L.w/2-r*0.14).toFixed(1),y:(-L.h/2-r*0.14).toFixed(1),width:(L.w+r*0.28).toFixed(1),height:(L.h+r*0.28).toFixed(1),rx:(rx+r*0.14).toFixed(1),fill:'rgba(8,9,10,0.6)'},g);
-  el('rect',{x:(-L.w/2).toFixed(1),y:(-L.h/2).toFixed(1),width:L.w.toFixed(1),height:L.h.toFixed(1),rx:rx.toFixed(1),
-    fill:'#1b1d24',stroke:hasMe?'rgba(245,166,35,0.85)':'rgba(255,255,255,0.55)','stroke-width':(r*0.125).toFixed(1)},g);
-  L.chips.forEach((c,i)=>{
-    const m=group.members[i];
-    const prev=L.chips[i-1];
-    if(prev&&prev.y===c.y)el('line',{x1:(c.x-c.w/2).toFixed(1),x2:(c.x-c.w/2).toFixed(1),y1:(c.y-r*0.5).toFixed(1),y2:(c.y+r*0.5).toFixed(1),stroke:'rgba(255,255,255,0.18)','stroke-width':(r*0.08).toFixed(1)},g);
-    const cg=el('g',{'data-d':c.d},g);
+  const line={fill:'none','stroke-linecap':'round','stroke-linejoin':'round'};
+  const paths=[
+    el('path',{...line,stroke:'rgba(8,9,10,0.6)','stroke-width':(2*r+wu*0.28).toFixed(1)},g),
+    el('path',{...line,stroke:hasMe?'rgba(245,166,35,0.85)':'rgba(255,255,255,0.55)','stroke-width':(2*r+wu*0.09).toFixed(1)},g),
+    el('path',{...line,stroke:'#1b1d24','stroke-width':(2*r-wu*0.09).toFixed(1)},g),
+  ];
+  const chips=group.members.map(m=>{
+    const cg=el('g',{'data-d':m.d},g);
     if(m.stale)cg.setAttribute('opacity','0.4');
-    if(m.me)el('rect',{x:(c.x-c.w/2+r*0.12).toFixed(1),y:(c.y-r*0.78).toFixed(1),width:(c.w-r*0.24).toFixed(1),height:(r*1.56).toFixed(1),rx:(r*0.6).toFixed(1),fill:_ENTRK_ME},cg);
-    else el('rect',{x:(c.x-c.w/2).toFixed(1),y:(c.y-r*0.8).toFixed(1),width:c.w.toFixed(1),height:(r*1.6).toFixed(1),fill:'transparent'},cg);
-    const t=el('text',{x:c.x.toFixed(1),y:c.y.toFixed(1),'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-weight':'700',
-      'font-size':(L.fs*(c.d.length>=3?0.86:1)).toFixed(1),fill:m.me?'#1a1205':'#ffffff'},cg);
-    t.textContent=c.d;
-    cg.addEventListener('click',()=>_enTrackSelect(c.d));
+    el('circle',{r:(r*0.86).toFixed(1),fill:m.me?_ENTRK_ME:'transparent'},cg);
+    const t=el('text',{'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-weight':'700',
+      'letter-spacing':m.d.length>=3?'-0.04em':'0','font-size':(r*(m.d.length>=3?0.82:m.d.length===2?1.0:1.12)).toFixed(1),fill:m.me?'#1a1205':'#ffffff'},cg);
+    t.textContent=m.d;
+    cg.addEventListener('click',()=>_enTrackSelect(m.d));
+    return cg;
   });
+  g._paths=paths; g._chips=chips;
   return g;
 }
 
@@ -421,19 +453,19 @@ function _enTrackFrame(){
       EnTrack.nodes[p.dorsal]=node;
       if(p.dorsal===me)g.appendChild(node); else g.insertBefore(node,g.firstChild);   // mi kart, encima
     }
-    items.push({node,x:pt[0],y:pt[1],t:p.mode==='pit'?null:p.t,me:p.dorsal===me,d:p.dorsal,stale:p.mode==='stale'});
+    items.push({node,x:pt[0],y:pt[1],pos:p.mode==='pit'?null:P.timeToDist(track,p.t),me:p.dorsal===me,d:p.dorsal,stale:p.mode==='stale'});
     node.style.opacity=p.mode==='stale'?'0.35':'1';
   });
   Object.keys(EnTrack.nodes).forEach(d=>{ if(!seen.has(d)){EnTrack.nodes[d].remove();delete EnTrack.nodes[d];} });
-  // Juntos → píldora; solos → su círculo. Las píldoras se reutilizan mientras no
+  // Juntos → gusano; solos → su círculo. Los gusanos se reutilizan mientras no
   // cambien sus miembros (ni quién va delante): así el clic no cae en un nodo
   // recién destruido y no se recrea el DOM 10 veces por segundo.
-  const r=track.widthUnits*0.72, W=track.viewBox.w, H=track.viewBox.h;
-  const groups=_enTrackGroup(items,r,EnTrack.groupOf);
-  const pl=document.getElementById('en-trk-pills');
+  const wu=track.widthUnits, r=wu*0.72, sp=2.05*r/P.trackLengthUnits(track);
+  const groups=_enTrackWorms(items,sp,EnTrack.groupOf);
+  const wl=document.getElementById('en-trk-worms');
   const keep={}, groupOf={};
   groups.forEach(gr=>{
-    if(!gr.layout){
+    if(gr.members.length===1){
       const it=gr.members[0];
       it.node.style.display='';
       it.node.setAttribute('transform',`translate(${it.x.toFixed(1)} ${it.y.toFixed(1)})`);
@@ -441,15 +473,16 @@ function _enTrackFrame(){
     }
     const key=gr.members.map(m=>m.d+(m.me?'*':'')+(m.stale?'~':'')).join('|');
     gr.members.forEach(m=>{m.node.style.display='none';groupOf[m.d]=key;});
-    if(!pl)return;
-    let node=EnTrack.pills[key];
-    if(!node){node=_enTrackPillNode(gr,r);pl.appendChild(node);}
+    if(!wl)return;
+    let node=EnTrack.worms[key];
+    if(!node){node=_enTrackWormNode(gr,r,wu);wl.appendChild(node);}
     keep[key]=node;
-    const L=gr.layout, x=Math.min(Math.max(gr.x,L.w/2),W-L.w/2), y=Math.min(Math.max(gr.y,L.h/2),H-L.h/2);
-    node.setAttribute('transform',`translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+    const d=_enTrackWormPath(track,gr.a,gr.b);
+    node._paths.forEach(p=>p.setAttribute('d',d));
+    gr.at.forEach((u,i)=>{ const q=P.pointAtDist(track,u); node._chips[i].setAttribute('transform',`translate(${q[0].toFixed(1)} ${q[1].toFixed(1)})`); });
   });
-  Object.keys(EnTrack.pills).forEach(k=>{ if(!keep[k])EnTrack.pills[k].remove(); });
-  EnTrack.pills=keep; EnTrack.groupOf=groupOf;
+  Object.keys(EnTrack.worms).forEach(k=>{ if(!keep[k])EnTrack.worms[k].remove(); });
+  EnTrack.worms=keep; EnTrack.groupOf=groupOf;
   if(wall-EnTrack.lastSide>=250){
     EnTrack.lastSide=wall;
     const gaps=document.getElementById('en-trk-gaps');
@@ -473,5 +506,6 @@ function _enStopTrackRaf(){ if(EnTrack.raf!=null&&typeof cancelAnimationFrame===
 if (typeof module !== 'undefined') {
   module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
     _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml,
-    _enTrackPillLayout, _enTrackGroup, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection };
+    _enTrackWorms, _enTrackWormPath, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection,
+    _ENTRK_ZOOMS, _ENTRK_ZOOM_DEFAULT, _enTrackZoomLevel, _enTrackZoomStep, _enTrackSvgSize, _enTrackZoomHtml, _enTrackSetZoom };
 }
