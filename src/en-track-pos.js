@@ -145,6 +145,7 @@
   const STALE_LAPS = 3;    // vueltas de ritmo sin pase → sin datos
   const REF_N = 5;         // vueltas limpias para el ritmo de referencia
   const OUTLIER = 1.5;     // vuelta > 1,5× la mediana = no limpia (box, incidente)
+  const MASS_WIN_MS = 90000, MASS_MIN = 5, MASS_FRAC = 0.6, MASS_SETTLE_MS = 60000;   // parada masiva: ≥60 % de la parrilla (y ≥5) en 90 s
   const SKEW_N = 50;       // pases recientes para estimar el desfase de reloj
   const SKEW_MIN = 5;      // mínimo de pases para fiarse del desfase
   const SKEW_FRESH_MS = 30000; // pase "fresco": llega a < 30 s de su sello
@@ -168,6 +169,8 @@
     const errs = [];           // |vuelta real − ritmo previsto| en s
     const skews = [];          // (reloj del mapa − lastLapAt) en cada pase fresco, ms
     let fieldRef = null;
+    const pitIns = [];         // instantes (reloj del mapa) de cada entrada a box vista en directo
+    let mass = null;           // última parada masiva: { at, n }
     let ctx = { pitDurationS: 120, tunnelOffsetS: null, outTimeFrac: null };
 
     function update(equipos, nowMs, c) {
@@ -178,8 +181,9 @@
         const d = String(e.dorsal);
         seen.add(d);
         let k = karts.get(d);
+        const isNew = !k;
         if (!k) {
-          k = { dorsal: d, lastLapAt: 0, pit: false, outAt: null, outFromLapAt: 0, slideFrom: null, slideAt: 0, shown: 0, ref: null };
+          k = { dorsal: d, seenAt: nowMs, lastLapAt: 0, pit: false, outAt: null, outFromLapAt: 0, slideFrom: null, slideAt: 0, shown: 0, ref: null };
           karts.set(d, k);
         }
         k.name = e.teamName || e.name || ('#' + d);
@@ -191,6 +195,10 @@
         // ese pase ya cierra la vuelta de salida.
         if (k.pit && !pit) { k.outAt = nowMs; k.outFromLapAt = k.lastLapAt; }   // acaba de salir de box
         if (pit) k.outAt = null;
+        // Entrada a box real: de un kart que ya rueda (ha pasado por meta; antes de
+        // la salida toda la parrilla figura en box) y ni "ya estaba" al conectar ni
+        // el estado que se asienta en el primer minuto tras conectar.
+        if (pit && !k.pit && !isNew && k.lastLapAt && nowMs - k.seenAt >= MASS_SETTLE_MS) pitIns.push(nowMs);
         if (at && at !== k.lastLapAt) {
           // Error en vivo con el ritmo de ANTES de esta vuelta
           const lap = k.lastLapAt ? at - k.lastLapAt : null;
@@ -222,6 +230,13 @@
       });
       for (const d of [...karts.keys()]) if (!seen.has(d)) karts.delete(d);
       fieldRef = median(refs);
+      // Parada masiva: casi toda la parrilla entra a box en <90 s. Apex no manda
+      // el sentido de pista; un cambio de sentido a mitad de carrera (henakart,
+      // COPA PISTON) solo deja esta firma. Las paradas de estrategia van escalonadas.
+      while (pitIns.length && nowMs - pitIns[0] > MASS_WIN_MS) pitIns.shift();
+      const need = Math.max(MASS_MIN, Math.ceil(karts.size * MASS_FRAC));
+      if (pitIns.length >= need && !(mass && nowMs - mass.at <= MASS_WIN_MS)) mass = { at: nowMs, n: pitIns.length };
+      else if (mass && nowMs - mass.at <= MASS_WIN_MS && pitIns.length > mass.n) mass.n = pitIns.length;
     }
 
     // mode: 'track'|'outlap'|'pit'|'stale'|'hidden' (hidden: salió de box sin pit lane ni offset)
@@ -317,13 +332,17 @@
       errs.length = 0;
       skews.length = 0;
       fieldRef = null;
+      pitIns.length = 0;
+      mass = null;
     }
 
     function errorStats() {
       return { medianS: median(errs), p90S: quantile(errs, 0.9), n: errs.length };
     }
 
-    return { update, positions, info, errorStats, pitList, gapsFor, clockSkewMs, reset, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
+    function massPit() { return mass ? { at: mass.at, n: mass.n } : null; }
+
+    return { update, positions, info, errorStats, pitList, gapsFor, clockSkewMs, reset, massPit, _karts: karts, _ctx: () => ctx, _fieldRef: () => fieldRef };
   }
 
   return {

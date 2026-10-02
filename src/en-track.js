@@ -8,6 +8,7 @@
 const EnTrack = {
   engine: null, track: null, key: null, shellFor: null, nodes: {},
   raf: null, lastFrame: 0, lastSide: 0, selected: null, cache: {},
+  pills: {}, groupOf: {}, dirDismissedAt: null,
 };
 
 // Reloj del mapa: el mismo que usa lastLapAt. En un replay es el tiempo de la
@@ -153,6 +154,7 @@ function _enTrackShellHtml(track){
     <div style="flex:1 1 380px;min-width:0">
       <div id="en-trk-gaps" class="en-strat-card" style="padding:10px 14px;margin-bottom:10px"></div>
       <div class="en-strat-card" style="padding:10px 12px;margin-bottom:0">
+      <div id="en-trk-dir" style="display:flex;justify-content:flex-end;margin-bottom:4px"></div>
       <svg id="en-trk-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:62vh;display:block;margin:0 auto" role="img" aria-label="Mapa de pista">
         <defs><pattern id="en-trk-chk" width="${wu/2}" height="${wu/2}" patternUnits="userSpaceOnUse">
           <rect width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/><rect x="${wu/4}" y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/>
@@ -165,6 +167,7 @@ function _enTrackShellHtml(track){
         <line x1="${f(m[0]-nx*half)}" y1="${f(m[1]-ny*half)}" x2="${f(m[0]+nx*half)}" y2="${f(m[1]+ny*half)}" stroke="url(#en-trk-chk)" stroke-width="${wu*0.5}"/>
         <path d="M0 ${f(-wu*0.45)} L${f(wu*0.9)} 0 L0 ${f(wu*0.45)} Z" fill="rgba(255,255,255,0.5)" transform="translate(${f(q[0])} ${f(q[1])}) rotate(${ang.toFixed(1)})"/>
         <g id="en-trk-karts"></g>
+        <g id="en-trk-pills"></g>
       </svg>
       <div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid rgba(255,255,255,0.07)">
         <div id="en-trk-sel" style="min-height:19px;min-width:0"></div>
@@ -242,43 +245,152 @@ function _enRenderTrack(eq){
     body.innerHTML=_enTrackShellHtml(track);
     EnTrack.shellFor=track;
     EnTrack.nodes={};
+    EnTrack.pills={};
+    EnTrack.groupOf={};
     EnTrack.lastSide=0;
   }
   _enStartTrackRaf();
 }
 
-// Dorsales amontonados: los que quedan a menos de 1,6 radios se agrupan (unión
-// de pares, O(n²) sobre ≤60 karts) y cada grupo se abre en carriles a lo largo
-// de la NORMAL de la pista: 0, +1, −1, +2, −2… en el orden de pista. Solo se
-// mueven de lado, así que el orden a lo largo del trazado no cambia. Mi kart, si
-// está en el grupo, se queda en el carril 0 (sobre la línea real).
-function _enTrackSpread(items, track){
-  const P=window.EnTrackPos, wu=track.widthUnits, rr=wu*0.72;
-  const minD=rr*1.6, step=rr*1.75;
-  const L=items.filter(it=>it.t!=null);
-  const n=L.length; if(n<2)return;
-  const par=L.map((_,i)=>i), find=i=>{while(par[i]!==i)i=par[i]=par[par[i]];return i;};
-  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
-    const dx=L[i].x-L[j].x, dy=L[i].y-L[j].y;
-    if(dx*dx+dy*dy<minD*minD)par[find(i)]=find(j);
-  }
-  const groups={};
-  L.forEach((it,i)=>{(groups[find(i)]=groups[find(i)]||[]).push(it);});
-  Object.values(groups).forEach(gr=>{
-    if(gr.length<2)return;
-    // orden de pista estable aunque el grupo cruce la meta: referencia = el primero
-    const t0=gr[0].t, rel=t=>((t-t0)%1+1.5)%1-0.5;
-    gr.sort((a,b)=>rel(a.t)-rel(b.t)||String(a.d).localeCompare(String(b.d)));
-    const meI=gr.findIndex(it=>it.me);
-    const order=meI>=0?[gr[meI],...gr.filter((_,i)=>i!==meI)]:gr;
-    order.forEach((it,k)=>{
-      if(!k)return;
-      const lane=((k-1)%6>>1)+1, sgn=(k-1)%2?-1:1;   // +1,−1,+2,−2,+3,−3, y vuelta a empezar
-      const a=P.pointAt(track,it.t-0.003), b=P.pointAt(track,it.t+0.003);
-      const tx=b[0]-a[0], ty=b[1]-a[1], l=Math.hypot(tx,ty)||1;
-      it.x+=(-ty/l)*sgn*lane*step; it.y+=(tx/l)*sgn*lane*step;
-    });
+// ── Karts juntos → una píldora ────────────────────────────────────────────
+// Antes se abrían en abanico a los lados de la pista y, con mucho tráfico,
+// quedaba un racimo de círculos pisándose. Ahora los que se tocan se funden en
+// UNA píldora horizontal con sus dorsales en fila (el que va delante, primero),
+// centrada en el grupo. Se agrupa de forma iterativa: si una píldora al crecer
+// pisa a otro kart u otra píldora, se los traga → nunca hay solapes.
+const _ENTRK_PILL_ROW=6;   // dorsales por fila; más → la píldora se parte en filas
+
+// Maquetado de una píldora en unidades del SVG, relativo a su centro. r = radio
+// de un dorsal suelto (la píldora tiene su misma altura para que lean igual).
+function _enTrackPillLayout(dorsals, r){
+  const fs=r*1.05, padX=r*0.35, rowH=r*1.8;
+  const cw=d=>Math.max(fs*1.25,String(d).length*fs*0.6+fs*0.5);
+  const n=dorsals.length, rows=Math.max(1,Math.ceil(n/_ENTRK_PILL_ROW)), per=Math.ceil(n/rows);
+  const lines=[];
+  for(let i=0;i<n;i+=per)lines.push(dorsals.slice(i,i+per));
+  const widths=lines.map(l=>l.reduce((a,d)=>a+cw(d),0));
+  const w=Math.max(...widths)+padX*2, h=rows===1?r*2:rows*rowH+r*0.3;
+  const chips=[];
+  lines.forEach((l,ri)=>{
+    let x=-widths[ri]/2;
+    const y=rows===1?0:-h/2+r*0.15+rowH*(ri+0.5);
+    l.forEach(d=>{const cwd=cw(d);chips.push({d:String(d),x:x+cwd/2,y,w:cwd});x+=cwd;});
   });
+  return {w,h,rows,fs,chips};
+}
+
+// items: {d, x, y, t, me, stale} (t=null → en box, no se agrupa). prevOf: dorsal →
+// clave del grupo en el fotograma anterior (histéresis: los que iban juntos solo
+// se separan con algo más de aire, para que la píldora no parpadee). Devuelve
+// grupos {members (el que va delante primero), x, y, layout|null si va solo}.
+function _enTrackGroup(items, r, prevOf){
+  prevOf=prevOf||{};
+  const box=g=>g.members.length===1
+    ?{hw:r*(g.members[0].me?1.32:1),hh:r*(g.members[0].me?1.32:1)}
+    :{hw:g.layout.w/2,hh:g.layout.h/2};
+  const make=members=>{
+    const L=members.filter(m=>m.t!=null);
+    if(L.length>1){
+      const t0=L[0].t, rel=t=>((t-t0)%1+1.5)%1-0.5;
+      members=[...members].sort((a,b)=>rel(b.t)-rel(a.t)||String(a.d).localeCompare(String(b.d)));
+    }
+    const x=members.reduce((a,m)=>a+m.x,0)/members.length, y=members.reduce((a,m)=>a+m.y,0)/members.length;
+    return {members,x,y,layout:members.length>1?_enTrackPillLayout(members.map(m=>m.d),r):null};
+  };
+  const wasWith=(a,b)=>a.members.some(m=>prevOf[m.d]&&b.members.some(o=>prevOf[o.d]===prevOf[m.d]));
+  let groups=items.map(it=>make([it]));
+  for(let merged=true;merged;){
+    merged=false;
+    for(let i=0;i<groups.length&&!merged;i++){
+      if(groups[i].members[0].t==null)continue;
+      for(let j=i+1;j<groups.length;j++){
+        if(groups[j].members[0].t==null)continue;
+        const a=groups[i], b=groups[j], A=box(a), B=box(b);
+        const m=wasWith(a,b)?r*0.8:r*0.1;
+        if(Math.abs(a.x-b.x)<A.hw+B.hw+m&&Math.abs(a.y-b.y)<A.hh+B.hh+m){
+          groups[i]=make([...a.members,...b.members]);
+          groups.splice(j,1);
+          merged=true; break;
+        }
+      }
+    }
+  }
+  return groups;
+}
+
+// Nodo SVG de una píldora. Se reutiliza mientras no cambien sus miembros (solo
+// se mueve su transform); el clic en un dorsal lo selecciona como un kart suelto.
+function _enTrackPillNode(group, r){
+  const NS='http://www.w3.org/2000/svg', L=group.layout;
+  const hasMe=group.members.some(m=>m.me);
+  const el=(tag,attrs,parent)=>{const e=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));parent.appendChild(e);return e;};
+  const g=document.createElementNS(NS,'g');
+  g.style.cursor='pointer';
+  const rx=L.rows===1?L.h/2:r*0.9;
+  el('rect',{x:(-L.w/2-r*0.14).toFixed(1),y:(-L.h/2-r*0.14).toFixed(1),width:(L.w+r*0.28).toFixed(1),height:(L.h+r*0.28).toFixed(1),rx:(rx+r*0.14).toFixed(1),fill:'rgba(8,9,10,0.6)'},g);
+  el('rect',{x:(-L.w/2).toFixed(1),y:(-L.h/2).toFixed(1),width:L.w.toFixed(1),height:L.h.toFixed(1),rx:rx.toFixed(1),
+    fill:'#1b1d24',stroke:hasMe?'rgba(245,166,35,0.85)':'rgba(255,255,255,0.55)','stroke-width':(r*0.125).toFixed(1)},g);
+  L.chips.forEach((c,i)=>{
+    const m=group.members[i];
+    const prev=L.chips[i-1];
+    if(prev&&prev.y===c.y)el('line',{x1:(c.x-c.w/2).toFixed(1),x2:(c.x-c.w/2).toFixed(1),y1:(c.y-r*0.5).toFixed(1),y2:(c.y+r*0.5).toFixed(1),stroke:'rgba(255,255,255,0.18)','stroke-width':(r*0.08).toFixed(1)},g);
+    const cg=el('g',{'data-d':c.d},g);
+    if(m.stale)cg.setAttribute('opacity','0.4');
+    if(m.me)el('rect',{x:(c.x-c.w/2+r*0.12).toFixed(1),y:(c.y-r*0.78).toFixed(1),width:(c.w-r*0.24).toFixed(1),height:(r*1.56).toFixed(1),rx:(r*0.6).toFixed(1),fill:_ENTRK_ME},cg);
+    else el('rect',{x:(c.x-c.w/2).toFixed(1),y:(c.y-r*0.8).toFixed(1),width:c.w.toFixed(1),height:(r*1.6).toFixed(1),fill:'transparent'},cg);
+    const t=el('text',{x:c.x.toFixed(1),y:c.y.toFixed(1),'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-weight':'700',
+      'font-size':(L.fs*(c.d.length>=3?0.86:1)).toFixed(1),fill:m.me?'#1a1205':'#ffffff'},cg);
+    t.textContent=c.d;
+    cg.addEventListener('click',()=>_enTrackSelect(c.d));
+  });
+  return g;
+}
+
+// ── Sentido de pista ───────────────────────────────────────────────────────
+// Apex NO manda el sentido (ni en henakart, que lo invierte a mitad de la COPA
+// PISTON). Se cambia a mano desde el mapa y, cuando casi toda la parrilla entra a
+// box a la vez (la única firma de ese cambio), se pregunta.
+function _enTrackDirBarHtml(dir, prompt){
+  const other=dir==='inverso'?'normal':'inverso';
+  const lbl=d=>d==='inverso'?'Inverso':'Normal';
+  const btn=`<button type="button" onclick="_enTrackSetDirection('${other}')" style="${_ENTRK_TXT};font-size:12px;padding:4px 10px;border-radius:999px;border:0.5px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);color:var(--text-1);cursor:pointer;white-space:nowrap">⇄ Invertir</button>`;
+  if(prompt)return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;${_ENTRK_TXT};padding:8px 12px;border-radius:8px;background:rgba(245,166,35,0.10);border:0.5px solid rgba(245,166,35,0.55);margin-bottom:8px;width:100%">
+    <span style="flex:1;min-width:180px;color:var(--text-1)"><b style="color:${_ENTRK_ME}">${prompt.n} karts</b> han entrado a box a la vez. ¿Ha cambiado el sentido? <span style="color:var(--text-3)">Ahora: ${lbl(dir)}</span></span>
+    <button type="button" onclick="_enTrackSetDirection('${other}')" style="${_ENTRK_TXT};font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;border:0;background:${_ENTRK_ME};color:#1a1205;cursor:pointer">Pasar a ${lbl(other)}</button>
+    <button type="button" onclick="_enTrackDismissDirPrompt()" style="${_ENTRK_TXT};font-size:12px;padding:5px 10px;border-radius:999px;border:0.5px solid rgba(255,255,255,0.18);background:transparent;color:var(--text-2);cursor:pointer">No</button></div>`;
+  return `<div style="display:flex;align-items:center;gap:8px;${_ENTRK_TXT};color:var(--text-3)">Sentido <b style="color:var(--text-1);font-weight:600">${lbl(dir)}</b>${btn}</div>`;
+}
+
+// ¿Tiene sentido ofrecer el cambio? Con trazado GPS (el mapa se invierte) o si
+// el circuito tiene túnel distinto por sentido. En el óvalo genérico, no.
+function _enTrackCanFlip(track){
+  const slug=window.AppState?.config?.slug;
+  return !!slug&&(!(track&&track.generic)||!!window.CircuitDB?.hasDirectionVariants?.(slug));
+}
+
+function _enTrackSetDirection(dir){
+  const cfg=window.AppState?.config;
+  if(!cfg||!cfg.slug||(cfg.trackDirection||'normal')===dir)return;
+  // Con túnel por sentido, el cambio completo (offset + mediciones en vuelo) es
+  // el de Avanzado; si no, solo cambia el trazado del mapa.
+  if(window.CircuitDB?.hasDirectionVariants?.(cfg.slug)&&typeof _enSetTrackDirection==='function')_enSetTrackDirection(dir);
+  else cfg.trackDirection=dir;
+  EnTrack.dirPromptAt=null;
+  EnTrack.lastSide=0;
+  _enRenderTrack();
+}
+
+function _enTrackDismissDirPrompt(){
+  const m=EnTrack.engine&&EnTrack.engine.massPit();
+  EnTrack.dirDismissedAt=m?m.at:Date.now();
+  EnTrack.lastSide=0;
+}
+
+// Aviso vigente: parada masiva no descartada y de hace menos de 10 minutos.
+function _enTrackDirPrompt(now){
+  const m=EnTrack.engine&&EnTrack.engine.massPit();
+  if(!m||m.at===EnTrack.dirDismissedAt||now-m.at>600000)return null;
+  return m;
 }
 
 function _enTrackFrame(){
@@ -309,18 +421,46 @@ function _enTrackFrame(){
       EnTrack.nodes[p.dorsal]=node;
       if(p.dorsal===me)g.appendChild(node); else g.insertBefore(node,g.firstChild);   // mi kart, encima
     }
-    items.push({node,x:pt[0],y:pt[1],t:p.mode==='pit'?null:p.t,me:p.dorsal===me,d:p.dorsal});
+    items.push({node,x:pt[0],y:pt[1],t:p.mode==='pit'?null:p.t,me:p.dorsal===me,d:p.dorsal,stale:p.mode==='stale'});
     node.style.opacity=p.mode==='stale'?'0.35':'1';
   });
-  _enTrackSpread(items,track);
-  items.forEach(it=>it.node.setAttribute('transform',`translate(${it.x.toFixed(1)} ${it.y.toFixed(1)})`));
   Object.keys(EnTrack.nodes).forEach(d=>{ if(!seen.has(d)){EnTrack.nodes[d].remove();delete EnTrack.nodes[d];} });
+  // Juntos → píldora; solos → su círculo. Las píldoras se reutilizan mientras no
+  // cambien sus miembros (ni quién va delante): así el clic no cae en un nodo
+  // recién destruido y no se recrea el DOM 10 veces por segundo.
+  const r=track.widthUnits*0.72, W=track.viewBox.w, H=track.viewBox.h;
+  const groups=_enTrackGroup(items,r,EnTrack.groupOf);
+  const pl=document.getElementById('en-trk-pills');
+  const keep={}, groupOf={};
+  groups.forEach(gr=>{
+    if(!gr.layout){
+      const it=gr.members[0];
+      it.node.style.display='';
+      it.node.setAttribute('transform',`translate(${it.x.toFixed(1)} ${it.y.toFixed(1)})`);
+      return;
+    }
+    const key=gr.members.map(m=>m.d+(m.me?'*':'')+(m.stale?'~':'')).join('|');
+    gr.members.forEach(m=>{m.node.style.display='none';groupOf[m.d]=key;});
+    if(!pl)return;
+    let node=EnTrack.pills[key];
+    if(!node){node=_enTrackPillNode(gr,r);pl.appendChild(node);}
+    keep[key]=node;
+    const L=gr.layout, x=Math.min(Math.max(gr.x,L.w/2),W-L.w/2), y=Math.min(Math.max(gr.y,L.h/2),H-L.h/2);
+    node.setAttribute('transform',`translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+  });
+  Object.keys(EnTrack.pills).forEach(k=>{ if(!keep[k])EnTrack.pills[k].remove(); });
+  EnTrack.pills=keep; EnTrack.groupOf=groupOf;
   if(wall-EnTrack.lastSide>=250){
     EnTrack.lastSide=wall;
     const gaps=document.getElementById('en-trk-gaps');
     if(gaps)gaps.innerHTML=_enTrackGapStripHtml(me?EnTrack.engine.gapsFor(me,now):null,me);
     const pit=document.getElementById('en-trk-pit');
     if(pit)pit.innerHTML=_enTrackPitListHtml(EnTrack.engine.pitList(now));
+    const dirEl=document.getElementById('en-trk-dir');
+    if(dirEl){   // solo si cambia: recrear el botón cada 250 ms se comería clics
+      const html=_enTrackCanFlip(track)?_enTrackDirBarHtml(window.AppState?.config?.trackDirection||'normal',_enTrackDirPrompt(now)):'';
+      if(dirEl.dataset.html!==html){dirEl.innerHTML=html;dirEl.dataset.html=html;}
+    }
     const note=document.getElementById('en-trk-note');
     if(note)note.innerHTML=_enTrackNoteHtml(track,EnTrack.engine.errorStats());
     if(EnTrack.selected){const sel=document.getElementById('en-trk-sel');if(sel)sel.innerHTML=_enTrackSelHtml(EnTrack.engine.info(EnTrack.selected));}
@@ -332,5 +472,6 @@ function _enStopTrackRaf(){ if(EnTrack.raf!=null&&typeof cancelAnimationFrame===
 
 if (typeof module !== 'undefined') {
   module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
-    _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml };
+    _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml,
+    _enTrackPillLayout, _enTrackGroup, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection };
 }

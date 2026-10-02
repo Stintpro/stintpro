@@ -386,5 +386,65 @@ test('un solo rival: delante sí, detrás null (no el mismo kart dos veces)', ()
   strictEqual(g.behind, null);
 });
 
+
+console.log('\nparada masiva (firma del cambio de sentido)');
+
+const field = (n, at, pit) => Array.from({ length: n }, (_, i) => kart(String(i + 1), at, { pit: pit(i) }));
+
+test('casi toda la parrilla entra a box en <90 s → massPit con el instante', () => {
+  const e = P.createTrackPos();
+  e.update(field(10, 50 * S, () => false), 0);
+  e.update(field(10, 50 * S, () => false), 100 * S);
+  strictEqual(e.massPit(), null);
+  e.update(field(10, 50 * S, i => i < 4), 120 * S);
+  strictEqual(e.massPit(), null, '4/10 aún no es masiva');
+  e.update(field(10, 50 * S, i => i < 8), 150 * S);
+  const m = e.massPit();
+  ok(m, 'detectada');
+  strictEqual(m.at, 150 * S);
+  strictEqual(m.n, 8);
+});
+test('paradas escalonadas (estrategia normal) no cuentan como masivas', () => {
+  const e = P.createTrackPos();
+  e.update(field(10, 50 * S, () => false), 0);
+  for (let i = 0; i < 10; i++) {
+    e.update(field(10, 50 * S, j => j === i), (100 + i * 120) * S);
+  }
+  strictEqual(e.massPit(), null);
+});
+test('karts que YA estaban en box al conectar no cuentan', () => {
+  const e = P.createTrackPos();
+  e.update(field(10, 50 * S, () => true), 100 * S);
+  strictEqual(e.massPit(), null);
+});
+test('al conectar, la parrilla entera pasando a box en el primer minuto no cuenta', () => {
+  const e = P.createTrackPos();
+  e.update(field(10, 50 * S, () => false), 100 * S);
+  e.update(field(10, 50 * S, () => true), 102 * S);
+  strictEqual(e.massPit(), null);
+});
+test('antes de la salida (sin ningún pase por meta) no cuenta', () => {
+  const e = P.createTrackPos();
+  e.update(field(10, 0, () => false), 0);
+  e.update(field(10, 0, () => true), 100 * S);
+  strictEqual(e.massPit(), null);
+});
+test('parrilla pequeña: hacen falta al menos 5 karts', () => {
+  const e = P.createTrackPos();
+  e.update(field(4, 50 * S, () => false), 0);
+  e.update(field(4, 50 * S, () => false), 100 * S);
+  e.update(field(4, 50 * S, () => true), 110 * S);
+  strictEqual(e.massPit(), null);
+});
+test('reset olvida la parada masiva', () => {
+  const e = P.createTrackPos();
+  e.update(field(6, 50 * S, () => false), 0);
+  e.update(field(6, 50 * S, () => false), 100 * S);
+  e.update(field(6, 50 * S, () => true), 110 * S);
+  ok(e.massPit());
+  e.reset();
+  strictEqual(e.massPit(), null);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

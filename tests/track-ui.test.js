@@ -142,6 +142,71 @@ test('en-grid llama a _enTrackUpdate en cada render, antes del bloque de la pest
   assert.ok(iu > 0 && ir > iu, `update ${iu} render ${ir}`);
 });
 
+
+console.log('\npíldoras (karts juntos)');
+
+const R = 10;   // radio de un dorsal en unidades del SVG
+const it = (d, x, y, t, extra = {}) => ({ d, x, y, t, me: false, stale: false, ...extra });
+
+test('píldora: una casilla por dorsal, más ancha con más cifras, en fila', () => {
+  const L = U._enTrackPillLayout(['5', '12', '104'], R);
+  assert.strictEqual(L.chips.length, 3);
+  assert.ok(L.chips[0].w < L.chips[1].w && L.chips[1].w < L.chips[2].w);
+  assert.ok(L.chips[1].x > L.chips[0].x && L.chips[2].x > L.chips[1].x, 'de izquierda a derecha');
+  assert.strictEqual(L.rows, 1);
+  assert.ok(L.w > L.chips.reduce((a, c) => a + c.w, 0), 'con margen');
+});
+test('píldora de muchos karts se parte en filas', () => {
+  const L = U._enTrackPillLayout(Array.from({ length: 10 }, (_, i) => String(i + 10)), R);
+  assert.strictEqual(L.rows, 2);
+  assert.ok(L.h > U._enTrackPillLayout(['1', '2'], R).h);
+});
+test('karts separados → cada uno solo', () => {
+  const g = U._enTrackGroup([it('1', 0, 0, 0.1), it('2', 100, 0, 0.3)], R);
+  assert.strictEqual(g.length, 2);
+  assert.ok(g.every(x => x.members.length === 1));
+});
+test('karts que se tocan → una sola píldora, el que va delante primero', () => {
+  const g = U._enTrackGroup([it('1', 0, 0, 0.10), it('2', 12, 0, 0.12), it('3', 200, 0, 0.5)], R);
+  assert.strictEqual(g.length, 2);
+  const pill = g.find(x => x.members.length === 2);
+  assert.deepStrictEqual(pill.members.map(m => m.d), ['2', '1']);
+  assert.strictEqual(pill.x, 6, 'centrada en el grupo');
+});
+test('una píldora que crece y pisa a otro kart se lo traga (sin solapes)', () => {
+  // 10 y 11 se juntan; la píldora (más ancha que un círculo) alcanza al 12, que solo no tocaba al 11
+  const g = U._enTrackGroup([it('10', 0, 0, 0.1), it('11', 15, 0, 0.11), it('12', 38, 0, 0.12)], R);
+  assert.strictEqual(g.length, 1);
+  assert.strictEqual(g[0].members.length, 3);
+});
+test('orden de pista estable al cruzar la meta', () => {
+  const g = U._enTrackGroup([it('1', 0, 0, 0.99), it('2', 12, 0, 0.01)], R);
+  assert.deepStrictEqual(g[0].members.map(m => m.d), ['2', '1'], 'el 2 ya cruzó: va delante');
+});
+test('histéresis: los que iban juntos siguen juntos un poco más separados', () => {
+  const pair = () => [it('1', 0, 0, 0.1), it('2', 25, 0, 0.12)];
+  assert.strictEqual(U._enTrackGroup(pair(), R).length, 2, 'sin historia: separados');
+  assert.strictEqual(U._enTrackGroup(pair(), R, { 1: '1|2', 2: '1|2' }).length, 1, 'venían juntos: siguen');
+});
+test('karts en box (sin t) no se agrupan', () => {
+  const g = U._enTrackGroup([it('1', 0, 0, null), it('2', 1, 0, 0.1)], R);
+  assert.strictEqual(g.length, 2);
+});
+
+console.log('\nsentido de pista');
+
+test('barra de sentido: muestra el activo y ofrece invertir', () => {
+  const h = U._enTrackDirBarHtml('inverso', null);
+  assert.ok(h.includes('Inverso'));
+  assert.ok(h.includes("_enTrackSetDirection('normal')"));
+});
+test('aviso de parada masiva: cuántos karts y botón para invertir', () => {
+  const h = U._enTrackDirBarHtml('normal', { n: 27 });
+  assert.ok(h.includes('27'));
+  assert.ok(h.includes('¿Ha cambiado el sentido?'));
+  assert.ok(h.includes('_enTrackDismissDirPrompt()'));
+});
+
 console.log('\nmenores (revisión final)');
 
 test('vuelta: redondea antes de partir (59999,6 ms → 1:00.000)', () => {
