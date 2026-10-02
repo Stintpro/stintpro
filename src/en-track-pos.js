@@ -203,7 +203,7 @@
         let k = karts.get(d);
         const isNew = !k;
         if (!k) {
-          k = { dorsal: d, seenAt: nowMs, lastLapAt: 0, pit: false, outAt: null, outFromLapAt: 0, slideFrom: null, slideAt: 0, shown: 0, ref: null };
+          k = { dorsal: d, seenAt: nowMs, lastLapAt: 0, prevLapAt: 0, pit: false, outAt: null, outFromLapAt: 0, slideFrom: null, slideAt: 0, shown: 0, ref: null };
           karts.set(d, k);
         }
         k.name = e.teamName || e.name || ('#' + d);
@@ -236,6 +236,7 @@
             skews.push(nowMs - at);
             if (skews.length > SKEW_N) skews.shift();
           }
+          k.prevLapAt = k.lastLapAt;
           k.lastLapAt = at;
           // El primer cambio de lastLapAt tras salir cierra la vuelta de salida.
           // Se compara con el pase de antes de salir, no con outAt: lastLapAt va
@@ -302,7 +303,7 @@
       karts.forEach(k => {
         const p = place(k, now, skew);
         if (p.t != null) k.shown = p.t;
-        out.push({ dorsal: k.dorsal, name: k.name, mode: p.mode, t: p.t });
+        out.push({ dorsal: k.dorsal, name: k.name, mode: p.mode, t: p.t, lastLapAt: k.lastLapAt || null, prevLapAt: k.prevLapAt || null });
       });
       return out;
     }

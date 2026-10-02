@@ -146,51 +146,55 @@ test('en-grid llama a _enTrackUpdate en cada render, antes del bloque de la pest
 
 console.log('\ngusanos (karts juntos)');
 
-const SP = 0.02;   // hueco entre dorsales de un gusano, en fracción de vuelta
-const it = (d, pos, extra = {}) => ({ d, pos, me: false, stale: false, ...extra });
+const SP = 0.02;   // hueco mínimo entre dorsales de un gusano, en fracción de vuelta
+// pos = fracción de distancia; last/prev = pases por meta en ms
+const it = (d, pos, last, prev = null, extra = {}) => ({ d, pos, lastLapAt: last, prevLapAt: prev, me: false, stale: false, join: true, ...extra });
 const ids = g => g.members.map(m => m.d);
 
-test('karts separados → cada uno solo', () => {
-  const g = U._enTrackWorms([it('1', 0.1), it('2', 0.3)], SP);
-  assert.strictEqual(g.length, 2);
-  assert.ok(g.every(x => x.members.length === 1));
+test('hueco en meta: pase del de detrás − pase del de delante en esa misma vuelta', () => {
+  near(U._enTrackLineGap(it('2', 0.1, 10250), it('1', 0.12, 10000)), 0.25);
 });
-test('karts juntos en pista → un gusano, el que va delante en cabeza', () => {
-  const g = U._enTrackWorms([it('1', 0.100), it('2', 0.115), it('3', 0.5)], SP);
+test('hueco en meta cuando el de delante ya cruzó y el de detrás aún no: su pase anterior', () => {
+  near(U._enTrackLineGap(it('2', 0.99, 10200), it('1', 0.01, 70000, 10000)), 0.2);
+});
+test('hueco en meta sin pases → sin dato', () => {
+  assert.strictEqual(U._enTrackLineGap(it('2', 0.1, 0), it('1', 0.12, 10000)), null);
+  assert.strictEqual(U._enTrackLineGap(it('2', 0.1, 10250), it('1', 0.12, 70000, null)), null);
+});
+test('a menos de 0,300 s en meta → mismo gusano, el que va delante en cabeza', () => {
+  const g = U._enTrackWorms([it('1', 0.100, 10250), it('2', 0.115, 10000), it('3', 0.5, 0)], SP);
   assert.strictEqual(g.length, 2);
   const w = g.find(x => x.members.length === 2);
   assert.deepStrictEqual(ids(w), ['2', '1']);
-  near(w.at[0], 0.1175); near(w.at[1], 0.0975);   // separados SP, centrados en el grupo
-  near(w.a, 0.0975); near(w.b, 0.1175);
+  near(w.at[0], 0.1175); near(w.at[1], 0.0975);   // abiertos a SP para leerse, centrados en el grupo
 });
-test('si caben (más separados que SP), cada dorsal en su sitio real', () => {
-  const w = U._enTrackWorms([it('1', 0.100), it('2', 0.125)], SP, { 1: 'k', 2: 'k' })[0];
+test('a 0,300 s o más → separados aunque se toquen en el mapa', () => {
+  const g = U._enTrackWorms([it('1', 0.100, 10300), it('2', 0.105, 10000)], SP);
+  assert.strictEqual(g.length, 2);
+  assert.ok(g.every(x => x.members.length === 1));
+});
+test('cadena: cada uno a <0,3 s del de delante → un solo gusano; el siguiente a 0,5 s, aparte', () => {
+  const g = U._enTrackWorms([it('1', 0.10, 10600), it('2', 0.11, 10400), it('3', 0.12, 10200), it('4', 0.13, 10000), it('5', 0.09, 11100)], SP);
+  assert.strictEqual(g.length, 2);
+  assert.deepStrictEqual(ids(g.find(x => x.members.length === 4)), ['4', '3', '2', '1']);
+});
+test('si caben, cada dorsal en su sitio real', () => {
+  const w = U._enTrackWorms([it('1', 0.100, 10250), it('2', 0.125, 10000)], SP)[0];
   near(w.at[0], 0.125); near(w.at[1], 0.100);
 });
-test('un gusano que se alarga y alcanza a otro kart se lo traga', () => {
-  // 3 casi pegados → gusano de 2·SP (0,081..0,121); el 4 en 0,135 queda a <SP de la cabeza
-  const g = U._enTrackWorms([it('1', 0.100), it('2', 0.101), it('3', 0.102), it('4', 0.135)], SP);
-  assert.strictEqual(g.length, 1);
-  assert.deepStrictEqual(ids(g[0]), ['4', '3', '2', '1']);
-});
 test('cruzando la meta: un solo gusano, el que ya cruzó delante', () => {
-  const g = U._enTrackWorms([it('1', 0.995), it('2', 0.005)], SP);
+  const g = U._enTrackWorms([it('1', 0.995, 10200), it('2', 0.005, 70000, 10000)], SP);
   assert.strictEqual(g.length, 1);
   assert.deepStrictEqual(ids(g[0]), ['2', '1']);
   assert.ok(g[0].b > g[0].a, 'extremos desenrollados');
 });
-test('histéresis: los que iban juntos siguen juntos un poco más separados', () => {
-  const pair = () => [it('1', 0.100), it('2', 0.125)];
-  assert.strictEqual(U._enTrackWorms(pair(), SP).length, 2, 'sin historia: separados');
-  assert.strictEqual(U._enTrackWorms(pair(), SP, { 1: '1|2', 2: '1|2' }).length, 1, 'venían juntos: siguen');
-});
-test('karts en box (sin posición) no se agrupan', () => {
-  const g = U._enTrackWorms([it('1', null), it('2', 0.1), it('3', 0.105)], SP);
-  assert.strictEqual(g.length, 2);
-  assert.ok(g.some(x => x.members.length === 1 && x.members[0].d === '1'));
+test('karts en box, en vuelta de salida o sin datos no se agrupan', () => {
+  const g = U._enTrackWorms([it('1', null, 10000), it('2', 0.1, 10100, null, { join: false }), it('3', 0.105, 10000)], SP);
+  assert.strictEqual(g.length, 3);
 });
 test('toda la parrilla junta no se muerde la cola', () => {
-  const g = U._enTrackWorms(Array.from({ length: 60 }, (_, i) => it(String(i), i / 60)), SP);
+  // 60 karts a 0,25 s unos de otros en una vuelta de 40 s: el gusano abierto a SP no cabría
+  const g = U._enTrackWorms(Array.from({ length: 60 }, (_, i) => it(String(i), i * 0.25 / 40, 100000 - i * 250)), SP);
   assert.strictEqual(g.length, 1);
   assert.ok(g[0].b - g[0].a < 1, 'más corto que una vuelta');
 });

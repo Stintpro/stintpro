@@ -8,7 +8,7 @@
 const EnTrack = {
   engine: null, track: null, key: null, shellFor: null, nodes: {},
   raf: null, lastFrame: 0, lastSide: 0, selected: null, cache: {},
-  worms: {}, groupOf: {}, dirDismissedAt: null, zoom: null,
+  worms: {}, dirDismissedAt: null, zoom: null,
 };
 
 // Reloj del mapa: el mismo que usa lastLapAt. En un replay es el tiempo de la
@@ -50,6 +50,9 @@ function _enTrackFmtLap(ms){
 const _ENTRK_TXT="font-family:var(--font-sans,'Inter',sans-serif);font-size:12.5px";
 const _ENTRK_MONO="font-family:var(--font-mono,'JetBrains Mono',monospace);font-variant-numeric:tabular-nums";
 const _ENTRK_ME='#F5A623';
+// Radio del dorsal en anchos de pista (el trazado se escala a 8 m de ancho):
+// 0,5 → círculo de 8 m ≈ 0,5 s en Ariza. Mi kart, algo mayor.
+const _ENTRK_R=0.5, _ENTRK_R_ME=0.68;
 
 // Tira de huecos = marcador de tres casillas: delante | MI KART | detrás. El
 // hueco es lo que se lee de un vistazo, así que es lo más grande de la tira.
@@ -209,6 +212,7 @@ function _enTrackShellHtml(track){
         <path d="M0 ${f(-wu*0.45)} L${f(wu*0.9)} 0 L0 ${f(wu*0.45)} Z" fill="rgba(255,255,255,0.5)" transform="translate(${f(q[0])} ${f(q[1])}) rotate(${ang.toFixed(1)})"/>
         <g id="en-trk-karts"></g>
         <g id="en-trk-worms"></g>
+        <g id="en-trk-top"></g>
       </svg>
       <div style="display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid rgba(255,255,255,0.07)">
         <div id="en-trk-sel" style="min-height:19px;min-width:0"></div>
@@ -222,13 +226,13 @@ function _enTrackShellHtml(track){
 
 function _enTrackKartNode(dorsal, isMe, wu){
   const NS='http://www.w3.org/2000/svg';
-  const r=isMe?wu*0.95:wu*0.72;
+  const r=isMe?wu*_ENTRK_R_ME:wu*_ENTRK_R;
   const g=document.createElementNS(NS,'g');
   g.setAttribute('data-d',dorsal);
   g.style.cursor='pointer';
   // Canto oscuro: separa los dorsales que quedan pegados tras el desplazamiento.
   const rim=document.createElementNS(NS,'circle');
-  rim.setAttribute('r',(r+wu*0.14).toFixed(1));
+  rim.setAttribute('r',(r*1.19).toFixed(1));
   rim.setAttribute('fill','rgba(8,9,10,0.6)');
   g.appendChild(rim);
   if(isMe){
@@ -241,7 +245,7 @@ function _enTrackKartNode(dorsal, isMe, wu){
   c.setAttribute('r',r.toFixed(1));
   c.setAttribute('fill',isMe?'#F5A623':'#1b1d24');
   c.setAttribute('stroke',isMe?'#fff5e0':'rgba(255,255,255,0.55)');
-  c.setAttribute('stroke-width',(wu*0.09).toFixed(1));
+  c.setAttribute('stroke-width',(r*0.125).toFixed(1));
   g.appendChild(c);
   const t=document.createElementNS(NS,'text');
   t.textContent=dorsal;
@@ -287,7 +291,6 @@ function _enRenderTrack(eq){
     EnTrack.shellFor=track;
     EnTrack.nodes={};
     EnTrack.worms={};
-    EnTrack.groupOf={};
     EnTrack.lastSide=0;
   }
   _enStartTrackRaf();
@@ -296,18 +299,27 @@ function _enRenderTrack(eq){
 // ── Karts juntos → un gusano ──────────────────────────────────────────────
 // Los que van pegados se dibujan como UN trazo grueso que recorre la pista
 // (hace las curvas) con sus dorsales encadenados, el que va delante en cabeza.
-// Se agrupa por distancia A LO LARGO DE LA PISTA (no en pantalla): dos karts en
-// tramos paralelos que se ven cerca no se funden. Cada dorsal va en su sitio
-// real salvo que no quepa: entonces se abren a SP de distancia, centrados en el
-// grupo. Si al alargarse un gusano alcanza a otro kart, se lo traga.
+// Regla (decisión del usuario 2026-10-02): van en el mismo gusano si cruzaron la
+// meta a MENOS DE 0,300 s del de delante; si no, cada uno por separado aunque
+// se toquen en el mapa. Cada dorsal va en su sitio real salvo que no quepa:
+// entonces se abren a SP de distancia, centrados en el grupo.
+const _ENTRK_JOIN_S=0.3;
 
-// items: {d, pos (fracción de distancia; null = en box, no se agrupa), me, stale, …}.
-// sp: hueco mínimo entre dorsales (fracción de vuelta). prevOf: dorsal → clave del
-// grupo en el fotograma anterior (histéresis: los que iban juntos solo se
-// separan con algo más de aire). Devuelve {members (cabeza primero), at
-// (posición de cada dorsal, desenrollada), a, b (cola y cabeza)}.
-function _enTrackWorms(items, sp, prevOf){
-  prevOf=prevOf||{};
+// Hueco en meta (s) entre un kart y el que va justo delante en pista: el pase del
+// de detrás menos el del de delante EN ESA MISMA VUELTA. Si el de delante ya
+// volvió a cruzar y el de detrás aún no, se compara con su pase anterior.
+function _enTrackLineGap(behind, ahead){
+  const b=behind.lastLapAt;
+  if(!b||!ahead.lastLapAt)return null;
+  const a=ahead.lastLapAt<=b?ahead.lastLapAt:ahead.prevLapAt;
+  return a?(b-a)/1000:null;
+}
+
+// items: {d, pos (fracción de distancia; null = en box), lastLapAt, prevLapAt,
+// join (false = vuelta de salida o sin datos: no se agrupa), me, stale, …}.
+// sp: hueco mínimo entre dorsales (fracción de vuelta). Devuelve {members
+// (cabeza primero), at (posición de cada dorsal, desenrollada), a, b (cola y cabeza)}.
+function _enTrackWorms(items, sp){
   const out=[], L=items.filter(it=>it.pos!=null);
   items.forEach(it=>{ if(it.pos==null)out.push({members:[it],at:[null],a:null,b:null}); });
   if(!L.length)return out;
@@ -326,18 +338,16 @@ function _enTrackWorms(items, sp, prevOf){
     for(let i=1;i<real.length;i++)p.push(Math.min(real[i],p[i-1]-spE));
     const shift=(real.reduce((s,v)=>s+v,0)-p.reduce((s,v)=>s+v,0))/p.length;
     const at=p.map(v=>v+shift);
-    return {ms,members:ms.map(m=>m.it).reverse(),at,a:at[at.length-1],b:at[0]};
+    return {members:ms.map(m=>m.it).reverse(),at,a:at[at.length-1],b:at[0]};
   };
-  const wasWith=(g,h)=>g.ms.some(m=>prevOf[m.it.d]&&h.ms.some(o=>prevOf[o.it.d]===prevOf[m.it.d]));
-  let groups=seq.map(s=>layout([s]));
-  for(let merged=true;merged;){
-    merged=false;
-    for(let i=0;i+1<groups.length;i++){
-      const g=groups[i], h=groups[i+1];
-      if(h.a-g.b<(wasWith(g,h)?sp*1.5:sp)){ groups.splice(i,2,layout([...g.ms,...h.ms])); merged=true; break; }
-    }
+  const joins=(x,y)=>{ if(x.join===false||y.join===false)return false; const g=_enTrackLineGap(x,y); return g!=null&&g>=0&&g<_ENTRK_JOIN_S; };
+  let chain=[seq[0]];
+  for(let i=1;i<=seq.length;i++){
+    if(i<seq.length&&joins(seq[i-1].it,seq[i].it)){chain.push(seq[i]);continue;}
+    out.push(layout(chain));
+    if(i<seq.length)chain=[seq[i]];
   }
-  return out.concat(groups.map(g=>({members:g.members,at:g.at,a:g.a,b:g.b})));
+  return out;
 }
 
 // Trazo del gusano por la pista, de la cola (a) a la cabeza (b).
@@ -360,9 +370,9 @@ function _enTrackWormNode(group, r, wu){
   g.style.cursor='pointer';
   const line={fill:'none','stroke-linecap':'round','stroke-linejoin':'round'};
   const paths=[
-    el('path',{...line,stroke:'rgba(8,9,10,0.6)','stroke-width':(2*r+wu*0.28).toFixed(1)},g),
-    el('path',{...line,stroke:hasMe?'rgba(245,166,35,0.85)':'rgba(255,255,255,0.55)','stroke-width':(2*r+wu*0.09).toFixed(1)},g),
-    el('path',{...line,stroke:'#1b1d24','stroke-width':(2*r-wu*0.09).toFixed(1)},g),
+    el('path',{...line,stroke:'rgba(8,9,10,0.6)','stroke-width':(2*r*1.19).toFixed(1)},g),
+    el('path',{...line,stroke:hasMe?'rgba(245,166,35,0.85)':'rgba(255,255,255,0.55)','stroke-width':(2*r+r*0.25).toFixed(1)},g),
+    el('path',{...line,stroke:'#1b1d24','stroke-width':(2*r-r*0.25).toFixed(1)},g),
   ];
   const chips=group.members.map(m=>{
     const cg=el('g',{'data-d':m.d},g);
@@ -453,36 +463,38 @@ function _enTrackFrame(){
       EnTrack.nodes[p.dorsal]=node;
       if(p.dorsal===me)g.appendChild(node); else g.insertBefore(node,g.firstChild);   // mi kart, encima
     }
-    items.push({node,x:pt[0],y:pt[1],pos:p.mode==='pit'?null:P.timeToDist(track,p.t),me:p.dorsal===me,d:p.dorsal,stale:p.mode==='stale'});
+    items.push({node,x:pt[0],y:pt[1],pos:p.mode==='pit'?null:P.timeToDist(track,p.t),lastLapAt:p.lastLapAt,prevLapAt:p.prevLapAt,join:p.mode==='track',me:p.dorsal===me,d:p.dorsal,stale:p.mode==='stale'});
     node.style.opacity=p.mode==='stale'?'0.35':'1';
   });
   Object.keys(EnTrack.nodes).forEach(d=>{ if(!seen.has(d)){EnTrack.nodes[d].remove();delete EnTrack.nodes[d];} });
   // Juntos → gusano; solos → su círculo. Los gusanos se reutilizan mientras no
   // cambien sus miembros (ni quién va delante): así el clic no cae en un nodo
   // recién destruido y no se recrea el DOM 10 veces por segundo.
-  const wu=track.widthUnits, r=wu*0.72, sp=2.05*r/P.trackLengthUnits(track);
-  const groups=_enTrackWorms(items,sp,EnTrack.groupOf);
+  const wu=track.widthUnits, r=wu*_ENTRK_R, sp=2.05*r/P.trackLengthUnits(track);
+  const groups=_enTrackWorms(items,sp);
   const wl=document.getElementById('en-trk-worms');
-  const keep={}, groupOf={};
+  const top=document.getElementById('en-trk-top');   // mi kart o mi gusano: encima de todo
+  const keep={};
   groups.forEach(gr=>{
     if(gr.members.length===1){
       const it=gr.members[0];
       it.node.style.display='';
+      if(it.me&&top&&it.node.parentNode!==top)top.appendChild(it.node);   // mi kart, siempre encima
       it.node.setAttribute('transform',`translate(${it.x.toFixed(1)} ${it.y.toFixed(1)})`);
       return;
     }
     const key=gr.members.map(m=>m.d+(m.me?'*':'')+(m.stale?'~':'')).join('|');
-    gr.members.forEach(m=>{m.node.style.display='none';groupOf[m.d]=key;});
+    gr.members.forEach(m=>{m.node.style.display='none';});
     if(!wl)return;
     let node=EnTrack.worms[key];
-    if(!node){node=_enTrackWormNode(gr,r,wu);wl.appendChild(node);}
+    if(!node){node=_enTrackWormNode(gr,r,wu);(gr.members.some(m=>m.me)&&top?top:wl).appendChild(node);}
     keep[key]=node;
     const d=_enTrackWormPath(track,gr.a,gr.b);
     node._paths.forEach(p=>p.setAttribute('d',d));
     gr.at.forEach((u,i)=>{ const q=P.pointAtDist(track,u); node._chips[i].setAttribute('transform',`translate(${q[0].toFixed(1)} ${q[1].toFixed(1)})`); });
   });
   Object.keys(EnTrack.worms).forEach(k=>{ if(!keep[k])EnTrack.worms[k].remove(); });
-  EnTrack.worms=keep; EnTrack.groupOf=groupOf;
+  EnTrack.worms=keep;
   if(wall-EnTrack.lastSide>=250){
     EnTrack.lastSide=wall;
     const gaps=document.getElementById('en-trk-gaps');
@@ -506,6 +518,6 @@ function _enStopTrackRaf(){ if(EnTrack.raf!=null&&typeof cancelAnimationFrame===
 if (typeof module !== 'undefined') {
   module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
     _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml,
-    _enTrackWorms, _enTrackWormPath, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection,
+    _enTrackWorms, _enTrackWormPath, _enTrackLineGap, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection,
     _ENTRK_ZOOMS, _ENTRK_ZOOM_DEFAULT, _enTrackZoomLevel, _enTrackZoomStep, _enTrackSvgSize, _enTrackZoomHtml, _enTrackSetZoom };
 }

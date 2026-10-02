@@ -153,6 +153,18 @@ test('fracción = tiempo desde el pase / ritmo', () => {
   strictEqual(p.name, 'Equipo 7');
 });
 
+test('positions expone los dos últimos pases por meta (para la regla del churro)', () => {
+  const e = P.createTrackPos();
+  e.update([kart('7', 100 * S)], 100 * S);
+  let p = e.positions(110 * S)[0];
+  strictEqual(p.lastLapAt, 100 * S);
+  strictEqual(p.prevLapAt, null);
+  e.update([kart('7', 160 * S)], 160 * S);
+  p = e.positions(165 * S)[0];
+  strictEqual(p.lastLapAt, 160 * S);
+  strictEqual(p.prevLapAt, 100 * S);
+});
+
 test('tope 0,98: si va lento espera en la meta, no da otra vuelta', () => {
   const e = P.createTrackPos();
   e.update([kart('7', 100 * S)], 100 * S);
