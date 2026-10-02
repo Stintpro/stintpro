@@ -6,6 +6,7 @@ const ApexParser = require('./apex-parser');
 const ApexProtocol = require('./apex-protocol');
 const db         = require('./db');
 const apexHttpSampler = require('./apex-http-sampler');
+const GapFill    = require('./gap-fill');
 
 const BROADCAST_INTERVAL_MS   = 200; // throttle live updates a 5 fps
 const APEX_SAMPLE_INTERVAL_MS = 5 * 60 * 1000; // frecuencia del muestreo .P (investigación)
@@ -60,6 +61,13 @@ const RAW_IDLE_CLOSE_MS     = 45 * 60 * 1000;  // cierra el fichero si nadie rue
 // partir. Título y cercanía temporal NO valen como prueba: en alquiler se corren
 // tandas seguidas con el mismo título y los mismos karts (medido en la BD: 191
 // pares consecutivos así, casi todos legítimamente distintos).
+// Relleno de huecos (reinicio o corte con Apex): se pide el historial de la
+// sesión a request.php cuando los karts ya han vuelto a cruzar meta tras el
+// hueco (la vuelta posterior hace de ancla y valida la suma de tiempos), y se
+// repite más tarde para los que estaban en boxes. Es idempotente.
+const GAP_FILL_DELAYS_MS = [3 * 60 * 1000, 10 * 60 * 1000];
+const GAP_FILL_BATCH     = 8;  // karts por petición a request.php
+const APEX_REQUEST_URL   = 'https://live-data.apex-timing.com/live-timing/commonv2/functions/request.php';
 const RESUME_MAX_AGE_MS  = 30 * 60 * 1000; // snapshot más viejo que esto → no reanudar
 const RESUME_MIN_OVERLAP = 0.4;            // mismo umbral que usa el parser para "misma parrilla"
 const RESUME_MIN_KARTS   = 3;              // por debajo no hay evidencia suficiente
@@ -143,6 +151,8 @@ class CircuitMonitor {
     this.pitEvents  = [];   // eventos de pit de la sesión actual (para snapshot)
     this.raceEvents = [];   // eventos de bandera roja detenida/reanudada (para snapshot)
     this._lapCount  = 0;
+    this._outageFrom    = null; // último dato antes de perder Apex con sesión abierta
+    this._gapFillTimers = [];
 
     this.recording = cfg.recording !== false; // true por defecto
 
@@ -198,6 +208,7 @@ class CircuitMonitor {
     this._clearConnectTimer();
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
     if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
+    this._clearGapFill();
     this._stopHeartbeat();
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
     this._closeSessionRawLog();
@@ -285,6 +296,8 @@ class CircuitMonitor {
   // ya la programó, el 'close' tardío que llegue después del terminate() no debe
   // encadenar una segunda (dos sockets abriéndose en paralelo por circuito).
   _scheduleReconnect() {
+    // Corte con sesión abierta: lo que pase hasta reconectar se perdería.
+    if (this.sessionId && this._outageFrom == null) this._outageFrom = this._lastDataAt || Date.now();
     if (this._reconnectTimer) return;
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
@@ -335,6 +348,10 @@ class CircuitMonitor {
         this._clearConnectTimer();
         this.connected = true;
         console.log(`[${this.slug}] Apex conectado`);
+        if (this._outageFrom != null) {
+          if (this.sessionId) this._scheduleGapFill({ from: this._outageFrom, to: Date.now() });
+          this._outageFrom = null;
+        }
         ws.send(this.slug);
         this._lastDataAt = Date.now();
         this._startHeartbeat();
@@ -571,6 +588,8 @@ class CircuitMonitor {
     if (this._saveTimer) clearInterval(this._saveTimer);
     this._saveTimer = setInterval(() => this._saveSnapshot(), 10000);
     console.log(`[${this.slug}] Reanudada sesión #${cand.id} tras reinicio (${this._lapCount} vueltas ya grabadas)`);
+    // Lo que rodó mientras el logger estaba caído: se recupera de Apex.
+    this._scheduleGapFill({ from: cand.last_lap_at || (snap && snap.timestamp) || cand.started_at, to: Date.now() });
     return true;
   }
 
@@ -591,6 +610,93 @@ class CircuitMonitor {
   _onDriverChange(dorsal, fromDriver, toDriver, timestamp, fromMin, toMin) {
     if (!this.recording || !this.sessionId) return;
     db.insertDriverChange(this.sessionId, dorsal, fromDriver, toDriver, fromMin, toMin, timestamp);
+  }
+
+  // ── Relleno de huecos con el historial de Apex (request.php) ─────────
+
+  _scheduleGapFill(window) {
+    const sid = this.sessionId;
+    for (const d of GAP_FILL_DELAYS_MS) {
+      this._gapFillTimers.push(setTimeout(() => {
+        if (this.sessionId !== sid) return;
+        this._gapFill(window).catch(e => console.error(`[${this.slug}] gapFill:`, e.message));
+      }, d));
+    }
+  }
+
+  _clearGapFill() {
+    this._gapFillTimers.forEach(t => clearTimeout(t));
+    this._gapFillTimers = [];
+  }
+
+  // Historial (.L vueltas + .P paradas) de varios karts, en lotes encadenados.
+  async _fetchApexHistory(port, ids) {
+    let text = '';
+    for (let i = 0; i < ids.length; i += GAP_FILL_BATCH) {
+      const req = GapFill.historyRequest(ids.slice(i, i + GAP_FILL_BATCH));
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      try {
+        const res = await fetch(APEX_REQUEST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+          body: `port=${port}&request=${req}`,
+          signal: controller.signal,
+        });
+        const t = (await res.text()).trim();
+        if (t && t !== 'error') text += t + '\n';
+      } finally { clearTimeout(timer); }
+    }
+    return text;
+  }
+
+  // Inserta las vueltas y paradas de la ventana [from, to] que Apex tiene y la
+  // BD no (ver gap-fill.js). Devuelve cuántas insertó.
+  async _gapFill(window) {
+    const none = { laps: 0, pits: 0 };
+    if (!this.sessionId || !this.recording) return none;
+    const sid = this.sessionId;
+    if (!this._apexHttpPort) this._apexHttpPort = await apexHttpSampler.fetchConfigPort(this.slug);
+    if (!this._apexHttpPort) return none;
+    const karts = this.parser.getKartIds();
+    if (!karts.length) return none;
+    const text = await this._fetchApexHistory(this._apexHttpPort, karts.map(k => k.rowId.replace('r', '')));
+    if (!text || this.sessionId !== sid) return none;
+
+    const dbLaps = db.getLapsBySession(sid);
+    const dbPits = db.getPitEventsBySession(sid);
+    const equipos = this.parser.getState().equipos;
+    const apex = karts.map(k => {
+      const id = k.rowId.replace('r', '');
+      return { dorsal: String(k.dorsal), laps: GapFill.parseLaps(text, id), pits: GapFill.parsePits(text, id) };
+    });
+    const offset = GapFill.sessionOffset(Object.fromEntries(apex.map(a => [a.dorsal, a.pits])), dbPits);
+
+    let laps = 0, pits = 0;
+    for (const a of apex) {
+      const mine = dbLaps.filter(l => String(l.dorsal) === a.dorsal);
+      const ref = mine[mine.length - 1];
+      const category = (equipos.find(e => String(e.dorsal) === a.dorsal) || {}).category || null;
+      for (const l of GapFill.planLaps({ apexLaps: a.laps, apexPits: a.pits, dbLaps: mine, window })) {
+        db.insertLap(sid, a.dorsal, ref ? ref.name : null, ref ? ref.team_name : null, l.ms, l.lapNumber, l.timestamp, category, l.isPitLap);
+        laps++;
+      }
+      const myPits = dbPits.filter(e => String(e.dorsal) === a.dorsal);
+      for (const p of GapFill.planPits({ apexPits: a.pits, dbPits: myPits, offset, window })) {
+        db.insertPitEvent(sid, a.dorsal, p.eventType, p.standsCount, p.timestamp, p.durationMs);
+        const ev = { dorsal: a.dorsal, event: p.eventType, time: p.timestamp, standsCount: p.standsCount };
+        if (p.durationMs != null) ev.pitDur = p.durationMs / 1000;
+        this.pitEvents.push(ev);
+        pits++;
+      }
+    }
+    if (laps || pits) {
+      this.pitEvents.sort((x, y) => x.time - y.time);
+      this._lapCount += laps;
+      console.log(`[${this.slug}] Hueco rellenado desde Apex: ${laps} vueltas, ${pits} eventos de parada` +
+        (offset == null ? ' (paradas sin ancla: no se rellenan)' : ''));
+    }
+    return { laps, pits };
   }
 
   _onState(state) {
@@ -671,6 +777,8 @@ class CircuitMonitor {
     }
     this._endedAt = null;
     this.sessionId = null;
+    this._clearGapFill();
+    this._outageFrom = null;
     this.pitEvents = [];
     this.raceEvents = [];
     this._lapCount = 0;

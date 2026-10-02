@@ -376,6 +376,99 @@ describe('_onDriverChange', () => {
   });
 });
 
+// ── Relleno de huecos con request.php (reinicio / corte con Apex) ─────────────
+
+describe('relleno de huecos', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const G = require('../gap-fill');
+  const TEXT = fs.readFileSync(path.join(__dirname, 'fixtures', 'request-php-rkc-equipe.txt'), 'utf8');
+  const laps = G.parseLaps(TEXT, '163138');
+  const pits = G.parsePits(TEXT, '163138');
+  const T0 = Date.now() - 3 * 3600 * 1000;      // paso por meta de la vuelta 1
+  const O = T0 - 50000;                          // inicio de la sesión en Apex
+  const cross = new Map(); { let acc = T0; for (const n of [...laps.keys()].sort((a, b) => a - b)) { acc += laps.get(n).ms; cross.set(n, acc); } }
+
+  function monitorConHueco() {
+    const m = createMonitor();
+    m._apexHttpPort = 7910;
+    m._fetchApexHistory = jest.fn(async () => TEXT);
+    m.parser.parse(buildGrid(kartRow('r163138', '10', 'EQUIPO 10')));
+    for (const n of [...laps.keys()].sort((a, b) => a - b)) {
+      if (n > 20 && n < 30) continue;            // el hueco
+      m._onLap('10', 'EQUIPO 10', null, laps.get(n).ms, n, cross.get(n));
+    }
+    for (const p of pits.slice(0, 2)) {         // paradas grabadas antes del hueco
+      m._onPit('10', 'in', p.n - 1, O + p.inMs);
+      m._onPit('10', 'out', p.n, O + p.outMs, p.durMs / 1000);
+    }
+    return m;
+  }
+
+  test('inserta las vueltas y paradas del hueco desde el historial de Apex', async () => {
+    const m = monitorConHueco();
+    const r = await m._gapFill({ from: cross.get(20), to: cross.get(30) });
+
+    expect(r.laps).toBe(9);
+    const db10 = db.getLapsBySession(m.sessionId).filter(l => l.dorsal === '10');
+    expect(db10).toHaveLength(37);
+    expect(db10.find(l => l.lap_number === 21).timestamp).toBe(cross.get(21));
+    const out4 = db.getPitEventsBySession(m.sessionId).find(e => e.event_type === 'out' && e.duration_ms === 113034);
+    expect(out4.timestamp).toBe(O + pits[3].outMs);
+    expect(m.pitEvents.some(e => e.time === O + pits[3].outMs)).toBe(true);
+  });
+
+  test('repetirlo no duplica nada', async () => {
+    const m = monitorConHueco();
+    await m._gapFill({ from: cross.get(20), to: cross.get(30) });
+    const r = await m._gapFill({ from: cross.get(20), to: cross.get(30) });
+    expect(r).toEqual({ laps: 0, pits: 0 });
+    expect(db.getLapsBySession(m.sessionId).filter(l => l.dorsal === '10')).toHaveLength(37);
+  });
+
+  test('sin sesión activa no pide nada a Apex', async () => {
+    const m = createMonitor();
+    m._fetchApexHistory = jest.fn(async () => TEXT);
+    expect(await m._gapFill({ from: 0, to: Date.now() })).toEqual({ laps: 0, pits: 0 });
+    expect(m._fetchApexHistory).not.toHaveBeenCalled();
+  });
+
+  test('un corte con Apex en plena sesión programa el relleno al reconectar', () => {
+    jest.useFakeTimers();
+    try {
+      const m = createMonitor();
+      const spy = jest.spyOn(m, '_scheduleGapFill').mockImplementation(() => {});
+      m.start();
+      WebSocket.instances[0].emit('open');
+      m._onLap('10', 'EQUIPO 10', null, 74000, 1, Date.now());
+      const ultimoDato = m._lastDataAt;
+      WebSocket.instances[0].emit('close');
+      jest.advanceTimersByTime(5000);
+      WebSocket.instances[1].emit('open');
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0].from).toBe(ultimoDato);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('reconectar sin sesión abierta no programa nada', () => {
+    jest.useFakeTimers();
+    try {
+      const m = createMonitor();
+      const spy = jest.spyOn(m, '_scheduleGapFill').mockImplementation(() => {});
+      m.start();
+      WebSocket.instances[0].emit('open');
+      WebSocket.instances[0].emit('close');
+      jest.advanceTimersByTime(5000);
+      WebSocket.instances[1].emit('open');
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
 // ── _onState (broadcast + throttle) ──────────────────────────────────────────
 
 describe('_onState', () => {
