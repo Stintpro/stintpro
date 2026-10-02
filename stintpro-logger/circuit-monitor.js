@@ -656,12 +656,15 @@ class CircuitMonitor {
     const none = { laps: 0, pits: 0 };
     if (!this.sessionId || !this.recording) return none;
     const sid = this.sessionId;
-    if (!this._apexHttpPort) this._apexHttpPort = await apexHttpSampler.fetchConfigPort(this.slug);
-    if (!this._apexHttpPort) return none;
+    // Puerto de request.php = puerto WS − 3 (configPort de Apex en todos los
+    // circuitos que publican config.js). No se lee config.js: da 404 donde la
+    // página de Apex no se llama como el slug (Campillos, Cabanillas…).
+    const port = this._apexHttpPort || this.port - 3;
     const karts = this.parser.getKartIds();
     if (!karts.length) return none;
-    const text = await this._fetchApexHistory(this._apexHttpPort, karts.map(k => k.rowId.replace('r', '')));
-    if (!text || this.sessionId !== sid) return none;
+    const text = await this._fetchApexHistory(port, karts.map(k => k.rowId.replace('r', '')));
+    if (this.sessionId !== sid) return none;
+    if (!text) { console.log(`[${this.slug}] Relleno de hueco: Apex no devolvió historial`); return none; }
 
     const dbLaps = db.getLapsBySession(sid);
     const dbPits = db.getPitEventsBySession(sid);
@@ -693,9 +696,10 @@ class CircuitMonitor {
     if (laps || pits) {
       this.pitEvents.sort((x, y) => x.time - y.time);
       this._lapCount += laps;
-      console.log(`[${this.slug}] Hueco rellenado desde Apex: ${laps} vueltas, ${pits} eventos de parada` +
-        (offset == null ? ' (paradas sin ancla: no se rellenan)' : ''));
     }
+    // Siempre deja rastro: un relleno que no hace nada sin avisar ya ocultó un fallo.
+    console.log(`[${this.slug}] Relleno de hueco desde Apex: ${laps} vueltas, ${pits} eventos de parada` +
+      (offset == null ? ' (paradas sin ancla: no se rellenan)' : ''));
     return { laps, pits };
   }
 

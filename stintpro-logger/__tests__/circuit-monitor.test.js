@@ -426,6 +426,16 @@ describe('relleno de huecos', () => {
     expect(db.getLapsBySession(m.sessionId).filter(l => l.dorsal === '10')).toHaveLength(37);
   });
 
+  test('el puerto de request.php es el del WebSocket − 3 (sin depender de config.js)', async () => {
+    // config.js da 404 en circuitos cuya página de Apex no se llama como el
+    // slug (Campillos, Cabanillas, Rivas, Sevilla): el relleno se quedaba sin
+    // puerto y no hacía nada. En todos los que sí lo tienen, configPort = WS − 3.
+    const m = monitorConHueco();
+    m._apexHttpPort = null;
+    await m._gapFill({ from: cross.get(20), to: cross.get(30) });
+    expect(m._fetchApexHistory).toHaveBeenCalledWith(9999 - 3, expect.any(Array));
+  });
+
   test('sin sesión activa no pide nada a Apex', async () => {
     const m = createMonitor();
     m._fetchApexHistory = jest.fn(async () => TEXT);
