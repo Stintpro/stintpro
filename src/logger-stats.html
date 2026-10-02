@@ -479,7 +479,6 @@ function renderPilotsTab() {
       </tr>`;
     }).join('');
 
-    const nameEsc = esc(p.name.replace(/'/g, "\\'"));
     return `<div class="pilot-card" data-idx="${i}" data-pilot-name="${esc(p.name.toLowerCase())}" data-name="${esc(p.name)}">
       <div class="pilot-hdr${isOpen?' open':''}" style="grid-template-columns:${colDef}" onclick="handlePilotClick(event,${i})">
         ${_editMode ? `<input type="checkbox" class="pilot-cb" id="cb-${i}" onclick="event.stopPropagation();toggleSelect(${i})">` : ''}
@@ -490,7 +489,7 @@ function renderPilotsTab() {
         <div class="ph-col"><div class="ph-val">${p.session_count}</div></div>
         <div class="ph-col"><div class="ph-val muted">${p.total_laps}</div></div>
         <div style="display:flex;align-items:center;justify-content:center">
-          <i class="info-btn" onclick="event.stopPropagation();showPilotPopup('${nameEsc}')">ℹ</i>
+          <i class="info-btn" onclick="event.stopPropagation();showPilotPopup(this.closest('.pilot-card').dataset.name)">ℹ</i>
         </div>
       </div>
       <div class="pilot-detail${isOpen?' open':''}" id="pilot-detail-${i}">
@@ -588,9 +587,11 @@ function openMergeDialog() {
       <div style="padding:14px 18px">${options}</div>
       <div style="padding:12px 18px;border-top:1px solid #1e2130;display:flex;justify-content:flex-end;gap:8px">
         <button class="btn ghost sm" onclick="document.getElementById('merge-popup').remove()">Cancelar</button>
-        <button class="btn sm" style="background:#F5A623" onclick='confirmMerge(${JSON.stringify(names)})'>Unificar</button>
+        <button class="btn sm" id="merge-ok" style="background:#F5A623">Unificar</button>
       </div>
     </div>`;
+  // Los nombres no viajan dentro del HTML (un apóstrofo rompía el onclick)
+  overlay.querySelector('#merge-ok').addEventListener('click', () => confirmMerge(names));
   document.body.appendChild(overlay);
 }
 
@@ -886,7 +887,7 @@ function scoreClass(score) {
 }
 
 function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function setStatus(s) { document.getElementById('hdr-status').textContent = s; }

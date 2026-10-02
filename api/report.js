@@ -14,6 +14,18 @@
 //   GET /api/report?session=ID                 → karts disponibles en la sesión
 //   GET /api/report?session=ID&kart=DORSAL     → informe completo del kart
 
+const { makeLimiter, clientIp } = require('./_ratelimit');
+
+// Endpoint público (la tarjeta de Instagram no exige cuenta): sin límite, un
+// bucle podía descargar el histórico entero y cada petición son 4 lecturas
+// síncronas en el logger que graba en vivo. 60 por IP cada 10 min sobra para
+// una persona eligiendo sesión y dorsal.
+const allowIp = makeLimiter({ windowMs: 10 * 60 * 1000, max: 60 });
+const SESSIONS_TTL_MS = 60 * 1000;
+// Las respuestas buenas las absorbe la CDN de Vercel (los errores no se cachean)
+const CDN_CACHE = 'public, s-maxage=120, stale-while-revalidate=300';
+let _sessionsCache = null; // { at, data } — el catálogo completo, compartido entre peticiones
+
 const LOGGER_URL = (process.env.LOGGER_URL || 'https://stintpro.duckdns.org').replace(/\/$/, '');
 const LOGGER_API_KEY = process.env.LOGGER_API_KEY || '';
 
@@ -27,6 +39,13 @@ async function loggerGet(path) {
     if (!r.ok) throw new Error(`logger ${path} → ${r.status}`);
     return await r.json();
   } finally { clearTimeout(timer); }
+}
+
+async function loggerSessions() {
+  if (_sessionsCache && Date.now() - _sessionsCache.at < SESSIONS_TTL_MS) return _sessionsCache.data;
+  const data = await loggerGet('/api/sessions');
+  _sessionsCache = { at: Date.now(), data };
+  return data;
 }
 
 const norm = s => String(s == null ? '' : s).trim();
@@ -54,12 +73,13 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  if (!allowIp(clientIp(req))) return res.status(429).json({ error: 'Demasiadas peticiones. Prueba en unos minutos.' });
   const q = req.query || {};
 
   try {
     // ── 1) Catálogo de sesiones ──────────────────────────────────────────
     if (q.list) {
-      const sessions = await loggerGet('/api/sessions');
+      const sessions = await loggerSessions();
       const out = (sessions || [])
         .filter(s => (s.lap_count || 0) > 0)
         .map(s => ({
@@ -70,6 +90,7 @@ module.exports = async (req, res) => {
           startedAt: s.started_at || null,
           lapCount: s.lap_count || 0,
         }));
+      res.setHeader('Cache-Control', CDN_CACHE);
       return res.status(200).json({ sessions: out });
     }
 
@@ -77,7 +98,7 @@ module.exports = async (req, res) => {
     if (isNaN(sessionId)) return res.status(400).json({ error: 'Falta ?session=ID' });
 
     const [sessions, laps, pits, snapshot] = await Promise.all([
-      loggerGet('/api/sessions'),
+      loggerSessions(),
       loggerGet(`/api/laps/${sessionId}`),
       loggerGet(`/api/pits/${sessionId}`).catch(() => []),
       loggerGet(`/api/snapshot/${sessionId}`).catch(() => null),
@@ -109,6 +130,7 @@ module.exports = async (req, res) => {
       // Ocultar los transponders: no son dorsales de carrera, no se ofrecen.
       const karts = all.filter(k => !isTransponder(k.dorsal))
         .sort((a, b) => (parseInt(a.dorsal) || 999) - (parseInt(b.dorsal) || 999));
+      res.setHeader('Cache-Control', CDN_CACHE);
       return res.status(200).json({
         session: { id: sessionId, title: session.title || null, circuit: session.circuit_name || session.slug },
         karts,
@@ -199,6 +221,7 @@ module.exports = async (req, res) => {
     if (!stops) stops = dorsalPits.filter(p => /in|si|entry/i.test(norm(p.event_type))).length;
     if (!stops) stops = lapSeries.filter(l => l.pit).length;
 
+    res.setHeader('Cache-Control', CDN_CACHE);
     return res.status(200).json({
       session: {
         id: sessionId,
@@ -214,6 +237,7 @@ module.exports = async (req, res) => {
       posSeries,
     });
   } catch (e) {
-    return res.status(502).json({ error: 'No se pudo generar el informe', detail: String(e.message || e) });
+    console.error('[report]', e.message || e);
+    return res.status(502).json({ error: 'No se pudo generar el informe' });
   }
 };

@@ -6,7 +6,15 @@
 // devuelve el texto crudo tal cual, para no duplicar en el servidor la
 // lógica de parseo que ya vive en el cliente.
 
+const { makeLimiter, clientIp } = require('./_ratelimit');
+
 const SLUG_RE = /^[a-z0-9-]{1,64}$/;
+// Sin cuenta a propósito: es la red de seguridad del modo directo si cae el VPS
+// (y la app de escritorio no tiene sesión). Un límite por IP evita que terceros
+// lo usen como relay contra Apex desde las IPs de Vercel. Una conexión directa
+// gasta 1 config + 1 historial por kart (46 en Campillos): 400 en 10 min da
+// para varias reconexiones seguidas.
+const allowIp = makeLimiter({ windowMs: 10 * 60 * 1000, max: 400 });
 // Debe coincidir exactamente con el directive que genera apex-connector.js
 // (mismo id de kart repetido en las 4 posiciones) — evita que este proxy se
 // use como gateway genérico hacia apex-timing.com.
@@ -28,6 +36,8 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (!allowIp(clientIp(req))) return res.status(429).json({ error: 'Demasiadas peticiones' });
 
   let body;
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); }

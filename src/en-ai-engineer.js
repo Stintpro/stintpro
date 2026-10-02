@@ -239,7 +239,7 @@ function _enRenderAiEngineerPanel(){
     </div>
     ${body}
     <div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:0.5px solid #1a1b22">
-      <input id="en-adv-ai-question" type="text" placeholder="¿Apuro este stint o paro ya?" onkeydown="if(event.key==='Enter')_enFetchQuery()" style="flex:1;background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-1);padding:6px 10px;border-radius:5px;font-size:12.5px;font-family:sans-serif">
+      <input id="en-adv-ai-question" type="text" maxlength="500" placeholder="¿Apuro este stint o paro ya?" onkeydown="if(event.key==='Enter')_enFetchQuery()" style="flex:1;background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-1);padding:6px 10px;border-radius:5px;font-size:12.5px;font-family:sans-serif">
       <button onclick="_enFetchQuery()" style="font-size:11px;color:#F5A623;border:0.5px solid #F5A623;background:#F5A62318;border-radius:5px;padding:3px 10px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Preguntar</button>
     </div>
     ${queryBody}

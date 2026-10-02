@@ -46,6 +46,14 @@ Responde a la pregunta de forma directa y concreta, con una recomendación clara
   },
 };
 
+const { makeLimiter } = require('./_ratelimit');
+
+// Cada llamada se paga. Por usuario y hora: consultas/boletines a mano y
+// alertas automáticas (que en carrera saltan solas, con cooldown) por separado.
+const MAX_QUESTION_CHARS = 500;
+const allowManual = makeLimiter({ windowMs: 60 * 60 * 1000, max: 30 });
+const allowAlert  = makeLimiter({ windowMs: 60 * 60 * 1000, max: 60 });
+
 const MAX_SNAPSHOT_CHARS = 8000; // ≈2KB de sobra sobre el ~1-2KB esperado; protege coste/latencia ante un snapshot anómalo
 
 module.exports = async (req, res) => {
@@ -70,15 +78,28 @@ module.exports = async (req, res) => {
   const { data: { user }, error: authErr } = await adminClient.auth.getUser(token);
   if (authErr || !user) return res.status(401).json({ error: 'Token inválido' });
 
+  // Solo usuarios invitados: la invitación crea su fila en profiles. Un JWT
+  // válido de alguien que se registró por su cuenta no basta (el alta pública
+  // está cerrada en Supabase; esto es la segunda barrera).
+  const { data: profile } = await adminClient.from('profiles').select('id').eq('id', user.id).maybeSingle();
+  if (!profile) return res.status(403).json({ error: 'Usuario sin acceso' });
+
   let body;
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); }
   catch (e) { return res.status(400).json({ error: 'JSON inválido' }); }
 
   const { type, snapshot, question } = body;
-  const typeConfig = AI_TYPES[type];
+  // hasOwn: AI_TYPES['constructor'] existe por herencia y colaba la validación
+  const typeConfig = Object.prototype.hasOwnProperty.call(AI_TYPES, type) ? AI_TYPES[type] : null;
   if (!typeConfig) return res.status(400).json({ error: 'type inválido (alert|bulletin|query)' });
   if (!snapshot || typeof snapshot !== 'object') return res.status(400).json({ error: 'Falta snapshot' });
-  if (type === 'query' && !question) return res.status(400).json({ error: 'Falta question' });
+  if (type === 'query') {
+    if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'Falta question' });
+    if (question.length > MAX_QUESTION_CHARS) return res.status(413).json({ error: `Pregunta demasiado larga (máx. ${MAX_QUESTION_CHARS} caracteres)` });
+  }
+  if (!(type === 'alert' ? allowAlert : allowManual)(user.id)) {
+    return res.status(429).json({ error: 'Has llegado al límite de consultas a la IA por hora' });
+  }
 
   const snapshotStr = JSON.stringify(snapshot);
   if (snapshotStr.length > MAX_SNAPSHOT_CHARS) {

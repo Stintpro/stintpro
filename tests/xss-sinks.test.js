@@ -49,5 +49,23 @@ test('STRATEGY-6: el chip de la cola del box escapa el dorsal (contenido y oncli
   ok(!/_enToggleQuality\('7&#39;\)/.test(html), 'entidad &#39; dentro de una cadena JS en onclick');
 });
 
+console.log('\n▸ logger-stats.html (panel de estadísticas)\n');
+
+const STATS = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'logger-stats.html'), 'utf8');
+
+test('SECURITY-3: esc() escapa también la comilla simple', () => {
+  const src = STATS.match(/function esc\(s\) \{[\s\S]*?\n\}/)[0];
+  const esc = new Function(src + '; return esc;')();
+  ok(!esc("a'b").includes("'"), esc("a'b"));
+});
+
+test('SECURITY-3: el botón ℹ no mete el nombre del piloto dentro de código JS', () => {
+  ok(!/showPilotPopup\('\$\{/.test(STATS), 'showPilotPopup(\'${…}\') sigue en el HTML');
+});
+
+test('SECURITY-6: "Unificar" no serializa los nombres en un atributo onclick', () => {
+  ok(!/onclick='confirmMerge\(\$\{JSON\.stringify/.test(STATS));
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);
