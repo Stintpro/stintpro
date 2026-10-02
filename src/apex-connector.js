@@ -21,10 +21,13 @@ window.ApexConnector = {
   _flagTracker: null,   // bandera del panel + estado carrera detenida — ver apex-protocol
   _raceStopped: false,  // ¿carrera detenida por roja con carrera activa?
 
-  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage) {
+  // onNewSession: Apex abrió otra sesión en esta conexión (qualy → carrera) → el
+  // dashboard reinicia su estado derivado.
+  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession) {
     this.slug = slug; this.port = port || 7913;
     this.onData = onData; this.onStatus = onStatus; this.onComment = onComment; this.onTitle = onTitle || null;
     this.onMessage = onMessage || null;
+    this.onNewSession = onNewSession || null;
     this._comments = [];
     this._httpPort = null; this._historyFetched = false;
     this._raceTracker = ApexProtocol.createRaceStartTracker();
@@ -55,6 +58,7 @@ window.ApexConnector = {
         this._raceStopped = false;
         if (this.onStatus) this.onStatus('connected', '● Nueva sesión');
         window.Blackbox?.event('in', 'status', { conn: 'connected' });
+        if (this.onNewSession) this.onNewSession();
       },
       onSessionEnd: ()         => {
         if (window.ApexClock) ApexClock.stop();

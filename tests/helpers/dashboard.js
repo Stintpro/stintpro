@@ -48,12 +48,12 @@ module.exports = function makeDashboard(opts = {}) {
   vm.createContext(ctx);
   for (const f of FILES) vm.runInContext(fs.readFileSync(path.join(SRC, f), 'utf8'), ctx, { filename: f });
   vm.runInContext(`
-    var __cb = null;
+    var __cb = null, __newSess = null;
     _enInjectStyles = function(){}; _enRender = function(){}; _enScheduleRender = function(){};
     _enInjectSetupBtn = function(){}; _enInjectColumnsBtn = function(){}; _enShowPilotSelect = function(){};
     _enUpdateKpis = function(){}; _enUpdateBars = function(){}; _enStopAdvRaf = function(){};
     var _enAiEngineer = {}; var renderSetup = function(){};
-    window.ApexConnector = { connect: function(slug, cb){ __cb = cb; }, disconnect(){} };
+    window.ApexConnector = { connect: function(slug, cb, onStatus, onComment, port, onTitle, onMessage, onNewSession){ __cb = cb; __newSess = onNewSession || null; }, disconnect(){} };
     window.AppState = { config: {} };
   `, ctx);
   const run = (c) => vm.runInContext(c, ctx);
@@ -65,6 +65,8 @@ module.exports = function makeDashboard(opts = {}) {
     open(cfg) { ctx.AppState.config = cfg; ctx.showEnduranceDashboard(cfg); },
     // Un mensaje del conector (directo o logger)
     feed(data) { run('__cb')(data); },
+    // El conector avisa de que Apex abrió una sesión nueva
+    newSession() { const f = run('__newSess'); if (!f) throw new Error('el dashboard no registró onNewSession'); f(); },
     // Un tic del reloj de 1 s del dashboard
     tick() { intervals.slice().forEach((f) => f()); },
   };

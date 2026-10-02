@@ -639,6 +639,9 @@ class CircuitMonitor {
     // una vieja (carrera anterior acabada sin bandera) se descarta.
     this._raceTracker.onNewSession();
     if (this._saveTimer) { clearInterval(this._saveTimer); this._saveTimer = null; }
+    // Aviso a la app: reinicia su estado derivado (stints, paradas, cola) en vez
+    // de arrastrar el de la sesión anterior. Lleva el ancla de salida vigente.
+    this._broadcast({ type: 'newSession', raceStart: this._raceTracker.raceStart || null });
   }
 
   _onTitle(title) {
@@ -730,6 +733,7 @@ class CircuitMonitor {
 
     // Enriquecer lapHistory desde BD — más completo que el estado en memoria
     // (cubre reinicios del servidor o reconexiones a Apex mid-sesión)
+    let pitEvents = [...this.pitEvents];
     if (this.sessionId) {
       try {
         const dbLaps = db.getLapsBySession(this.sessionId);
@@ -760,10 +764,24 @@ class CircuitMonitor {
             e.stintLapCount = dorsalLaps.filter(l => l.timestamp > lastOut.time).length;
           }
         });
+        // lapIdx de cada parada = vueltas que llevaba ese dorsal en ese instante,
+        // contadas sobre el MISMO lapHistory que se envía. Con él la app saca las
+        // vueltas del stint en que cada equipo llevó el kart que dejó en el box
+        // (calidad de la cola al conectar tarde). Solo si ese historial cuadra con
+        // la BD; si no, sin lapIdx y la app deja ese kart como desconocido.
+        const lapTs = {};
+        dbLaps.forEach(l => { (lapTs[l.dorsal] = lapTs[l.dorsal] || []).push(l.timestamp); });
+        const sentLen = {};
+        state.equipos.forEach(e => { sentLen[String(e.dorsal)] = (e.lapHistory || []).length; });
+        pitEvents = pitEvents.map(ev => {
+          const ts = lapTs[ev.dorsal] || lapTs[String(ev.dorsal)];
+          if (!ts || ts.length !== sentLen[String(ev.dorsal)]) return ev;
+          return { ...ev, lapIdx: ts.filter(t => t <= ev.time).length };
+        });
       } catch(err) { console.error(`[${this.slug}] enrichHistory:`, err.message); }
     }
 
-    const snapshot = { ...state, pitEvents: [...this.pitEvents], raceEvents: [...this.raceEvents] };
+    const snapshot = { ...state, pitEvents, raceEvents: [...this.raceEvents] };
     if (this._raceTracker.raceStart) snapshot.raceStart = this._raceTracker.raceStart;
     snapshot.raceStopped = this._flagTracker.stopped;
     if (this._computeRatings) {

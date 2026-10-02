@@ -451,6 +451,16 @@ function _enTrackKartStint(e){
 
 // ── Calidad automática del kart ──────────────────────────────────────────
 
+// Calidad de un tramo de vueltas suelto (p.ej. el stint en que un rival llevó el
+// kart que dejó en el box), sin tocar el estado vivo de ese dorsal ni sus
+// overrides manuales: se evalúa con una clave temporal y se borra.
+function _enQualityOfLaps(e, laps, trackAvg){
+  if(!laps||laps.length<3)return null;
+  const key='__tramo_'+(e&&e.dorsal);
+  try{ return _enAutoKartQuality({dorsal:key, name:e&&e.name, lapHistory:laps, pitState:null}, trackAvg); }
+  finally{ delete EnSession.kartAutoState[key]; }
+}
+
 function _enAutoKartQuality(e, trackAvg){
   if(!trackAvg||!e.lapHistory||e.lapHistory.length<3)return null;
 

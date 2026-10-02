@@ -84,7 +84,7 @@ function _enComputeWaves(eq, trackAvg){
       dorsal:e.dorsal, name:e.name,
       quality:_enEffectiveQuality(e.dorsal, e, trackAvg),
       pit:!!e.pit,
-      standsCount:e.standsCount||0,
+      standsCount:(typeof _enRivalStops==='function')?_enRivalStops(e):(e.standsCount||0),
       elapsedMs,
     };
   });

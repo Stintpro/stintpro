@@ -1,5 +1,5 @@
 // ── ReplayConnector — reproduce un .ndjson grabado por el logger ──────────
-// Misma interfaz que ApexConnector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage)
+// Misma interfaz que ApexConnector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession)
 // Controles: pause() / resume() / setSpeed(n)
 
 // La lectura del grid (categoría, otr, columnas) vive en apex-grid.js.
@@ -52,7 +52,8 @@ window.ReplayConnector = {
       .filter(l => l && l.t && l.raw);
   },
 
-  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage) {
+  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession) {
+    this.onNewSession = onNewSession || null;
     this.onData    = onData;
     this.onStatus  = onStatus;
     this.onComment = onComment;
@@ -135,7 +136,7 @@ window.ReplayConnector = {
         if (mode === 'stop') ApexClock.stop();
         else ApexClock.sync(ms, mode);
       },
-      onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); window.EnTraffic?.reset(); },
+      onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); window.EnTraffic?.reset(); if (this.onNewSession) this.onNewSession(); },
       onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
       onComment:    (html)     => this._parseComment(html),
       // Sanciones y avisos (canal msg|), igual que el conector directo.

@@ -1,6 +1,6 @@
 // ── StintPro Logger Connector ─────────────────────────────────────────────
 // Connects to the NAS logger instead of Apex directly.
-// Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage)
+// Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession)
 const Logger = {
   ws: null,
   slug: null,
@@ -13,8 +13,9 @@ const Logger = {
   _flag: null,        // última bandera del panel reenviada por el logger
   _raceStopped: false,// ¿carrera detenida por roja con carrera activa?
 
-  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage) {
+  connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession) {
     this.slug = slug;
+    this.onNewSession = onNewSession || null;
     this.onData = onData;
     this.onStatus = onStatus;
     this.onMessage = onMessage || null;
@@ -72,6 +73,14 @@ const Logger = {
           // igual que en modo directo (data.raceStart).
           if (msg.type === 'raceStart') {
             this._raceStart = { at: msg.at, clock: msg.clock, source: msg.source };
+          }
+
+          // El logger detectó una sesión nueva en el circuito (qualy → carrera):
+          // trae el ancla de salida vigente (la verde suele llegar antes de que el
+          // parser detecte la sesión) y el dashboard reinicia su estado derivado.
+          if (msg.type === 'newSession') {
+            this._raceStart = msg.raceStart || null;
+            if (this.onNewSession) this.onNewSession();
           }
 
           // Sanción o aviso de dirección de carrera (canal msg|), ya clasificado

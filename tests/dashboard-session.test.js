@@ -153,6 +153,125 @@ test('APP-13: tras una parada cuenta desde las vueltas del pit-out', () => {
   strictEqual(D.run('_enStintLaps(' + JSON.stringify(kart({ tours: 26, standsCount: 1 })) + ')'), 6);
 });
 
+console.log('\n▸ Sesión nueva en la misma conexión (STRATEGY-3)\n');
+
+// Clasificación con el panel abierto: todos acaban en boxes; luego Apex abre la carrera.
+function qualyThenRace() {
+  const D = makeDashboard();
+  D.open({ ...cfgBase(), stintMax: 40, stintMin: 10 });
+  D.run('EnBox.totalStops=6; EnBox.pitDuration=180; EnBox._pitDurUserSet=true; EnBox.config={type:"battery",positions:6,columns:2}');
+  const rivals = (pit) => [1, 2, 3].map((d) => ({ dorsal: String(d), name: 'R' + d, pos: d + 1, pit, pitState: pit ? 'in' : null, tours: 5, lastLap: 66, lapHistory: [66, 66, 66] }));
+  D.feed({ equipos: [kart({ tours: 5 }), ...rivals(false)] });
+  D.run('EnSession.stintStart=Date.now()-10*60000');
+  D.feed({ equipos: [kart({ pit: true, pitState: 'in', tours: 5 }), ...rivals(true)] });   // fin de qualy: todos a boxes
+  return D;
+}
+
+test('al abrir sesión nueva se reinicia el estado de carrera, no la configuración', () => {
+  const D = qualyThenRace();
+  strictEqual(D.run('EnSession.stintHistory.length'), 1, 'precondición: el stint de la qualy');
+  D.newSession();
+  strictEqual(D.run('EnSession.stintHistory.length'), 0);
+  strictEqual(D.run('Object.keys(EnSession.pitCounts).length'), 0);
+  strictEqual(D.run('Object.keys(EnSession.rivalPitOut).length'), 0);
+  strictEqual(D.run('EnSession.stintStart'), null);
+  strictEqual(D.run('EnSession.stintFrozen'), null);
+  strictEqual(D.run('EnSession.raceStart'), null);
+  // La configuración del usuario se queda
+  strictEqual(D.run('EnBox.totalStops'), 6);
+  strictEqual(D.run('EnBox.pitDuration'), 180);
+  strictEqual(D.run('EnBox.config.type'), 'battery');
+  strictEqual(D.run('window.AppState.config.stintMax'), 40);
+});
+
+test('tras la sesión nueva, la parrilla de la carrera no cuenta como salida de boxes', () => {
+  const D = qualyThenRace();
+  D.newSession();
+  const grid = [1, 2, 3].map((d) => ({ dorsal: String(d), name: 'R' + d, pos: d + 1, pit: false, pitState: null, tours: 0, lastLap: null, lapHistory: [] }));
+  D.feed({ equipos: [kart({ tours: 0, lastLap: null }), ...grid] });
+  strictEqual(D.run('Object.keys(EnSession.rivalPitOut).length'), 0, JSON.stringify(D.run('EnSession.rivalPitOut')));
+  const G = D.now() + 23 * MIN; D.setNow(G);
+  D.feed({ equipos: [kart({ tours: 0, lastLap: null }), ...grid], raceStart: { at: G, source: 'com' } });
+  strictEqual(D.run('EnSession.stintStart'), G, 'mi stint arranca con la verde de la carrera');
+});
+
+test('el historial de la sesión anterior queda archivado y se puede recuperar', () => {
+  const D = qualyThenRace();
+  D.newSession();
+  strictEqual(D.run('EnSession.stintHistory.length'), 0);
+  D.run('_enRecoverArchivedStints()');
+  strictEqual(D.run('EnSession.stintHistory.length'), 1);
+});
+
+console.log('\n▸ Conectar tarde vía logger: calidad de la cola (STRATEGY-4)\n');
+
+// Rival 5: primer stint con un kart NEUTRO (10 vueltas a 66.0), para, y ahora lleva
+// un kart RÁPIDO (10 vueltas a 63.0). El kart que dejó en el box es el neutro.
+function lateJoin({ withLapIdx, leftLaps = 66.0, nowLaps = 63.0, stintLapCount = 10 }) {
+  const D = makeDashboard();
+  D.open({ ...cfgBase(), stintMax: 40, stintMin: 10 });
+  D.run('EnBox.config={type:"line",positions:4,columns:2}');
+  const t0 = D.now() - 60 * MIN;
+  const field = ['1', '2', '3'].map((d) => ({ dorsal: d, name: 'R' + d, pos: +d, pit: false, pitState: null, tours: 20, lastLap: 66, lapHistory: Array(20).fill(66.0) }));
+  const r5 = { dorsal: '5', name: 'R5', pos: 4, pit: false, pitState: null, tours: 20, lastLap: nowLaps,
+    lapHistory: [...Array(10).fill(leftLaps), ...Array(stintLapCount).fill(nowLaps)], stintLapCount };
+  const ev = (event, time) => ({ dorsal: '5', event, time, ...(withLapIdx ? { lapIdx: 10 } : {}) });
+  D.feed({ _isHistory: true, equipos: [kart({ tours: 20 }), ...field, r5],
+    pitEvents: [ev('in', t0 + 11 * MIN), ev('out', t0 + 14 * MIN)] });
+  return D;
+}
+const qOf5 = (D) => D.run('EnBox.queue').find((k) => k.dorsal === '5');
+
+test('el kart que dejó el rival en el box lleva la calidad de SU stint, no la del kart actual', () => {
+  const D = lateJoin({ withLapIdx: true });
+  strictEqual(qOf5(D).quality, 'neutral');
+});
+
+test('sin el dato de la vuelta de cada parada (logger antiguo) queda "sin info", no se inventa', () => {
+  const D = lateJoin({ withLapIdx: false });
+  strictEqual(qOf5(D).quality, 'unknown');
+});
+
+test('la calidad del kart actual del rival no hereda una siembra del historial entero', () => {
+  // Dejó un kart rápido y lleva uno neutro: su kart actual NO debe salir bueno.
+  const D = lateJoin({ withLapIdx: true, leftLaps: 63.0, nowLaps: 66.0, stintLapCount: 3 });
+  const e5 = JSON.stringify(D.run('EnSession.data.equipos').find((e) => e.dorsal === '5'));
+  strictEqual(D.run(`_enEffectiveQuality("5", ${e5}, _enTrackAvgLive(EnSession.data.equipos))`), 'neutral');
+});
+
+console.log('\n▸ Paradas del rival en Olas y Previsión (TESTS-4)\n');
+
+// Circuito sin columna de paradas (standsCount 0). 11 paradas, stint máx 75', mín 10',
+// parada 2', quedan 120' de cuenta atrás. El rival 7 lleva 4 paradas contadas por la
+// app y 20' de stint → con su deuda le quedan 36 min (sin ella, 55).
+function rivalScenario({ seenFromStart }) {
+  const D = makeDashboard();
+  D.open({ slug: 'lemans', myDorsal: '12', pilotos: [], stintMax: 75, stintMin: 10 });
+  D.run('EnBox.totalStops=11; EnBox.pitDuration=120');
+  const e7 = { dorsal: '7', name: 'RIVAL', pos: 2, pit: false, pitState: null, tours: 0, lastLap: seenFromStart ? null : 66.1, lapHistory: [], standsCount: 0 };
+  D.feed({ equipos: [kart({ lastLap: seenFromStart ? null : 66.1 }), e7] });   // primer dato: ¿ya rodaban?
+  D.run('ApexClock.sync(120*60000, "countdown")');
+  D.run(`EnSession.pitCounts["7"]=4; EnSession.rivalPitOut["7"]=Date.now()-20*60000`);
+  return D;
+}
+
+test('TESTS-4: Olas cuenta las paradas que vio la app si no hay columna oficial', () => {
+  const D = rivalScenario({ seenFromStart: true });
+  const w = D.run('_enComputeWaves(EnSession.data.equipos, 66).windows').find((x) => x.dorsal === '7');
+  strictEqual(w.minLeft, 36); strictEqual(w.debtLimited, true);
+});
+
+test('TESTS-4: conectando tarde (paradas contadas incompletas) no usa ese conteo corto', () => {
+  const D = rivalScenario({ seenFromStart: false });
+  const w = D.run('_enComputeWaves(EnSession.data.equipos, 66).windows').find((x) => x.dorsal === '7');
+  strictEqual(w.minLeft, 55);
+});
+
+test('TESTS-4: la Previsión de box usa el mismo conteo que Olas', () => {
+  const D = rivalScenario({ seenFromStart: true });
+  strictEqual(D.run('_enRivalStops(EnSession.data.equipos.find(e=>e.dorsal==="7"))'), 4);
+});
+
 console.log('\n▸ Configuración\n');
 
 test('STRATEGY-11: el dorsal de la barra de Estrategia se guarda sin espacios', () => {

@@ -117,6 +117,45 @@ test('PARSER-3: el logger también lee sta=si al llegar la parrilla (Sevilla: ka
   ok(p.getState().equipos.some((e) => e.pit && e.pitState === 'in'), 'ningún kart en boxes tras la primera parrilla');
 });
 
+console.log('\n▸ Aviso de sesión nueva al dashboard (STRATEGY-3)\n');
+
+const G5 = 'grid||<tr data-id="r0"><td data-id="c1" data-type="no"></td><td data-id="c2" data-type="dr"></td></tr>' +
+  [1, 2, 3, 4, 5].map((i) => `<tr data-id="r${i}"><td data-id="r${i}c1" class="no"><div>${i}</div></td><td data-id="r${i}c2">EQ ${i}</td></tr>`).join('') + '\n';
+
+test('ApexConnector avisa al dashboard cuando Apex abre sesión nueva', () => {
+  const ctx = makeCtx(); const AC = ctx.ApexConnector;
+  let n = 0;
+  AC.connect('x', () => {}, () => {}, () => {}, 8000, null, null, () => { n++; });
+  AC._emit = () => {};
+  AC._parser.parse('init|p|\n' + G5); AC._parser.parse('light|lf|'); AC._parser.parse('init|r|\n' + G5);
+  strictEqual(n, 1);
+});
+
+test('ReplayConnector avisa al dashboard cuando Apex abre sesión nueva', () => {
+  const ctx = makeCtx(); const RC = ctx.ReplayConnector;
+  let n = 0;
+  RC.onNewSession = () => { n++; };
+  RC._emit = () => {};
+  RC._parser = RC._createParser();
+  RC._parser.parse('init|p|\n' + G5); RC._parser.parse('light|lf|'); RC._parser.parse('init|r|\n' + G5);
+  strictEqual(n, 1);
+});
+
+test('el conector del logger reenvía el aviso newSession y toma su ancla de salida', () => {
+  const ctx = makeCtx();
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'src', 'logger-connector.js'), 'utf8'), ctx);
+  const L = vm.runInContext('Logger', ctx);
+  let n = 0; let ws;
+  ctx.WebSocket = function () { ws = this; this.send = () => {}; this.close = () => {}; };
+  ctx.localStorage = { getItem: () => 'https://logger.test' };
+  ctx.AppState = {};
+  L.connect('x', () => {}, () => {}, () => {}, 0, null, null, () => { n++; });
+  L._raceStart = { at: 1, source: 'com' };
+  ws.onmessage({ data: JSON.stringify({ type: 'newSession', raceStart: null }) });
+  strictEqual(n, 1);
+  strictEqual(L._raceStart, null);
+});
+
 // ── Historial HTTP del modo directo (request.php vía proxy) ──────────────
 function gridOf(n) {
   let h = 'grid||<tr data-id="r0"><td data-id="c1" data-type="no"></td><td data-id="c2" data-type="dr"></td></tr>';

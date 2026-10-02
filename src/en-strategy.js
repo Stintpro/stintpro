@@ -84,7 +84,7 @@ function _enRenderStrategy(eq, trackAvg){
     const pitOutTime=_enRivalStintStart(e);
     const elapsedMs=pitOutTime?(Date.now()-pitOutTime):null;
     const quality=_enEffectiveQuality(e.dorsal, e, trackAvg);
-    const w=EnPitWindows.computeWindow({dorsal:e.dorsal, name:e.name, quality, standsCount:e.standsCount, elapsedMs}, _pwCtx);
+    const w=EnPitWindows.computeWindow({dorsal:e.dorsal, name:e.name, quality, standsCount:_enRivalStops(e), elapsedMs}, _pwCtx);
     return {...e, _quality:quality, _minLeft:w.minLeft};
   });
 
@@ -344,6 +344,18 @@ function _enRenderStrategy(eq, trackAvg){
 
 
   return html;
+}
+
+// Paradas de un rival para la deuda de paradas (Olas, Previsión de box). La columna
+// oficial de Apex manda; sin ella se usan las que contó la app, pero SOLO si la app
+// lo ha visto todo (historial completo del logger, o conectada antes de que nadie
+// rodara): conectando tarde el conteo se queda corto y el techo saldría falsamente
+// bajo. En ese caso se queda en 0 → techo = stint máximo, como antes.
+function _enRivalStops(e){
+  if(!e)return 0;
+  if(e.standsCount>0)return e.standsCount;
+  const seenAll=EnSession._toursCompleto||EnSession._toursSuelo===false;
+  return seenAll?(EnSession.pitCounts[String(e.dorsal)]||0):0;
 }
 
 // Inicio del stint en curso de un rival (null = desconocido → sin countdown).
@@ -775,6 +787,59 @@ function _enMyStops(){
   return EnSession.pitCounts[String(myD)]||0;
 }
 
+// ── Sesión nueva en la misma conexión (qualy → carrera) ───────────────────
+// El conector avisa cuando Apex abre otra sesión. Se reinicia el estado DERIVADO
+// de la carrera anterior (stints, paradas contadas, cola del box, ancla de
+// salida…), no la configuración del usuario (box, paradas totales, duración de
+// parada, pilotos). Sin esto la carrera heredaba la qualy: ola fantasma con todo
+// el pelotón y mi stint con los minutos de la parrilla de más.
+// El historial de stints se ARCHIVA (no se tira): si el aviso fuera falso a
+// mitad de carrera, el cartel deja recuperarlo con un toque.
+function _enOnNewSession(){
+  if(EnSession.stintHistory.length){
+    EnSession._archivedStints={stintHistory:EnSession.stintHistory, currentPilot:EnSession.currentPilot, at:Date.now()};
+  }
+  EnSession.stintHistory=[];
+  EnSession.stintStart=null; EnSession.stintFrozen=null;
+  EnSession._myPitInDetected=false; EnSession.myPitInAt=null;
+  EnSession.stintLapTimes=[]; EnSession.stintBestLap=null; EnSession.posIn=null;
+  Object.assign(EnSession.data,{_stintStartTours:null,_myWasIn:false,_myWasOut:false,_lastMyLap:null,_prevPitState:{}});
+  EnSession.rivalPitOut={}; EnSession.pitCounts={}; EnSession.pitCosts={};
+  EnSession.linePasses={}; EnSession.pitOutPending={}; EnSession.pitInLastPass={};
+  EnSession.kartAutoState={};
+  EnSession.raceStart=null; EnSession.flag=null; EnSession.raceStopped=false; EnSession.raceEvents=[];
+  EnSession._toursCompleto=false; EnSession._toursSuelo=undefined;
+  EnSession._finished=false;
+  EnSession.messages=[]; EnSession.msgUnread={mias:false,otras:false};
+  EnBox.queue=[]; EnBox.queueInited=false; EnBox.swapped={}; EnBox.pending={}; EnBox._lastInAt={};
+  _enSaveRaceState();
+  if(EnSession._archivedStints)_enShowNewSessionBanner(EnSession._archivedStints.stintHistory.length);
+  _enScheduleRender();
+}
+
+function _enRecoverArchivedStints(){
+  const a=EnSession._archivedStints;
+  if(!a)return;
+  EnSession.stintHistory=a.stintHistory.concat(EnSession.stintHistory);
+  EnSession.currentPilot=a.currentPilot;
+  EnSession._archivedStints=null;
+  document.getElementById('en-newsession-banner')?.remove();
+  _enSaveRaceState();
+  _enScheduleRender();
+}
+
+function _enShowNewSessionBanner(n){
+  if(typeof document==='undefined'||!document.body)return;
+  document.getElementById('en-newsession-banner')?.remove();
+  const b=document.createElement('div');
+  b.id='en-newsession-banner';
+  b.style.cssText='position:fixed;top:32px;left:50%;transform:translateX(-50%);z-index:9997;background:var(--panel-surface);border:1px solid #5b8dee;border-radius:6px;padding:8px 14px;display:flex;align-items:center;gap:12px;font-family:sans-serif;font-size:12px;color:var(--text-1);max-width:92vw;';
+  b.innerHTML=`Nueva sesión de Apex: empiezo de cero (${n} stint${n>1?'s':''} anterior${n>1?'es':''} archivado${n>1?'s':''}).
+    <button onclick="_enRecoverArchivedStints()" style="background:#5b8dee;border:none;color:#fff;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:12px">Recuperar stints</button>
+    <button onclick="document.getElementById('en-newsession-banner')?.remove()" style="background:transparent;border:none;color:var(--text-2);cursor:pointer;font-size:14px;padding:0 4px">✕</button>`;
+  document.body.appendChild(b);
+}
+
 // ── API pública ───────────────────────────────────────────────────────────
 window.showEnduranceDashboard=function(cfg){
   _enInjectStyles();
@@ -1006,18 +1071,26 @@ window.showEnduranceDashboard=function(cfg){
                 EnSession.rivalPitOut[ev.dorsal]=ev.time;
               }
             });
-            // Cruzar cola con el grid actual para inferir calidad de karts que siguen en box
-            // data.equipos tiene el estado real del momento de conexión con lapHistory y bestLap
+            // Calidad de cada kart que sigue en la cola = la del stint en que lo llevó
+            // su equipo: las vueltas entre su pit-out anterior y el pit-in en que lo
+            // dejó (lapIdx de cada parada, lo manda el logger). NO el snapshot actual:
+            // sus últimas vueltas son del kart NUEVO (9 de 13 mal en la 7H de Los
+            // Santos). Sin lapIdx (logger antiguo) se queda 'unknown'.
             if(Array.isArray(data.equipos)&&data.equipos.length>0){
               const snapAvg=_enTrackAvgLive(data.equipos);
               EnBox.queue.forEach(k=>{
                 if(k.quality!=='unknown'||!k.dorsal||k.dorsal==='?')return;
                 const snap=data.equipos.find(e=>e.dorsal?.toString()===k.dorsal?.toString());
-                if(snap){
-                  const q=_enEffectiveQuality(snap.dorsal, snap, snapAvg);
-                  if(q&&q!=='unknown')k.quality=q;
-                  if(snap.name)k.name=snap.name;
-                }
+                if(!snap)return;
+                if(snap.name)k.name=snap.name;
+                const evs=data.pitEvents.filter(ev=>String(ev.dorsal)===String(k.dorsal));
+                const pin=evs.find(ev=>ev.event==='in'&&ev.time===k.time);
+                if(!pin||typeof pin.lapIdx!=='number')return;
+                const pout=evs.filter(ev=>ev.event==='out'&&ev.time<pin.time).pop();
+                const from=pout?pout.lapIdx:0;
+                if(typeof from!=='number')return;
+                const q=_enQualityOfLaps(snap, (snap.lapHistory||[]).slice(from, pin.lapIdx), snapAvg);
+                if(q)k.quality=q;
               });
             }
             // El historial ya aplicó las paradas en curso: el primer tick en directo
@@ -1041,8 +1114,11 @@ window.showEnduranceDashboard=function(cfg){
             if(!e.dorsal||e.stintLapCount===undefined)return;
             if(!EnSession.kartAutoState[e.dorsal])
               EnSession.kartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
-            EnSession.kartAutoState[e.dorsal].stintStartIdx=
-              Math.max(0,(e.lapHistory||[]).length-e.stintLapCount);
+            const st=EnSession.kartAutoState[e.dorsal];
+            st.stintStartIdx=Math.max(0,(e.lapHistory||[]).length-e.stintLapCount);
+            // Kart nuevo desde aquí: nada de lo evaluado antes (sobre el historial
+            // entero) puede seguir valiendo vía la histéresis de "bueno".
+            st.quality=null; st.badCount=0; st.lastEvalKey=null; st.prePitQuality=null;
           });
         }
 
@@ -1215,7 +1291,8 @@ window.showEnduranceDashboard=function(cfg){
       (msg)=>{
         if(!window.EnMessages)return;
         if(EnMessages.ingestMessage(EnSession, msg, window.AppState?.config?.myDorsal, msg.ts))_enScheduleRender();
-      }
+      },
+      ()=>{ try{ _enOnNewSession(); }catch(err){ console.error('[StintPro] Error en sesión nueva:',err); } }
     );
   }
 };
@@ -1309,6 +1386,8 @@ window._enGoBack=function(){
   EnSession.msgUnread={mias:false,otras:false};
   EnSession._reconcilePending=false;
   EnSession._lastPersist=null;
+  EnSession._archivedStints=null;
+  document.getElementById('en-newsession-banner')?.remove();
   _enAiEngineer.lastBulletin=null;
   _enAiEngineer.lastBulletinAt=null;
   _enAiEngineer.fetching=false;

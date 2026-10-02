@@ -435,6 +435,20 @@ describe('_broadcastPilots (vía _onState)', () => {
   });
 });
 
+// ── _onNewSession: aviso a los clientes (STRATEGY-3) ─────────────────────────
+
+describe('_onNewSession', () => {
+  test('avisa a los subscriptores de que empieza otra sesión', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    ws.send.mockClear();
+    m._onNewSession(null);
+    const msgs = ws.send.mock.calls.map(c => JSON.parse(c[0]));
+    expect(msgs.some(x => x.type === 'newSession')).toBe(true);
+  });
+});
+
 // ── _onMessage (canal msg| de dirección de carrera) ──────────────────────────
 
 describe('_onMessage', () => {
@@ -626,6 +640,22 @@ describe('_sendHistoryTo (enriquecido desde BD)', () => {
     const kart = JSON.parse(ws.send.mock.calls[0][0]).snapshot.equipos.find(e => e.dorsal === '7');
 
     expect(kart.stintLapCount).toBe(1);
+  });
+
+  test('cada parada del snapshot lleva lapIdx: vueltas del dorsal hasta ese momento (STRATEGY-4)', () => {
+    const m = createMonitor();
+    m.parser.parse(buildGrid(kartRow('r1', '7', 'JAVIER')));
+    m.parser.parse('r1c3|llp|1:04.000');            // vuelta 1 (BD, ahora)
+    const t = Date.now();
+    m._onPit('7', 'in', 1, t + 1000);
+    m._onPit('7', 'out', 1, t + 181000);
+    db.insertLap(m.sessionId, '7', 'JAVIER', null, 61000, 2, t + 250000);   // vuelta 2, tras la parada
+
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    const snap = JSON.parse(ws.send.mock.calls[0][0]).snapshot;
+    const pe = snap.pitEvents.filter(e => String(e.dorsal) === '7');
+    expect(pe.map(e => [e.event, e.lapIdx])).toEqual([['in', 1], ['out', 1]]);
   });
 
   test('incluye pilotRatings cuando se pasó computeRatings', () => {
