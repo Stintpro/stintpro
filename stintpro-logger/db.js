@@ -54,6 +54,12 @@ function _migrate() {
       db.exec('ALTER TABLE laps ADD COLUMN team_name TEXT');
       console.log('[DB] Columna team_name añadida a laps');
     }
+    // Vuelta de salida de boxes (lleva la parada dentro, ~4 min): se guarda para
+    // que el contador cuadre con Apex, pero no entra en medias (PARSER-10).
+    if (lapNames.length && !lapNames.includes('is_pit_lap')) {
+      db.exec('ALTER TABLE laps ADD COLUMN is_pit_lap INTEGER DEFAULT 0');
+      console.log('[DB] Columna is_pit_lap añadida a laps');
+    }
   } catch(e) {
     console.warn('[DB] Aviso migración laps:', e.message);
   }
@@ -103,6 +109,7 @@ async function init() {
       lap_time_ms  INTEGER,
       lap_number   INTEGER,
       timestamp    INTEGER,
+      is_pit_lap   INTEGER DEFAULT 0,
       FOREIGN KEY (session_id) REFERENCES sessions(id)
     );
     CREATE TABLE IF NOT EXISTS pit_events (
@@ -186,11 +193,11 @@ function deleteSession(sessionId) {
 
 // ── Laps ──────────────────────────────────────────────────────────────────
 
-function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, timestamp, category) {
+function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, timestamp, category, isPitLap) {
   db.prepare(
-    'INSERT INTO laps (session_id,dorsal,name,team_name,category,lap_time_ms,lap_number,timestamp) VALUES (?,?,?,?,?,?,?,?)'
+    'INSERT INTO laps (session_id,dorsal,name,team_name,category,lap_time_ms,lap_number,timestamp,is_pit_lap) VALUES (?,?,?,?,?,?,?,?,?)'
   ).run(sessionId, dorsal ?? null, _normalizeName(name), teamName ? _normalizeName(teamName) : null,
-        category || null, lapTimeMs ?? null, lapNumber ?? null, timestamp || Date.now());
+        category || null, lapTimeMs ?? null, lapNumber ?? null, timestamp || Date.now(), isPitLap ? 1 : 0);
 }
 
 function getLapsBySession(sessionId) {
@@ -290,7 +297,7 @@ function searchPilotsGlobal(query) {
            COUNT(*) as total_laps,
            COUNT(DISTINCT l.session_id) as session_count
     FROM laps l JOIN sessions s ON s.id=l.session_id
-    WHERE l.lap_time_ms BETWEEN 20000 AND 300000
+    WHERE l.lap_time_ms BETWEEN 20000 AND 300000 AND COALESCE(l.is_pit_lap,0)=0
       AND (UPPER(l.name) LIKE UPPER(?) OR UPPER(l.team_name) LIKE UPPER(?))
     GROUP BY s.slug, l.name
     ORDER BY s.slug, best_ms ASC
@@ -312,7 +319,7 @@ function getPilotSessionsByCircuit(slug) {
            CAST(AVG(l.lap_time_ms) AS INTEGER) as avg_ms,
            COUNT(*) as laps
     FROM laps l JOIN sessions s ON s.id=l.session_id
-    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000
+    WHERE s.slug=? AND l.lap_time_ms BETWEEN 20000 AND 300000 AND COALESCE(l.is_pit_lap,0)=0
     GROUP BY l.name, l.session_id
     ORDER BY s.started_at DESC
   `).all(slug);

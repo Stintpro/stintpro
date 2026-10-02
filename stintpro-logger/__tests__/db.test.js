@@ -236,3 +236,19 @@ describe('closeStaleSessions', () => {
     expect(s.ended_at).toBe(started);
   });
 });
+
+// ── Vuelta de salida de boxes (PARSER-10) ────────────────────────────────────
+describe('vuelta de parada (is_pit_lap)', () => {
+  test('la vuelta de parada se guarda pero no entra en la media del piloto', () => {
+    const id = db.createSession('pitlap-test', 'Pit lap test');
+    db.insertLap(id, '7', 'PEPE', null, 65000, 1, 1000, null, false);
+    db.insertLap(id, '7', 'PEPE', null, 243000, 2, 2000, null, true);   // salida de boxes
+    db.insertLap(id, '7', 'PEPE', null, 66000, 3, 3000, null, false);
+    expect(db.getLapsBySession(id)).toHaveLength(3);
+    const row = db.getPilotSessionsByCircuit('pitlap-test').find(r => r.name === 'PEPE');
+    expect(row.avg_ms).toBe(65500);
+    expect(row.laps).toBe(2);
+    db.deleteSession(id);
+  });
+});
+

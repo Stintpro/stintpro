@@ -309,12 +309,24 @@ describe('acciones destructivas con key válida', () => {
 describe('WebSocket auth', () => {
   test('conexión sin auth → cierre por timeout (≤11s)', async () => {
     const ws = await wsConnect();
+    let t;
     await new Promise((resolve, reject) => {
       ws.once('close', resolve);
       ws.once('error', reject);
-      setTimeout(() => reject(new Error('No cerró en 11s')), 11000);
+      t = setTimeout(() => reject(new Error('No cerró en 11s')), 11000);
     });
+    clearTimeout(t);   // sin esto el timer dejaba vivo el worker de jest (TESTS-11)
   }, 12000);
+
+  test('LOGGER-9: un frame enorme antes de autenticar se corta sin recibirlo entero', async () => {
+    const ws = await wsConnect();
+    const code = await new Promise((resolve) => {
+      ws.once('close', (c) => resolve(c));
+      ws.once('error', () => {});
+      ws.send('x'.repeat(200 * 1024));
+    });
+    expect(code).toBe(1009);   // Message Too Big
+  });
 
   test('auth con key incorrecta → error fatal y cierre', async () => {
     const ws  = await wsConnect();
@@ -469,10 +481,18 @@ describe('WebSocket auth', () => {
     ws.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));
     await wsReceive(ws);
 
-    ws.send('X'.repeat(1024 * 1024));
-    const msg = await wsReceive(ws);
-    expect(msg.type).toBe('error');
-    ws.close();
+    // Por encima del tope de 64 KB el servidor corta la conexión (1009) sin
+    // procesar el frame; lo que importa es que el proceso sigue vivo.
+    const code = await new Promise((resolve) => {
+      ws.once('close', (c) => resolve(c));
+      ws.once('error', () => {});
+      ws.send('X'.repeat(1024 * 1024));
+    });
+    expect(code).toBe(1009);
+    const ws2 = await wsConnect();   // el servidor sigue aceptando conexiones
+    ws2.send(JSON.stringify({ type: 'auth', apikey: VALID_KEY }));
+    expect((await wsReceive(ws2)).type).toBe('auth_ok');
+    ws2.close();
   });
 });
 

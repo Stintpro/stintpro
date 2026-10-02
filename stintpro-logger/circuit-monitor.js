@@ -51,7 +51,7 @@ const APEX_RECONNECT_MS       = 5000;
 // solo un tope duro de seguridad (evita crecer sin límite dentro de la ventana).
 const RAW_PRELUDE_WINDOW_MS = 15 * 60 * 1000;  // ventana de apertura conservada (últimos 15 min)
 const RAW_PRELUDE_MAX       = 5000;            // tope duro de líneas (backstop de memoria)
-const RAW_IDLE_CLOSE_MS     = 30 * 60 * 1000;  // cierra el fichero si el feed calla (tanda acabada sin bandera)
+const RAW_IDLE_CLOSE_MS     = 45 * 60 * 1000;  // cierra el fichero si nadie rueda (tanda acabada sin bandera)
 // ── Reanudar una sesión tras un reinicio del logger ────────────────────────
 // `sessionId` vive en memoria, así que un reinicio a mitad de carrera creaba una
 // sesión NUEVA y la partía en dos. Se intenta reanudar la que quedó abierta, pero
@@ -64,6 +64,13 @@ const RESUME_MAX_AGE_MS  = 30 * 60 * 1000; // snapshot más viejo que esto → n
 const RESUME_MIN_OVERLAP = 0.4;            // mismo umbral que usa el parser para "misma parrilla"
 const RESUME_MIN_KARTS   = 3;              // por debajo no hay evidencia suficiente
 const RESUME_MIN_TOURS   = 3;              // sesión apenas arrancada → partirla no cuesta nada
+// Sin contador oficial de Apex (KIP, Prestige: sin columna tlp/lc) `tours` es el
+// historial del parser y vuelve a 0 con el reinicio, así que la regla de "no
+// retrocede" no sirve. Ahí solo se reanuda si la carrera seguía rodando justo al
+// reiniciar: último pase reciente, sin bandera a cuadros y casi los mismos karts.
+// Entre dos tandas siempre hay más de 3 min sin nadie rodando.
+const RESUME_NOCOUNTER_MAX_GAP_MS = 3 * 60 * 1000;
+const RESUME_NOCOUNTER_MIN_OVERLAP = 0.8;
 const RAW_GRID_RE           = /(^|\n)grid\|/;  // mensaje que trae la parrilla completa
 const RAW_GRID_MATCH_MIN    = 0.4;             // solape de filas exigido para dar el grid por válido
 
@@ -87,6 +94,16 @@ function canResumeSession(snap, live, now, opts = {}) {
 
   const comunes = [...antes.keys()].filter(d => ahora.has(d));
   if (comunes.length < RESUME_MIN_KARTS) return false;
+
+  // ¿Hay contador oficial? Snapshots antiguos sin colMap: se asume que sí (regla de siempre).
+  const oficial = cm => !cm || !!(cm.tlp || cm.lc);
+  if (!oficial(snap.colMap) || !oficial(live.colMap)) {
+    if (snap.sessionFinished) return false;
+    const lastPass = Math.max(0, ...snap.equipos.map(e => (e && e.lastLapAt) || 0));
+    if (!lastPass || now - lastPass > RESUME_NOCOUNTER_MAX_GAP_MS) return false;
+    return comunes.length / antes.size >= RESUME_NOCOUNTER_MIN_OVERLAP;
+  }
+
   if (comunes.length / antes.size < (opts.minOverlap ?? RESUME_MIN_OVERLAP)) return false;
 
   // El contador oficial no retrocede dentro de una misma sesión.
@@ -225,11 +242,14 @@ class CircuitMonitor {
   _checkStale() {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const silence = Date.now() - this._lastDataAt;
-    // Cierra el .ndjson de una sesión que dejó de emitir sin que llegue una sesión
-    // nueva (tandas de alquiler que acaban en silencio, sin bandera a cuadros). Si
-    // luego se reanuda el rodaje, la próxima vuelta reabre un fichero.
-    if (this._rawLog && silence > RAW_IDLE_CLOSE_MS) {
-      console.log(`[${this.slug}] Raw log cerrado por inactividad (${Math.round(silence / 1000)}s)`);
+    // Cierra el .ndjson de una sesión en la que ya nadie rueda (tandas de alquiler
+    // que acaban sin bandera a cuadros). Se mide desde la última VUELTA, no desde
+    // el último mensaje: Apex sigue emitiendo cháchara entre tandas y de noche, y
+    // el fichero de la última tanda del día se quedaba abierto hasta el día
+    // siguiente. Si luego se reanuda el rodaje, la próxima vuelta reabre otro.
+    const sinceLap = Date.now() - (this._lastLapAt || this._lastDataAt);
+    if (this._rawLog && sinceLap > RAW_IDLE_CLOSE_MS) {
+      console.log(`[${this.slug}] Raw log cerrado: ${Math.round(sinceLap / 60000)} min sin vueltas`);
       this._closeSessionRawLog();
     }
     if (silence > this._staleLimitMs()) {
@@ -452,7 +472,15 @@ class CircuitMonitor {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const file  = path.join(dir, `${this.slug}_${this._rawTitleSlug(title)}_${stamp}.ndjson`);
-      this._rawLog     = fs.createWriteStream(file, { flags: 'a' });
+      const stream = fs.createWriteStream(file, { flags: 'a' });
+      // Los fallos de E/S (disco lleno, permisos, descriptores) llegan como evento
+      // 'error' asíncrono: sin listener mataban el proceso entero (todos los
+      // circuitos). Se pierde solo el raw log de este circuito.
+      stream.on('error', (e) => {
+        console.error(`[${this.slug}] Raw log error:`, e.code || e.message);
+        if (this._rawLog === stream) { this._rawLog = null; this._rawLogPath = null; }
+      });
+      this._rawLog     = stream;
       this._rawLogPath = file;
       // Sin grid, el .ndjson no es reproducible: al releerlo no hay colMap y la
       // mayoría de las vueltas se pierden. Si la ventana de prólogo ya lo podó,
@@ -477,7 +505,8 @@ class CircuitMonitor {
     this._rawLogPath = null;
   }
 
-  _onLap(dorsal, name, teamName, lapMs, lapNumber, timestamp, category) {
+  _onLap(dorsal, name, teamName, lapMs, lapNumber, timestamp, category, isPitLap) {
+    this._lastLapAt = Date.now();
     // Raw log por sesión: la 1ª vuelta real confirma actividad → abre el .ndjson
     // (independiente de `recording`, que solo gobierna la escritura en BD). Si el
     // fichero se cerró por inactividad a mitad de sesión, la siguiente vuelta lo
@@ -509,7 +538,7 @@ class CircuitMonitor {
     }
     this._lapCount++;
     const cleanName = (name || '').replace(/\s*\[\d+:\d+\]\s*$/, '').trim();
-    db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp, category || null);
+    db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp, category || null, !!isPitLap);
   }
 
   // Se ejecuta UNA vez por arranque, en la primera vuelta. Si hay una sesión
@@ -612,6 +641,7 @@ class CircuitMonitor {
     if (this.sessionId) {
       this._saveSnapshot();
       db.endSession(this.sessionId);
+      this._endedAt = Date.now();   // hora real de fin: _onNewSession no debe pisarla
     }
     // El ancla ya quedó en el snapshot final; que no la herede la sesión siguiente
     this._raceTracker.clear();
@@ -626,8 +656,12 @@ class CircuitMonitor {
     this._closeSessionRawLog();   // finaliza el .ndjson de la sesión anterior
     if (this.sessionId) {
       this._saveSnapshot(saliente);
-      db.endSession(this.sessionId);
+      // Fin real: la bandera a cuadros o, si la tanda acabó en silencio, la última
+      // vuelta. Antes se sellaba con la hora de detección de la sesión SIGUIENTE
+      // (horas o días después) y las duraciones de logger-stats salían infladas.
+      db.endSession(this.sessionId, this._endedAt || this._lastLapAt || Date.now());
     }
+    this._endedAt = null;
     this.sessionId = null;
     this.pitEvents = [];
     this.raceEvents = [];

@@ -202,3 +202,35 @@ describe('parrilla fusionada', () => {
     expect(hasMergedGrid({ equipos: [{ pos: 1 }, { pos: 0 }, { pos: null }, { pos: 2 }] })).toBe(false);
   });
 });
+
+// ── Duración oficial de parada (LOGGER-7) ────────────────────────────────────
+
+describe('duración oficial de parada', () => {
+  test('la ingesta guarda duration_ms de cada salida de boxes (crono otr de PIT)', () => {
+    const t0 = 1790000000000;
+    const grid = 'grid||<tr data-id="r0"><td data-id="c1" data-type="sta"></td><td data-id="c2" data-type="no"></td>' +
+      '<td data-id="c3" data-type="dr"></td><td data-id="c4" data-type="llp"></td><td data-id="c5" data-type="otr">Tiempo en Pit</td></tr>' +
+      '<tr data-id="r1"><td data-id="r1c1" class="sr"></td><td data-id="r1c2" class="no"><div>7</div></td>' +
+      '<td data-id="r1c3">EQUIPO</td><td data-id="r1c4"></td><td data-id="r1c5"></td></tr>';
+    const frames = [
+      [0, 'init|r|\ntitle1||PIT TEST\n' + grid],
+      [65000, 'r1c4|tn|1:05.000'],
+      [130000, 'r1c4|tn|1:05.000'],
+      [140000, 'r1c1|si|'],
+      [200000, 'r1c5|in|1:00.'],
+      [320000, 'r1c5|in|3:00.'],
+      [321000, 'r1c1|so|'],
+      [400000, 'r1c4|tn|1:19.000'],
+    ];
+    const file = path.join(os.tmpdir(), `pittest_PIT-TEST_${process.pid}.ndjson`);
+    fs.writeFileSync(file, frames.map(([dt, raw]) => JSON.stringify({ t: t0 + dt, raw })).join('\n') + '\n');
+    try {
+      const res = ingestRawLog(file, { slug: 'pittest-' + process.pid, write: true });
+      const outs = db.getPitEventsBySession(res.sessionId).filter(p => p.event_type === 'out');
+      expect(outs).toHaveLength(1);
+      expect(outs[0].duration_ms).toBe(180000);
+      db.deleteSession(res.sessionId);
+    } finally { fs.rmSync(file, { force: true }); }
+  });
+});
+

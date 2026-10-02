@@ -110,15 +110,16 @@ function replayLog(file) {
     now: () => frameTs,
     // El `timestamp` que llega en el argumento es el Date.now() del replay: se ignora
     // a propósito y se sustituye por el del frame en curso.
-    onLap: (dorsal, name, teamName, lapMs, lapNumber, _ts, category) => {
+    onLap: (dorsal, name, teamName, lapMs, lapNumber, _ts, category, isPitLap) => {
       if (title === null) {
         const st = parser.getState();
         title = [st.title1, st.title2].filter(Boolean).join(' · ') || null;
       }
-      laps.push({ dorsal, name, teamName, lapMs, lapNumber, ts: frameTs, category });
+      laps.push({ dorsal, name, teamName, lapMs, lapNumber, ts: frameTs, category, isPitLap });
     },
-    onPit: (dorsal, eventType, standsCount) => {
-      pits.push({ dorsal, eventType, standsCount, ts: frameTs });
+    // 5º argumento: duración oficial de la parada (crono otr) en los 'out'
+    onPit: (dorsal, eventType, standsCount, _ts, pitDur) => {
+      pits.push({ dorsal, eventType, standsCount, ts: frameTs, pitDur });
     },
   });
 
@@ -141,7 +142,8 @@ function replayLog(file) {
 function buildSnapshot(replay) {
   return {
     ...replay.parser.getState(),
-    pitEvents: replay.pits.map(p => ({ dorsal: p.dorsal, event: p.eventType, time: p.ts, standsCount: p.standsCount })),
+    pitEvents: replay.pits.map(p => ({ dorsal: p.dorsal, event: p.eventType, time: p.ts, standsCount: p.standsCount,
+      ...(p.eventType === 'out' && p.pitDur != null ? { pitDur: p.pitDur } : {}) })),
   };
 }
 
@@ -192,10 +194,11 @@ function ingestRawLog(file, opts = {}) {
   const sessionId = db.createSession(slug, circuitName, title);
   setSessionTimes(sessionId, startedAt, endedAt);
   for (const l of laps) {
-    db.insertLap(sessionId, l.dorsal, l.name, l.teamName, l.lapMs, l.lapNumber, l.ts, l.category);
+    db.insertLap(sessionId, l.dorsal, l.name, l.teamName, l.lapMs, l.lapNumber, l.ts, l.category, l.isPitLap);
   }
   for (const p of pits) {
-    db.insertPitEvent(sessionId, p.dorsal, p.eventType, p.standsCount, p.ts);
+    db.insertPitEvent(sessionId, p.dorsal, p.eventType, p.standsCount, p.ts,
+      (p.eventType === 'out' && p.pitDur != null) ? Math.round(p.pitDur * 1000) : null);
   }
 
   db.saveSnapshot(sessionId, buildSnapshot(replay));

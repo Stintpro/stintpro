@@ -435,6 +435,82 @@ describe('_broadcastPilots (vía _onState)', () => {
   });
 });
 
+// ── Raw log: robustez y cierre (LOGGER-3, LOGGER-6) ──────────────────────────
+
+describe('raw log por sesión', () => {
+  const fs = require('fs');
+  const { EventEmitter } = require('events');
+
+  test('LOGGER-3: un error de escritura del .ndjson (disco lleno) no tumba el proceso', () => {
+    const m = createMonitor();
+    m._rawLogEnabled = true;
+    const fake = new EventEmitter(); fake.write = () => true; fake.end = () => {};
+    const spy = jest.spyOn(fs, 'createWriteStream').mockReturnValue(fake);
+    try {
+      m._openSessionRawLog('Carrera');
+      expect(() => fake.emit('error', Object.assign(new Error('ENOSPC'), { code: 'ENOSPC' }))).not.toThrow();
+      expect(m._rawLog).toBeNull();
+    } finally { spy.mockRestore(); }
+  });
+
+  test('LOGGER-6: se cierra si no hay vueltas en 45 min aunque Apex siga mandando cháchara', () => {
+    const m = createMonitor();
+    const ended = jest.fn();
+    m._rawLog = { end: ended, write: () => true };
+    m.ws = { readyState: 1, terminate() {}, close() {} };
+    m._lastDataAt = Date.now();                 // el feed sigue vivo (cháchara entre tandas)
+    m._lastLapAt  = Date.now() - 46 * 60000;    // pero nadie rueda desde hace 46 min
+    m._checkStale();
+    expect(ended).toHaveBeenCalled();
+    expect(m._rawLog).toBeNull();
+  });
+
+  test('LOGGER-6: con vueltas recientes no se cierra', () => {
+    const m = createMonitor();
+    const ended = jest.fn();
+    m._rawLog = { end: ended, write: () => true };
+    m.ws = { readyState: 1, terminate() {}, close() {} };
+    m._lastDataAt = Date.now();
+    m._lastLapAt  = Date.now() - 5 * 60000;
+    m._checkStale();
+    expect(ended).not.toHaveBeenCalled();
+  });
+});
+
+// ── ended_at real (LOGGER-5) ─────────────────────────────────────────────────
+
+describe('ended_at de la sesión', () => {
+  const endedAt = (id) => db.getAllSessions().find(s => s.id === id).ended_at;
+
+  test('con bandera a cuadros: ended_at es la hora de la bandera, no la de la sesión siguiente', () => {
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    try {
+      const m = createMonitor();
+      m.parser.parse(buildGrid(kartRow('r1', '7', 'JAVIER')));
+      m.parser.parse('r1c3|llp|1:04.000');
+      const id = m.sessionId;
+      T += 60000; const flagAt = T;
+      m._onSessionEnd();
+      T += 3 * 3600000;               // la sesión siguiente se detecta horas después
+      m._onNewSession(null);
+      expect(endedAt(id)).toBe(flagAt);
+    } finally { spy.mockRestore(); }
+  });
+
+  test('sin bandera: ended_at es la última vuelta, no la detección de la siguiente', () => {
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    try {
+      const m = createMonitor();
+      m.parser.parse(buildGrid(kartRow('r1', '7', 'JAVIER')));
+      m.parser.parse('r1c3|llp|1:04.000');
+      const id = m.sessionId; const lastLap = T;
+      T += 3 * 3600000;
+      m._onNewSession(null);
+      expect(endedAt(id)).toBe(lastLap);
+    } finally { spy.mockRestore(); }
+  });
+});
+
 // ── _onNewSession: aviso a los clientes (STRATEGY-3) ─────────────────────────
 
 describe('_onNewSession', () => {
@@ -738,6 +814,31 @@ describe('canResumeSession', () => {
     ({ timestamp: ts, equipos: pares.map(([dorsal, tours]) => ({ dorsal, tours })) });
   const vivo = pares => ({ equipos: pares.map(([dorsal, tours]) => ({ dorsal, tours })) });
   const puede = (sn, lv, now = AHORA) => CircuitMonitor.canResumeSession(sn, lv, now);
+
+  // ── Circuitos SIN contador oficial (KIP, Prestige: sin tlp/lc) — LOGGER-2 ──
+  // Ahí `tours` es lapHistory.length del parser y vuelve a 0 con el reinicio.
+  const SIN_CONTADOR = { no: 'c4', dr: 'c5', llp: 'c10', sta: 'c2' };
+  const snapSC = (n, lastLapAgo, extra = {}) => ({
+    timestamp: AHORA - 20000, colMap: SIN_CONTADOR, sessionFinished: false, ...extra,
+    equipos: ['6', '14', '23', '9', '31'].map(d => ({ dorsal: d, tours: n, lastLapAt: AHORA - lastLapAgo })),
+  });
+  const vivoSC = (ds = ['6', '14', '23', '9', '31']) => ({ colMap: SIN_CONTADOR, equipos: ds.map(d => ({ dorsal: d, tours: 1 })) });
+
+  test('LOGGER-2: sin contador oficial, reinicio a mitad de carrera → reanuda', () => {
+    expect(puede(snapSC(32, 60000), vivoSC())).toBe(true);
+  });
+
+  test('LOGGER-2: sin contador oficial, la última vuelta es de hace >3 min (otra tanda) → no reanuda', () => {
+    expect(puede(snapSC(32, 10 * 60000), vivoSC())).toBe(false);
+  });
+
+  test('LOGGER-2: sin contador oficial, sesión acabada con bandera → no reanuda', () => {
+    expect(puede(snapSC(32, 60000, { sessionFinished: true }), vivoSC())).toBe(false);
+  });
+
+  test('LOGGER-2: sin contador oficial exige más solape de inscritos (≥80 %)', () => {
+    expect(puede(snapSC(32, 60000), vivoSC(['6', '14', '23']))).toBe(false);
+  });
 
   test('reanuda: misma parrilla y las vueltas siguen avanzando', () => {
     expect(puede(

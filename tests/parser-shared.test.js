@@ -216,6 +216,46 @@ test('pase por meta reenviado con el mismo tiempo + llp reenviado → sigue sien
   strictEqual(ev.laps.length, 1);
 });
 
+console.log('\n▸ PARSER-10: la vuelta de salida de boxes va marcada\n');
+
+function lapEvents(AP) {
+  const ev = [];
+  let p;
+  p = AP.createParser({
+    onGrid: () => p.setGrid(BASE),
+    onLap: (d, n, team, ms, lapN, ts, category, isPitLap) => ev.push({ d, ms, isPitLap }),
+  });
+  return { p, ev };
+}
+
+test('la primera vuelta tras el so llega con isPitLap=true; la siguiente no', (AP) => {
+  const C = clock(); const { p, ev } = lapEvents(AP);
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c4|tn|1:05.000'); C.add(40000);
+  p.parse('r1c1|si|'); C.add(180000);
+  p.parse('r1c1|so|'); p.parse('r1c1|sr|'); C.add(30000);
+  p.parse('r1c4|tn|4:03.946'); C.add(65000);
+  p.parse('r1c4|tn|1:05.100');
+  deepStrictEqual(ev.map((e) => [e.ms, !!e.isPitLap]), [[65000, false], [243946, true], [65100, false]]);
+});
+
+test('feed donde la vuelta tras la salida es normal (Le Mans) → no se marca', (AP) => {
+  const C = clock(); const { p, ev } = lapEvents(AP);
+  p.parse('init|r|\ngrid|a');
+  for (let i = 0; i < 4; i++) { p.parse('r1c4|tn|1:07.' + (100 + i)); C.add(67000); }
+  p.parse('r1c1|si|'); C.add(120000); p.parse('r1c1|so|'); p.parse('r1c1|sr|'); C.add(30000);
+  p.parse('r1c4|tn|1:07.500');
+  strictEqual(ev[ev.length - 1].ms, 67500, 'la vuelta se registra');
+  strictEqual(ev[ev.length - 1].isPitLap, false);
+});
+
+test('sin parada, ninguna vuelta va marcada', (AP) => {
+  const C = clock(); const { p, ev } = lapEvents(AP);
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c4|tn|1:05.000'); C.add(65000); p.parse('r1c4|tn|1:05.100');
+  ok(ev.every((e) => !e.isPitLap));
+});
+
 console.log('\n▸ PARSER-9: gap del líder "Vuelta N"\n');
 
 test('"Vuelta N" en el gap es el contador del líder, no N vueltas de retraso', (AP) => {

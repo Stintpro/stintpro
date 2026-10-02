@@ -238,6 +238,16 @@
       const s = _recentLaps.slice().sort((a, b) => a - b);
       return s[s.length >> 1];
     }
+    // ¿Es la vuelta de salida de boxes (con la parada dentro)? Solo si llega tras
+    // un pit-out Y es claramente más lenta que el ritmo del kart (o de la pista):
+    // en algunos feeds (Le Mans) la vuelta que sigue al pit-out es una normal.
+    function _isPitLap(k, t) {
+      if (!k._outLapPending) return false;
+      k._outLapPending = false;
+      const own = k.lapHistory.slice(-5).sort((a, b) => a - b);   // aún sin la vuelta nueva
+      const ref = own.length >= 3 ? own[own.length >> 1] : _fieldMedian();
+      return ref ? t > ref * 1.4 : true;
+    }
     function _pushRecent(t) {
       _recentLaps.push(t);
       if (_recentLaps.length > 40) _recentLaps.shift();
@@ -278,6 +288,7 @@
       if (pitDur != null) { k.lastPitDuration = pitDur; _pushPitDuration(pitDur); }
       k.pit = false; k.pitState = 'out'; k.pitS = 0; k._pitTimerActive = false;
       k._pitInTime = null; k._otrTimer = null;
+      k._outLapPending = true;
       _emitPit(k, 'out', pitDur);
     }
     // El otr mide el tiempo TRANSCURRIDO en boxes → siempre es obligatoria +
@@ -401,6 +412,7 @@
         } else if (type === 'so') {
           k.pit = true; k.pitState = 'out'; k.pitS = 0; k._pitTimerActive = false; k._pitInTime = null;
           k._lapInvalid = true;
+          k._outLapPending = true;   // la próxima vuelta registrada lleva la parada dentro
           // Duración oficial de la parada = pico del crono otr durante el si→so.
           const pitDur = (_otrIsPit && k._otrPeak != null && k._otrPeak > 0) ? k._otrPeak : null;
           if (pitDur != null) { k.lastPitDuration = pitDur; _pushPitDuration(pitDur); }
@@ -524,12 +536,16 @@
             } else {
               // Vuelta nueva (sin |*| previo, o llp tardío)
               k._passCountAtLap = k._passCount || 0;
+              // Vuelta de salida de boxes (lleva la parada dentro): se registra
+              // —el contador de vueltas debe cuadrar con Apex— pero marcada, para
+              // que no entre en medias ni ritmos (PARSER-10).
+              const isPitLap = _isPitLap(k, t);
               k.lastLap = t;
               k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
               if (k.lapHistory.length > 1500) k.lapHistory.shift();
               if (!k.bestLap || t < k.bestLap) k.bestLap = t;
               if (callbacks.onLap && k.dorsal)
-                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now(), k.category || null);
+                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now(), k.category || null, isPitLap);
             }
           }
           k._lapInvalid = false;
@@ -672,12 +688,13 @@
               // Sin columna llp → |*| es la fuente de verdad de tiempos
               const lastH = k.lapHistory[k.lapHistory.length - 1];
               if (lastH === undefined || Math.abs(lastH - t) > 0.05) {
+                const isPitLap = _isPitLap(k, t);
                 k.lastLap = t;
                 k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
                 if (k.lapHistory.length > 1500) k.lapHistory.shift();
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
-                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, k.lapHistory.length, Date.now(), k.category || null);
+                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, k.lapHistory.length, Date.now(), k.category || null, isPitLap);
               }
               // Anti-dedup solo cuando |*| empujó: si llp llega después refina esa entrada
               // Con colMap.llp, |*| no empuja → llp siempre crea entrada nueva (no hay nada que refinar)

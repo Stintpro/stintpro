@@ -923,10 +923,17 @@ app.post('/api/circuit/:slug/raw-log', httpAuth, (req, res) => {
 // ── WebSocket server ──────────────────────────────────────────────────────
 
 const server = http.createServer(app);
-const wss    = new WebSocketServer({ server });
+// maxPayload: los mensajes legítimos (auth con JWT, list, subscribe, pilot) pesan
+// pocos KB. Sin tope, ws aceptaba frames de 100 MiB ANTES de autenticar y un
+// anónimo podía llevar el proceso (que graba todos los circuitos) a OOM.
+const wss    = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 
 wss.on('connection', (ws) => {
   ws._authed = !API_KEY; // si no hay key configurada, auto-autenticado
+  // Errores de protocolo del cliente (frame > maxPayload, UTF-8 inválido…): ws los
+  // emite como 'error' en este socket y, sin listener, tumbarían el proceso. ws
+  // ya cierra la conexión con el código adecuado (1009, 1007…).
+  ws.on('error', (e) => { console.warn('[WS] cliente:', e.code || e.message); });
 
   // Timeout: si no llega auth en 10s, cerrar
   const authTimeout = API_KEY
@@ -937,6 +944,8 @@ wss.on('connection', (ws) => {
         }
       }, 10000)
     : null;
+  // Si el cliente se va antes de autenticar, el timer no debe quedar vivo 10 s
+  if (authTimeout) ws.on('close', () => clearTimeout(authTimeout));
 
   // Los mensajes se procesan en cola por conexión (ver registro de 'message'
   // más abajo): si el cliente manda auth+subscribe/list seguidos sin esperar
