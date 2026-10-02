@@ -169,6 +169,7 @@ class CircuitMonitor {
       onComment:    this._onComment.bind(this),
       onFlag:       this._onFlag.bind(this),
       onMessage:    this._onMessage.bind(this),
+      onDriverChange: this._onDriverChange.bind(this),
     });
 
     // Último countdown recibido de Apex ({ms, mode, at}) — para reenviar a subscriptores
@@ -583,6 +584,13 @@ class CircuitMonitor {
     const ev = { dorsal, event: eventType, time: timestamp, standsCount };
     if (eventType === 'out' && pitDurationSec != null) ev.pitDur = pitDurationSec;
     this.pitEvents.push(ev);
+  }
+
+  // Relevo de piloto (tiempo oficial [h:mm] de Apex): se guarda con los minutos
+  // acumulados del piloto saliente y del entrante.
+  _onDriverChange(dorsal, fromDriver, toDriver, timestamp, fromMin, toMin) {
+    if (!this.recording || !this.sessionId) return;
+    db.insertDriverChange(this.sessionId, dorsal, fromDriver, toDriver, fromMin, toMin, timestamp);
   }
 
   _onState(state) {

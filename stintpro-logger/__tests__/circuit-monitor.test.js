@@ -344,6 +344,38 @@ describe('_onPit', () => {
   });
 });
 
+// ── _onDriverChange (relevo de piloto, tiempo oficial [h:mm]) ─────────────────
+
+describe('_onDriverChange', () => {
+  test('con sesión activa: el relevo se guarda en BD', () => {
+    const m = createMonitor();
+    m._onLap('7', 'DAVID', 'EQUIPO', 64000, 1, Date.now());
+    m._onDriverChange('7', 'DAVID', 'ALEX', 5000, 59, 0);
+    expect(db.getDriverChangesBySession(m.sessionId)).toEqual([
+      { dorsal: '7', from_driver: 'DAVID', to_driver: 'ALEX', from_min: 59, to_min: 0, timestamp: 5000 },
+    ]);
+  });
+
+  test('ignorado sin sesión activa o con recording=false', () => {
+    const m = createMonitor();
+    expect(() => m._onDriverChange('7', 'DAVID', 'ALEX', 5000, 59, 0)).not.toThrow();
+    m._onLap('7', 'DAVID', 'EQUIPO', 64000, 1, Date.now());
+    m.setRecording(false);
+    m._onDriverChange('7', 'DAVID', 'ALEX', 5000, 59, 0);
+    expect(db.getDriverChangesBySession(m.sessionId)).toEqual([]);
+  });
+
+  test('el parser del monitor dispara el relevo al cambiar el nombre del piloto', () => {
+    const m = createMonitor();
+    m.parser.parse(buildGrid(kartRow('r1', '7', 'DAVID [0:59]')));
+    m._onLap('7', 'DAVID', 'EQUIPO', 64000, 1, Date.now());
+    m.parser.parse('r1c2|drteam|ALEX [0:00]');
+    const rel = db.getDriverChangesBySession(m.sessionId);
+    expect(rel).toHaveLength(1);
+    expect(rel[0]).toMatchObject({ dorsal: '7', from_driver: 'DAVID', to_driver: 'ALEX', from_min: 59, to_min: 0 });
+  });
+});
+
 // ── _onState (broadcast + throttle) ──────────────────────────────────────────
 
 describe('_onState', () => {

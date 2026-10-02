@@ -128,7 +128,22 @@ async function init() {
       updated_at   INTEGER,
       FOREIGN KEY (session_id) REFERENCES sessions(id)
     );
+    -- Relevos de piloto: cambio del nombre "NOMBRE [h:mm]" de Apex en las
+    -- resistencias por equipos, con los minutos oficiales acumulados del piloto
+    -- que se baja y del que se sube (el que vuelve sigue su contador).
+    CREATE TABLE IF NOT EXISTS driver_changes (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id   INTEGER NOT NULL,
+      dorsal       TEXT,
+      from_driver  TEXT,
+      to_driver    TEXT,
+      from_min     INTEGER,
+      to_min       INTEGER,
+      timestamp    INTEGER,
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
     CREATE INDEX IF NOT EXISTS idx_laps_session ON laps(session_id);
+    CREATE INDEX IF NOT EXISTS idx_driver_changes_session ON driver_changes(session_id);
     CREATE INDEX IF NOT EXISTS idx_pit_session  ON pit_events(session_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_slug ON sessions(slug);
   `);
@@ -186,6 +201,7 @@ function deleteSession(sessionId) {
   for (const sql of [
     'DELETE FROM laps       WHERE session_id=?',
     'DELETE FROM pit_events WHERE session_id=?',
+    'DELETE FROM driver_changes WHERE session_id=?',
     'DELETE FROM snapshots  WHERE session_id=?',
     'DELETE FROM sessions   WHERE id=?',
   ]) { db.prepare(sql).run(sessionId); }
@@ -219,6 +235,20 @@ function insertPitEvent(sessionId, dorsal, eventType, standsCount, timestamp, du
 function getPitEventsBySession(sessionId) {
   return db.prepare(
     'SELECT dorsal,event_type,stands_count,timestamp,duration_ms FROM pit_events WHERE session_id=? ORDER BY timestamp ASC'
+  ).all(sessionId);
+}
+
+// ── Relevos de piloto ───────────────────────────────────────────────────
+
+function insertDriverChange(sessionId, dorsal, fromDriver, toDriver, fromMin, toMin, timestamp) {
+  db.prepare(
+    'INSERT INTO driver_changes (session_id,dorsal,from_driver,to_driver,from_min,to_min,timestamp) VALUES (?,?,?,?,?,?,?)'
+  ).run(sessionId, dorsal ?? null, fromDriver ?? null, toDriver ?? null, fromMin ?? null, toMin ?? null, timestamp || Date.now());
+}
+
+function getDriverChangesBySession(sessionId) {
+  return db.prepare(
+    'SELECT dorsal,from_driver,to_driver,from_min,to_min,timestamp FROM driver_changes WHERE session_id=? ORDER BY timestamp ASC'
   ).all(sessionId);
 }
 
@@ -342,6 +372,7 @@ module.exports = {
   getResumableSession,
   insertLap, getLapsBySession,
   insertPitEvent, getPitEventsBySession,
+  insertDriverChange, getDriverChangesBySession,
   saveSnapshot, getSnapshot,
   getAllSessions, getCircuitSessions, getBestLapsByCircuit, getPilotSessionsByCircuit,
   deletePilotFromCircuit, mergePilotsInCircuit, getTotalLapsByCircuit, searchPilotsGlobal,

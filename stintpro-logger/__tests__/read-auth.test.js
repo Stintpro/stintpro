@@ -132,6 +132,12 @@ describe('readAuth — enforcement activado', () => {
     expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).toBe(401);
   });
 
+  test('relevos de piloto de una sesión: exige auth y responde con API key', async () => {
+    expect((await get('/api/drivers/1')).status).toBe(401);
+    expect((await get('/api/drivers/1', { 'X-API-Key': VALID_KEY })).status).toBe(200);
+    expect((await get('/api/drivers/abc', { 'X-API-Key': VALID_KEY })).status).toBe(400);
+  });
+
   test('/api/status permanece abierto (no exige auth)', async () => {
     expect((await get('/api/status')).status).toBe(200);
   });

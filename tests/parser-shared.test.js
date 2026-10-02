@@ -388,6 +388,16 @@ test('relevo: onDriverChange(dorsal, saliente, entrante) solo cuando cambia el n
   deepStrictEqual(changes, [['1', 'DAVID', 'ALEX', C.now()]]);
 });
 
+test('relevo: entrega los minutos oficiales del saliente y del entrante', (AP) => {
+  clock(); const changes = [];
+  const { p } = makeParser(AP, { a: BASE }, { onDriverChange: (d, f, t, ts, fMin, tMin) => changes.push([f, fMin, t, tMin]) });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c3|drteam|DAVID [0:59]');
+  p.parse('r1c3|drteam|ALEX [0:00]');
+  p.parse('r1c3|drteam|DAVID [1:00]');   // vuelve David: sigue su contador
+  deepStrictEqual(changes, [['DAVID', 59, 'ALEX', 0], ['ALEX', 0, 'DAVID', 60]]);
+});
+
 test('relevo en un replay: usa el reloj inyectado (now), no la hora del sistema', (AP) => {
   clock(); const changes = [];
   const { p } = makeParser(AP, { a: BASE }, { now: () => 42, onDriverChange: (d, f, t, ts) => changes.push(ts) });

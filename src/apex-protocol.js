@@ -342,12 +342,12 @@
       const m = /^(.*?)\s*\[(\d+):(\d{2})\]$/.exec((raw || '').trim());
       if (!m || !m[1].trim()) return;
       const name = m[1].trim();
-      const prev = k.driver;
+      const prev = k.driver, prevMin = k.driverMin;
       k.driver = name;
       k.driverMin = parseInt(m[2]) * 60 + parseInt(m[3]);
       (k._drivers || (k._drivers = new Map())).set(name, k.driverMin);
       if (prev && prev !== name && callbacks.onDriverChange && k.dorsal)
-        callbacks.onDriverChange(k.dorsal, prev, name, _now());
+        callbacks.onDriverChange(k.dorsal, prev, name, _now(), prevMin, k.driverMin);
     }
 
     // Señal de nueva sesión: cambio del título de sesión de Apex (title1/title2),

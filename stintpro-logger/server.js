@@ -386,6 +386,14 @@ app.get('/api/pits/:sessionId', readAuth, (req, res) => {
   res.json(db.getPitEventsBySession(id));
 });
 
+// Relevos de piloto de una sesión (tiempo oficial [h:mm] de Apex en las
+// resistencias por equipos): quién se bajó, quién se subió y sus minutos.
+app.get('/api/drivers/:sessionId', readAuth, (req, res) => {
+  const id = parseInt(req.params.sessionId);
+  if (isNaN(id) || String(id) !== req.params.sessionId) return res.status(400).json({ error: 'id inválido' });
+  res.json(db.getDriverChangesBySession(id));
+});
+
 // Snapshot (clasificación oficial de Apex) de una sesión — usado por el informe
 // de carrera para la posición final autoritativa. Solo lectura, aditivo.
 app.get('/api/snapshot/:sessionId', readAuth, (req, res) => {

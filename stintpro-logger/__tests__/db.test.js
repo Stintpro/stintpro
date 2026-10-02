@@ -107,6 +107,28 @@ describe('pit events', () => {
   });
 });
 
+// ── insertDriverChange / getDriverChangesBySession ────────────────────────────
+
+describe('relevos de piloto', () => {
+  test('inserta y recupera los relevos con los minutos oficiales', () => {
+    const id = db.createSession('test-circuit', 'Test');
+    db.insertLap(id, '7', 'DAVID', 'EQUIPO', 64000, 1, 1000);
+    db.insertDriverChange(id, '7', 'DAVID', 'ALEX', 59, 0, 5000);
+
+    expect(db.getDriverChangesBySession(id)).toEqual([
+      { dorsal: '7', from_driver: 'DAVID', to_driver: 'ALEX', from_min: 59, to_min: 0, timestamp: 5000 },
+    ]);
+  });
+
+  test('deleteSession borra también sus relevos', () => {
+    const id = db.createSession('test-circuit', 'Test');
+    db.insertLap(id, '7', 'DAVID', 'EQUIPO', 64000, 1, 1000);
+    db.insertDriverChange(id, '7', 'DAVID', 'ALEX', 59, 0, 5000);
+    db.deleteSession(id);
+    expect(db.getDriverChangesBySession(id)).toEqual([]);
+  });
+});
+
 // ── getAllSessions ────────────────────────────────────────────────────────────
 
 describe('getAllSessions', () => {
