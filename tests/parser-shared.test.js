@@ -336,5 +336,74 @@ test('dorsal de la parrilla con HTML → solo el dorsal real', (AP) => {
   ok(p.getState().equipos.some((e) => e.dorsal === '7'));
 });
 
+console.log('\n▸ PILOTO-OFICIAL: tiempo acumulado [h:mm] de Apex\n');
+
+// Apex manda en las resistencias por equipos "NOMBRE [h:mm]": el tiempo en pista
+// ACUMULADO de ese piloto en la sesión (sigue entre stints, no cuenta el box).
+const piloto = (p, d) => p.getState().equipos.find((e) => e.dorsal === d);
+
+test('celda drteam con [h:mm] → piloto actual y sus minutos oficiales', (AP) => {
+  clock(); const { p } = makeParser(AP, { a: BASE });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c3|drteam|ALEX LOPEZ [1:05]');
+  strictEqual(piloto(p, '1').driver, 'ALEX LOPEZ');
+  strictEqual(piloto(p, '1').driverMin, 65);
+});
+
+test('celda dr sin tipo pero con [h:mm] también cuenta', (AP) => {
+  clock(); const { p } = makeParser(AP, { a: BASE });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r2c3||JUAN PEREZ [0:07]');
+  strictEqual(piloto(p, '2').driver, 'JUAN PEREZ');
+  strictEqual(piloto(p, '2').driverMin, 7);
+});
+
+test('nombre sin [h:mm] (equipo) no inventa piloto', (AP) => {
+  clock(); const { p } = makeParser(AP, { a: BASE });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c3|dr|LOS RAPIDOS');
+  strictEqual(piloto(p, '1').driver, null);
+  deepStrictEqual(piloto(p, '1').drivers, []);
+});
+
+test('guarda el último tiempo de CADA piloto del equipo, aunque ya no conduzca', (AP) => {
+  clock(); const { p } = makeParser(AP, { a: BASE });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c3|drteam|DAVID [0:59]');
+  p.parse('r1c3|drteam|DAVID [1:00]');
+  p.parse('r1c3|drteam|ALEX [0:00]');
+  p.parse('r1c3|drteam|ALEX [0:10]');
+  deepStrictEqual(piloto(p, '1').drivers, [{ name: 'DAVID', min: 60 }, { name: 'ALEX', min: 10 }]);
+  strictEqual(piloto(p, '1').driver, 'ALEX');
+});
+
+test('relevo: onDriverChange(dorsal, saliente, entrante) solo cuando cambia el nombre', (AP) => {
+  const C = clock(); const changes = [];
+  const { p } = makeParser(AP, { a: BASE }, { onDriverChange: (d, from, to, ts) => changes.push([d, from, to, ts]) });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c3|drteam|DAVID [0:59]');   // primer piloto visto: no es relevo
+  p.parse('r1c3|drteam|DAVID [1:00]');   // tic de minuto: no es relevo
+  C.add(MIN);
+  p.parse('r1c3|drteam|ALEX [0:00]');
+  deepStrictEqual(changes, [['1', 'DAVID', 'ALEX', C.now()]]);
+});
+
+test('relevo en un replay: usa el reloj inyectado (now), no la hora del sistema', (AP) => {
+  clock(); const changes = [];
+  const { p } = makeParser(AP, { a: BASE }, { now: () => 42, onDriverChange: (d, f, t, ts) => changes.push(ts) });
+  p.parse('init|r|\ngrid|a');
+  p.parse('r1c3|drteam|DAVID [0:59]');
+  p.parse('r1c3|drteam|ALEX [0:00]');
+  deepStrictEqual(changes, [42]);
+});
+
+test('el piloto de la parrilla (nombre con [h:mm]) arranca el contador', (AP) => {
+  clock();
+  const { p } = makeParser(AP, { a: grid([['r1', '1', { name: 'MARTA RUIZ [2:03]' }], ['r2', '2']]) });
+  p.parse('init|r|\ngrid|a');
+  strictEqual(piloto(p, '1').driver, 'MARTA RUIZ');
+  strictEqual(piloto(p, '1').driverMin, 123);
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

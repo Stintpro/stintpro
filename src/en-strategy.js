@@ -1259,8 +1259,10 @@ window.showEnduranceDashboard=function(cfg){
             }
           },
           onSave:_enSaveRaceState,
-          onPitOut:()=>setTimeout(()=>_enShowPilotSelect(true),500),
+          // Si Apex ya dice quién va (tiempo oficial [h:mm]), no se pregunta.
+          onPitOut:()=>setTimeout(()=>{if(!_enPilotFromApex())_enShowPilotSelect(true);},500),
         });
+        _enPilotFromApex(true);
 
         // Trackear mejor vuelta del stint y posición
         if(myK&&myK.lastLap&&!myK.pit){
@@ -1414,3 +1416,22 @@ window._enGoBack=function(){
   document.getElementById('screen-setup').classList.add('active');
   if(typeof renderSetup==='function')renderSetup();
 };
+
+// ── Piloto en pista según Apex ([h:mm] oficial) ──────────────────────────
+// Apex cambia el nombre del piloto DURANTE la parada (153 de 158 relevos de la
+// 7H de Los Santos), así que al salir del box ya sabe quién va. Si ese nombre
+// encaja con un piloto del setup, se elige solo. Va DESPUÉS de cerrar el stint
+// en el pit in, para que el stint saliente quede a nombre del piloto anterior.
+// onlyIfChanged: en cada refresco solo actúa si Apex CAMBIA de piloto, para
+// no pisar una corrección manual. Devuelve true si Apex identifica al piloto.
+function _enPilotFromApex(onlyIfChanged){
+  const cfg=window.AppState?.config;
+  const myK=(EnSession.data.equipos||[]).find(e=>EnBoxModel.isMine(e,cfg?.myDorsal));
+  const drv=myK?.driver||null;
+  if(onlyIfChanged&&drv===EnSession._apexDriver)return false;
+  EnSession._apexDriver=drv;
+  const idx=window.EnDriverTime?window.EnDriverTime.matchPilot(drv,cfg?.pilotos||[]):-1;
+  if(idx<0)return false;
+  EnSession.currentPilot=idx;
+  return true;
+}

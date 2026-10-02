@@ -21,7 +21,7 @@ class ApexParser {
   // now: reloj de los pases (opcional). En vivo es Date.now; un replay offline
   // (ingest-raw-log) pasa la hora del frame para que los intervalos entre vueltas
   // sean los reales y no se tomen por reenvíos de la misma vuelta.
-  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag, onMessage, now } = {}) {
+  constructor({ onLap, onPit, onState, onSessionEnd, onNewSession, onCountdown, onTitle, onComment, onFlag, onMessage, onDriverChange, now } = {}) {
     this._proto = createParser({
       now,
       onLap,
@@ -33,6 +33,7 @@ class ApexParser {
       onComment,
       onFlag,
       onMessage,
+      onDriverChange,
       onGrid:    (html)  => this._parseGrid(html),
       onChange:  (state) => { if (onState) onState(state); },
     });

@@ -539,13 +539,18 @@ function _enRenderTeam(myKart, trackAvg){
   html+=`<div class="en-team-card">
     <div class="en-team-title">Resumen por piloto${EnBox.pilotMinTime?' · Mínimo: '+EnBox.pilotMinTime+' min':''}</div>`;
   const minMs=EnBox.pilotMinTime*60*1000;
+  // Tiempo OFICIAL de Apex por piloto ([h:mm], solo resistencias por equipos):
+  // no depende de haber marcado bien el piloto ni se pierde con un apagón.
+  const _off=window.EnDriverTime?window.EnDriverTime.officialByPilot(myKart,pilotos):null;
   pilotos.forEach((p,idx)=>{
     const stints=EnSession.stintHistory.filter(s=>s.pilotIdx===idx);
     let totalMs=stints.reduce((a,s)=>a+s.durationMs,0);
+    const offMin=_off?_off.minutes[idx]:null;
     const totalPitMs=stints.reduce((a,s)=>a+(s.pitStopMs||0),0);
     // Añadir stint actual si es el piloto en pista
     const isCurrent=idx===EnSession.currentPilot;
-    if(isCurrent){
+    if(offMin!=null) totalMs=offMin*60*1000;
+    else if(isCurrent){
       const currentStintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
       totalMs+=currentStintMs;
     }
@@ -581,7 +586,7 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14.5px">${_esc(p.name.charAt(0))}</div>
       <div style="flex:1;min-width:120px">
         <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${_esc(p.name)}${isCurrent?' 🟢':''}</div>
-        <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${offMin!=null?' (oficial Apex)':''}${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
         ${_scoreRow}
       </div>
       <div style="text-align:right;min-width:90px">
@@ -596,6 +601,10 @@ function _enRenderTeam(myKart, trackAvg){
       </div>`:''}
     </div>`;
   });
+  // Pilotos que Apex ve en mi kart y no están en el setup (nombre distinto)
+  if(_off&&_off.unmatched.length){
+    html+=`<div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif;margin-top:6px">Apex ve también: ${_off.unmatched.map(d=>_esc(d.name)+' '+Math.floor(d.min/60)+':'+String(d.min%60).padStart(2,'0')).join(' · ')}</div>`;
+  }
   html+=`</div>`;
 
   return html;

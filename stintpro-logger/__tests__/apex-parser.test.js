@@ -522,3 +522,14 @@ describe('catColor (categoría por color del dorsal)', () => {
     expect(notcToHex('4227327')).toBe('#FF8040');
   });
 });
+
+describe('relevo de piloto (tiempo oficial [h:mm])', () => {
+  test('reenvía onDriverChange del protocolo con el dorsal del grid', () => {
+    const changes = [];
+    const p = new ApexParser({ onDriverChange: (d, from, to) => changes.push([d, from, to]) });
+    p.parse(buildGrid({ colDefs: STANDARD_COLS, rows: kartRow('r1', '7', 'DAVID [0:59]') }));
+    p.parse('r1c2|drteam|ALEX [0:00]');
+    expect(changes).toEqual([['7', 'DAVID', 'ALEX']]);
+    expect(p.getState().equipos[0].drivers).toEqual([{ name: 'DAVID', min: 59 }, { name: 'ALEX', min: 0 }]);
+  });
+});

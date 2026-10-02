@@ -333,6 +333,23 @@
       return _karts[rowId];
     }
 
+    // Tiempo oficial del piloto. En las resistencias por equipos Apex manda la
+    // celda del nombre como "NOMBRE [h:mm]": son los minutos ACUMULADOS en pista
+    // de ese piloto en la sesión — sigue entre stints y no cuenta el box
+    // (verificado en la 7H de Los Santos y la 24H de KIP). Un cambio de nombre
+    // es un relevo.
+    function _setDriver(k, raw) {
+      const m = /^(.*?)\s*\[(\d+):(\d{2})\]$/.exec((raw || '').trim());
+      if (!m || !m[1].trim()) return;
+      const name = m[1].trim();
+      const prev = k.driver;
+      k.driver = name;
+      k.driverMin = parseInt(m[2]) * 60 + parseInt(m[3]);
+      (k._drivers || (k._drivers = new Map())).set(name, k.driverMin);
+      if (prev && prev !== name && callbacks.onDriverChange && k.dorsal)
+        callbacks.onDriverChange(k.dorsal, prev, name, _now());
+    }
+
     // Señal de nueva sesión: cambio del título de sesión de Apex (title1/title2),
     // que suele llegar ANTES del grid. PERO el título PARPADEA: algunos feeds lo
     // cambian y lo revierten en segundos durante una carrera en marcha (visto en
@@ -461,6 +478,7 @@
         if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !/^\d{1,2}:\d{2}/.test(n) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) {
+            _setDriver(k, n);
             // Nombre con brackets = piloto confirmado (carreras por equipos)
             k.name = pm[1].trim();
             k._pilotName = pm[1].trim();
@@ -484,6 +502,7 @@
         if (n && n.length > 1 && !/^\d+(\.\d+)?$/.test(n) && !/^\d{1,2}:\d{2}/.test(n) && !SKIP_NAMES.has(n)) {
           const pm = n.match(/^(.*?)\s*\[\d+:\d+\]$/);
           if (pm) {
+            _setDriver(k, n);
             k.name = pm[1].trim();
             k._pilotName = pm[1].trim();
           } else {
@@ -883,6 +902,10 @@
                                           // sin reiniciarla — ver _enDeriveRow en en-grid.js
             posChange: k._posChange && (now - k._posChange.time) < 5000 ? k._posChange : null,
             sessionFinished: _sessionFinished,
+            // Piloto en pista y tiempo oficial [h:mm] de cada piloto del equipo
+            // (minutos). null / [] fuera de las resistencias por equipos.
+            driver: k.driver || null, driverMin: k.driverMin ?? null,
+            drivers: [...(k._drivers || [])].map(([name, min]) => ({ name, min })),
           };
         })
         .sort((a, b) => a.pos === 99 && b.pos === 99
@@ -968,6 +991,7 @@
           if (kg.name) {
             const pm = kg.name.match(/^(.*?)\s*\[\d+:\d+\]$/);
             if (pm) {
+              _setDriver(k, kg.name);
               if (!k.name) k.name = pm[1].trim();
               if (!k._pilotName) k._pilotName = pm[1].trim();
             }
