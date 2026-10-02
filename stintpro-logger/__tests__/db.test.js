@@ -44,13 +44,17 @@ describe('endSession', () => {
 describe('insertLap / getLapsBySession', () => {
   test('inserta y recupera vueltas correctamente', () => {
     const id = db.createSession('test-circuit', 'Test');
-    db.insertLap(id, '7',  'Javier', 64500, 1, 1000);
-    db.insertLap(id, '7',  'Javier', 63200, 2, 2000);
+    db.insertLap(id, '7',  'Javier', null, 64500, 1, 1000);
+    db.insertLap(id, '7',  'Javier', null, 63200, 2, 2000);
     db.insertLap(id, '12', 'Carlos', null, 65000, 1, 1500);
 
     const laps = db.getLapsBySession(id);
     expect(laps).toHaveLength(3);
     expect(laps.map(l => l.dorsal)).toEqual(expect.arrayContaining(['7', '7', '12']));
+    // Cada campo en su columna (con 6 argumentos el tiempo acababa en team_name)
+    const j1 = laps.find(l => l.dorsal === '7' && l.lap_number === 1);
+    expect(j1.lap_time_ms).toBe(64500);
+    expect(j1.team_name).toBeNull();
   });
 
   test('laps ordenados por timestamp ASC', () => {
@@ -138,6 +142,7 @@ describe('getCircuitSessions', () => {
     db.insertLap(id2, '5', 'Test', null, 70000, 1, Date.now());
 
     const campillos = db.getCircuitSessions('campillos');
+    expect(campillos.length).toBeGreaterThan(0);   // .every() sobre [] pasaría siempre
     expect(campillos.every(s => s.slug === 'campillos')).toBe(true);
   });
 });

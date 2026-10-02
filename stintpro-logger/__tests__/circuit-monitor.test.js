@@ -914,11 +914,15 @@ describe('_onLap tras un reinicio', () => {
     filaLc('r1', '6', 'JAVIER', v) + filaLc('r2', '14', 'ANA', v) + filaLc('r3', '23', 'LUIS', v));
 
   // Deja una sesión grabando y "muere" sin cerrarla, como un systemctl restart.
+  // Las vueltas llevan una hora fija del pasado (T) para poder exigir que la
+  // sesión colgada se selle con SU última actividad y no con "ahora".
+  const T = Date.now() - 20 * 60000;
   function sesionEnCurso() {
     const m1 = createMonitor();
     m1.parser.parse(PARRILLA(40));
-    m1._onLap('6',  'JAVIER', null, 64000, 1, Date.now());
-    m1._onLap('14', 'ANA',    null, 64500, 1, Date.now());
+    m1._onLap('6',  'JAVIER', null, 64000, 1, T - 1000);
+    m1._onLap('14', 'ANA',    null, 64500, 1, T);
+    m1._onPit('6', 'in', 1, T + 1000);   // una parada en curso que debe sobrevivir al reinicio
     m1._saveSnapshot();   // el snapshot periódico es lo que deja el rastro
     return m1.sessionId;
   }
@@ -933,6 +937,8 @@ describe('_onLap tras un reinicio', () => {
     expect(m2.sessionId).toBe(sid);
     expect(db.getLapsBySession(sid)).toHaveLength(3);   // 2 de antes + 1 de ahora
     expect(db.getAllSessions().filter(x => x.slug === SLUG)).toHaveLength(1);
+    // Las paradas de antes del reinicio vuelven a memoria (cola del box al conectar tarde)
+    expect(m2.pitEvents).toEqual([expect.objectContaining({ dorsal: '6', event: 'in', time: T + 1000 })]);
   });
 
   test('restaura el contador de vueltas ya grabadas', () => {
@@ -957,8 +963,7 @@ describe('_onLap tras un reinicio', () => {
     expect(vieja.is_active).toBe(0);
     // ...y se sella con su última actividad real, no con la hora de ahora: hay
     // sesiones colgadas desde hace semanas y fecharlas hoy sería falsear el dato.
-    expect(vieja.ended_at).toBeLessThanOrEqual(Date.now());
-    expect(vieja.ended_at).toBeGreaterThan(0);
+    expect(vieja.ended_at).toBe(T);
   });
 
   test('solo se intenta reanudar una vez por arranque', () => {

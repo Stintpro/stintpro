@@ -61,7 +61,7 @@
       width: '42px', widthMid: '38px', widthNarrow: '34px',
       source: 'apex', fixed: true,
       requires: cm => !!cm.no,
-      cell: (e, d) => `<div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>`,
+      cell: (e, d) => `<div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality(${_esc(JSON.stringify(String(e.dorsal)))},event)" title="${d.tooltip}">${_esc(e.dorsal)}${d.qualityBadge}</div></div>`,
     },
     {
       id: 'driver', label: 'Piloto', align: 'left',
@@ -163,7 +163,7 @@
       width: '68px', widthMid: '50px', widthNarrow: '48px',
       source: 'stintpro',
       requires: null,
-      cell: (e, d) => `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)" title="Ver vueltas de la sesión">${(() => { const r = _enPilotRatings[e.name]; const s = typeof r === 'object' ? r?.score : r; return s != null ? `<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>` : '<span style="color:#2d2f38">—</span>'; })()}</div>`,
+      cell: (e, d) => `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory(${_esc(JSON.stringify(String(e.dorsal)))},event)" title="Ver vueltas de la sesión">${(() => { const r = _enPilotRatings[e.name]; const s = typeof r === 'object' ? r?.score : r; return s != null ? `<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>` : '<span style="color:#2d2f38">—</span>'; })()}</div>`,
     },
     {
       id: 'pit', label: 'Pit', align: 'right',

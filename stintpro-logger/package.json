@@ -13,6 +13,9 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/__tests__/helpers/"
+    ],
+    "setupFiles": [
+      "<rootDir>/__tests__/helpers/test-db-env.js"
     ]
   },
   "devDependencies": {

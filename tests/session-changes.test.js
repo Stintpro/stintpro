@@ -6,18 +6,21 @@
 'use strict';
 
 const assert = require('assert/strict');
-const http   = require('http');
-const { WebSocketServer, WebSocket } = require('../stintpro-logger/node_modules/ws');
 const { createParser } = require('../src/apex-protocol');
 
 let passed = 0, failed = 0;
+const pending = [];   // tests asíncronos: el resumen espera a TODOS (antes, 500 ms fijos)
 
 function test(name, fn) {
   try {
     const r = fn();
     if (r && typeof r.then === 'function') {
-      return r.then(() => { console.log(`  ✓ ${name}`); passed++; })
-               .catch(e => { console.error(`  ✗ ${name}\n    ${e.message}`); failed++; });
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout 10 s')), 10000).unref());
+      const p = Promise.race([r, timeout])
+        .then(() => { console.log(`  ✓ ${name}`); passed++; })
+        .catch(e => { console.error(`  ✗ ${name}\n    ${e.message}`); failed++; });
+      pending.push(p);
+      return p;
     }
     console.log(`  ✓ ${name}`); passed++;
   } catch(e) {
@@ -122,197 +125,10 @@ group('Discriminación piloto/equipo — apex-protocol.js', () => {
   });
 });
 
-// ── 2. httpAuth middleware ────────────────────────────────────────────────────
-
-group('httpAuth middleware', () => {
-  const API_KEY = 'test-key-12345';
-
-  function httpAuth(apiKey) {
-    return (req, res, next) => {
-      if (!apiKey) return next();
-      const key = req.headers['x-api-key'] || new URL(req.url, 'http://x').searchParams.get('apikey');
-      if (key !== apiKey) return res.writeHead(401).end(JSON.stringify({ error: 'No autorizado' }));
-      next();
-    };
-  }
-
-  function makeServer(apiKey) {
-    const app = http.createServer((req, res) => {
-      const mw = httpAuth(apiKey);
-      mw(req, res, () => res.writeHead(200).end('ok'));
-    });
-    return new Promise(resolve => app.listen(0, () => resolve(app)));
-  }
-
-  function request(server, opts = {}) {
-    const port = server.address().port;
-    return new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port, path: '/', ...opts }, res => {
-        resolve(res.statusCode);
-      });
-      req.on('error', reject);
-      req.end();
-    });
-  }
-
-  test('sin API_KEY → siempre pasa', async () => {
-    const srv = await makeServer('');
-    try {
-      assert.equal(await request(srv), 200);
-    } finally { srv.close(); }
-  });
-
-  test('con API_KEY y cabecera correcta → 200', async () => {
-    const srv = await makeServer(API_KEY);
-    try {
-      assert.equal(await request(srv, { headers: { 'x-api-key': API_KEY } }), 200);
-    } finally { srv.close(); }
-  });
-
-  test('con API_KEY y sin cabecera → 401', async () => {
-    const srv = await makeServer(API_KEY);
-    try {
-      assert.equal(await request(srv), 401);
-    } finally { srv.close(); }
-  });
-
-  test('con API_KEY y cabecera incorrecta → 401', async () => {
-    const srv = await makeServer(API_KEY);
-    try {
-      assert.equal(await request(srv, { headers: { 'x-api-key': 'wrong-key' } }), 401);
-    } finally { srv.close(); }
-  });
-});
-
-// ── 3. WebSocket auth — primer mensaje ───────────────────────────────────────
-
-group('WebSocket auth — primer mensaje', () => {
-  const API_KEY = 'ws-test-key';
-
-  function makeWsServer(apiKey) {
-    const httpSrv = http.createServer();
-    const wss = new WebSocketServer({ server: httpSrv });
-    wss.on('connection', (ws) => {
-      ws._authed = !apiKey;
-      const timeout = apiKey
-        ? setTimeout(() => { if (!ws._authed) ws.close(); }, 2000)
-        : null;
-      ws.on('message', raw => {
-        const msg = JSON.parse(raw.toString());
-        if (msg.type === 'auth') {
-          if (!apiKey || msg.apikey === apiKey) {
-            ws._authed = true;
-            if (timeout) clearTimeout(timeout);
-            ws.send(JSON.stringify({ type: 'auth_ok' }));
-          } else {
-            ws.send(JSON.stringify({ type: 'error', msg: 'auth_failed', fatal: true }));
-            ws.close();
-          }
-          return;
-        }
-        if (!ws._authed) { ws.close(); return; }
-        if (msg.type === 'ping') ws.send(JSON.stringify({ type: 'pong' }));
-      });
-    });
-    return new Promise(resolve => httpSrv.listen(0, () => resolve({ httpSrv, wss })));
-  }
-
-  function wsConnect(port) {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}`);
-      ws.on('open', () => resolve(ws));
-      ws.on('error', reject);
-    });
-  }
-
-  function wsMsg(ws) {
-    return new Promise(resolve => ws.once('message', d => resolve(JSON.parse(d.toString()))));
-  }
-
-  test('auth correcto → recibe auth_ok', async () => {
-    const { httpSrv } = await makeWsServer(API_KEY);
-    const port = httpSrv.address().port;
-    try {
-      const ws = await wsConnect(port);
-      ws.send(JSON.stringify({ type: 'auth', apikey: API_KEY }));
-      const msg = await wsMsg(ws);
-      assert.equal(msg.type, 'auth_ok');
-      ws.close();
-    } finally { httpSrv.close(); }
-  });
-
-  test('auth incorrecto → recibe error auth_failed', async () => {
-    const { httpSrv } = await makeWsServer(API_KEY);
-    const port = httpSrv.address().port;
-    try {
-      const ws = await wsConnect(port);
-      ws.send(JSON.stringify({ type: 'auth', apikey: 'wrong' }));
-      const msg = await wsMsg(ws);
-      assert.equal(msg.type, 'error');
-      assert.equal(msg.msg, 'auth_failed');
-      ws.close();
-    } finally { httpSrv.close(); }
-  });
-
-  test('mensaje antes de auth → conexión cerrada', async () => {
-    const { httpSrv } = await makeWsServer(API_KEY);
-    const port = httpSrv.address().port;
-    try {
-      const ws = await wsConnect(port);
-      const closed = new Promise(resolve => ws.on('close', resolve));
-      ws.send(JSON.stringify({ type: 'ping' })); // sin auth previo
-      await closed;
-      assert.equal(ws.readyState, WebSocket.CLOSED);
-    } finally { httpSrv.close(); }
-  });
-
-  test('sin API_KEY → mensajes funcionan sin auth', async () => {
-    const { httpSrv } = await makeWsServer('');
-    const port = httpSrv.address().port;
-    try {
-      const ws = await wsConnect(port);
-      ws.send(JSON.stringify({ type: 'ping' }));
-      const msg = await wsMsg(ws);
-      assert.equal(msg.type, 'pong');
-      ws.close();
-    } finally { httpSrv.close(); }
-  });
-});
-
-// ── 4. CORS — lista blanca de orígenes ───────────────────────────────────────
-
-group('CORS — lista blanca de orígenes', () => {
-  const ALLOWED = new Set([
-    'https://stintpro.vercel.app',
-    'http://localhost:3000',
-    'null',
-  ]);
-
-  function corsHeader(origin) {
-    if (ALLOWED.has(origin)) return origin;
-    return null;
-  }
-
-  test('origen permitido → devuelve el mismo origen', () => {
-    assert.equal(corsHeader('https://stintpro.vercel.app'), 'https://stintpro.vercel.app');
-  });
-
-  test('localhost permitido', () => {
-    assert.equal(corsHeader('http://localhost:3000'), 'http://localhost:3000');
-  });
-
-  test('origen desconocido → null (no CORS)', () => {
-    assert.equal(corsHeader('https://evil.com'), null);
-  });
-
-  test('origen vacío → null', () => {
-    assert.equal(corsHeader(''), null);
-  });
-
-  test('Electron (null) → permitido', () => {
-    assert.equal(corsHeader('null'), 'null');
-  });
-});
+// (Las antiguas secciones 2-4 —httpAuth, auth del WebSocket y CORS— probaban
+// COPIAS de la lógica escritas dentro de este fichero, que ya divergían del
+// servidor real. Ese terreno lo cubre stintpro-logger/__tests__/server-security
+// y read-auth, que arrancan el server.js de verdad.)
 
 // ── 5. SQL — queries parametrizadas (lógica de _query) ───────────────────────
 
@@ -330,13 +146,23 @@ group('SQL — queries parametrizadas', () => {
     );
   });
 
-  test('todas las funciones de slug usan parámetros ?', () => {
-    const fns = ['getCircuitSessions', 'getBestLapsByCircuit', 'getPilotSessionsByCircuit',
-                 'getTotalLapsByCircuit', 'deletePilotFromCircuit', 'mergePilotsInCircuit',
-                 'searchPilotsGlobal'];
-    for (const fn of fns) {
-      assert.ok(dbSrc.includes(fn), `función ${fn} debe existir`);
-    }
+  test('un slug malicioso no inyecta SQL: las consultas por slug no devuelven nada', async () => {
+    // BD temporal real, no la de desarrollo
+    const os = require('os'), path = require('path');
+    process.env.STINTPRO_DB_PATH = path.join(os.tmpdir(), `session-changes-${process.pid}.db`);
+    const db = require('../stintpro-logger/db');
+    await db.init();
+    const id = db.createSession('campillos', 'Campillos');
+    db.insertLap(id, '7', 'PEPE', null, 64000, 1, Date.now());
+    const MALO = "x' OR '1'='1";
+    assert.equal(db.getCircuitSessions(MALO).length, 0);
+    assert.equal(db.getBestLapsByCircuit(MALO).length, 0);
+    assert.equal(db.getPilotSessionsByCircuit(MALO).length, 0);
+    assert.equal(db.getTotalLapsByCircuit(MALO), 0);
+    assert.equal(db.searchPilotsGlobal(MALO).length, 0);
+    db.deletePilotFromCircuit(MALO, MALO);
+    assert.equal(db.getLapsBySession(id).length, 1, 'el borrado con slug malicioso no tocó nada');
+    require('fs').rmSync(process.env.STINTPRO_DB_PATH, { force: true });
   });
 
   test('deleteSession usa prepare con ? en vez de interpolación', () => {
@@ -347,10 +173,9 @@ group('SQL — queries parametrizadas', () => {
 // ── Resultado ─────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Esperar promises pendientes
-  await new Promise(r => setTimeout(r, 500));
+  await Promise.allSettled(pending);
   console.log(`\n${passed + failed} tests — ${passed} passed, ${failed} failed\n`);
-  if (failed > 0) process.exit(1);
+  process.exit(failed > 0 ? 1 : 0);
 }
 
 main();

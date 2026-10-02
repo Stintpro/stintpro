@@ -727,5 +727,25 @@ test('no muta el array original', () => {
   strictEqual(q.map(k => k.id).join(''), 'abcd');
 });
 
+// ── Huecos de cobertura (TESTS-13) ─────────────────────────────────────────
+console.log('\n▸ Huecos cubiertos\n');
+
+test('isMine recorta también el dorsal que manda Apex', () => {
+  ok(M.isMine({ dorsal: ' 7 ' }, '7'));
+});
+
+test('queueDrift: medio kart exacto de diferencia YA es desincronización', () => {
+  strictEqual(M.queueDrift(M.makeReserve(10).concat([{ quality: 'good', w: 0.5 }]), 10).drift, true);
+});
+
+test('resolvePending: un desconocido pesa 0,4 frente a uno que coincide con el ritmo', () => {
+  // El rival se llevó uno de {A desconocido, B bueno} (0,5 a cada uno). Su ritmo
+  // dice "bueno" → lo más probable es que se llevara B.
+  const q = [{ id: 'A', quality: 'unknown', w: 0.5 }, { id: 'B', quality: 'good', w: 0.5 }];
+  const r = M.resolvePending(q, { '9': { cut: { A: 0.5, B: 0.5 } } }, '9', 'good');
+  ok(Math.abs(M.weight(r[0]) - 0.7143) < 1e-3, 'A ' + M.weight(r[0]));
+  ok(Math.abs(M.weight(r[1]) - 0.2857) < 1e-3, 'B ' + M.weight(r[1]));
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

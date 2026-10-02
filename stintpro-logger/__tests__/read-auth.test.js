@@ -85,6 +85,9 @@ describe('readAuth — enforcement activado', () => {
   beforeAll(async () => {
     prevEnforce = process.env.ENFORCE_READ_AUTH;
     process.env.ENFORCE_READ_AUTH = 'true';
+    // BD real (temporal por worker): sin ella las lecturas autenticadas daban 500
+    // y los tests "no 401" pasaban igual.
+    await require('../db').init();
     const r = await createTestServer({ apiKey: VALID_KEY });
     baseUrl = r.baseUrl; wsUrl = r.wsUrl; server = r.server;
   });
@@ -109,13 +112,19 @@ describe('readAuth — enforcement activado', () => {
     expect((await get('/api/sessions')).status).toBe(401);
   });
 
-  test('lectura con API key → pasa (no 401)', async () => {
-    expect((await get('/api/sessions', { 'X-API-Key': VALID_KEY })).status).not.toBe(401);
+  test('lectura con API key → 200', async () => {
+    expect((await get('/api/sessions', { 'X-API-Key': VALID_KEY })).status).toBe(200);
   });
 
-  test('lectura con JWT de Supabase válido → pasa (no 401)', async () => {
+  test('lectura con JWT de Supabase válido → 200', async () => {
     const jwt = makeJwt({ sub: 'user-123', exp: now() + 3600, aud: 'authenticated' });
-    expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).not.toBe(401);
+    expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).toBe(200);
+  });
+
+  test('lectura con JWT firmado por otra clave → 401', async () => {
+    const otra = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey;
+    const jwt = makeJwt({ sub: 'u', exp: now() + 3600 }, { priv: otra });
+    expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).toBe(401);
   });
 
   test('lectura con JWT caducado → 401', async () => {
@@ -124,9 +133,7 @@ describe('readAuth — enforcement activado', () => {
   });
 
   test('/api/status permanece abierto (no exige auth)', async () => {
-    // No 401: está fuera de readAuth. (En test da 500 porque el db stub no
-    // tiene datos; lo relevante es que NO está bloqueado por autenticación.)
-    expect((await get('/api/status')).status).not.toBe(401);
+    expect((await get('/api/status')).status).toBe(200);
   });
 
   // Autentica por WS y devuelve el type del primer mensaje ('auth_ok' | 'error').

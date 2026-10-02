@@ -13,7 +13,10 @@ function test(name, fn) {
   catch (e) { console.log('  ✗', name, '→', e.message); failed++; }
 }
 
-global._esc            = s => String(s == null ? '' : s);
+// _esc REAL de src/helpers.js (no una identidad): si no, los tests no ven una
+// regresión de escapado del HTML que llega de Apex.
+global._esc            = new Function(require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'helpers.js'), 'utf8')
+  .match(/function _esc\(str\) \{[\s\S]*?\n\}/)[0] + '; return _esc;')();
 global._enFmt          = t => (t == null ? '—' : String(t));
 global._enPilotHistory = {};
 global._enPilotRatings = {};
@@ -35,11 +38,12 @@ const d = {
   gapHtml: '+2.100',
 };
 
-// Copia literal del cuerpo de _enRenderRow() ANTES del refactor
+// Copia literal del cuerpo de _enRenderRow() ANTES del refactor, salvo el dorsal,
+// que desde TESTS-12 va escapado (contenido y onclick con JSON).
 const ESPERADO =
   `<div class="sp-dot" style="background:${d.dotColor}"></div>` +
   `<div class="sp-pos">${e.pos === 99 ? '—' : e.pos}${d.arrow}</div>` +
-  `<div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality('${e.dorsal}',event)" title="${d.tooltip}">${e.dorsal}${d.qualityBadge}</div></div>` +
+  `<div><div class="en-kart" style="background:${d.kc.bg};color:${d.kc.text};border:1.5px solid ${d.kartBorder}" onclick="_enToggleQuality(${global._esc(JSON.stringify(e.dorsal))},event)" title="${d.tooltip}">${global._esc(e.dorsal)}${d.qualityBadge}</div></div>` +
   `<div class="sp-name">${d.chkBadge}${global._esc(e.name)}${d.pitBadge}${d.fixBadge}</div>` +
   `<div class="sp-name" style="font-size:12px;color:var(--text-3)">${global._esc(e.teamName)}</div>` +
   `<div class="sp-vtas">${e.tours}</div>` +
@@ -49,7 +53,7 @@ const ESPERADO =
   `<div class="en-delta" style="color:${d.deltaCol}">${d.deltaStr}</div>` +
   `<div class="sp-gap">${d.gapHtml}</div>` +
   `<div class="sp-gap">${e.interval}</div>` +
-  `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory('${e.dorsal}',event)" title="Ver vueltas de la sesión"><span style="color:#2d2f38">—</span></div>` +
+  `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory(${global._esc(JSON.stringify(e.dorsal))},event)" title="Ver vueltas de la sesión"><span style="color:#2d2f38">—</span></div>` +
   `<div class="sp-pitc">${e.standsCount}</div>`;
 
 const FULL_COLMAP = { rk: 'c1', no: 'c2', dr: 'c3', lc: 'c6', llp: 'c7', blp: 'c8', gap: 'c9', int: 'c10', pit: 'c11' };

@@ -21,7 +21,10 @@ function col(id) {
 // Stubs de los globales que usan las funciones `cell` (en el navegador los
 // aportan analysis.js / en-grid.js). Se definen en `global` para que las
 // referencias sueltas dentro de en-columns.js resuelvan.
-global._esc            = s => String(s == null ? '' : s);
+// _esc REAL de src/helpers.js (no una identidad): si no, los tests no ven una
+// regresión de escapado del HTML que llega de Apex.
+global._esc            = new Function(require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'helpers.js'), 'utf8')
+  .match(/function _esc\(str\) \{[\s\S]*?\n\}/)[0] + '; return _esc;')();
 global._enFmt          = t => (t == null ? '—' : String(t));
 global._enPilotHistory = {};
 global._enPilotRatings = {};
@@ -400,6 +403,15 @@ group('fuente del contador de vueltas', () => {
     ok(html.includes('sp-vtas-prop'));
     ok(html.includes('sesión empezada'));
   });
+});
+
+// ── Datos de Apex con HTML: no pueden escaparse del texto ni del onclick (TESTS-12)
+test('dorsal y nombre con HTML/JS salen escapados en toda la fila', () => {
+  const malo = fakeEquipo({ dorsal: "7'><img src=x onerror=alert(1)>", name: '<b>X', teamName: '<i>T' });
+  const html = rowCells(visibleColumns({ rk: 'c1', no: 'c2', dr: 'c3', lc: 'c6', llp: 'c7', blp: 'c8', gap: 'c9', int: 'c10', pit: 'c11' }, defaultSelection()), malo, fakeDerived());
+  ok(!html.includes('<img'), 'dorsal sin escapar');
+  ok(!html.includes('<b>') && !html.includes('<i>'), 'nombre o equipo sin escapar');
+  ok(!/\('7'/.test(html), "el dorsal rompe la cadena JS del onclick");
 });
 
 console.log(`\n${passed} pasados, ${failed} fallados`);

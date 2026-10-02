@@ -103,6 +103,43 @@ test('con vueltas y >60 s sin rodar, un título nuevo sí abre sesión (sin camb
   strictEqual(ev.newSession, 1);
 });
 
+console.log('\n▸ TESTS-1: guard anti-parpadeo del título (con vueltas, lejos del grid)\n');
+
+// El título parpadea con la carrera en marcha (Los Santos: IRONMAN→ENTRENOS→IRONMAN).
+// Con vueltas en el último minuto y sin bandera, NO es una sesión nueva. Se prueba a
+// +180 s del grid para que no lo tape el guard de los 120 s.
+test('título que parpadea con vueltas fluyendo → NO abre sesión ni borra dorsales', (AP) => {
+  const C = clock(); const { p, ev } = makeParser(AP, { a: BASE });
+  p.parse('init|r|\ntitle1||IRONMAN\ngrid|a');
+  C.add(120000); laps(p, C, 2);           // +250 s, vueltas recientes
+  C.add(5000);
+  p.parse('title1||ENTRENOS');
+  strictEqual(ev.newSession, 0);
+  strictEqual(hist(p, '1'), 2);
+});
+
+test('frontera de la ventana de vueltas: 59 s sin rodar → parpadeo; 61 s → sesión nueva', (AP) => {
+  for (const [gap, expected] of [[59000, 0], [61000, 1]]) {
+    const C = clock(); const { p, ev } = makeParser(AP, { a: BASE });
+    p.parse('init|r|\ntitle1||IRONMAN\ngrid|a');
+    C.add(120000); laps(p, C, 2);
+    C.add(gap);
+    p.parse('title1||ENTRENOS');
+    strictEqual(ev.newSession, expected, `con ${gap / 1000} s sin rodar`);
+  }
+});
+
+test('frontera del guard del grid: título a 119 s del grid → ignorado; a 121 s con vueltas viejas → sesión nueva', (AP) => {
+  for (const [sinceGrid, expected] of [[119000, 0], [121000, 1]]) {
+    const C = clock(); const { p, ev } = makeParser(AP, { a: BASE });
+    p.parse('init|r|\ntitle1||IRONMAN\ngrid|a');
+    C.add(50000); p.parse('r1c4|tn|0:50.000');   // una vuelta a +50 s
+    C.add(sinceGrid - 50000);               // nadie más rueda: a 121 s esa vuelta tiene 71 s
+    p.parse('title1||OTRA');
+    strictEqual(ev.newSession, expected, `a ${sinceGrid / 1000} s del grid`);
+  }
+});
+
 console.log('\n▸ LOGGER-4: mismos dorsales, rowIds nuevos\n');
 
 test('tanda siguiente con rowIds nuevos y los mismos dorsales → sesión nueva, sin duplicados', (AP) => {

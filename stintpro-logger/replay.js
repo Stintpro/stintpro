@@ -10,7 +10,18 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { createParser } = require('../src/apex-protocol');
+// ApexParser = el mismo wrapper que usa el logger en vivo: lee el HTML de la
+// parrilla (colMap). Con createParser a pelo el colMap quedaba vacío y la
+// herramienta decía "0 vueltas" en carreras reales.
+const ApexParser = require('./apex-parser');
+
+// Tiempo de vuelta en m:ss.sss (1:06.321)
+function fmtLap(ms) {
+  const t = Math.round(ms) / 1000;
+  const m = Math.floor(t / 60);
+  const sec = (t - m * 60).toFixed(3).padStart(6, '0');
+  return m > 0 ? `${m}:${sec}` : sec;
+}
 
 // ── Argumentos ──────────────────────────────────────────────────────────────
 
@@ -64,14 +75,18 @@ if (!fs.existsSync(absFile)) {
 
 let lapCount = 0;
 let pitCount = 0;
+let pitLaps  = 0;
 let lastState = null;
+let badLines = 0, parseErrors = 0;
+let frameT = 0;   // hora del frame en curso: reloj de los pases del parser
 
-const parser = createParser({
-  onLap: (dorsal, name, ms, lapN, ts) => {
+const parser = new ApexParser({
+  now: () => frameT,
+  onLap: (dorsal, name, teamName, ms, lapN, ts, category, isPitLap) => {
     lapCount++;
+    if (isPitLap) pitLaps++;
     if (!quiet) {
-      const t = (ms / 1000).toFixed(3);
-      console.log(`  LAP  #${String(lapN).padStart(3)} | kart ${String(dorsal).padStart(3)} | ${(name || '').padEnd(20)} | ${t}s`);
+      console.log(`  LAP  #${String(lapN).padStart(3)} | kart ${String(dorsal).padStart(3)} | ${(name || '').padEnd(20)} | ${fmtLap(ms)}${isPitLap ? '  (salida de boxes)' : ''}`);
     }
   },
   onPit: (dorsal, type, stands, ts) => {
@@ -84,8 +99,20 @@ const parser = createParser({
     lapCount = 0;
     pitCount = 0;
   },
-  onChange: (s) => { lastState = s; },
+  onState: (s) => { lastState = s; },
 });
+
+// Una línea: JSON mal formado y error del parser se cuentan por separado (antes
+// cualquier excepción del parser se tragaba como "línea malformada").
+function feed(line) {
+  let entry;
+  try { entry = JSON.parse(line); } catch (e) { badLines++; return null; }
+  if (!entry || entry.raw == null) { badLines++; return null; }
+  frameT = entry.t || frameT;
+  try { parser.parse(entry.raw); }
+  catch (e) { parseErrors++; if (parseErrors <= 5) console.error(`  ERROR parser (t=${entry.t}): ${e.message}`); }
+  return entry;
+}
 
 // ── Reproducción ─────────────────────────────────────────────────────────────
 
@@ -104,12 +131,7 @@ async function replay() {
   const instant = speed <= 0 || speed >= 10000;
 
   if (instant) {
-    for (const line of lines) {
-      try {
-        const { raw } = JSON.parse(line);
-        parser.parse(raw);
-      } catch(e) { /* línea malformada — ignorar */ }
-    }
+    for (const line of lines) feed(line);
   } else {
     let first;
     try { first = JSON.parse(lines[0]); } catch(e) { console.error('Primera línea inválida'); process.exit(1); }
@@ -117,19 +139,21 @@ async function replay() {
     const wallStart = Date.now();
 
     for (const line of lines) {
-      try {
-        const entry  = JSON.parse(line);
-        const target = (entry.t - t0) / speed;
-        const wait   = target - (Date.now() - wallStart);
+      let t;
+      try { t = JSON.parse(line).t; } catch (e) { t = null; }
+      if (t != null) {
+        const wait = (t - t0) / speed - (Date.now() - wallStart);
         if (wait > 1) await new Promise(r => setTimeout(r, wait));
-        parser.parse(entry.raw);
-      } catch(e) { /* línea malformada — ignorar */ }
+      }
+      feed(line);
     }
   }
 
   // ── Resumen ────────────────────────────────────────────────────────────────
   if (!quiet) console.log('');
-  console.log(`Finalizado — ${lapCount} vueltas, ${pitCount} pit events`);
+  console.log(`Finalizado — ${lapCount} vueltas (${pitLaps} de salida de boxes), ${pitCount} pit events`);
+  if (badLines || parseErrors) console.log(`Líneas mal formadas: ${badLines} · errores del parser: ${parseErrors}`);
+  if (!lastState) lastState = parser.getState();
 
   if (lastState) {
     const karts = lastState.equipos || [];
@@ -137,7 +161,7 @@ async function replay() {
     if (!quiet && karts.length) {
       console.log('');
       console.log('Pos | Kart | Equipo               | Vtas | Mejor    | Última');
-      console.log('----+------+----------------------+------+----------+--------');
+      console.log('----+------+----------------------+------+----------+---------');
       [...karts]
         .sort((a, b) => (a.pos || 99) - (b.pos || 99))
         .slice(0, 20)
@@ -146,8 +170,8 @@ async function replay() {
           const dorsal = String(k.dorsal || '?').padStart(4);
           const name   = (k.name || '').padEnd(20).slice(0, 20);
           const tours  = String(k.tours  || 0).padStart(4);
-          const best   = k.bestLap ? k.bestLap.toFixed(3).padStart(8) : '       ?';
-          const last   = k.lastLap ? k.lastLap.toFixed(3).padStart(6) : '     ?';
+          const best   = k.bestLap ? fmtLap(k.bestLap * 1000).padStart(8) : '       ?';
+          const last   = k.lastLap ? fmtLap(k.lastLap * 1000).padStart(8) : '       ?';
           console.log(` ${pos} | ${dorsal} | ${name} | ${tours} | ${best} | ${last}`);
         });
     }
