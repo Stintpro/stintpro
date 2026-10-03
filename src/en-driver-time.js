@@ -70,5 +70,39 @@
     return pilotos.length - 1;
   }
 
-  return { matchPilot, officialByPilot, adoptPilot, isPlaceholder };
+  // Stints ya CERRADOS de un dorsal, reconstruidos desde lo que grabó el logger
+  // (para quien abre el panel a mitad de carrera): uno por cada pit-in.
+  //   laps: [{name, lap_time_ms, timestamp}]   pits: [{event_type, timestamp, duration_ms}]
+  // El stint va del pit-out anterior (o la salida de carrera) al pit-in; el
+  // piloto es el nombre que más se repite en sus vueltas (la BD guarda quién
+  // iba en cada vuelta). Las vueltas hechas con el kart en el box no cuentan.
+  function rebuildStints(laps, pits, raceStart) {
+    const L = (laps || []).filter(l => l && l.timestamp).slice().sort((a, b) => a.timestamp - b.timestamp);
+    const P = (pits || []).filter(p => p && p.timestamp).slice().sort((a, b) => a.timestamp - b.timestamp);
+    let start = raceStart || (L.length ? L[0].timestamp - (L[0].lap_time_ms || 0) : null);
+    const out = [];
+    let open = null;                     // stint cerrado a la espera de su pit-out
+    for (const p of P) {
+      if (p.event_type === 'in') {
+        if (open || start == null) continue;        // segundo "in" sin "out": ruido
+        const mine = L.filter(l => l.timestamp > start && l.timestamp <= p.timestamp);
+        const times = mine.map(l => l.lap_time_ms / 1000);
+        const valid = times.filter(t => t >= 20 && t < 300);
+        const votes = {};
+        mine.forEach(l => { if (l.name) votes[l.name] = (votes[l.name] || 0) + 1; });
+        const pilot = Object.keys(votes).sort((a, b) => votes[b] - votes[a])[0] || null;
+        open = { pilot, durationMs: p.timestamp - start, laps: mine.length, lapTimes: times,
+                 best: valid.length ? Math.min(...valid) : null, endTs: p.timestamp, pitStopMs: null };
+        out.push(open);
+        start = null;
+      } else if (p.event_type === 'out') {
+        if (open) open.pitStopMs = p.duration_ms || (p.timestamp - open.endTs);
+        open = null;
+        start = p.timestamp;
+      }
+    }
+    return out;
+  }
+
+  return { matchPilot, officialByPilot, adoptPilot, isPlaceholder, rebuildStints };
 });

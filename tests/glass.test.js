@@ -196,10 +196,10 @@ group('la zona de datos sigue mate', () => {
 group('lo que flota sobre datos lleva el material denso', () => {
   const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js'];
 
-  test('las 12 cajas de modal llevan class="sp-modal"', () => {
+  test('las 13 cajas de modal llevan class="sp-modal"', () => {
     let cajas = 0;
     for (const f of FICHEROS_MODAL) cajas += (leer('src/' + f).match(/class="sp-modal"/g) || []).length;
-    strictEqual(cajas, 12, `esperaba 12 cajas con sp-modal, encontré ${cajas}`);
+    strictEqual(cajas, 13, `esperaba 13 cajas con sp-modal, encontré ${cajas}`);
   });
 
   test('ninguna caja de modal conserva un fondo, borde o sombra sólidos inline', () => {

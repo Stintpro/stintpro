@@ -106,5 +106,39 @@ test('sin nombre → -1 y lista intacta', () => {
   strictEqual(ps[0].name, 'Piloto 1');
 });
 
+console.log('\n▸ Reconstruir stints cerrados desde lo grabado por el logger\n');
+
+const lap = (name, ts, ms = 84000) => ({ name, lap_time_ms: ms, timestamp: ts });
+const MIN = 60000;
+
+test('dos stints con relevo: piloto, duración, vueltas, mejor y parada', () => {
+  const laps = [lap('ANA', 2 * MIN), lap('ANA', 4 * MIN, 83000), lap('ANA', 6 * MIN),
+                lap('ANA', 9 * MIN, 200000),               // vuelta con el kart en el box: no cuenta
+                lap('LUIS', 12 * MIN, 82500), lap('LUIS', 14 * MIN)];
+  const pits = [{ event_type: 'in', timestamp: 7 * MIN }, { event_type: 'out', timestamp: 9.5 * MIN, duration_ms: 150000 },
+                { event_type: 'in', timestamp: 15 * MIN }];
+  const st = D.rebuildStints(laps, pits, 1 * MIN);
+  strictEqual(st.length, 2);
+  deepStrictEqual([st[0].pilot, st[0].durationMs, st[0].laps, st[0].best, st[0].pitStopMs], ['ANA', 6 * MIN, 3, 83, 150000]);
+  deepStrictEqual([st[1].pilot, st[1].durationMs, st[1].laps, st[1].best, st[1].pitStopMs], ['LUIS', 5.5 * MIN, 2, 82.5, null]);
+});
+
+test('el stint en curso (sin pit-in) no se devuelve', () => {
+  const st = D.rebuildStints([lap('ANA', 2 * MIN)], [], 1 * MIN);
+  strictEqual(st.length, 0);
+});
+
+test('sin salida de carrera: arranca en el inicio de la primera vuelta', () => {
+  const st = D.rebuildStints([lap('ANA', 3 * MIN, 60000), lap('ANA', 4 * MIN, 60000)], [{ event_type: 'in', timestamp: 5 * MIN }], null);
+  strictEqual(st[0].durationMs, 3 * MIN);
+});
+
+test('parada sin duración oficial: del pit-in al pit-out; "in" repetido se ignora', () => {
+  const pits = [{ event_type: 'in', timestamp: 5 * MIN }, { event_type: 'in', timestamp: 5.2 * MIN }, { event_type: 'out', timestamp: 7 * MIN }];
+  const st = D.rebuildStints([lap('ANA', 2 * MIN)], pits, 1 * MIN);
+  strictEqual(st.length, 1);
+  strictEqual(st[0].pitStopMs, 2 * MIN);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

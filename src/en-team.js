@@ -189,6 +189,83 @@ function _enApplyStintEdit(stintIdx){
   _enSaveRaceState();
 }
 
+// ── Recuperar stints ya hechos desde el logger ───────────────────────────
+// Para quien abre el panel a mitad de carrera: el logger tiene grabadas las
+// vueltas (con el piloto de cada una) y las paradas de mi dorsal desde la
+// salida. Se reconstruyen los stints cerrados y, tras confirmar, REEMPLAZAN el
+// historial. No toca el stint en curso ni el piloto actual.
+function _enRecoverMsg(title, body, buttons){
+  let overlay=document.getElementById('en-pilot-overlay');
+  if(overlay)overlay.remove();
+  overlay=document.createElement('div');
+  overlay.id='en-pilot-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
+  overlay.innerHTML=`
+    <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:380px;width:90%;text-align:center">
+      <div style="font-size:14.5px;font-weight:500;color:var(--text-1);margin-bottom:8px;font-family:sans-serif">${title}</div>
+      <div style="font-size:11.5px;color:var(--text-2);margin-bottom:18px;font-family:sans-serif;line-height:1.5">${body}</div>
+      <div style="display:flex;gap:8px">${buttons}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+const _EN_RECOVER_CLOSE=`<button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11.5px;cursor:pointer;font-family:sans-serif">Cerrar</button>`;
+
+async function _enRecoverStints(){
+  const cfg=window.AppState?.config;
+  const url=(typeof Logger!=='undefined')?Logger?._serverUrl:null;
+  if(!cfg||!url||!window.EnDriverTime)return;
+  const btn=document.getElementById('en-recover-btn');
+  if(btn){btn.disabled=true;btn.textContent='Recuperando…';}
+  try{
+    const headers=await Logger._authHeaders();
+    const get=async p=>{const r=await fetch(url+p,{headers});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
+    const status=await get('/api/status');
+    const sid=(status.circuits||[]).find(c=>c.slug===cfg.slug)?.sessionId;
+    if(!sid){_enRecoverMsg('⟲ Recuperar de la carrera','El logger no tiene una sesión en curso para este circuito.',_EN_RECOVER_CLOSE);return;}
+    const [laps,pits]=await Promise.all([get('/api/laps/'+sid),get('/api/pits/'+sid)]);
+    const my=String(cfg.myDorsal).trim();
+    const mine=a=>a.filter(x=>String(x.dorsal).trim()===my);
+    const stints=EnDriverTime.rebuildStints(mine(laps),mine(pits),EnSession.raceStart?.at||Logger._raceStart?.at||null);
+    if(!stints.length){_enRecoverMsg('⟲ Recuperar de la carrera',`El logger no tiene paradas grabadas del dorsal #${_esc(my)} en esta sesión.`,_EN_RECOVER_CLOSE);return;}
+    EnSession._recoverPending=stints;
+    const names=[...new Set(stints.map(s=>s.pilot).filter(Boolean))];
+    _enRecoverMsg('⟲ Recuperar de la carrera',
+      `El logger tiene <b>${stints.length}</b> stints cerrados del #${_esc(my)} (${names.map(_esc).join(', ')||'sin nombre de piloto'}).<br>Ahora hay ${EnSession.stintHistory.length} guardados. Se <b>reemplaza</b> el historial; el stint en curso no se toca.`,
+      `<button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11.5px;cursor:pointer;font-family:sans-serif">Cancelar</button>
+       <button onclick="_enConfirmRecoverStints()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:11.5px;cursor:pointer;font-family:sans-serif">Reemplazar</button>`);
+  }catch(e){
+    console.error('[StintPro] recuperar stints:',e);
+    _enRecoverMsg('⟲ Recuperar de la carrera','No se pudo leer el historial del logger ('+_esc(e.message||'error')+').',_EN_RECOVER_CLOSE);
+  }finally{
+    const b=document.getElementById('en-recover-btn');
+    if(b){b.disabled=false;b.textContent='⟲ Recuperar de la carrera';}
+  }
+}
+
+function _enConfirmRecoverStints(){
+  const stints=EnSession._recoverPending; EnSession._recoverPending=null;
+  const cfg=window.AppState?.config;
+  _enDismissOverlay();
+  if(!stints||!cfg)return;
+  if(!Array.isArray(cfg.pilotos))cfg.pilotos=[];
+  // El piloto en pista conserva su hueco; el resto de huecos de relleno quedan libres.
+  const used=new Set([EnSession.currentPilot]);
+  EnSession.stintHistory=stints.map(s=>{
+    let idx=s.pilot?EnDriverTime.adoptPilot(s.pilot,cfg.pilotos,used):-1;
+    if(idx>=0)used.add(idx);
+    return {
+      pilot:idx>=0?cfg.pilotos[idx].name:(s.pilot||'—'),
+      pilotIdx:idx>=0?idx:0,
+      durationMs:s.durationMs, laps:s.laps, lapTimes:s.lapTimes,
+      avg:_enAvg5(s.lapTimes), best:s.best, pitStopMs:s.pitStopMs||undefined,
+      endTime:new Date(s.endTs).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
+      recovered:true,
+    };
+  });
+  _enSaveRaceState();
+  _enRender();
+}
+
 function _enAddStint(){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];
@@ -452,7 +529,10 @@ function _enRenderTeam(myKart, trackAvg){
   html+=`<div class="en-team-card">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div class="en-team-title">Historial de stints</div>
-      <button onclick="_enAddStint()" style="font-size:11.5px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">➕ Añadir</button>
+      <span style="display:flex;gap:6px">
+        ${(typeof Logger!=='undefined'&&Logger?._serverUrl)?`<button id="en-recover-btn" onclick="_enRecoverStints()" title="Reconstruir los stints ya hechos desde lo grabado por el logger (piloto, duración, vueltas y parada)" style="font-size:11.5px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">⟲ Recuperar de la carrera</button>`:''}
+        <button onclick="_enAddStint()" style="font-size:11.5px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">➕ Añadir</button>
+      </span>
     </div>`;
   if(EnSession.stintHistory.length===0){
     html+=`<div style="font-size:11.5px;font-family:sans-serif;padding:8px 0">Sin stints completados todavía</div>`;

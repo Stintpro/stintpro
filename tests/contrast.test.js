@@ -461,7 +461,7 @@ const COLORES_ESPERADOS = [
   '#22c55e', '#60a5fa', '#e4e6ed',
   '#ef4444', '#f2f2f6', '#f5a623', '#fbbf24', '#fff',
 ];
-const CAJAS_ESPERADAS = 12; // mismo número que vigila tests/glass.test.js
+const CAJAS_ESPERADAS = 13; // mismo número que vigila tests/glass.test.js (13ª: aviso de «Recuperar de la carrera», en-team.js)
 
 const coloresEncontrados = new Set();
 const noMediblesEncontrados = [];
