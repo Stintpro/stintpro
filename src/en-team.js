@@ -572,7 +572,7 @@ function _enRenderTeam(myKart, trackAvg){
     // Barra de progreso hacia mínimo
     const pct=minMs>0?Math.min(100,totalMs/minMs*100):0;
 
-    const _pr=_enPilotRatings[p.name];
+    const _pr=_enRatingOf(p.name);
     const _prObj=(_pr && typeof _pr==='object') ? _pr : null;
     const _prScore=_prObj?.score ?? (typeof _pr==='number'?_pr:null);
     const _scoreBadge=(val,max,label)=>{

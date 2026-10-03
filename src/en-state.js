@@ -55,7 +55,33 @@ async function _enFetchPilotHistory(karts, slug) {
 
 // ── Ratings de pilotos — score 0-1000 por circuito ───────────────────────
 // Cargado del logger si disponible, si no del caché localStorage (7 días)
-let _enPilotRatings = {};        // name → score (número o null)
+let _enPilotRatings = {};        // nombre canónico → rating ({score,…} o número)
+
+// Clave canónica de piloto: sin acentos, espacios colapsados, MAYÚSCULAS. Es la
+// misma que usa el logger (scoring.js _canonName). Apex manda el nombre en vivo
+// con acentos ("RUBEN CONCEIÇAO") y el logger lo guarda sin ellos ("RUBEN
+// CONCEICAO"): buscando por nombre exacto el piloto se quedaba sin score y la
+// calidad de kart le aplicaba la regla de "sin datos" (umbral ±1,0 s).
+function _enCanonName(n){
+  return String(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();
+}
+// Mapa de ratings con clave canónica, desde la lista del logger o desde un mapa
+// ya guardado (caché de localStorage con las claves antiguas).
+function _enRatingsMap(src){
+  const map={};
+  const put=(name,r)=>{ const k=_enCanonName(name); if(k&&!(k in map))map[k]=r; };
+  if(Array.isArray(src))src.forEach(p=>{ if(p&&p.name)put(p.name,p); });
+  else if(src&&typeof src==='object')Object.keys(src).forEach(k=>put(k,src[k]));
+  return map;
+}
+// Rating de un piloto por su nombre tal cual llega de Apex (o null).
+function _enRatingOf(name){
+  if(name==null)return null;
+  const R=_enPilotRatings;
+  if(Object.prototype.hasOwnProperty.call(R,name))return R[name]??null;
+  const k=_enCanonName(name);
+  return Object.prototype.hasOwnProperty.call(R,k)?(R[k]??null):null;
+}
 let _enPilotRatingsFetching = false;
 const _RATINGS_TTL = 7 * 24 * 3600 * 1000;
 
@@ -72,7 +98,7 @@ async function _enFetchPilotRatings(slug) {
       });
       if (res.ok) {
         const data = await res.json();
-        const map = Object.fromEntries(data.map(p => [p.name, p]));
+        const map = _enRatingsMap(data);
         _enPilotRatings = map;
         // Guardar en caché para cuando no haya logger
         try {
@@ -90,7 +116,7 @@ async function _enFetchPilotRatings(slug) {
     const raw = localStorage.getItem(`stintpro_ratings_${slug}`);
     if (raw) {
       const { ts, data } = JSON.parse(raw);
-      if (Date.now() - ts < _RATINGS_TTL) { _enPilotRatings = data; return; }
+      if (Date.now() - ts < _RATINGS_TTL) { _enPilotRatings = _enRatingsMap(data); return; }
     }
   } catch(e) {}
 }
@@ -498,7 +524,7 @@ function _enAutoKartQuality(e, trackAvg){
   const mn=stintBest, mx=Math.max(...clean);
 
   // Score histórico del piloto → decide qué referencia y qué umbral usar
-  const _pr=_enPilotRatings[e.name]??null;
+  const _pr=_enRatingOf(e.name);
   const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
 
   // Piloto fiable (score≥600) → M5v es representativo, usar avg5
@@ -593,7 +619,7 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
   const stintBest=Math.min(...cleanStint);
   const stintMax=Math.max(...cleanStint);
-  const _pr=_enPilotRatings[e.name]??null;
+  const _pr=_enRatingOf(e.name);
   const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
   const isReliable=pilotScore!=null?pilotScore>=600:(stintMax-stintBest)<0.5;
   const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
@@ -623,6 +649,6 @@ function _enQualityTooltip(dorsal, e, trackAvg){
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enTrafficFilter, _enTrafficMark, _enTrafficGiftLine, _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings };
+  module.exports = { _enTrafficFilter, _enTrafficMark, _enTrafficGiftLine, _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings, _enCanonName, _enRatingsMap, _enRatingOf };
 }
 

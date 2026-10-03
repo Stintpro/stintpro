@@ -754,7 +754,7 @@ function _enShowPilotHistory(name, evt) {
   overlay.id = 'en-pilot-history-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:998;';
   overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
-  const _r = _enPilotRatings[name] ?? null;
+  const _r = _enRatingOf(name);
   const score = _r?.score ?? _r;
   const scoreColor = _enScoreColor(score);
   const scoreLabel = score>=800?'Elite':score>=600?'Avanzado':score>=400?'Intermedio':score>=200?'Novato':score!=null?'Principiante':'Sin datos';

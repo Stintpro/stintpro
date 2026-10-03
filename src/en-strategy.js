@@ -150,7 +150,7 @@ function _enRenderStrategy(eq, trackAvg){
       // dato se queda 'unknown'.
       const q=(kart&&!vm.isUnknown)?(_enEffectiveQuality(vm.dorsal, kart, trackAvg)||vm.quality):vm.quality;
       const bg=_qBg(q), txt=_qTxt(q), sub=_qSub(q);
-      const r=vm.name?_enPilotRatings[vm.name]:null; const score=(r&&typeof r==='object')?r.score:r;
+      const r=vm.name?_enRatingOf(vm.name):null; const score=(r&&typeof r==='object')?r.score:r;
       // Vueltas totales del kart (kart.tours, fiable de Apex). _enStintLaps NO
       // sirve aquí: usa un contador global anclado a MI stint, no al de cada rival.
       const laps=(kart&&vm.hasData&&kart.tours>0)?kart.tours:null;
@@ -1103,7 +1103,7 @@ window.showEnduranceDashboard=function(cfg){
 
         // Cargar ratings del snapshot del logger (cross-device, sin fetch adicional)
         if(data._isHistory && data.pilotRatings && Array.isArray(data.pilotRatings)){
-          const map=Object.fromEntries(data.pilotRatings.map(p=>[p.name,p]));
+          const map=_enRatingsMap(data.pilotRatings);
           if(Object.keys(map).length) _enPilotRatings=map;
         }
 

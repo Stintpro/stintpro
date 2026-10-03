@@ -9,7 +9,7 @@ const { _enCleanLaps, _enFmt } = require('../src/analysis');
 global._enCleanLaps = _enCleanLaps;
 global._enFmt       = _enFmt;
 
-const { _enAutoKartQuality, _enEffectiveQuality, EnSession, EnUi, _enPilotRatings } = require('../src/en-state');
+const { _enAutoKartQuality, _enEffectiveQuality, EnSession, EnUi, _enPilotRatings, _enCanonName, _enRatingsMap, _enRatingOf } = require('../src/en-state');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -441,6 +441,43 @@ group('Historial lleno (tope de 1500 vueltas) — APP-11', () => {
     k.pitState = null;
     for (let i = 0; i < 3; i++) { lap(k, t += 65000, 65.0); for (let j = 0; j < 8; j++) _enAutoKartQuality(k, 65); }
     assert.equal(EnSession.kartAutoState['9'].stintStartIdx, CAP - 3);
+  });
+});
+
+// ── Score por nombre normalizado (acentos / mayúsculas / espacios) ───────────
+// Apex manda el nombre en vivo con acentos; el logger sirve los ratings sin ellos.
+
+group('Score de piloto por nombre normalizado', () => {
+  test('_enCanonName: sin acentos, espacios colapsados, mayúsculas', () => {
+    assert.equal(_enCanonName('  Rubén   Conceiçao '), 'RUBEN CONCEICAO');
+    assert.equal(_enCanonName('JOEY LÜHRING'), 'JOEY LUHRING');
+    assert.equal(_enCanonName(null), '');
+  });
+
+  test('_enRatingsMap: lista del logger → claves canónicas', () => {
+    const m = _enRatingsMap([{ name: 'Pablo Mir Yanes', score: 700 }, { name: 'RUBEN CONCEICAO', score: 796 }]);
+    assert.deepEqual(Object.keys(m).sort(), ['PABLO MIR YANES', 'RUBEN CONCEICAO']);
+  });
+
+  test('_enRatingsMap: caché antigua (mapa por nombre) se re-indexa', () => {
+    const m = _enRatingsMap({ 'Germán Sánchez Flor': { score: 718 } });
+    assert.equal(m['GERMAN SANCHEZ FLOR'].score, 718);
+  });
+
+  test('nombre en vivo con acento encuentra el rating sin acento', () => {
+    reset();
+    Object.assign(_enPilotRatings, _enRatingsMap([{ name: 'RUBEN CONCEICAO', score: 796 }]));
+    assert.equal(_enRatingOf('RUBEN CONCEIÇAO').score, 796);
+    assert.equal(_enRatingOf('Rubén  Conceiçao').score, 796);
+    assert.equal(_enRatingOf('OTRO PILOTO'), null);
+  });
+
+  test('piloto con acento y score 796: M5v −0,6 s → good (antes neutral por "sin score")', () => {
+    reset();
+    Object.assign(_enPilotRatings, _enRatingsMap([{ name: 'RUBEN CONCEICAO', score: 796 }]));
+    // stint largo y con rango ≥0,5 s: sin score → ref=mejor vuelta y umbral ±1,0 → neutral
+    const laps = [64.9, 64.3, 64.4, 64.4, 64.4, 64.4, 64.4];
+    assert.equal(_enAutoKartQuality(kart('29', laps, null, 'RUBEN CONCEIÇAO'), 65), 'good');
   });
 });
 

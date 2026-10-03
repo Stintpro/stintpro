@@ -163,7 +163,7 @@
       width: '68px', widthMid: '50px', widthNarrow: '48px',
       source: 'stintpro',
       requires: null,
-      cell: (e, d) => `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory(${_esc(JSON.stringify(String(e.dorsal)))},event)" title="Ver vueltas de la sesión">${(() => { const r = _enPilotRatings[e.name]; const s = typeof r === 'object' ? r?.score : r; return s != null ? `<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>` : '<span style="color:#2d2f38">—</span>'; })()}</div>`,
+      cell: (e, d) => `<div class="sp-cons" style="cursor:pointer" onclick="_enShowLapHistory(${_esc(JSON.stringify(String(e.dorsal)))},event)" title="Ver vueltas de la sesión">${(() => { const r = _enRatingOf(e.name); const s = typeof r === 'object' ? r?.score : r; return s != null ? `<span style="color:${_enScoreColor(s)};font-weight:600;font-size:12px">${s}</span>` : '<span style="color:#2d2f38">—</span>'; })()}</div>`,
     },
     {
       id: 'pit', label: 'Pit', align: 'right',

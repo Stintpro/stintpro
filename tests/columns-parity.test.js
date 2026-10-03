@@ -20,6 +20,7 @@ global._esc            = new Function(require('fs').readFileSync(require('path')
 global._enFmt          = t => (t == null ? '—' : String(t));
 global._enPilotHistory = {};
 global._enPilotRatings = {};
+global._enRatingOf = n => global._enPilotRatings[n] ?? null;
 global._enScoreColor   = () => '#22c55e';
 
 const e = {
