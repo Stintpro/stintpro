@@ -90,6 +90,7 @@ function _enScheduleRender(){
 function _enRender(){
   const el=document.getElementById('screen-dash');
   if(!el||!el.classList.contains('active'))return;
+  if(typeof _enRaceCfgDot==='function')_enRaceCfgDot();
 
   const eq=EnSession.data.equipos;
   const bests=eq.filter(e=>e.bestLap).map(e=>e.bestLap).sort((a,b)=>a-b);
@@ -145,9 +146,7 @@ function _enRender(){
   try{
     const teamBody=el.querySelector('#en-team-body');
     if(teamBody&&EnUi.tab==='team'){
-      const tcfg=teamBody.querySelector('#en-team-config');
       const tdyn=teamBody.querySelector('#en-team-dynamic');
-      if(tcfg&&!tcfg.innerHTML)tcfg.innerHTML=_enRenderTeamConfig();
       if(tdyn)tdyn.innerHTML=_enRenderTeam(myKart, trackAvg);
     }
   }catch(err){console.error('[StintPro] Error mi equipo:',err);}
@@ -155,9 +154,7 @@ function _enRender(){
   try{
     const stratBody=el.querySelector('#en-strat-body');
     if(stratBody&&EnUi.tab==='strat'){
-      const configDiv=stratBody.querySelector('#en-strat-config');
       const dynDiv=stratBody.querySelector('#en-strat-dynamic');
-      if(configDiv&&!configDiv.innerHTML)configDiv.innerHTML=_enRenderStratConfig();
       if(dynDiv)dynDiv.innerHTML=_enRenderStrategy(eq, trackAvg);
     }
   }catch(err){console.error('[StintPro] Error estrategia:',err);}
@@ -178,8 +175,6 @@ function _enRender(){
   try{
     const advBody=el.querySelector('#en-adv-body');
     if(advBody&&EnUi.tab==='adv'){
-      const advCfg=advBody.querySelector('#en-adv-config');
-      if(advCfg&&!advCfg.innerHTML)advCfg.innerHTML=_enRenderAdvConfig();
       // Túnel: esqueleto estático pintado una sola vez, chips actualizados por RAF
       const advTunnel=advBody.querySelector('#en-adv-tunnel');
       if(advTunnel&&!advTunnel.innerHTML){
@@ -269,17 +264,14 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
   <div class="en-thead" id="en-thead" style="${EnUi.tab==='grid'?'':'display:none'}">${_enTheadHtml()}</div>
   <div class="sp-body" id="en-grid-body" style="${EnUi.tab==='grid'?'':'display:none'}"></div>
   <div class="en-team" id="en-team-body" style="${EnUi.tab==='team'?'':'display:none'}">
-    <div id="en-team-config"></div>
     <div id="en-team-dynamic"></div>
   </div>
   <div class="en-strat" id="en-strat-body" style="${EnUi.tab==='strat'?'':'display:none'}">
-    <div id="en-strat-config"></div>
     <div id="en-strat-dynamic"></div>
   </div>
   <div class="en-strat" id="en-wave-body" style="${EnUi.tab==='wave'?'':'display:none'}"></div>
   <div class="en-strat" id="en-track-body" style="${EnUi.tab==='track'?'':'display:none'}"></div>
   <div class="en-strat" id="en-adv-body" style="${EnUi.tab==='adv'?'':'display:none'}">
-    <div id="en-adv-config"></div>
     <div id="en-adv-tunnel"></div>
     <div id="en-adv-plan"></div>
     <div id="en-adv-ai-engineer"></div>
@@ -629,33 +621,14 @@ function _enSetTab(tab){
   if(tab!=='track'&&typeof _enStopTrackRaf==='function')_enStopTrackRaf();
   // Entrar en Avanzado apaga el parpadeo de alertas del ingeniero de pista
   if(tab==='adv'&&typeof _enClearAlertBlink==='function')_enClearAlertBlink();
-  // Reset config cuando se entra a estrategia
+  // Primera vez en Estrategia con el stint sin configurar: abrir la
+  // «Configuración de carrera» (una sola vez por carrera).
   if(tab==='strat'){
-    const cfgDiv=document.getElementById('en-strat-config');
-    if(cfgDiv)cfgDiv.innerHTML=_enRenderStratConfig();
-    // Recordar configurar stint si no se ha hecho
     const cfg=window.AppState?.config;
-    if(!EnBox.stratConfigured&&(!cfg?.stintMax||cfg.stintMax>=999)){
-      setTimeout(()=>{
-        let overlay=document.getElementById('en-pilot-overlay');
-        if(overlay)overlay.remove();
-        overlay=document.createElement('div');
-        overlay.id='en-pilot-overlay';
-        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999;';
-        overlay.innerHTML=`
-          <div class="sp-modal" style="border-radius:12px;padding:24px;max-width:340px;width:90%;text-align:center">
-            <div style="font-size:24px;margin-bottom:8px">⚙️</div>
-            <div style="font-size:14px;font-weight:500;color:var(--text-1);margin-bottom:8px;font-family:sans-serif">Configura la estrategia</div>
-            <div style="font-size:12px;color:var(--text-2);margin-bottom:18px;font-family:sans-serif;line-height:1.5">Recuerda configurar el <b style="color:#fbbf24">stint mínimo y máximo</b> en la parte superior para que las previsiones y recomendaciones funcionen correctamente.</div>
-            <button onclick="EnBox.stratConfigured=true;_enDismissOverlay()" style="width:100%;padding:10px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:13px;cursor:pointer;font-family:sans-serif">Entendido</button>
-          </div>`;
-        document.body.appendChild(overlay);
-      },300);
+    if(!EnBox.stratConfigured&&!EnSession._raceCfgPrompted&&(!cfg?.stintMax||cfg.stintMax>=999)&&typeof _enOpenRaceConfig==='function'){
+      EnSession._raceCfgPrompted=true;
+      setTimeout(()=>_enOpenRaceConfig(),300);
     }
-  }
-  if(tab==='team'){
-    const tcfg=document.getElementById('en-team-config');
-    if(tcfg)tcfg.innerHTML=_enRenderTeamConfig();
   }
   document.querySelectorAll('.en-tab').forEach(t=>{
     t.classList.toggle('active',t.dataset.tab===tab);

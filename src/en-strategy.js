@@ -1,53 +1,7 @@
 // ── en-strategy.js — fragmento de endurance.js ──
 // ── Estrategia ─────────────────────────────────────────────────────────────
-function _enRenderStratConfig(){
-  const showCols=EnBox.config.type==='columns';
-  const cfg=window.AppState?.config||{};
-  return `<div class="en-strat-card" style="padding:10px 14px">
-    <div class="en-strat-title">Configuración de estrategia</div>
-    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Box:</span>
-        <select onchange="_enSetBoxType(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;font-family:sans-serif">
-          <option value="line" ${EnBox.config.type==='line'?'selected':''}>Línea</option>
-          <option value="battery" ${EnBox.config.type==='battery'?'selected':''}>Batería</option>
-          <option value="columns" ${EnBox.config.type==='columns'?'selected':''}>Columnas</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Karts:</span>
-        <input type="number" value="${EnBox.config.positions}" min="1" max="20" onchange="_enSetBoxPositions(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
-      </div>
-      ${showCols?`<div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Cols:</span>
-        <input type="number" value="${EnBox.config.columns||2}" min="1" max="10" onchange="_enSetBoxColumns(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
-      </div>`:''}
-      <div style="border-left:0.5px solid #2a2b2e;height:20px"></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Stint min:</span>
-        <input id="en-stint-min-input" type="number" value="${cfg.stintMin||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
-        <span style="font-size:11.5px;color:var(--text-2)">m</span>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Stint max:</span>
-        <input id="en-stint-max-input" type="number" value="${cfg.stintMax||0}" min="0" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:right">
-        <span style="font-size:11.5px;color:var(--text-2)">m</span>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center" title="Duración mínima de parada marcada por la organización. Usada para la clasificación estimada y la proyección de salida.">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Parada:</span>
-        <input type="number" value="${EnBox.pitDuration}" min="30" max="600" onchange="EnBox.pitDuration=parseInt(this.value)||120;EnBox._pitDurUserSet=true;_enRender()" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:55px;font-family:monospace;text-align:right">
-        <span style="font-size:11.5px;color:var(--text-2)">s</span>
-        ${(EnSession._pitDurAuto&&!EnBox._pitDurUserSet)?`<span title="Detectada del cronómetro oficial de Apex" style="font-size:10.5px;color:var(--state-ok);font-weight:600">✓ Apex</span>`:''}
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:13.5px;color:var(--text-2);font-family:sans-serif">Dorsal:</span>
-        <input type="text" value="${cfg.myDorsal||''}" onchange="_enUpdateCfg('myDorsal',this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:5px 10px;border-radius:4px;font-size:13.5px;width:50px;font-family:monospace;text-align:center">
-      </div>
-      <button id="en-stint-confirm-btn" onclick="_enConfirmStint()" style="padding:5px 12px;border-radius:4px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:13.5px;cursor:pointer;font-family:sans-serif;white-space:nowrap">Confirmar</button>
-    </div>
-  </div>`;
-}
-
+// (La configuración de box, stint, parada y dorsal vive en «Configuración de
+// carrera»: en-race-config.js.)
 function _enRenderStrategy(eq, trackAvg){
   const cfg=window.AppState?.config;
   const stintMaxMs=(cfg?.stintMax||999)*60*1000;
@@ -370,12 +324,6 @@ function _enRivalStintStart(e){
   return EnBoxModel.rivalStintStart(EnSession.rivalPitOut[e.dorsal], stops, anchor);
 }
 
-function _enSetBoxType(v){
-  EnBox.config.type=v;
-  // Re-render config para mostrar/ocultar campo columnas
-  const cfgDiv=document.getElementById('en-strat-config');
-  if(cfgDiv)cfgDiv.innerHTML=_enRenderStratConfig();
-}
 function _enSetBoxPositions(v){
   const newN=parseInt(v)||4;
   EnBox.config.positions=newN;
@@ -416,7 +364,6 @@ function _enMoveQueue(id, dir, ev){
   EnBox.queue=next;
   _enRender();
 }
-function _enSetBoxColumns(v){EnBox.config.columns=parseInt(v)||2;}
 
 // Parsea el string de gap de Apex a segundos. "+30.000" → 30, "+2v" → 2*lapTime, "" → 0
 function _enParseGap(gapStr, lapTime){
@@ -647,27 +594,6 @@ function _enShowEstimatedClassification(){
   document.body.appendChild(overlay);
 }
 
-function _enConfirmStint(){
-  const minInput=document.getElementById('en-stint-min-input');
-  const maxInput=document.getElementById('en-stint-max-input');
-  if(minInput)_enUpdateCfg('stintMin', minInput.value);
-  if(maxInput)_enUpdateCfg('stintMax', maxInput.value);
-  minInput&&minInput.blur();
-  maxInput&&maxInput.blur();
-  _enRender();
-  const btn=document.getElementById('en-stint-confirm-btn');
-  if(btn){
-    btn.textContent='✓ Aplicado';
-    btn.style.color='#22c55e';
-    btn.style.borderColor='#22c55e';
-    btn.style.background='#22c55e18';
-    setTimeout(()=>{
-      const b=document.getElementById('en-stint-confirm-btn');
-      if(b){b.textContent='Confirmar';b.style.color='#F5A623';b.style.borderColor='#F5A623';b.style.background='#F5A62318';}
-    },2000);
-  }
-}
-
 function _enUpdateCfg(key, val){
   if(!window.AppState)window.AppState={};
   if(!window.AppState.config)window.AppState.config={};
@@ -864,6 +790,7 @@ window.showEnduranceDashboard=function(cfg){
   el.classList.add('active');
   el.innerHTML=''; // Limpiar dashboard anterior
   _enInjectSetupBtn();
+  if(typeof _enInjectRaceCfgBtn==='function')_enInjectRaceCfgBtn();
   _enInjectColumnsBtn();
 
   // Renderizar dashboard completo inmediatamente (vacío pero navegable)
@@ -1339,6 +1266,7 @@ window._enGoBack=function(){
     _enClearRaceState();
   }
   document.querySelector('.sp-nav-setup')?.remove();
+  document.getElementById('en-racecfg-btn')?.remove();
   document.getElementById('en-col-bar')?.remove();   // vive en la barra superior
   document.getElementById('en-reconcile-banner')?.remove();
   if(!window.AppState?.config?.simMode)ApexConnector.disconnect();

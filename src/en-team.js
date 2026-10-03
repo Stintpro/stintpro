@@ -497,26 +497,6 @@ function _enChangePilot(){
 }
 
 // ── Render vista equipo ──────────────────────────────────────────────────
-function _enRenderTeamConfig(){
-  return `<div class="en-team-card" style="padding:10px 14px">
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">Mínimo por piloto:</span>
-        <input type="number" value="${EnBox.pilotMinTime}" min="0" placeholder="min" onchange="_enSetPilotMinTime(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:4px 8px;border-radius:4px;font-size:11.5px;width:60px;font-family:monospace;text-align:right">
-        <span style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">min</span>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">Paradas obligatorias:</span>
-        <input type="number" value="${EnBox.totalStops}" min="0" placeholder="total" onchange="_enSetTotalStops(this.value)" style="background:#0e0f11;border:0.5px solid #2a2b2e;color:var(--text-2);padding:4px 8px;border-radius:4px;font-size:11.5px;width:60px;font-family:monospace;text-align:right">
-        <span style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">total carrera</span>
-      </div>
-    </div>
-  </div>`;
-}
-
-function _enSetPilotMinTime(v){EnBox.pilotMinTime=parseInt(v)||0;}
-function _enSetTotalStops(v){EnBox.totalStops=parseInt(v)||0;}
-
 function _enRenderTeam(myKart, trackAvg){
   const cfg=window.AppState?.config;
   const pilotos=cfg?.pilotos||[];

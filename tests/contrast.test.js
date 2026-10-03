@@ -342,7 +342,7 @@ test('--text-1 supera a --text-3', () => {
 //      (con alfa) y los leería mal en vez de fallar — ver el test dedicado
 //      más abajo, que hace que un hex de esa longitud falle RUIDOSAMENTE en
 //      vez de colarse sin medir.
-const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js'];
+const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js', 'en-race-config.js'];
 
 // Encuentra el backtick de cierre de un template literal que empieza en
 // origen[inicio] (el backtick de apertura). No basta con buscar "el siguiente
@@ -461,7 +461,7 @@ const COLORES_ESPERADOS = [
   '#22c55e', '#60a5fa', '#e4e6ed',
   '#ef4444', '#f2f2f6', '#f5a623', '#fbbf24', '#fff',
 ];
-const CAJAS_ESPERADAS = 13; // mismo número que vigila tests/glass.test.js (13ª: aviso de «Recuperar de la carrera», en-team.js)
+const CAJAS_ESPERADAS = 13; // mismo número que vigila tests/glass.test.js (se fue el aviso de «configura el stint» de en-grid.js y entró «Configuración de carrera», en-race-config.js)
 
 const coloresEncontrados = new Set();
 const noMediblesEncontrados = [];
@@ -964,7 +964,7 @@ const FICHEROS_TARJETA = { 'en-strategy.js': 'en-strat-card', 'en-team.js': 'en-
 // en-strategy.js: 7 → 4. Salieron la Fila 1 (a83e4ca, pasó al KPI "Estado de
 // Box"), "Movimientos recientes"/diagrama del box (68f4746, fundidos en las
 // tarjetas del Tablero de Box) y "Karts en pista" (d491a94, pasó a 🌊 Olas).
-const TARJETAS_ESPERADAS = { 'en-strategy.js': 4, 'en-team.js': 6 };
+const TARJETAS_ESPERADAS = { 'en-strategy.js': 3, 'en-team.js': 5 }; // sin las filas de config: viven en «Configuración de carrera»
 const INTERPOLACIONES_OPACAS_TARJETA = {
   // kc.text: el color del dorsal, que sale de _enKartColor (otro fichero).
   // tacticColor: sale de EnBoxModel.tacticalAdvice (src/en-box-model.js); sus

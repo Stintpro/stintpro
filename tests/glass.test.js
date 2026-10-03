@@ -194,7 +194,7 @@ group('la zona de datos sigue mate', () => {
 });
 
 group('lo que flota sobre datos lleva el material denso', () => {
-  const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js'];
+  const FICHEROS_MODAL = ['app.js', 'en-advanced.js', 'en-grid.js', 'en-team.js', 'en-strategy.js', 'en-race-config.js'];
 
   test('las 13 cajas de modal llevan class="sp-modal"', () => {
     let cajas = 0;
