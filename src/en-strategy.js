@@ -1190,6 +1190,7 @@ window.showEnduranceDashboard=function(cfg){
           onPitOut:()=>setTimeout(()=>{if(!_enPilotFromApex())_enShowPilotSelect(true);},500),
         });
         _enPilotFromApex(true);
+        if(typeof _enAutoApexTeam==='function')_enAutoApexTeam();
         if(typeof _enAutoRecoverStints==='function')_enAutoRecoverStints();
 
         // Trackear mejor vuelta del stint y posición

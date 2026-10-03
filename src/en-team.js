@@ -213,7 +213,20 @@ const _EN_RECOVER_CLOSE=`<button onclick="_enDismissOverlay()" style="flex:1;pad
 // Stints cerrados de mi dorsal según el logger. null = no hay sesión en curso.
 async function _enFetchRecoveredStints(){
   const cfg=window.AppState?.config;
-  const url=Logger._serverUrl;
+  // 1º Apex (oficial, vale en cualquier modo de conexión): stints con su piloto,
+  // duración y parada exactas. Si no responde, lo grabado por el logger.
+  if(typeof _enApexTeamFetch==='function'){
+    const fresh=EnSession._apexTeamData&&Date.now()-EnSession._apexTeamData.at<30000?EnSession._apexTeamData:await _enApexTeamFetch();
+    if(fresh){
+      _enApexTeamApply(fresh);
+      if(fresh.stints.length){
+        const t0=EnSession.raceStart?.at||(typeof Logger!=='undefined'&&Logger._raceStart?.at)||null;
+        return fresh.stints.map(s=>({...s, endTs:t0?t0+s.endOffsetMs:null}));
+      }
+    }
+  }
+  const url=(typeof Logger!=='undefined')?Logger?._serverUrl:null;
+  if(!url)return null;
   const headers=await Logger._authHeaders();
   const get=async p=>{const r=await fetch(url+p,{headers});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
   const status=await get('/api/status');
@@ -232,7 +245,6 @@ async function _enFetchRecoveredStints(){
 function _enAutoRecoverStints(){
   const cfg=window.AppState?.config;
   if(!cfg||cfg.simMode||cfg.slug==='replay'||!window.EnDriverTime)return;
-  if(typeof Logger==='undefined'||!Logger?._serverUrl)return;
   const hist=EnSession.stintHistory||[];
   if(hist.some(s=>!s.recovered))return;
   if(hist.length>=_enMyStops())return;
@@ -252,19 +264,18 @@ function _enAutoRecoverStints(){
 
 async function _enRecoverStints(){
   const cfg=window.AppState?.config;
-  const url=(typeof Logger!=='undefined')?Logger?._serverUrl:null;
-  if(!cfg||!url||!window.EnDriverTime)return;
+  if(!cfg||!window.EnDriverTime)return;
   const btn=document.getElementById('en-recover-btn');
   if(btn){btn.disabled=true;btn.textContent='Recuperando…';}
   try{
     const my=String(cfg.myDorsal).trim();
     const stints=await _enFetchRecoveredStints();
-    if(!stints){_enRecoverMsg('⟲ Recuperar de la carrera','El logger no tiene una sesión en curso para este circuito.',_EN_RECOVER_CLOSE);return;}
-    if(!stints.length){_enRecoverMsg('⟲ Recuperar de la carrera',`El logger no tiene paradas grabadas del dorsal #${_esc(my)} en esta sesión.`,_EN_RECOVER_CLOSE);return;}
+    if(!stints){_enRecoverMsg('⟲ Recuperar de la carrera','Ni Apex ni el logger tienen el historial de esta sesión.',_EN_RECOVER_CLOSE);return;}
+    if(!stints.length){_enRecoverMsg('⟲ Recuperar de la carrera',`No hay paradas registradas del dorsal #${_esc(my)} en esta sesión.`,_EN_RECOVER_CLOSE);return;}
     EnSession._recoverPending=stints;
     const names=[...new Set(stints.map(s=>s.pilot).filter(Boolean))];
     _enRecoverMsg('⟲ Recuperar de la carrera',
-      `El logger tiene <b>${stints.length}</b> stints cerrados del #${_esc(my)} (${names.map(_esc).join(', ')||'sin nombre de piloto'}).<br>Ahora hay ${EnSession.stintHistory.length} guardados. Se <b>reemplaza</b> el historial; el stint en curso no se toca.`,
+      `Hay <b>${stints.length}</b> stints cerrados del #${_esc(my)} (${names.map(_esc).join(', ')||'sin nombre de piloto'}).<br>Ahora hay ${EnSession.stintHistory.length} guardados. Se <b>reemplaza</b> el historial; el stint en curso no se toca.`,
       `<button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11.5px;cursor:pointer;font-family:sans-serif">Cancelar</button>
        <button onclick="_enConfirmRecoverStints()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #F5A623;background:#F5A62318;color:#F5A623;font-size:11.5px;cursor:pointer;font-family:sans-serif">Reemplazar</button>`);
   }catch(e){
@@ -296,12 +307,18 @@ function _enApplyRecoveredStints(stints){
       pilotIdx:idx>=0?idx:0,
       durationMs:s.durationMs, laps:s.laps, lapTimes:s.lapTimes,
       avg:_enAvg5(s.lapTimes), best:s.best, pitStopMs:s.pitStopMs||undefined,
-      endTime:new Date(s.endTs).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}),
+      endTime:s.endTs?new Date(s.endTs).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'—',
       recovered:true,
     };
   });
   _enSaveRaceState();
   _enRender();
+}
+
+// h:mm:ss (tiempos oficiales por piloto)
+function _enFmtHms(ms){
+  const s=Math.max(0,Math.round(ms/1000));
+  return Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 }
 
 function _enAddStint(){
@@ -548,7 +565,7 @@ function _enRenderTeam(myKart, trackAvg){
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div class="en-team-title">Historial de stints</div>
       <span style="display:flex;gap:6px">
-        ${(typeof Logger!=='undefined'&&Logger?._serverUrl)?`<button id="en-recover-btn" onclick="_enRecoverStints()" title="Reconstruir los stints ya hechos desde lo grabado por el logger (piloto, duración, vueltas y parada)" style="font-size:11.5px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">⟲ Recuperar de la carrera</button>`:''}
+        ${(cfg&&!cfg.simMode&&cfg.slug!=='replay')?`<button id="en-recover-btn" onclick="_enRecoverStints()" title="Reconstruir los stints ya hechos desde los datos oficiales de Apex (piloto, duración, vueltas y parada)" style="font-size:11.5px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">⟲ Recuperar de la carrera</button>`:''}
         <button onclick="_enAddStint()" style="font-size:11.5px;padding:3px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:#1a1b22;color:var(--text-2);cursor:pointer;font-family:sans-serif">➕ Añadir</button>
       </span>
     </div>`;
@@ -650,7 +667,12 @@ function _enRenderTeam(myKart, trackAvg){
     // Hueco de relleno del setup ("Piloto 1") que nadie usa: con los pilotos
     // reales ya identificados por Apex solo estorba.
     if(_off&&_off.minutes.some(m=>m!=null)&&offMin==null&&!stints.length&&!isCurrent&&window.EnDriverTime.isPlaceholder(p.name))return;
-    if(offMin!=null) totalMs=offMin*60*1000;
+    // Tiempo exacto de las paradas oficiales (ms); se usa solo si cuadra (±2 min)
+    // con el contador en vivo [h:mm], que es el que nunca va con retraso.
+    const exactMs=typeof _enApexPilotMs==='function'?_enApexPilotMs(p.name,isCurrent):null;
+    const useExact=exactMs!=null&&(offMin==null||Math.abs(exactMs/60000-offMin)<=2);
+    if(useExact) totalMs=exactMs;
+    else if(offMin!=null) totalMs=offMin*60*1000;
     else if(isCurrent){
       const currentStintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
       totalMs+=currentStintMs;
@@ -687,7 +709,7 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14.5px">${_esc(p.name.charAt(0))}</div>
       <div style="flex:1;min-width:120px">
         <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${_esc(p.name)}${isCurrent?' 🟢':''}</div>
-        <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${offMin!=null?Math.floor(offMin/60)+':'+String(offMin%60).padStart(2,'0')+' h pista (oficial Apex)':_enFmtStint(totalMs)+' pista'}${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${useExact?_enFmtHms(exactMs)+' pista (oficial Apex)':offMin!=null?Math.floor(offMin/60)+':'+String(offMin%60).padStart(2,'0')+' h pista (oficial Apex)':_enFmtStint(totalMs)+' pista'}${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
         ${_scoreRow}
       </div>
       <div style="text-align:right;min-width:90px">
