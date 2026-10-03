@@ -443,6 +443,45 @@ describe('relleno de huecos', () => {
     expect(m._fetchApexHistory).not.toHaveBeenCalled();
   });
 
+  test('auditoría: con la sesión viva recupera lo que falta en toda la sesión y lo publica', async () => {
+    const m = monitorConHueco();
+    m.connected = true;
+    const a = await m._runLapAudit();
+    expect(a.laps).toBe(9);
+    expect(m.getInfo().lapAudit).toMatchObject({ laps: 9, totalLaps: 9 });
+    // Segunda pasada: nada nuevo, el total de la sesión se conserva.
+    const b = await m._runLapAudit();
+    expect(b.laps).toBe(0);
+    expect(m.getInfo().lapAudit).toMatchObject({ laps: 0, totalLaps: 9 });
+  });
+
+  test('auditoría: sin Apex conectado o sin sesión no pide nada', async () => {
+    const m = monitorConHueco();
+    m.connected = false;
+    expect(await m._runLapAudit()).toBeNull();
+    expect(m._fetchApexHistory).not.toHaveBeenCalled();
+    expect(m.getInfo().lapAudit).toBeNull();
+  });
+
+  test('auditoría: no toca las vueltas que aún están entrando (margen)', async () => {
+    const m = createMonitor();
+    m._apexHttpPort = 7910;
+    m._fetchApexHistory = jest.fn(async () => TEXT);
+    m.connected = true;
+    m.parser.parse(buildGrid(kartRow('r163138', '10', 'EQUIPO 10')));
+    // Sesión "en directo": la última vuelta de Apex acaba de cruzar ahora mismo.
+    const ns = [...laps.keys()].sort((a, b) => a - b);
+    const total = ns.reduce((s, n) => s + laps.get(n).ms, 0);
+    let acc = Date.now() - total;
+    const cruza = new Map(); for (const n of ns) { acc += laps.get(n).ms; cruza.set(n, acc); }
+    const ult = ns[ns.length - 1];
+    for (const n of ns) { if (n >= ult - 1) continue; m._onLap('10', 'EQUIPO 10', null, laps.get(n).ms, n, cruza.get(n)); }
+    const a = await m._runLapAudit();
+    // Las dos últimas (hace < 90 s la final) : como mucho se recupera la penúltima.
+    expect(a.laps).toBeLessThanOrEqual(1);
+    expect(db.getLapsBySession(m.sessionId).some(l => l.lap_number === ult)).toBe(false);
+  });
+
   test('un corte con Apex en plena sesión programa el relleno al reconectar', () => {
     jest.useFakeTimers();
     try {

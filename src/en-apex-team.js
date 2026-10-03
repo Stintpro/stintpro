@@ -96,7 +96,27 @@
              stints, totals, stops: pits.length };
   }
 
-  return { REQUEST_URL, requestFor, parseInf, parsePits, parseLaps, build };
+  // Historial de vueltas de VARIOS karts en una sola petición (misma regla: una
+  // "D" inicial y pares cantidad/elemento).
+  const lapsRequest = ids => 'D#' + ids.map(id => `-999#D${id}.L`).join('#');
+
+  // Respuesta de lapsRequest → { id: [segundos…] } en orden de vuelta, solo
+  // vueltas válidas (20–300 s), sin las marcas g/p de mejor vuelta.
+  function parseLapsById(text) {
+    const by = {};
+    String(text || '').split('\n').forEach(l => {
+      const m = /^D(\d+)\.L(\d+)#[^|]*\|[^|]*\|[^|]*\|([\da-zA-Z]+)/.exec(l.trim());
+      if (!m) return;
+      const ms = parseInt(m[3].replace(/[a-zA-Z]/g, ''), 10);
+      if (isNaN(ms) || ms < 20000 || ms >= 300000) return;
+      (by[m[1]] = by[m[1]] || []).push({ n: parseInt(m[2], 10), t: parseFloat((ms / 1000).toFixed(3)) });
+    });
+    const out = {};
+    Object.keys(by).forEach(id => { out[id] = by[id].sort((a, b) => a.n - b.n).map(x => x.t); });
+    return out;
+  }
+
+  return { REQUEST_URL, requestFor, parseInf, parsePits, parseLaps, build, lapsRequest, parseLapsById };
 });
 
 // ── Pegamento con el panel (solo navegador) ──────────────────────────────────

@@ -83,6 +83,17 @@ test('tiempo acumulado exacto por piloto = el de su último stint cerrado', () =
   ok(!('RESERVA SIN RODAR' in d.totals));
 });
 
+test('historial de varios karts en una petición: una sola D inicial', () => {
+  strictEqual(A.lapsRequest(['70', '71', '72']), 'D#-999#D70.L#-999#D71.L#-999#D72.L');
+});
+
+test('historial por kart: en orden de vuelta, solo válidas y sin marcas', () => {
+  const by = A.parseLapsById(RESP + '\nD71.L0002#|||p61500\nD71.L0001#|||15000\nD71.L0003#|||62000');
+  deepStrictEqual(by['70'], [85, 231, 83.9, 84.2, 230, 83.5, 84]);
+  deepStrictEqual(by['71'], [61.5, 62]);          // la de 15 s no es una vuelta
+  deepStrictEqual(A.parseLapsById('error'), {});
+});
+
 test('respuesta vacía o de error → nada, sin romper', () => {
   const e = A.build('error');
   deepStrictEqual([e.drivers, e.stints, e.totals, e.stops, e.current], [[], [], {}, 0, null]);

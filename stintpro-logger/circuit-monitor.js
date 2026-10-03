@@ -67,6 +67,11 @@ const RAW_IDLE_CLOSE_MS     = 45 * 60 * 1000;  // cierra el fichero si nadie rue
 // repite más tarde para los que estaban en boxes. Es idempotente.
 const GAP_FILL_DELAYS_MS = [3 * 60 * 1000, 10 * 60 * 1000];
 const GAP_FILL_BATCH     = 8;  // karts por petición a request.php
+// Auditoría periódica de completitud: con la sesión en marcha se compara lo
+// grabado con el historial de Apex y se inserta lo que falte, sin esperar a un
+// corte. El margen deja fuera las vueltas que aún están entrando por el WS.
+const LAP_AUDIT_INTERVAL_MS = 15 * 60 * 1000;
+const LAP_AUDIT_MARGIN_MS   = 90 * 1000;
 const APEX_REQUEST_URL   = 'https://live-data.apex-timing.com/live-timing/commonv2/functions/request.php';
 const RESUME_MAX_AGE_MS  = 30 * 60 * 1000; // snapshot más viejo que esto → no reanudar
 const RESUME_MIN_OVERLAP = 0.4;            // mismo umbral que usa el parser para "misma parrilla"
@@ -153,6 +158,8 @@ class CircuitMonitor {
     this._lapCount  = 0;
     this._outageFrom    = null; // último dato antes de perder Apex con sesión abierta
     this._gapFillTimers = [];
+    this._auditTimer    = null;
+    this._lapAudit      = null; // última auditoría de completitud (ver getInfo)
 
     this.recording = cfg.recording !== false; // true por defecto
 
@@ -200,6 +207,10 @@ class CircuitMonitor {
     // Raw log: modo por-sesión. No se abre nada aquí; el fichero se crea al llegar
     // la 1ª vuelta real de una sesión (_onLap → _openSessionRawLog), con su título.
     if (this._apexSampleEnabled) this._startApexSampler();
+    this._auditTimer = setInterval(() => {
+      this._runLapAudit().catch(e => console.error(`[${this.slug}] auditoría de vueltas:`, e.message));
+    }, LAP_AUDIT_INTERVAL_MS);
+    if (this._auditTimer.unref) this._auditTimer.unref();
     this._connect();
   }
 
@@ -209,6 +220,7 @@ class CircuitMonitor {
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
     if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
     this._clearGapFill();
+    if (this._auditTimer)     { clearInterval(this._auditTimer);    this._auditTimer = null;     }
     this._stopHeartbeat();
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
     this._closeSessionRawLog();
@@ -650,9 +662,23 @@ class CircuitMonitor {
     return text;
   }
 
+  // Auditoría de completitud: toda la sesión hasta hace LAP_AUDIT_MARGIN_MS.
+  // Solo con la sesión viva y Apex conectado (tras un corte ya actúa el relleno
+  // programado). Deja el resultado en getInfo().lapAudit para /api/status.
+  async _runLapAudit() {
+    if (!this.sessionId || !this.recording || !this.connected || this.parser.sessionFinished) return null;
+    const sid = this.sessionId;
+    const r = await this._gapFill({ from: 0, to: Date.now() - LAP_AUDIT_MARGIN_MS }, 'Auditoría de vueltas');
+    if (this.sessionId !== sid) return null;
+    const prev = this._lapAudit && this._lapAudit.sessionId === sid ? this._lapAudit : { totalLaps: 0, totalPits: 0 };
+    this._lapAudit = { sessionId: sid, at: Date.now(), laps: r.laps, pits: r.pits,
+                       totalLaps: prev.totalLaps + r.laps, totalPits: prev.totalPits + r.pits };
+    return this._lapAudit;
+  }
+
   // Inserta las vueltas y paradas de la ventana [from, to] que Apex tiene y la
   // BD no (ver gap-fill.js). Devuelve cuántas insertó.
-  async _gapFill(window) {
+  async _gapFill(window, label = 'Relleno de hueco desde Apex') {
     const none = { laps: 0, pits: 0 };
     if (!this.sessionId || !this.recording) return none;
     const sid = this.sessionId;
@@ -664,7 +690,7 @@ class CircuitMonitor {
     if (!karts.length) return none;
     const text = await this._fetchApexHistory(port, karts.map(k => k.rowId.replace('r', '')));
     if (this.sessionId !== sid) return none;
-    if (!text) { console.log(`[${this.slug}] Relleno de hueco: Apex no devolvió historial`); return none; }
+    if (!text) { console.log(`[${this.slug}] ${label}: Apex no devolvió historial`); return none; }
 
     const dbLaps = db.getLapsBySession(sid);
     const dbPits = db.getPitEventsBySession(sid);
@@ -698,7 +724,7 @@ class CircuitMonitor {
       this._lapCount += laps;
     }
     // Siempre deja rastro: un relleno que no hace nada sin avisar ya ocultó un fallo.
-    console.log(`[${this.slug}] Relleno de hueco desde Apex: ${laps} vueltas, ${pits} eventos de parada` +
+    console.log(`[${this.slug}] ${label}: ${laps} vueltas, ${pits} eventos de parada` +
       (offset == null ? ' (paradas sin ancla: no se rellenan)' : ''));
     return { laps, pits };
   }
@@ -995,6 +1021,12 @@ class CircuitMonitor {
       rawLogFile:    this._rawLogPath ? path.basename(this._rawLogPath) : null,
       lastDataAgo:   dataAgoMs == null ? null : Math.round(dataAgoMs / 1000),
       stale:         this.connected && dataAgoMs != null && dataAgoMs > this._staleLimitMs(),
+      // Última auditoría de completitud contra Apex: vueltas/paradas que faltaban
+      // (y se insertaron) en esa pasada y en total en la sesión. null = sin auditar.
+      lapAudit:      this._lapAudit && this._lapAudit.sessionId === this.sessionId
+                       ? { at: this._lapAudit.at, laps: this._lapAudit.laps, pits: this._lapAudit.pits,
+                           totalLaps: this._lapAudit.totalLaps, totalPits: this._lapAudit.totalPits }
+                       : null,
     };
   }
 }

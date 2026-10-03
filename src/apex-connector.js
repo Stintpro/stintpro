@@ -193,34 +193,59 @@ window.ApexConnector = {
       if (m) this._httpPort = parseInt(m[1]);
       // Si el grid llegó antes que el puerto, el historial no se pudo pedir
       // entonces: pedirlo ahora (no habrá otro grid en una carrera estable).
-      if (this._httpPort && !this._historyFetched && this._parser && this._parser.getKartIds().length)
+      if (!this._historyFetched && this._parser && this._parser.getKartIds().length)
         this._fetchLapHistories();
     } catch(e) {}
   },
 
+  // Puerto de request.php: el configPort de Apex si se pudo leer; si no,
+  // puerto del WebSocket − 3 (config.js da 404 en varios circuitos).
+  _requestPort() {
+    return this._httpPort || (parseInt(this.port, 10) - 3) || null;
+  },
+
+  // Historial de vueltas de toda la parrilla al conectar en directo.
+  // 1º directo a Apex desde el navegador (request.php manda CORS *): TODAS las
+  // vueltas de cada kart, varios karts por petición. Si falla, el proxy de
+  // siempre (limitado a las últimas 100 vueltas por kart).
   async _fetchLapHistories() {
-    if (this._historyFetched || !this._httpPort || !this._parser) return;
+    const port = this._requestPort();
+    if (this._historyFetched || !port || !this._parser) return;
     const kartIds = this._parser.getKartIds();
     if (!kartIds.length) return;
     this._historyFetched = true;
     if (this.onStatus) this.onStatus('connected', '● Cargando historial...');
 
-    const port = this._httpPort;
+    const merge = (rowId, laps) => {
+      if (laps && laps.length && this._parser) this._parser.mergeHttpHistory(rowId, laps, laps.length);
+    };
 
-    // TEMPORAL — investigar qué traen .P/.B/.INF (hoy solo se parsea .L, el resto se
-    // descarta). Loguear solo el primer kart para no inundar la consola. Quitar este
-    // bloque en cuanto se haya inspeccionado una respuesta real.
-    let _debugLogged = false;
+    const fetchDirect = async (batch) => {
+      const A = window.EnApexTeam;
+      if (!A) throw new Error('sin EnApexTeam');
+      const ids = batch.map(k => k.rowId.replace('r', ''));
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await fetch(A.REQUEST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'port=' + port + '&request=' + encodeURIComponent(A.lapsRequest(ids)),
+          signal: controller.signal,
+        });
+        const text = (await res.text()).trim();
+        if (!res.ok || text === 'error') throw new Error('Apex ' + res.status);
+        const by = A.parseLapsById(text);
+        batch.forEach(k => merge(k.rowId, by[k.rowId.replace('r', '')]));
+      } finally { clearTimeout(timer); }
+    };
 
-    // Toda la parrilla (Campillos lleva 46 equipos), en lotes para no saturar el proxy.
-    const fetchOne = async ({ rowId }) => {
+    const fetchViaProxy = async ({ rowId }) => {
       const id = rowId.replace('r', '');
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 8000);
         const req = `D%23-100%23D${id}.L%23-999%23D${id}.P%232%23D${id}.B%231%23D${id}.INF`;
-        // Mismo motivo que _fetchHttpPort: apex-timing.com no manda CORS, se pasa
-        // por nuestro proxy en vez de pedirlo directamente.
         const res = await fetch(APEX_PROXY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -231,25 +256,6 @@ window.ApexConnector = {
         const { text: rawText } = await res.json();
         const text = (rawText || '').trim();
         if (!text || text === 'error') return;
-
-        // Solo interesa como muestra un kart con vueltas reales (no un hueco vacío
-        // del grid, dorsal "0" sin historial) — si no tiene .L, seguir buscando.
-        const lines = text.split('\n');
-        const hasLapLine = lines.some(l => l.includes(`D${id}.L`));
-        if (!_debugLogged && hasLapLine) {
-          _debugLogged = true;
-          console.log(`[StintPro DEBUG request.php] kart r${id} — respuesta completa (${lines.length} líneas):`);
-          console.log(text);
-          console.log('[StintPro DEBUG request.php] líneas .L (vueltas):',
-            lines.filter(l => l.includes(`D${id}.L`)));
-          console.log('[StintPro DEBUG request.php] líneas .P (posible historial de pits):',
-            lines.filter(l => l.includes(`D${id}.P#`)));
-          console.log('[StintPro DEBUG request.php] líneas .BL (mejor vuelta oficial — confirmado, no .B):',
-            lines.filter(l => l.includes(`D${id}.BL#`)));
-          console.log('[StintPro DEBUG request.php] líneas .INF (posible info kart/piloto):',
-            lines.filter(l => l.includes(`D${id}.INF`)));
-        }
-
         const laps = [];
         text.split('\n').forEach(line => {
           const m = line.match(new RegExp(`^D${id}\\.L(\\d+)#[^|]*\\|[^|]*\\|[^|]*\\|([\\da-zA-Z]+)`));
@@ -258,15 +264,19 @@ window.ApexConnector = {
           if (isNaN(ms) || ms < 20000 || ms >= 300000) return;
           laps.push({ n: parseInt(m[1]), t: parseFloat((ms / 1000).toFixed(3)) });
         });
-
         laps.sort((a, b) => a.n - b.n);
-        if (laps.length && this._parser)
-          this._parser.mergeHttpHistory(rowId, laps.map(l => l.t), laps.length);
+        merge(rowId, laps.map(l => l.t));
       } catch(e) {}
     };
-    const BATCH = 12;
-    for (let i = 0; i < kartIds.length; i += BATCH)
-      await Promise.allSettled(kartIds.slice(i, i + BATCH).map(fetchOne));
+
+    // Lotes de 8 karts por petición directa; el lote que falle cae al proxy.
+    const BATCH = 8;
+    const batches = [];
+    for (let i = 0; i < kartIds.length; i += BATCH) batches.push(kartIds.slice(i, i + BATCH));
+    await Promise.allSettled(batches.map(async batch => {
+      try { await fetchDirect(batch); }
+      catch(e) { await Promise.allSettled(batch.map(fetchViaProxy)); }
+    }));
 
     if (this.onStatus) this.onStatus('connected', '● Apex conectado');
     if (this._parser) this._emit(this._parser.getState());
