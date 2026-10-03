@@ -244,20 +244,29 @@ test('paso a paso entre niveles, con tope por arriba y por abajo', () => {
   assert.strictEqual(U._enTrackZoomStep(Z[Z.length - 1], +1), Z[Z.length - 1]);
 });
 test('un valor guardado raro → nivel más cercano (o el de por defecto)', () => {
-  assert.strictEqual(U._enTrackZoomLevel('0.72'), 0.7);
+  assert.strictEqual(U._enTrackZoomLevel('1.55'), 1.5);
+  assert.strictEqual(U._enTrackZoomLevel('0.7'), 1);   // zoom antiguo (encogía la ventana) → mapa entero
   assert.strictEqual(U._enTrackZoomLevel(null), U._ENTRK_ZOOM_DEFAULT);
   assert.strictEqual(U._enTrackZoomLevel('basura'), U._ENTRK_ZOOM_DEFAULT);
   assert.strictEqual(U._enTrackZoomLevel('9'), U._ENTRK_ZOOMS[U._ENTRK_ZOOMS.length - 1]);
 });
-test('el tamaño escala ancho y alto máximo a la vez (mapa y karts juntos)', () => {
-  const s = U._enTrackSvgSize(0.5);
-  assert.ok(s.includes('width:50%') && s.includes('max-height:31vh'));
-  assert.ok(U._enTrackSvgSize(1).includes('width:100%') && U._enTrackSvgSize(1).includes('max-height:62vh'));
+test('el zoom no cambia el tamaño de la ventana: solo el encuadre (viewBox)', () => {
+  const vb = { w: 1000, h: 600 };
+  assert.deepStrictEqual(U._enTrackViewBox(vb, 1, null), { x: 0, y: 0, w: 1000, h: 600 });
+  // ×2 centrado: la mitad de ancho y de alto, misma proporción → el SVG mide lo mismo
+  assert.deepStrictEqual(U._enTrackViewBox(vb, 2, null), { x: 250, y: 150, w: 500, h: 300 });
+  assert.strictEqual(U._enTrackSvgStyle(1), U._enTrackSvgStyle(3).replace('touch-action:none', 'touch-action:auto').replace('cursor:grab', 'cursor:default'));
+});
+test('el encuadre sigue al centro arrastrado, sin salirse del mapa', () => {
+  const vb = { w: 1000, h: 600 };
+  assert.deepStrictEqual(U._enTrackViewBox(vb, 2, { x: 600, y: 300 }), { x: 350, y: 150, w: 500, h: 300 });
+  assert.deepStrictEqual(U._enTrackViewBox(vb, 2, { x: -500, y: 9999 }), { x: 0, y: 300, w: 500, h: 300 });
+  assert.deepStrictEqual(U._enTrackViewBox(vb, 1, { x: 900, y: 900 }), { x: 0, y: 0, w: 1000, h: 600 });
 });
 test('controles: − porcentaje +, deshabilitados en los topes', () => {
   const Z = U._ENTRK_ZOOMS;
-  const h = U._enTrackZoomHtml(0.7);
-  assert.ok(h.includes('70 %') && h.includes("_enTrackSetZoom(-1)") && h.includes("_enTrackSetZoom(1)"));
+  const h = U._enTrackZoomHtml(1.5);
+  assert.ok(h.includes('150 %') && h.includes("_enTrackSetZoom(-1)") && h.includes("_enTrackSetZoom(1)"));
   assert.ok(U._enTrackZoomHtml(Z[0]).match(/_enTrackSetZoom\(-1\)"[^>]*disabled/));
   assert.ok(U._enTrackZoomHtml(Z[Z.length - 1]).match(/_enTrackSetZoom\(1\)"[^>]*disabled/));
 });

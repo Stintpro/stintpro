@@ -8,7 +8,7 @@
 const EnTrack = {
   engine: null, track: null, key: null, shellFor: null, nodes: {},
   raf: null, lastFrame: 0, lastSide: 0, selected: null, cache: {},
-  worms: {}, dirDismissedAt: null, zoom: null,
+  worms: {}, dirDismissedAt: null, zoom: null, pan: null, panTrack: null, drag: null, panEndAt: 0,
 };
 
 // Reloj del mapa: el mismo que usa lastLapAt. En un replay es el tiempo de la
@@ -142,10 +142,10 @@ function _enTrackEnsure(){
 
 // ── SVG ────────────────────────────────────────────────────────────────────
 // ── Zoom ───────────────────────────────────────────────────────────────────
-// Escala el SVG entero (ancho y alto máximo a la vez): trazado y dorsales se
-// hacen pequeños juntos, sin tocar el maquetado de píldoras. Por dispositivo.
-const _ENTRK_ZOOMS=[0.4,0.5,0.6,0.7,0.85,1];
-const _ENTRK_ZOOM_DEFAULT=0.7;
+// Zoom de verdad: la ventana del mapa mide siempre lo mismo y lo que cambia es el
+// encuadre (viewBox). Ampliado, el mapa se arrastra para moverse. Por dispositivo.
+const _ENTRK_ZOOMS=[1,1.25,1.5,2,2.5,3];
+const _ENTRK_ZOOM_DEFAULT=1;
 const _ENTRK_ZOOM_KEY='stintpro_track_zoom';
 function _enTrackZoomLevel(v){
   const z=parseFloat(v);
@@ -156,8 +156,52 @@ function _enTrackZoomStep(z, dir){
   const i=_ENTRK_ZOOMS.indexOf(_enTrackZoomLevel(z));
   return _ENTRK_ZOOMS[Math.min(_ENTRK_ZOOMS.length-1,Math.max(0,i+dir))];
 }
-function _enTrackSvgSize(z){
-  return `width:${Math.round(z*100)}%;max-height:${Math.round(62*z)}vh`;
+// Encuadre a zoom z centrado en c (unidades del trazado; null = centro del mapa).
+// Conserva la proporción (el SVG no cambia de tamaño) y no se sale del mapa.
+function _enTrackViewBox(vb, z, c){
+  const w=vb.w/z, h=vb.h/z;
+  const ok=c&&Number.isFinite(c.x)&&Number.isFinite(c.y);
+  const cx=ok?c.x:vb.w/2, cy=ok?c.y:vb.h/2;
+  const x=Math.min(vb.w-w,Math.max(0,cx-w/2)), y=Math.min(vb.h-h,Math.max(0,cy-h/2));
+  return {x,y,w,h};
+}
+// El mapa se acota a la altura visible (62vh) y se centra conservando la proporción:
+// así mapa + tira caben en pantalla y "En box" queda al lado.
+function _enTrackSvgStyle(z){
+  const pan=z>1;
+  return `width:100%;max-height:62vh;height:auto;display:block;margin:0 auto;touch-action:${pan?'none':'auto'};cursor:${pan?'grab':'default'}`;
+}
+function _enTrackApplyView(){
+  const svg=document.getElementById('en-trk-svg'), t=EnTrack.track;
+  if(!svg||!t)return;
+  const z=_enTrackGetZoom(), v=_enTrackViewBox(t.viewBox,z,EnTrack.pan);
+  svg.setAttribute('viewBox',`${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
+  svg.style.cssText=_enTrackSvgStyle(z);
+}
+// Arrastre: solo con el mapa ampliado y pasado un umbral, para no comerse el clic en un dorsal.
+function _enTrackPanStart(e){
+  const t=EnTrack.track, z=_enTrackGetZoom();
+  if(!t||z<=1)return;
+  const svg=document.getElementById('en-trk-svg'), m=svg&&svg.getScreenCTM&&svg.getScreenCTM();
+  const v=_enTrackViewBox(t.viewBox,z,EnTrack.pan);
+  EnTrack.drag={x:e.clientX,y:e.clientY,cx:v.x+v.w/2,cy:v.y+v.h/2,k:m&&m.a?1/m.a:1,moved:false};
+}
+function _enTrackPanMove(e){
+  const g=EnTrack.drag;
+  if(!g)return;
+  const dx=e.clientX-g.x, dy=e.clientY-g.y;
+  if(!g.moved){
+    if(Math.hypot(dx,dy)<5)return;
+    g.moved=true;
+    try{document.getElementById('en-trk-svg').setPointerCapture(e.pointerId);}catch(err){}
+  }
+  const v=_enTrackViewBox(EnTrack.track.viewBox,_enTrackGetZoom(),{x:g.cx-dx*g.k,y:g.cy-dy*g.k});
+  EnTrack.pan={x:v.x+v.w/2,y:v.y+v.h/2};
+  _enTrackApplyView();
+}
+function _enTrackPanEnd(){
+  if(EnTrack.drag&&EnTrack.drag.moved)EnTrack.panEndAt=Date.now();
+  EnTrack.drag=null;
 }
 function _enTrackZoomHtml(z){
   const Z=_ENTRK_ZOOMS;
@@ -172,8 +216,8 @@ function _enTrackSetZoom(dir){
   const z=_enTrackZoomStep(_enTrackGetZoom(),dir);
   EnTrack.zoom=z;
   try{localStorage.setItem(_ENTRK_ZOOM_KEY,String(z));}catch(e){}
-  const svg=document.getElementById('en-trk-svg');
-  if(svg)svg.style.cssText=`${_enTrackSvgSize(z)};height:auto;display:block;margin:0 auto`;
+  if(z<=1)EnTrack.pan=null;
+  _enTrackApplyView();
   const ctl=document.getElementById('en-trk-zoom');
   if(ctl)ctl.innerHTML=_enTrackZoomHtml(z);
 }
@@ -191,8 +235,8 @@ function _enTrackShellHtml(track){
   const ang=Math.atan2(q2[1]-q[1],q2[0]-q[0])*180/Math.PI;
   const fs=Math.max(14,wu*0.85);
   const z=_enTrackGetZoom();
-  // El mapa se acota a la altura visible (62vh × zoom) y se centra conservando la
-  // proporción: así mapa + tira caben en pantalla y "En box" queda al lado.
+  if(EnTrack.panTrack!==track){EnTrack.panTrack=track;EnTrack.pan=null;}
+  const v=_enTrackViewBox(track.viewBox,z,EnTrack.pan);
   return `<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
     <div style="flex:1 1 380px;min-width:0">
       <div id="en-trk-gaps" class="en-strat-card" style="padding:10px 14px;margin-bottom:10px"></div>
@@ -201,7 +245,7 @@ function _enTrackShellHtml(track){
         <div id="en-trk-zoom" style="display:flex;align-items:center;gap:4px">${_enTrackZoomHtml(z)}</div>
         <div id="en-trk-dir" style="display:flex;justify-content:flex-end;flex:1 1 auto;min-width:0"></div>
       </div>
-      <svg id="en-trk-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="${_enTrackSvgSize(z)};height:auto;display:block;margin:0 auto" role="img" aria-label="Mapa de pista">
+      <svg id="en-trk-svg" viewBox="${f(v.x)} ${f(v.y)} ${f(v.w)} ${f(v.h)}" preserveAspectRatio="xMidYMid meet" style="${_enTrackSvgStyle(z)}" role="img" aria-label="Mapa de pista">
         <defs><pattern id="en-trk-chk" width="${wu/2}" height="${wu/2}" patternUnits="userSpaceOnUse">
           <rect width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/><rect x="${wu/4}" y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#f5f5f5"/>
           <rect x="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#111"/><rect y="${wu/4}" width="${wu/4}" height="${wu/4}" fill="#111"/></pattern></defs>
@@ -264,6 +308,7 @@ function _enTrackKartNode(dorsal, isMe, wu){
 }
 
 function _enTrackSelect(dorsal){
+  if(Date.now()-EnTrack.panEndAt<350)return;   // el clic que cierra un arrastre no selecciona
   EnTrack.selected=EnTrack.selected===dorsal?null:dorsal;
   const el=document.getElementById('en-trk-sel');
   if(el)el.innerHTML=EnTrack.selected?_enTrackSelHtml(EnTrack.engine.info(EnTrack.selected)):'';
@@ -290,6 +335,13 @@ function _enRenderTrack(eq){
   const track=_enTrackEnsure();
   if(EnTrack.shellFor!==track||!body.querySelector('#en-trk-karts')){
     body.innerHTML=_enTrackShellHtml(track);
+    const svg=body.querySelector('#en-trk-svg');
+    if(svg&&svg.addEventListener){
+      svg.addEventListener('pointerdown',_enTrackPanStart);
+      svg.addEventListener('pointermove',_enTrackPanMove);
+      svg.addEventListener('pointerup',_enTrackPanEnd);
+      svg.addEventListener('pointercancel',_enTrackPanEnd);
+    }
     EnTrack.shellFor=track;
     EnTrack.nodes={};
     EnTrack.worms={};
@@ -521,5 +573,5 @@ if (typeof module !== 'undefined') {
   module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
     _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml,
     _enTrackWorms, _enTrackWormPath, _enTrackLineGap, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection,
-    _ENTRK_ZOOMS, _ENTRK_ZOOM_DEFAULT, _enTrackZoomLevel, _enTrackZoomStep, _enTrackSvgSize, _enTrackZoomHtml, _enTrackSetZoom };
+    _ENTRK_ZOOMS, _ENTRK_ZOOM_DEFAULT, _enTrackZoomLevel, _enTrackZoomStep, _enTrackViewBox, _enTrackSvgStyle, _enTrackZoomHtml, _enTrackSetZoom };
 }
