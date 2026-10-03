@@ -15,6 +15,14 @@ function test(name, fn) {
 
 console.log('\nformato');
 
+test('rival fijado: su dorsal va como "pin"; el mío nunca', () => {
+  const k = U._enTrackKind;
+  if (k('7', '2', '7') !== 'pin') throw new Error('el fijado debe ser pin');
+  if (k(7, '2', '7') !== 'pin') throw new Error('dorsal numérico o texto: mismo resultado');
+  if (k('2', '2', '2') !== 'me') throw new Error('mi kart sigue siendo el mío aunque esté fijado');
+  if (k('9', '2', '7') !== '' || k('9', '2', null) !== '' || k('9', '', '') !== '') throw new Error('el resto, sin marca');
+});
+
 test('huecos con coma decimal y signo', () => {
   assert.strictEqual(U._enTrackFmtGap(1.84), '+1,8 s');
   assert.strictEqual(U._enTrackFmtGap(-3.36), '−3,4 s');

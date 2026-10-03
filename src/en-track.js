@@ -50,6 +50,21 @@ function _enTrackFmtLap(ms){
 const _ENTRK_TXT="font-family:var(--font-sans,'Inter',sans-serif);font-size:12.5px";
 const _ENTRK_MONO="font-family:var(--font-mono,'JetBrains Mono',monospace);font-variant-numeric:tabular-nums";
 const _ENTRK_ME='#F5A623';
+// Rival fijado en Clasificación (EnUi.pinned): su dorsal va en rojo, con el
+// mismo tratamiento que el mío (tamaño, halo y por encima del resto).
+const _ENTRK_PIN='#ef4444';
+const _ENTRK_KIND={
+  me:  {fill:_ENTRK_ME,  text:'#1a1205', stroke:'#fff5e0', halo:'rgba(245,166,35,0.22)', worm:'rgba(245,166,35,0.85)'},
+  pin: {fill:_ENTRK_PIN, text:'#ffffff', stroke:'#ffe4e4', halo:'rgba(239,68,68,0.26)',  worm:'rgba(239,68,68,0.9)'},
+};
+// 'me' = mi kart · 'pin' = rival fijado · '' = el resto. Mi kart nunca es 'pin'.
+function _enTrackKind(dorsal, me, pinned){
+  const d=String(dorsal);
+  if(me&&d===String(me))return 'me';
+  if(pinned!=null&&String(pinned)!==''&&d===String(pinned))return 'pin';
+  return '';
+}
+function _enTrackPinned(){ return (typeof EnUi!=='undefined'&&EnUi.pinned!=null)?String(EnUi.pinned):''; }
 // Radio del dorsal en anchos de pista (el trazado se escala a 8 m de ancho):
 // 0,5 → círculo de 8 m ≈ 0,5 s en Ariza. Mi kart, algo mayor.
 const _ENTRK_R=0.5, _ENTRK_R_ME=0.68;
@@ -80,9 +95,10 @@ function _enTrackPitListHtml(list){
   if(!list.length)return head+`<div style="${_ENTRK_TXT};color:var(--text-3)">Nadie en box</div>`;
   return head+list.map(p=>{
     const over=p.remainingS<0, mine=me&&String(p.dorsal)===me;
+    const pin=_enTrackKind(p.dorsal,me,_enTrackPinned())==='pin';   // rival fijado: en rojo, como en el mapa
     const txt=over?`+${_enTrackClock(-p.remainingS)}`:`Sale en ${_enTrackClock(p.remainingS)}`;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.035);border:0.5px solid ${mine?'rgba(245,166,35,0.55)':'rgba(255,255,255,0.06)'};margin-bottom:5px;${_ENTRK_TXT}">
-      <span style="min-width:32px;text-align:center;${_ENTRK_MONO};font-size:13.5px;font-weight:700;color:${mine?'#1a1205':'#fff'};background:${mine?_ENTRK_ME:'#1b1d24'};border:0.5px solid rgba(255,255,255,0.18);border-radius:6px;padding:2px 5px">${_enTrackEsc(p.dorsal)}</span>
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.035);border:0.5px solid ${mine?'rgba(245,166,35,0.55)':pin?'rgba(239,68,68,0.6)':'rgba(255,255,255,0.06)'};margin-bottom:5px;${_ENTRK_TXT}">
+      <span style="min-width:32px;text-align:center;${_ENTRK_MONO};font-size:13.5px;font-weight:700;color:${mine?'#1a1205':'#fff'};background:${mine?_ENTRK_ME:pin?_ENTRK_PIN:'#1b1d24'};border:0.5px solid rgba(255,255,255,0.18);border-radius:6px;padding:2px 5px">${_enTrackEsc(p.dorsal)}</span>
       <span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25">
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-1)">${_enTrackEsc(p.name)}</span>
         <span style="font-size:11.5px;color:var(--text-3)">parado <span style="${_ENTRK_MONO}">${_enTrackClock(p.pitS)}</span></span></span>
@@ -270,9 +286,11 @@ function _enTrackShellHtml(track){
   </div>`;
 }
 
-function _enTrackKartNode(dorsal, isMe, wu){
+function _enTrackKartNode(dorsal, kind, wu){
   const NS='http://www.w3.org/2000/svg';
-  const r=isMe?wu*_ENTRK_R_ME:wu*_ENTRK_R;
+  if(kind===true)kind='me';
+  const st=_ENTRK_KIND[kind]||null;
+  const r=st?wu*_ENTRK_R_ME:wu*_ENTRK_R;
   const g=document.createElementNS(NS,'g');
   g.setAttribute('data-d',dorsal);
   g.style.cursor='pointer';
@@ -281,16 +299,16 @@ function _enTrackKartNode(dorsal, isMe, wu){
   rim.setAttribute('r',(r*1.19).toFixed(1));
   rim.setAttribute('fill','rgba(8,9,10,0.6)');
   g.appendChild(rim);
-  if(isMe){
+  if(st){
     const halo=document.createElementNS(NS,'circle');
     halo.setAttribute('r',(r*1.55).toFixed(1));
-    halo.setAttribute('fill','rgba(245,166,35,0.22)');
+    halo.setAttribute('fill',st.halo);
     g.insertBefore(halo,rim);
   }
   const c=document.createElementNS(NS,'circle');
   c.setAttribute('r',r.toFixed(1));
-  c.setAttribute('fill',isMe?'#F5A623':'#1b1d24');
-  c.setAttribute('stroke',isMe?'#fff5e0':'rgba(255,255,255,0.55)');
+  c.setAttribute('fill',st?st.fill:'#1b1d24');
+  c.setAttribute('stroke',st?st.stroke:'rgba(255,255,255,0.55)');
   c.setAttribute('stroke-width',(r*0.125).toFixed(1));
   g.appendChild(c);
   const t=document.createElementNS(NS,'text');
@@ -301,9 +319,10 @@ function _enTrackKartNode(dorsal, isMe, wu){
   t.setAttribute('font-weight','700');
   t.setAttribute('letter-spacing',dorsal.length>=3?'-0.04em':'0');
   t.setAttribute('font-size',(r*(dorsal.length>=3?0.82:dorsal.length===2?1.0:1.12)).toFixed(1));
-  t.setAttribute('fill',isMe?'#1a1205':'#ffffff');
+  t.setAttribute('fill',st?st.text:'#ffffff');
   g.appendChild(t);
   g.addEventListener('click',()=>_enTrackSelect(dorsal));
+  g._kind=kind||'';
   return g;
 }
 
@@ -425,13 +444,13 @@ function _enTrackWormNode(group, r, wu){
   const line={fill:'none','stroke-linecap':'round','stroke-linejoin':'round'};
   const paths=[
     el('path',{...line,stroke:'rgba(8,9,10,0.6)','stroke-width':(2*r*1.19).toFixed(1)},g),
-    el('path',{...line,stroke:hasMe?'rgba(245,166,35,0.85)':'rgba(255,255,255,0.55)','stroke-width':(2*r+r*0.25).toFixed(1)},g),
+    el('path',{...line,stroke:hasMe?_ENTRK_KIND.me.worm:group.members.some(m=>m.pin)?_ENTRK_KIND.pin.worm:'rgba(255,255,255,0.55)','stroke-width':(2*r+r*0.25).toFixed(1)},g),
     el('path',{...line,stroke:'#1b1d24','stroke-width':(2*r-r*0.25).toFixed(1)},g),
   ];
   const chips=group.members.map(m=>{
     const cg=el('g',{'data-d':m.d},g);
     if(m.stale)cg.setAttribute('opacity','0.4');
-    el('circle',{r:(r*0.86).toFixed(1),fill:m.me?_ENTRK_ME:'transparent'},cg);
+    el('circle',{r:(r*0.86).toFixed(1),fill:m.me?_ENTRK_ME:m.pin?_ENTRK_PIN:'transparent'},cg);
     const t=el('text',{'text-anchor':'middle','dominant-baseline':'central','font-family':'Inter, sans-serif','font-weight':'700',
       'letter-spacing':m.d.length>=3?'-0.04em':'0','font-size':(r*(m.d.length>=3?0.82:m.d.length===2?1.0:1.12)).toFixed(1),fill:m.me?'#1a1205':'#ffffff'},cg);
     t.textContent=m.d;
@@ -500,6 +519,7 @@ function _enTrackFrame(){
   if(EnTrack.shellFor!==EnTrack.track)return;
   const P=window.EnTrackPos, track=EnTrack.track, now=_enTrackNow();
   const me=String(window.AppState?.config?.myDorsal||'');
+  const pinned=_enTrackPinned();
   const pos=EnTrack.engine.positions(now);
   const inPit=pos.filter(p=>p.mode==='pit');
   const seen=new Set(), items=[];
@@ -511,13 +531,16 @@ function _enTrackFrame(){
       :P.pointAt(track,p.t);
     if(!pt)return;
     seen.add(p.dorsal);
+    const kind=_enTrackKind(p.dorsal,me,pinned);
     let node=EnTrack.nodes[p.dorsal];
+    // Fijar o soltar un rival cambia su dibujo: se rehace el nodo.
+    if(node&&node._kind!==kind){node.remove();node=null;}
     if(!node){
-      node=_enTrackKartNode(p.dorsal,p.dorsal===me,track.widthUnits);
+      node=_enTrackKartNode(p.dorsal,kind,track.widthUnits);
       EnTrack.nodes[p.dorsal]=node;
-      if(p.dorsal===me)g.appendChild(node); else g.insertBefore(node,g.firstChild);   // mi kart, encima
+      if(kind)g.appendChild(node); else g.insertBefore(node,g.firstChild);   // mi kart y el fijado, encima
     }
-    items.push({node,x:pt[0],y:pt[1],pos:p.mode==='pit'?null:P.timeToDist(track,p.t),lastLapAt:p.lastLapAt,prevLapAt:p.prevLapAt,join:p.mode==='track',me:p.dorsal===me,d:p.dorsal,stale:p.mode==='stale'});
+    items.push({node,x:pt[0],y:pt[1],pos:p.mode==='pit'?null:P.timeToDist(track,p.t),lastLapAt:p.lastLapAt,prevLapAt:p.prevLapAt,join:p.mode==='track',me:p.dorsal===me,pin:kind==='pin',d:p.dorsal,stale:p.mode==='stale'});
     node.style.opacity=p.mode==='stale'?'0.35':'1';
   });
   Object.keys(EnTrack.nodes).forEach(d=>{ if(!seen.has(d)){EnTrack.nodes[d].remove();delete EnTrack.nodes[d];} });
@@ -537,7 +560,7 @@ function _enTrackFrame(){
       it.node.setAttribute('transform',`translate(${it.x.toFixed(1)} ${it.y.toFixed(1)})`);
       return;
     }
-    const key=gr.members.map(m=>m.d+(m.me?'*':'')+(m.stale?'~':'')).join('|');
+    const key=gr.members.map(m=>m.d+(m.me?'*':'')+(m.pin?'!':'')+(m.stale?'~':'')).join('|');
     gr.members.forEach(m=>{m.node.style.display='none';});
     if(!wl)return;
     let node=EnTrack.worms[key];
@@ -570,7 +593,7 @@ function _enStartTrackRaf(){ if(EnTrack.raf==null&&typeof requestAnimationFrame=
 function _enStopTrackRaf(){ if(EnTrack.raf!=null&&typeof cancelAnimationFrame==='function')cancelAnimationFrame(EnTrack.raf); EnTrack.raf=null; }
 
 if (typeof module !== 'undefined') {
-  module.exports = { EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
+  module.exports = { _enTrackKind, EnTrack, _enTrackUpdate, _enRenderTrack, _enTrackEnsure, _enTrackFrame, _enTrackNow, _enTrackEsc, _enTrackFmtGap, _enTrackClock, _enTrackFmtLap,
     _enTrackGapStripHtml, _enTrackPitListHtml, _enTrackNoteHtml, _enTrackSelHtml,
     _enTrackWorms, _enTrackWormPath, _enTrackLineGap, _enTrackDirBarHtml, _enTrackDirPrompt, _enTrackSetDirection,
     _ENTRK_ZOOMS, _ENTRK_ZOOM_DEFAULT, _enTrackZoomLevel, _enTrackZoomStep, _enTrackViewBox, _enTrackSvgStyle, _enTrackZoomHtml, _enTrackSetZoom };
