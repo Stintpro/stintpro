@@ -537,29 +537,6 @@ function _enRenderTeam(myKart, trackAvg){
     </div>
   </div>`;
 
-  // ── Cola de pilotos ────────────────────────────────────────
-  if(pilotos.length>1){
-    html+=`<div class="en-team-card">
-      <div class="en-team-title">Cola de pilotos</div>`;
-    const queueOrder=[];
-    for(let i=1;i<pilotos.length;i++){
-      const idx=(EnSession.currentPilot+i)%pilotos.length;
-      queueOrder.push(idx);
-    }
-    queueOrder.forEach((idx,i)=>{
-      const p=pilotos[idx];
-      const stints=EnSession.stintHistory.filter(s=>s.pilotIdx===idx);
-      const totalMs=stints.reduce((a,s)=>a+s.durationMs,0);
-      const totalLaps=stints.reduce((a,s)=>a+s.laps,0);
-      html+=`<div class="en-queue-item">
-        <div class="en-queue-num" style="${i===0?'background:#F5A623;color:#fff':''}">${i+1}</div>
-        <div class="en-queue-name" style="${i===0?'color:var(--text-1);font-weight:500':''}">${_esc(p.name)}${i===0?' ← siguiente':''}</div>
-        <div class="en-queue-stat">${stints.length}st · ${totalLaps}v · ${_enFmtStint(totalMs)}</div>
-      </div>`;
-    });
-    html+=`</div>`;
-  }
-
   // ── Historial de stints ────────────────────────────────────
   html+=`<div class="en-team-card">
     <div style="display:flex;justify-content:space-between;align-items:center">

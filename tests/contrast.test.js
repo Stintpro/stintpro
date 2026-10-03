@@ -964,7 +964,7 @@ const FICHEROS_TARJETA = { 'en-strategy.js': 'en-strat-card', 'en-team.js': 'en-
 // en-strategy.js: 7 → 4. Salieron la Fila 1 (a83e4ca, pasó al KPI "Estado de
 // Box"), "Movimientos recientes"/diagrama del box (68f4746, fundidos en las
 // tarjetas del Tablero de Box) y "Karts en pista" (d491a94, pasó a 🌊 Olas).
-const TARJETAS_ESPERADAS = { 'en-strategy.js': 3, 'en-team.js': 5 }; // sin las filas de config: viven en «Configuración de carrera»
+const TARJETAS_ESPERADAS = { 'en-strategy.js': 3, 'en-team.js': 4 }; // sin las filas de config: viven en «Configuración de carrera»
 const INTERPOLACIONES_OPACAS_TARJETA = {
   // kc.text: el color del dorsal, que sale de _enKartColor (otro fichero).
   // tacticColor: sale de EnBoxModel.tacticalAdvice (src/en-box-model.js); sus
