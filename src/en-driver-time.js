@@ -47,5 +47,28 @@
     return out;
   }
 
-  return { matchPilot, officialByPilot };
+  // Nombre de relleno del setup ("Piloto 2", "Yo"): nadie lo escribió a mano.
+  const isPlaceholder = name => /^(piloto\s*\d+|yo)$/i.test(String(name || '').trim());
+  const MAX_PILOTS = 10;
+
+  // Índice del piloto del setup para el nombre de Apex, ADOPTÁNDOLO si no está:
+  // la identificación no puede depender de que el usuario haya tecleado en el
+  // setup los mismos nombres que usa el cronometraje. Si no encaja con nadie,
+  // ocupa un hueco de relleno que no tenga stints a su nombre (usedIdx) o se
+  // añade al final. Muta `pilotos`. -1 solo sin nombre o con la lista llena.
+  function adoptPilot(apexName, pilotos, usedIdx) {
+    const name = String(apexName || '').trim();
+    if (!name || !Array.isArray(pilotos)) return -1;
+    const hit = matchPilot(name, pilotos);
+    if (hit >= 0) return hit;
+    const used = usedIdx || new Set();
+    const free = pilotos.findIndex((p, i) => isPlaceholder(p && p.name) && !used.has(i));
+    if (free >= 0) { pilotos[free] = { ...pilotos[free], name }; return free; }
+    if (pilotos.length >= MAX_PILOTS) return -1;
+    const minutos = (pilotos[0] && pilotos[0].minutos) || 90;
+    pilotos.push({ name, minutos });
+    return pilotos.length - 1;
+  }
+
+  return { matchPilot, officialByPilot, adoptPilot, isPlaceholder };
 });

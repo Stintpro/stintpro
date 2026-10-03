@@ -1430,8 +1430,18 @@ function _enPilotFromApex(onlyIfChanged){
   const drv=myK?.driver||null;
   if(onlyIfChanged&&drv===EnSession._apexDriver)return false;
   EnSession._apexDriver=drv;
-  const idx=window.EnDriverTime?window.EnDriverTime.matchPilot(drv,cfg?.pilotos||[]):-1;
+  if(!drv||!cfg||!window.EnDriverTime)return false;
+  if(!Array.isArray(cfg.pilotos))cfg.pilotos=[];
+  // Si el nombre de Apex no está en el setup se adopta (todos los pilotos que
+  // Apex ya conoce del equipo, para que el resumen por piloto salga completo):
+  // los huecos de relleno sin stints a su nombre se ocupan primero.
+  const used=new Set((EnSession.stintHistory||[]).map(s=>s.pilotIdx));
+  const before=JSON.stringify(cfg.pilotos);
+  const idx=window.EnDriverTime.adoptPilot(drv,cfg.pilotos,used);
+  if(idx>=0)used.add(idx);
+  (myK.drivers||[]).forEach(d=>{ const i=window.EnDriverTime.adoptPilot(d.name,cfg.pilotos,used); if(i>=0)used.add(i); });
   if(idx<0)return false;
   EnSession.currentPilot=idx;
+  if(JSON.stringify(cfg.pilotos)!==before&&typeof _enSaveRaceState==='function'){try{_enSaveRaceState();}catch(e){}}
   return true;
 }

@@ -64,5 +64,47 @@ test('kart sin tiempo oficial (sprint, otro cronometraje) → nada', () => {
   deepStrictEqual(D.officialByPilot(null, pilotos), { minutes: [null, null, null], currentIdx: -1, unmatched: [] });
 });
 
+console.log('\n▸ Adoptar al piloto de Apex cuando no está en el setup\n');
+
+test('setup por defecto (Piloto 1..3): el nombre de Apex ocupa el primer hueco', () => {
+  const ps = [{ name: 'Piloto 1', minutos: 90 }, { name: 'Piloto 2', minutos: 90 }, { name: 'Piloto 3', minutos: 90 }];
+  strictEqual(D.adoptPilot('ALEJANDRO FLORIDO', ps), 0);
+  strictEqual(ps[0].name, 'ALEJANDRO FLORIDO');
+  strictEqual(ps[0].minutos, 90);
+});
+
+test('si ya encaja con uno del setup no se toca la lista', () => {
+  const ps = [{ name: 'Alex' }, { name: 'Piloto 2' }];
+  strictEqual(D.adoptPilot('ALEX LOPEZ', ps), 0);
+  deepStrictEqual(ps, [{ name: 'Alex' }, { name: 'Piloto 2' }]);
+});
+
+test('un hueco de relleno con stints a su nombre no se pisa', () => {
+  const ps = [{ name: 'Piloto 1' }, { name: 'Piloto 2' }];
+  strictEqual(D.adoptPilot('FRAN RAMÍREZ', ps, new Set([0])), 1);
+  strictEqual(ps[0].name, 'Piloto 1');
+});
+
+test('sin huecos de relleno se añade al final; lista llena (10) → -1', () => {
+  const ps = [{ name: 'Ana', minutos: 60 }];
+  strictEqual(D.adoptPilot('FRAN RAMÍREZ', ps), 1);
+  deepStrictEqual(ps[1], { name: 'FRAN RAMÍREZ', minutos: 60 });
+  const full = Array.from({ length: 10 }, (_, i) => ({ name: 'Nombre' + String.fromCharCode(65 + i) }));
+  strictEqual(D.adoptPilot('OTRO MAS', full), -1);
+  strictEqual(full.length, 10);
+});
+
+test('los tres pilotos de un equipo real acaban cada uno en su hueco', () => {
+  const ps = [{ name: 'Piloto 1' }, { name: 'Piloto 2' }, { name: 'Piloto 3' }];
+  const idx = ['ALEJANDRO FLORIDO', 'ALEJANDRO RUIZ-CABELLO', 'FRAN RAMÍREZ', 'ALEJANDRO FLORIDO'].map(n => D.adoptPilot(n, ps));
+  deepStrictEqual(idx, [0, 1, 2, 0]);
+});
+
+test('sin nombre → -1 y lista intacta', () => {
+  const ps = [{ name: 'Piloto 1' }];
+  strictEqual(D.adoptPilot(null, ps), -1);
+  strictEqual(ps[0].name, 'Piloto 1');
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);
