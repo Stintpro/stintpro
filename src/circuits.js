@@ -16,6 +16,10 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_osona',        name: 'Circuito de Osona',         slug: 'circuitosona',              port: 9623 },
   { id: 'cat_kippalmela',   name: 'KIP Palmela',               slug: 'kip-palmela',               port: 10113 }, // Portugal (configPort 10110 + 3)
   { id: 'cat_lemans',       name: 'Le Mans Karting 2 (FR)',    slug: 'lemans-karting2',           port: 8013  }, // Francia — 24H Open Kart 390cc
+  // Cronosystem = canal del CRONOMETRADOR, itinerante (no es un circuito fijo): 24H KIP
+  // Portugal en sept-2026, 30H Campillos en oct-2026. Puerto real 8803 (el configPort
+  // 8800 de Apex no hace TLS). El trazado va por trackAliases, más abajo.
+  { id: 'cat_cronosystem2', name: 'Cronosystem (30H Campillos)', slug: 'cronosystem2',            port: 8803  },
 ];
 
 window.CircuitDB = {
@@ -111,6 +115,17 @@ window.CircuitDB.pitOffsetKey = function(slug, direction) {
     : 'stintpro_pitoffset_' + slug;
 };
 
+// Trazado GPS prestado: slug cuyo mapa (src/tracks/<slug>.json) es el de OTRO
+// circuito. Para canales itinerantes de cronometrador: cambiar aquí cuando el
+// canal se mude de pista. Solo afecta al dibujo de la pestaña Pista; offsets y
+// calibraciones siguen yendo por el slug propio.
+window.CircuitDB.trackAliases = {
+  'cronosystem2': 'campillos', // 30H Campillos 2026
+};
+window.CircuitDB.trackSlug = function(slug) {
+  return this.trackAliases[slug] || slug;
+};
+
 // Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
 window.CircuitDB.loadFromSupabase = async function() {
   if (!window.supabaseClient) return;
@@ -119,9 +134,12 @@ window.CircuitDB.loadFromSupabase = async function() {
       .from('circuits').select('*').order('name');
     if (!error && data && data.length > 0) {
       const custom = this.list.filter(c => c._custom);
+      // Un circuito del catálogo embebido que aún no esté dado de alta en
+      // Supabase se conserva: añadirlo al código basta para que aparezca.
       this.list = [
         ...data.map(c => ({ id:'sb_'+c.id, name:c.name, slug:c.slug, port:c.port||7913, _supabase:true, _sbId:c.id })),
-        ...custom.filter(c => !data.find(d => d.slug === c.slug))
+        ..._CIRCUIT_CATALOG.filter(c => !data.find(d => d.slug === c.slug)),
+        ...custom.filter(c => !data.find(d => d.slug === c.slug) && !_CIRCUIT_CATALOG.find(d => d.slug === c.slug))
       ];
     }
   } catch(e) {

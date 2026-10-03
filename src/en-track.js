@@ -128,12 +128,14 @@ function _enTrackEnsure(){
   EnTrack.track=P.ovalTrack();
   const apply=j=>{ if(EnTrack.key!==key)return; const t=j&&P.loadTrack(j,dir); if(t)EnTrack.track=t; };
   if(slug){
-    if(slug in EnTrack.cache)apply(EnTrack.cache[slug]);
+    // Un canal itinerante (cronometrador) toma prestado el trazado del circuito donde corre.
+    const file=window.CircuitDB?.trackSlug?.(slug)||slug;
+    if(file in EnTrack.cache)apply(EnTrack.cache[file]);
     // Solo se cachea un JSON bueno o un 404 (no hay trazado): un fallo de red o
     // del servidor se reintenta en el próximo cambio de clave o al recargar.
-    else fetch((window.EnTrackBase||'tracks/')+encodeURIComponent(slug)+'.json')
+    else fetch((window.EnTrackBase||'tracks/')+encodeURIComponent(file)+'.json')
       .then(r=>r.ok?r.json():(r.status===404?null:Promise.reject(r.status)))
-      .then(j=>{EnTrack.cache[slug]=j;apply(j);},()=>{});
+      .then(j=>{EnTrack.cache[file]=j;apply(j);},()=>{});
   }
   return EnTrack.track;
 }

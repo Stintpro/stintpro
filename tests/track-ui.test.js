@@ -308,6 +308,18 @@ const resetUi = () => { U.EnTrack.engine = null; U.EnTrack.key = null; U.EnTrack
     U.EnTrack.key = null; U._enTrackEnsure(); await tick();
     assert.strictEqual(calls, 3, 'tras el 404 no se vuelve a pedir');
   });
+  await atest('slug con trazado prestado (CircuitDB.trackSlug) pide el JSON del otro circuito', async () => {
+    const urls = [];
+    const json = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '../src/tracks/campillos.json'), 'utf8'));
+    global.fetch = u => { urls.push(u); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(json) }); };
+    resetUi();
+    global.window = { EnTrackPos: PTP, AppState: { config: { slug: 'cronosystem2', trackDirection: 'normal' } },
+      CircuitDB: { trackSlug: s => (s === 'cronosystem2' ? 'campillos' : s) } };
+    U._enTrackEnsure(); await tick(); await tick();
+    assert.deepStrictEqual(urls, ['tracks/campillos.json']);
+    assert.strictEqual(U.EnTrack.track.generic, false, 'trazado real, no óvalo');
+    assert.strictEqual(U.EnTrack.track.slug, 'campillos');
+  });
   await atest('fotograma con el trazado nuevo sin su SVG → no pinta hasta reconstruir', async () => {
     let raf = 0, posCalls = 0;
     global.requestAnimationFrame = () => ++raf;
