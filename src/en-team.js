@@ -210,6 +210,46 @@ function _enRecoverMsg(title, body, buttons){
 }
 const _EN_RECOVER_CLOSE=`<button onclick="_enDismissOverlay()" style="flex:1;padding:8px;border-radius:6px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-3);font-size:11.5px;cursor:pointer;font-family:sans-serif">Cerrar</button>`;
 
+// Stints cerrados de mi dorsal según el logger. null = no hay sesión en curso.
+async function _enFetchRecoveredStints(){
+  const cfg=window.AppState?.config;
+  const url=Logger._serverUrl;
+  const headers=await Logger._authHeaders();
+  const get=async p=>{const r=await fetch(url+p,{headers});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
+  const status=await get('/api/status');
+  const sid=(status.circuits||[]).find(c=>c.slug===cfg.slug)?.sessionId;
+  if(!sid)return null;
+  const [laps,pits]=await Promise.all([get('/api/laps/'+sid),get('/api/pits/'+sid)]);
+  const my=String(cfg.myDorsal).trim();
+  const mine=a=>a.filter(x=>String(x.dorsal).trim()===my);
+  return EnDriverTime.rebuildStints(mine(laps),mine(pits),EnSession.raceStart?.at||Logger._raceStart?.at||null);
+}
+
+// Automático: al abrir el panel a mitad de carrera (historial vacío, o solo con
+// stints ya recuperados) y con paradas oficiales hechas, se rellena solo, sin
+// botón ni confirmación. Nunca pisa stints registrados en vivo o editados a mano
+// (para eso queda el botón). Se llama en cada tick; reintenta como mucho cada 60 s.
+function _enAutoRecoverStints(){
+  const cfg=window.AppState?.config;
+  if(!cfg||cfg.simMode||cfg.slug==='replay'||!window.EnDriverTime)return;
+  if(typeof Logger==='undefined'||!Logger?._serverUrl)return;
+  const hist=EnSession.stintHistory||[];
+  if(hist.some(s=>!s.recovered))return;
+  if(hist.length>=_enMyStops())return;
+  // Con mi kart en el box el pit-in en vivo está cerrando su propio stint:
+  // esperar a que vuelva a pista para no duplicarlo.
+  const myK=(EnSession.data.equipos||[]).find(e=>EnBoxModel.isMine(e,cfg.myDorsal));
+  if(!myK||myK.pit||myK.pitState==='in'||EnSession.stintFrozen)return;
+  const now=Date.now();
+  if(EnSession._autoRecoverBusy||now-(EnSession._autoRecoverAt||0)<60000)return;
+  EnSession._autoRecoverBusy=true; EnSession._autoRecoverAt=now;
+  _enFetchRecoveredStints().then(stints=>{
+    const cur=EnSession.stintHistory||[];
+    if(stints&&stints.length>cur.length&&!cur.some(s=>!s.recovered))_enApplyRecoveredStints(stints);
+  }).catch(e=>console.error('[StintPro] recuperación automática de stints:',e))
+    .finally(()=>{EnSession._autoRecoverBusy=false;});
+}
+
 async function _enRecoverStints(){
   const cfg=window.AppState?.config;
   const url=(typeof Logger!=='undefined')?Logger?._serverUrl:null;
@@ -217,15 +257,9 @@ async function _enRecoverStints(){
   const btn=document.getElementById('en-recover-btn');
   if(btn){btn.disabled=true;btn.textContent='Recuperando…';}
   try{
-    const headers=await Logger._authHeaders();
-    const get=async p=>{const r=await fetch(url+p,{headers});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();};
-    const status=await get('/api/status');
-    const sid=(status.circuits||[]).find(c=>c.slug===cfg.slug)?.sessionId;
-    if(!sid){_enRecoverMsg('⟲ Recuperar de la carrera','El logger no tiene una sesión en curso para este circuito.',_EN_RECOVER_CLOSE);return;}
-    const [laps,pits]=await Promise.all([get('/api/laps/'+sid),get('/api/pits/'+sid)]);
     const my=String(cfg.myDorsal).trim();
-    const mine=a=>a.filter(x=>String(x.dorsal).trim()===my);
-    const stints=EnDriverTime.rebuildStints(mine(laps),mine(pits),EnSession.raceStart?.at||Logger._raceStart?.at||null);
+    const stints=await _enFetchRecoveredStints();
+    if(!stints){_enRecoverMsg('⟲ Recuperar de la carrera','El logger no tiene una sesión en curso para este circuito.',_EN_RECOVER_CLOSE);return;}
     if(!stints.length){_enRecoverMsg('⟲ Recuperar de la carrera',`El logger no tiene paradas grabadas del dorsal #${_esc(my)} en esta sesión.`,_EN_RECOVER_CLOSE);return;}
     EnSession._recoverPending=stints;
     const names=[...new Set(stints.map(s=>s.pilot).filter(Boolean))];
@@ -244,8 +278,12 @@ async function _enRecoverStints(){
 
 function _enConfirmRecoverStints(){
   const stints=EnSession._recoverPending; EnSession._recoverPending=null;
-  const cfg=window.AppState?.config;
   _enDismissOverlay();
+  _enApplyRecoveredStints(stints);
+}
+
+function _enApplyRecoveredStints(stints){
+  const cfg=window.AppState?.config;
   if(!stints||!cfg)return;
   if(!Array.isArray(cfg.pilotos))cfg.pilotos=[];
   // El piloto en pista conserva su hueco; el resto de huecos de relleno quedan libres.
@@ -629,6 +667,9 @@ function _enRenderTeam(myKart, trackAvg){
     const totalPitMs=stints.reduce((a,s)=>a+(s.pitStopMs||0),0);
     // Añadir stint actual si es el piloto en pista
     const isCurrent=idx===EnSession.currentPilot;
+    // Hueco de relleno del setup ("Piloto 1") que nadie usa: con los pilotos
+    // reales ya identificados por Apex solo estorba.
+    if(_off&&_off.minutes.some(m=>m!=null)&&offMin==null&&!stints.length&&!isCurrent&&window.EnDriverTime.isPlaceholder(p.name))return;
     if(offMin!=null) totalMs=offMin*60*1000;
     else if(isCurrent){
       const currentStintMs=EnSession.stintFrozen?EnSession.stintFrozen:(EnSession.stintStart?(Date.now()-EnSession.stintStart):0);
@@ -666,7 +707,7 @@ function _enRenderTeam(myKart, trackAvg){
       <div class="en-pilot-avatar" style="background:${col};width:34px;height:34px;font-size:14.5px">${_esc(p.name.charAt(0))}</div>
       <div style="flex:1;min-width:120px">
         <div style="font-size:14.5px;color:${isCurrent?'#d0d2db':'#9ca3af'};font-family:sans-serif">${_esc(p.name)}${isCurrent?' 🟢':''}</div>
-        <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${_enFmtStint(totalMs)} pista${offMin!=null?' (oficial Apex)':''}${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:sans-serif">${stints.length} stints · ${offMin!=null?Math.floor(offMin/60)+':'+String(offMin%60).padStart(2,'0')+' h pista (oficial Apex)':_enFmtStint(totalMs)+' pista'}${totalPitMs?' · '+_enFmtStint(totalPitMs)+' pit':''}</div>
         ${_scoreRow}
       </div>
       <div style="text-align:right;min-width:90px">

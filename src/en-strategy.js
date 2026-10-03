@@ -1263,6 +1263,7 @@ window.showEnduranceDashboard=function(cfg){
           onPitOut:()=>setTimeout(()=>{if(!_enPilotFromApex())_enShowPilotSelect(true);},500),
         });
         _enPilotFromApex(true);
+        if(typeof _enAutoRecoverStints==='function')_enAutoRecoverStints();
 
         // Trackear mejor vuelta del stint y posición
         if(myK&&myK.lastLap&&!myK.pit){
