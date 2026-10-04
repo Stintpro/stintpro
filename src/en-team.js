@@ -219,6 +219,7 @@ async function _enFetchRecoveredStints(){
     const fresh=EnSession._apexTeamData&&Date.now()-EnSession._apexTeamData.at<30000?EnSession._apexTeamData:await _enApexTeamFetch();
     if(fresh){
       _enApexTeamApply(fresh);
+      if(typeof _enApexStintSync==='function')_enApexStintSync(fresh);
       if(fresh.stints.length){
         const t0=EnSession.raceStart?.at||(typeof Logger!=='undefined'&&Logger._raceStart?.at)||null;
         return fresh.stints.map(s=>({...s, endTs:t0?t0+s.endOffsetMs:null}));

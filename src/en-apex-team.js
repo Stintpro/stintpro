@@ -93,7 +93,54 @@
     });
     const cur = inf.drivers.find(d => d.current);
     return { team: inf.team, drivers: inf.drivers.map(d => d.name), current: cur ? cur.name : null,
-             stints, totals, stops: pits.length };
+             stints, totals, stops: pits.length, cur: currentStint(pits, laps) };
+  }
+
+  const median = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+
+  // Stint EN CURSO según Apex: arranca en la salida de la última parada. null si
+  // no hay paradas o el kart sigue en el box (parada sin salida).
+  //   outMs/durMs  salida y duración de esa parada (ms de sesión)
+  //   laps         vueltas (ms) desde entonces; la primera lleva la parada dentro
+  //   refLapMs     vuelta típica del kart
+  function currentStint(pits, laps) {
+    const last = pits[pits.length - 1];
+    if (!last || last.outMs == null) return null;
+    const valid = laps.map(l => l.ms).filter(ms => ms >= 20000 && ms < 300000);
+    return { outMs: last.outMs, durMs: last.durMs || (last.outMs - last.inMs),
+             laps: laps.filter(l => l.n > last.lap).map(l => l.ms), refLapMs: median(valid) };
+  }
+
+  // Instante (reloj de pared) en que arrancó el stint en curso, para el KPI
+  // «Tiempo de stint». Las paradas de Apex van en ms desde el inicio de la
+  // sesión, y su cuenta atrás corre sobre ese mismo cero (30H Campillos: 56
+  // paradas × 8 karts cuadran a 0,1 s y la cuenta atrás a 0,4 s). Así:
+  //   transcurrido = duración − restante ;  stint = transcurrido − salida del box
+  // Sin duración configurada se deduce: es la única, en pasos de 5 min, que deja
+  // el stint dentro de lo que dicen sus vueltas (las completas ya sumadas, más
+  // el trozo de la vuelta de salida y la vuelta en curso). Si el reloj no cuadra
+  // con las vueltas, o caben dos duraciones, devuelve null y el KPI no se toca.
+  //   cur        → build().cur
+  //   clock      → { synced, countUp, remainingMs } (snapshot de ApexClock)
+  //   raceDurMs  → duración configurada en ms (0 si no se rellenó)
+  const DUR_STEP_MS = 5 * 60 * 1000, STINT_TOL_MS = 5000;
+
+  function currentStintStart(cur, clock, raceDurMs, now) {
+    if (!cur || cur.outMs == null || !clock || !clock.synced || clock.countUp) return null;
+    const rem = clock.remainingMs;
+    if (!(rem > 0)) return null;
+    const flying = cur.laps.slice(1);
+    const ref = median(flying.filter(ms => ms >= 20000 && ms < 300000)) || cur.refLapMs || 90000;
+    const lo = flying.reduce((a, b) => a + b, 0);
+    const hi = cur.laps.length ? lo + Math.max(0, cur.laps[0] - (cur.durMs || 0)) + 1.5 * ref : 2 * ref;
+    let dur = raceDurMs > 0 ? raceDurMs : null;
+    if (!dur) {
+      if (hi - lo + 2 * STINT_TOL_MS >= DUR_STEP_MS) return null;
+      dur = Math.ceil((rem + cur.outMs + lo - STINT_TOL_MS) / DUR_STEP_MS) * DUR_STEP_MS;
+    }
+    const stintMs = dur - rem - cur.outMs;
+    if (stintMs < Math.max(0, lo - STINT_TOL_MS) || stintMs > hi + STINT_TOL_MS) return null;
+    return now - stintMs;
   }
 
   // Historial de vueltas de VARIOS karts en una sola petición (misma regla: una
@@ -116,7 +163,7 @@
     return out;
   }
 
-  return { REQUEST_URL, requestFor, parseInf, parsePits, parseLaps, build, lapsRequest, parseLapsById };
+  return { REQUEST_URL, requestFor, parseInf, parsePits, parseLaps, build, currentStintStart, lapsRequest, parseLapsById };
 });
 
 // ── Pegamento con el panel (solo navegador) ──────────────────────────────────
@@ -197,8 +244,34 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     used.add(EnSession.currentPilot);
     const before = JSON.stringify(cfg.pilotos);
     data.drivers.forEach(n => { const i = EnDriverTime.adoptPilot(n, cfg.pilotos, used); if (i >= 0) used.add(i); });
-    EnSession.apexTeam = { at: data.at, stops: data.stops, totals: data.totals, drivers: data.drivers, current: data.current };
+    EnSession.apexTeam = { at: data.at, stops: data.stops, totals: data.totals, drivers: data.drivers, current: data.current,
+                           open: data.stops > 0 && !data.cur };
     if (JSON.stringify(cfg.pilotos) !== before) { try { _enSaveRaceState(); } catch (e) {} }
+  };
+
+  // Sincroniza el KPI «Tiempo de stint» con el stint en curso OFICIAL: mi stint
+  // arranca en la salida de mi última parada según Apex, no en el instante en que
+  // el panel la vio (o no la vio: panel abierto a mitad de stint, estado guardado
+  // de antes de una parada, pit-out que el muestreo se saltó). Solo con mi kart
+  // en pista, el reloj corriendo y Apex al día de mis paradas; el primer stint
+  // (sin paradas) sigue anclado a la salida de carrera. Devuelve true si lo movió.
+  const STINT_SYNC_MIN_MS = 3000;   // por debajo, el ancla en vivo ya es buena
+  window._enApexStintSync = function (data) {
+    const cfg = window.AppState && window.AppState.config;
+    if (!data || !data.cur || !cfg || !window.ApexClock || !window.EnBoxModel) return false;
+    if (EnSession.stintFrozen || EnSession._finished) return false;
+    const myK = (EnSession.data.equipos || []).find(e => EnBoxModel.isMine(e, cfg.myDorsal));
+    if (!myK || myK.pit || myK.pitState === 'in') return false;
+    if (data.stops < _enMyStops()) return false;       // Apex aún no ha cerrado mi última parada
+    const C = window.ApexClock;
+    const start = EnApexTeam.currentStintStart(data.cur,
+      { synced: C._synced, countUp: C.isCountUp(), remainingMs: C.remainingMs() },
+      (cfg.duration || 0) * 3600 * 1000, Date.now());
+    if (start == null) return false;
+    if (EnSession.stintStart && Math.abs(EnSession.stintStart - start) < STINT_SYNC_MIN_MS) return false;
+    EnSession.stintStart = start;
+    try { _enSaveRaceState(); } catch (e) {}
+    return true;
   };
 
   // Tiempo oficial exacto (ms) de un piloto del setup, o null. Suma el stint en
@@ -219,7 +292,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   };
 
   // En cada tick: trae la plantilla y los tiempos oficiales al abrir el panel y
-  // los refresca tras cada parada mía (una petición por parada, no un sondeo).
+  // los refresca tras cada parada mía (una petición por parada, no un sondeo),
+  // y con ellos reancla el KPI de stint a la salida oficial del box.
   // Con mi kart en el box espera: Apex aún está cerrando ese stint.
   window._enAutoApexTeam = function () {
     const cfg = window.AppState && window.AppState.config;
@@ -227,7 +301,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const myK = (EnSession.data.equipos || []).find(e => EnBoxModel.isMine(e, cfg.myDorsal));
     if (!myK || myK.pit || myK.pitState === 'in' || EnSession.stintFrozen) return;
     const have = EnSession.apexTeam;
-    if (have && have.stops >= _enMyStops()) return;
+    // `open`: Apex aún tenía mi última parada sin salida → se vuelve a pedir.
+    if (have && have.stops >= _enMyStops() && !have.open) return;
     const now = Date.now();
     if (EnSession._apexTeamBusy || now < (EnSession._apexTeamNext || 0)) return;
     EnSession._apexTeamBusy = true;
@@ -236,6 +311,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       EnSession._apexTeamNext = Date.now() + (data ? 60000 : 300000);
       if (!data) return;
       window._enApexTeamApply(data);
+      window._enApexStintSync(data);
       _enRender();
     }).catch(() => { EnSession._apexTeamNext = Date.now() + 300000; })
       .finally(() => { EnSession._apexTeamBusy = false; });
