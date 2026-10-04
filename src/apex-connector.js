@@ -34,6 +34,7 @@ window.ApexConnector = {
     this._raceStart = null;
     this._flagTracker = ApexProtocol.createFlagTracker();
     this._raceStopped = false;
+    this._comTracker = ApexProtocol.createComBoardTracker();
     // Desarmar el socket anterior ANTES de cerrarlo: su onclose se dispara en
     // async (después de que connect() retorne) con this.slug ya apuntando a la
     // sesión nueva, y programaría una reconexión paralela a los 5s → dos
@@ -69,11 +70,18 @@ window.ApexConnector = {
       },
       onTitle:      (title)    => { if (this.onTitle) this.onTitle(title); },
       onComment:    (html)     => this._parseComment(html),
-      // Sanciones y avisos (canal msg|). Las mejores vueltas del evento se
-      // descartan aquí igual que en el logger: son 684 de 887 y no son señal.
+      // Mensajes de dirección de carrera (canal msg|). Las mejores vueltas del
+      // evento se descartan aquí igual que en el logger: son 684 de 887 y no
+      // son señal.
       onMessage:    (info)     => {
-        if (!info || (info.kind !== 'penalty' && info.kind !== 'warning')) return;
+        if (!info || info.kind === 'best') return;
         if (this.onMessage) this.onMessage({ ...info, ts: Date.now() });
+      },
+      // Avisos de la organización en el tablón (canal com|): los que no salen
+      // por msg|. El tracker entrega solo los nuevos (y, al conectar, el historial).
+      onComBoard:   (html)     => {
+        if (!this._comTracker || !this.onMessage) return;
+        this._comTracker.ingest(html).forEach(m => this.onMessage({ ...m, ts: Date.now() }));
       },
       onFlag:       (flag, ctx)=> {
         this._flagTracker.ingest(flag, ctx || {});

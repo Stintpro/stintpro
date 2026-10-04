@@ -734,6 +734,64 @@ describe('_onMessage', () => {
   });
 });
 
+// ── _onComBoard (avisos de la organización en el tablón com|) ────────────────
+
+describe('_onComBoard', () => {
+  const P = (clock, flag, body) => `<p><b>${clock}</b><span data-flag="${flag}"></span>${body}</p>`;
+  const VISOR = P('18:32', 'msg_warning', 'CLEAR VISOR MANDATORY FROM 19:30');
+  const PIT45 = P('18:13', 'warning', '<span class="com_no">45</span>Advertencia - Tiempo Pit : 02:29 (Vuelta 335) NEXT PIT 3:01');
+  const lastHistory = ws => ws.send.mock.calls.map(c => JSON.parse(c[0])).filter(x => x.type === 'history').pop();
+
+  test('el tablón que ya había al conectar no se difunde, pero va en el snapshot del que se suscribe', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    ws.send.mockClear();
+
+    m._onComBoard(PIT45);
+    expect(ws.send).not.toHaveBeenCalled();
+
+    const tarde = fakeClientWs();
+    m.subscribe(tarde);
+    const snap = lastHistory(tarde).snapshot;
+    expect(snap.messages).toHaveLength(1);
+    expect(snap.messages[0]).toMatchObject({ kind: 'warning', dorsal: '45', clock: '18:13', source: 'com' });
+  });
+
+  test('un aviso nuevo en el tablón se difunde una sola vez aunque Apex reenvíe el tablón', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    m._onComBoard(PIT45);
+    ws.send.mockClear();
+
+    m._onComBoard(VISOR + PIT45);
+    m._onComBoard(VISOR + PIT45);
+
+    expect(ws.send).toHaveBeenCalledTimes(1);
+    const msg = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(msg).toMatchObject({ type: 'message', kind: 'warning', dorsals: [], reason: 'CLEAR VISOR MANDATORY FROM 19:30', history: false });
+    expect(typeof msg.ts).toBe('number');
+  });
+
+  test('la sesión nueva empieza sin los mensajes de la anterior', () => {
+    const m = createMonitor();
+    m._onComBoard('');
+    m._onComBoard(VISOR);
+    expect(m._messages).toHaveLength(1);
+    m._onNewSession();
+    expect(m._messages).toHaveLength(0);
+  });
+
+  test('el parser entrega el tablón (también vacío) por onComBoard', () => {
+    const ApexParser = require('../apex-parser');
+    const seen = [];
+    const p = new ApexParser({ onComBoard: html => seen.push(html) });
+    p.parse('com||\ncom||' + VISOR);
+    expect(seen).toEqual(['', VISOR]);
+  });
+});
+
 // ── _onSessionEnd / _onNewSession ────────────────────────────────────────────
 
 describe('_onSessionEnd / _onNewSession', () => {

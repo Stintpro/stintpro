@@ -11,6 +11,7 @@ const GapFill    = require('./gap-fill');
 const BROADCAST_INTERVAL_MS   = 200; // throttle live updates a 5 fps
 const APEX_SAMPLE_INTERVAL_MS = 5 * 60 * 1000; // frecuencia del muestreo .P (investigación)
 const APEX_SAMPLE_FIRST_MS    = 30 * 1000;     // primera muestra a los 30s de arrancar
+const MAX_SESSION_MESSAGES  = 60;            // mensajes de dirección de carrera que se guardan por sesión
 
 // ── Keepalive + watchdog de la conexión saliente a Apex ────────────────────
 // Apex sirve todos los circuitos tras un único frente (proxy). Cuando ese frente
@@ -184,6 +185,7 @@ class CircuitMonitor {
       onTitle:      this._onTitle.bind(this),
       onCountdown:  this._onCountdown.bind(this),
       onComment:    this._onComment.bind(this),
+      onComBoard:   this._onComBoard.bind(this),
       onFlag:       this._onFlag.bind(this),
       onMessage:    this._onMessage.bind(this),
       onDriverChange: this._onDriverChange.bind(this),
@@ -200,6 +202,11 @@ class CircuitMonitor {
 
     // Estado de carrera detenida por bandera roja — ver createFlagTracker.
     this._flagTracker = ApexProtocol.createFlagTracker();
+
+    // Mensajes de dirección de carrera de la sesión (msg| y tablón com|): los
+    // últimos se guardan para quien se suscribe tarde (van en el snapshot).
+    this._comTracker = ApexProtocol.createComBoardTracker();
+    this._messages = [];
   }
 
   start() {
@@ -811,6 +818,7 @@ class CircuitMonitor {
     this._outageFrom = null;
     this.pitEvents = [];
     this.raceEvents = [];
+    this._messages = [];
     this._lapCount = 0;
     this._lastClock = null;
     this._flagTracker.reset();
@@ -859,8 +867,23 @@ class CircuitMonitor {
   // compartido. Las mejores vueltas del evento NO se difunden: son 684 de los
   // 887 mensajes distintos del corpus y ahogarían la señal en el cliente.
   _onMessage(info) {
-    if (!info || (info.kind !== 'penalty' && info.kind !== 'warning')) return;
-    this._broadcast({ type: 'message', ts: Date.now(), ...info });
+    if (!info || info.kind === 'best') return;
+    this._emitMessage({ ...info, ts: Date.now() });
+  }
+
+  // ── Avisos de la organización en el tablón (canal com|) ─────────────────
+  // Lo que dirección de carrera escribe en el tablón y no sale por msg| (avisos
+  // por dorsal y generales: cierre de pit, cambio de sentido…). El tracker
+  // compartido entrega solo las entradas nuevas; las que ya estaban al conectar
+  // el logger (history) se guardan para el snapshot pero no se difunden.
+  _onComBoard(html) {
+    for (const m of this._comTracker.ingest(html)) this._emitMessage({ ...m, ts: Date.now() });
+  }
+
+  _emitMessage(msg) {
+    this._messages.push(msg);
+    if (this._messages.length > MAX_SESSION_MESSAGES) this._messages.shift();
+    if (!msg.history) this._broadcast({ type: 'message', ...msg });
   }
 
   // ── Bandera del panel de luces (verde/roja/amarilla) ────────────────────
@@ -964,6 +987,7 @@ class CircuitMonitor {
     const snapshot = { ...state, pitEvents, raceEvents: [...this.raceEvents] };
     if (this._raceTracker.raceStart) snapshot.raceStart = this._raceTracker.raceStart;
     snapshot.raceStopped = this._flagTracker.stopped;
+    if (this._messages.length) snapshot.messages = this._messages;
     if (this._computeRatings) {
       try { snapshot.pilotRatings = this._computeRatings(this.slug); } catch(e) {}
     }

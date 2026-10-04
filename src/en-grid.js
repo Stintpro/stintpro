@@ -249,6 +249,7 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
       </div>
     </div>
     <div id="en-flag-banner" style="display:none;align-items:center;justify-content:center;gap:8px;padding:7px 12px;margin:0 0 6px;border-radius:5px;font-weight:700;font-size:13px;letter-spacing:.3px"></div>
+    <div id="en-org-banner" class="en-org-banner" style="display:none"></div>
     <div class="en-kpis" id="en-kpis">
       ${_enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, EnSession.data.equipos)}
     </div>
@@ -685,8 +686,8 @@ function _enSelectPilot(idx){
 function _enMsgBtnHtml(){
   const n=(EnSession.messages||[]).length;
   const u=EnSession.msgUnread||{};
-  const cls=u.mias?'en-msg-btn mine':u.otras?'en-msg-btn amber':'en-msg-btn';
-  const title=u.mias?'Sanción o aviso para tu equipo':n?'Mensajes de dirección de carrera':'Sin mensajes de dirección de carrera';
+  const cls=u.mias?'en-msg-btn mine':u.general?'en-msg-btn general':u.otras?'en-msg-btn amber':'en-msg-btn';
+  const title=u.mias?'Sanción o aviso para tu equipo':u.general?'Aviso de la organización para todos los equipos':n?'Mensajes de dirección de carrera':'Sin mensajes de dirección de carrera';
   return `<button class="${cls}" title="${title}" onclick="event.stopPropagation();_enShowMessages()">✉${n?' '+n:''}</button>`;
 }
 

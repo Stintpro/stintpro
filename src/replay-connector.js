@@ -126,6 +126,8 @@ window.ReplayConnector = {
   _createParser() {
     // Parser nuevo (carga, seek, bucle) → el rebufo empieza de cero.
     window.EnTraffic?.reset();
+    const comTracker = ApexProtocol.createComBoardTracker();
+    comTracker.ingest('');
     return ApexProtocol.createParser({
       // Reloj del LOG, no de pared: a velocidad ×N los huecos entre karts
       // (rebufo, en-traffic.js) se encogerían N veces.
@@ -139,10 +141,16 @@ window.ReplayConnector = {
       onNewSession: ()         => { if (window.ApexClock?.reset) ApexClock.reset(); window.EnTraffic?.reset(); if (this.onNewSession) this.onNewSession(); },
       onSessionEnd: ()         => { if (window.ApexClock) ApexClock.stop(); },
       onComment:    (html)     => this._parseComment(html),
-      // Sanciones y avisos (canal msg|), igual que el conector directo.
+      // Mensajes de dirección de carrera (canal msg|), igual que el conector directo.
       onMessage:    (info)     => {
-        if (!info || (info.kind !== 'penalty' && info.kind !== 'warning')) return;
+        if (!info || info.kind === 'best') return;
         if (this.onMessage) this.onMessage({ ...info, ts: Date.now() });
+      },
+      // Avisos del tablón (canal com|). En una reproducción no hay historial
+      // previo: el tracker nace ya cebado y todo lo que llega es "en vivo".
+      onComBoard:   (html)     => {
+        if (!this.onMessage) return;
+        comTracker.ingest(html).forEach(m => this.onMessage({ ...m, ts: Date.now() }));
       },
       onChange:     (state)    => this._emit(state),
     });

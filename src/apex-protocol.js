@@ -109,35 +109,34 @@
   // presentes en su parrilla). El NOMBRE en cambio no es fiable para identificar
   // —en Le Mans el mensaje abrevia el equipo y en worldkarts ni siquiera es un
   // nombre de equipo— así que solo vale para mostrar.
-  const MSG_WARNING_RE = /^(Avertissement|Waarschuwing|Ammonizione|Aviso)(?=\s|[-:]|$)/i;
+  const MSG_WARNING_RE = /^(Avertissement|Waarschuwing|Ammonizione|Aviso|Advertencia|Warning)(?=\s|[-:]|$)/i;
   const MSG_PENALTY_RE = /^(Pénalité|Penalité|Penalità|Penalizaci[óo]n|Straf|Penalty|SUPPRESSION DU MEILLEUR CHRONO|ANNULATION DU MEILLEUR CHRONO)(?=\s|[-:]|$)/i;
   const MSG_BEST_RE    = /^(Meilleur Tour|Mejor vuelta|Giro migliore|Snelste ronde|Beste ronde|Best lap)\s*:/i;
   const MSG_DORSAL_RE  = /^(?:N°|Nº\.?|Nr\.?)\s?(\d+)\s+(.+?)\s*:\s*(.*)$/;
 
-  function classifyApexMessage(text, subtype) {
-    const raw = String(text == null ? '' : text).trim();
-    if (!raw) return null;
+  // Dorsales que NOMBRA un texto libre de la organización ("Team #14 and # 22",
+  // "N° 3"). Exige la marca (#, N°, Nº, Nr) para no tomar por dorsal una hora o
+  // un número de vuelta. Sin repetidos, en orden de aparición.
+  const MSG_MENTION_RE = /(?:#|N°|Nº\.?|Nr\.?)\s*(\d{1,3})(?!\d)/g;
+  function mentionedDorsals(text) {
+    const out = [];
+    let m;
+    MSG_MENTION_RE.lastIndex = 0;
+    while ((m = MSG_MENTION_RE.exec(String(text || ''))) !== null)
+      if (!out.includes(m[1])) out.push(m[1]);
+    return out;
+  }
 
-    const m = MSG_DORSAL_RE.exec(raw);
-    if (!m) {
-      return { kind: MSG_BEST_RE.test(raw) ? 'best' : 'other',
-               dorsal: null, team: null, reason: raw, penalty: null, text: raw };
-    }
-
-    const dorsal = m[1];
-    const team   = m[2].trim();
-    const body   = m[3].trim();
-
-    // El texto manda; el subtipo de la línea (msgp/msgw) es la red por si un
-    // circuito nuevo escribe la sanción en un idioma que no reconocemos.
-    let kind = 'other';
+  // Cuerpo `<Tipo> - <motivo> - <castigo>` → { kind, reason, penalty }. El texto
+  // manda; `fallback` (subtipo de msg| o etiqueta de com|) es la red por si un
+  // circuito escribe la sanción en un idioma que no reconocemos.
+  function _classifyBody(body, fallback) {
+    let kind = fallback || 'other';
     if (MSG_WARNING_RE.test(body))      kind = 'warning';
     else if (MSG_PENALTY_RE.test(body)) kind = 'penalty';
-    else if (subtype === 'msgw')        kind = 'warning';
-    else if (subtype === 'msgp')        kind = 'penalty';
 
-    // `Pénalité - <motivo> - <castigo>`: el tipo va delante del primer guión y el
-    // castigo detrás del último. El motivo puede llevar sus propios ':' y '-'.
+    // El tipo va delante del primer guión y el castigo detrás del último. El
+    // motivo puede llevar sus propios ':' y '-'.
     let rest = body.replace(/^[^-]*-\s*/, '');
     let reason = rest, penalty = null;
     const cut = rest.lastIndexOf(' - ');
@@ -147,8 +146,114 @@
     } else if (/\s-\s*$/.test(rest)) {
       reason = rest.replace(/\s-\s*$/, '').trim();
     }
+    return { kind, reason, penalty };
+  }
 
-    return { kind, dorsal, team, reason, penalty, text: raw };
+  const MSG_SUBTYPE_KIND = { msgw: 'warning', msgp: 'penalty' };
+
+  // `dorsals` = a quién va el mensaje: el dorsal del prefijo o, en texto libre,
+  // todos los que nombra. Vacío = aviso general de la organización.
+  function classifyApexMessage(text, subtype) {
+    const raw = String(text == null ? '' : text).trim();
+    if (!raw) return null;
+
+    const m = MSG_DORSAL_RE.exec(raw);
+    if (!m) {
+      const dorsals = mentionedDorsals(raw);
+      return { kind: MSG_BEST_RE.test(raw) ? 'best' : (MSG_SUBTYPE_KIND[subtype] || 'other'),
+               dorsal: dorsals.length === 1 ? dorsals[0] : null, dorsals,
+               team: null, reason: raw, penalty: null, text: raw };
+    }
+
+    const dorsal = m[1];
+    const team   = m[2].trim();
+    const { kind, reason, penalty } = _classifyBody(m[3].trim(), MSG_SUBTYPE_KIND[subtype]);
+
+    return { kind, dorsal, dorsals: [dorsal], team, reason, penalty, text: raw };
+  }
+
+  // ── Tablón de dirección de carrera (canal com|) ────────────────────────────
+  // Además del cronograma de banderas (salida, llegada), la organización escribe
+  // aquí sus avisos, y muchos NO salen por msg|: en la 30H de Campillos todos los
+  // avisos por dorsal ("Advertencia - Tiempo Pit…") y los generales ("CLEAR VISOR
+  // MANDATORY", "Pit Close at 0:30h Remaining") iban solo por este canal.
+  //   <p><b>18:13</b><span data-flag="warning"></span><span class="com_no">45</span>Advertencia - …</p>
+  //   <p><b>18:32</b><span data-flag="msg_warning"></span>CLEAR VISOR MANDATORY FROM 19:30</p>
+  // El dorsal, si la entrada es de un equipo, va en su propio <span class="com_no">.
+  const COM_ENTRY_RE = /<p><b>(\d{1,2}:\d{2})<\/b><span data-flag="([a-z_0-9]+)"><\/span>(?:<span class="com_no[^"]*">\s*(\d+)\s*<\/span>)?([^<]*)<\/p>/g;
+
+  // html del tablón → [{clock, flag, dorsal|null, text}], la más reciente primero.
+  function parseComBoard(html) {
+    const out = [];
+    let m;
+    COM_ENTRY_RE.lastIndex = 0;
+    while ((m = COM_ENTRY_RE.exec(String(html || ''))) !== null)
+      out.push({ clock: m[1], flag: m[2], dorsal: m[3] || null, text: m[4].trim() });
+    return out;
+  }
+
+  // Entrada del tablón → mensaje con la misma forma que classifyApexMessage, o
+  // null si es una bandera del cronograma (verde, cuadros…) o va sin texto.
+  // Etiquetas: penalty* = sanción · warning / msg_warning / msg_error = aviso ·
+  // msg = mensaje sin gravedad.
+  function classifyComEntry(entry) {
+    if (!entry || !entry.text) return null;
+    const flag = entry.flag || '';
+    const base = /^penalty/.test(flag) ? 'penalty'
+               : (flag === 'warning' || flag === 'msg_warning' || flag === 'msg_error') ? 'warning'
+               : /^msg/.test(flag) ? 'other' : null;
+    if (!base) return null;
+    if (entry.dorsal) {
+      const { kind, reason, penalty } = _classifyBody(entry.text, base);
+      return { kind, dorsal: entry.dorsal, dorsals: [entry.dorsal], team: null, reason, penalty,
+               text: entry.text, clock: entry.clock, source: 'com' };
+    }
+    const dorsals = mentionedDorsals(entry.text);
+    return { kind: base, dorsal: dorsals.length === 1 ? dorsals[0] : null, dorsals, team: null,
+             reason: entry.text, penalty: null, text: entry.text, clock: entry.clock, source: 'com' };
+  }
+
+  // Apex reenvía el tablón ENTERO en cada cambio y al conectar. El tracker
+  // devuelve solo los mensajes que no había visto, del más antiguo al más
+  // reciente, con `history: true` los del primer tablón tras conectar (ya
+  // estaban publicados: se listan, pero no son una alarma).
+  // Una errata corregida por la organización ("Theam"→"Team") cambia el texto
+  // pero no añade entradas a ese minuto → no es un aviso nuevo.
+  function createComBoardTracker() {
+    let _primed = false;
+    let _seen = new Set();      // minuto|etiqueta|dorsal|texto
+    let _count = {};            // minuto|etiqueta|dorsal → entradas ya emitidas
+
+    function ingest(html) {
+      const entries = parseComBoard(html);
+      const history = !_primed;
+      _primed = true;
+      const byPrefix = {};
+      for (const e of entries) {
+        const prefix = e.clock + '|' + e.flag + '|' + (e.dorsal || '');
+        (byPrefix[prefix] = byPrefix[prefix] || []).push(e);
+      }
+      const fresh = [];
+      for (const prefix of Object.keys(byPrefix)) {
+        const list = byPrefix[prefix];
+        let room = list.length - (_count[prefix] || 0);
+        for (let i = list.length - 1; i >= 0; i--) {            // de antigua a reciente
+          const key = prefix + '|' + list[i].text;
+          if (_seen.has(key)) continue;
+          _seen.add(key);
+          if (room-- > 0) fresh.push(list[i]);
+        }
+        _count[prefix] = Math.max(_count[prefix] || 0, list.length);
+      }
+      // Orden del tablón (reciente primero) → se entrega del más antiguo al más reciente.
+      return entries.filter(e => fresh.includes(e)).reverse()
+        .map(classifyComEntry).filter(Boolean).map(m => ({ ...m, history }));
+    }
+
+    return {
+      ingest,
+      reset() { _primed = false; _seen = new Set(); _count = {}; },
+    };
   }
 
   // ── Utilidades puras (también exportadas para los wrappers de grid) ────────
@@ -840,6 +945,9 @@
 
       // ── COMENTARIOS ───────────────────────────────────────────────────
       if (line.startsWith('com|')) {
+        // El tablón se entrega también vacío: así quien lo sigue sabe que el
+        // primer aviso que llegue después es en vivo y no historial.
+        if (callbacks.onComBoard) callbacks.onComBoard(line.substring(line.indexOf('|', 4) + 1));
         if (callbacks.onComment) {
           const html = line.substring(line.indexOf('|', 4) + 1);
           if (html && html.trim() && html !== '<p></p>' && html.length > 5)
@@ -1192,5 +1300,5 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, isStateCode, safeDorsal, notcToHex, classifyApexMessage };
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, isStateCode, safeDorsal, notcToHex, classifyApexMessage, mentionedDorsals, parseComBoard, classifyComEntry, createComBoardTracker };
 });

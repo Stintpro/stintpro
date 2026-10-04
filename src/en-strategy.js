@@ -501,14 +501,19 @@ function _enShowMessages(){
     rows='<div style="padding:18px 2px;font-size:12.5px;color:var(--text-2);font-family:sans-serif">Todavía no ha llegado ningún mensaje de dirección de carrera en esta sesión.</div>';
   } else {
     msgs.forEach(m=>{
-      const hora=new Date(m.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      // Hora: la del tablón de Apex si la trae (hora del circuito); si no, la de llegada.
+      const hora=m.clock||new Date(m.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
       const col=m.kind==='penalty'?'var(--state-alert)':'var(--state-warn)';
-      const tag=m.kind==='penalty'?'SANCIÓN':'AVISO';
-      rows+=`<div style="display:grid;grid-template-columns:44px 62px 40px 1fr 90px;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #1a1b22;${m.mine?'box-shadow:inset 3px 0 0 #ef4444;':''}">
-        <span style="font-size:11.5px;color:var(--text-2);font-family:monospace">${hora}</span>
+      const tag=m.kind==='penalty'?'SANCIÓN':m.kind==='warning'?'AVISO':'MENSAJE';
+      // A quién va: mi dorsal (barra roja), todos (barra ámbar) o los dorsales que nombra.
+      const ds=Array.isArray(m.dorsals)?m.dorsals:(m.dorsal?[m.dorsal]:[]);
+      const quien=m.general?'TODOS':(ds.length?ds.map(_esc).join(' '):'—');
+      const barra=m.mine?'box-shadow:inset 3px 0 0 #ef4444;':m.general?'box-shadow:inset 3px 0 0 #fbbf24;':'';
+      rows+=`<div style="display:grid;grid-template-columns:44px 62px 56px 1fr 90px;align-items:center;gap:8px;padding:6px 0 6px 8px;border-bottom:0.5px solid #1a1b22;${barra}">
+        <span style="font-size:11.5px;color:var(--text-2);font-family:monospace">${_esc(hora)}</span>
         <span style="font-size:10.5px;color:${col};font-weight:600;font-family:sans-serif">${tag}</span>
-        <span style="font-size:13px;font-weight:700;color:${m.mine?'var(--state-alert)':'var(--text-1)'};text-align:center">${m.dorsal?_esc(m.dorsal):'—'}</span>
-        <span style="font-size:12.5px;color:var(--text-1);font-family:sans-serif">${_esc(m.reason||m.text)}<span style="color:var(--text-2)"> · ${_esc(m.team||'')}</span></span>
+        <span style="font-size:${m.general?'10.5':'13'}px;font-weight:700;color:${m.mine?'var(--state-alert)':m.general?'var(--state-warn)':'var(--text-1)'};text-align:center">${quien}</span>
+        <span style="font-size:12.5px;color:var(--text-1);font-family:sans-serif">${_esc(m.reason||m.text)}${m.team?`<span style="color:var(--text-2)"> · ${_esc(m.team)}</span>`:''}</span>
         <span style="font-size:12.5px;color:${col};font-family:monospace;text-align:right">${m.penalty?_esc(m.penalty):''}</span>
       </div>`;
     });
@@ -519,14 +524,15 @@ function _enShowMessages(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div>
           <div style="font-size:18px;font-weight:600;color:#e4e6ed;font-family:sans-serif">✉ Dirección de carrera</div>
-          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Sanciones y avisos que emite el circuito, con su motivo literal. Las mejores vueltas del evento no se listan.</div>
-          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">La barra roja marca los de <b>tu dorsal</b>. La atribución va por dorsal, no por nombre de equipo.</div>
+          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Sanciones, avisos y mensajes de la organización, con su texto literal. Las mejores vueltas del evento no se listan.</div>
+          <div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif;margin-top:2px">Barra roja: los de <b>tu dorsal</b>. Barra ámbar: avisos para <b>todos</b> los equipos. El resto son de rivales.</div>
         </div>
         <button onclick="_enDismissOverlay()" style="background:none;border:none;color:var(--text-2);font-size:18px;cursor:pointer;padding:4px">✕</button>
       </div>
       ${rows}
     </div>`;
   document.body.appendChild(overlay);
+  _enUpdateOrgBanner();
   _enScheduleRender(); // repinta el botón ya apagado
 }
 
@@ -704,6 +710,31 @@ function _enUpdateFlagBanner(){
   else el.style.display='none';
 }
 
+// Franja de avisos de la organización para TODOS (mensajes sin dorsal del tablón
+// com| o de msg|). Muestra el más reciente sin leer; se queda hasta cerrarla (✕)
+// o abrir el buzón. El texto es del circuito: va por textContent, nunca innerHTML.
+function _enUpdateOrgBanner(){
+  const el=document.getElementById('en-org-banner');
+  // typeof: con un en-messages.js anterior en caché la franja no sale, pero no rompe el tick.
+  if(!el||!window.EnMessages||typeof EnMessages.bannerMessages!=='function')return;
+  const pend=EnMessages.bannerMessages(EnSession);
+  const key=pend.length?pend.length+'|'+pend[0].ts+'|'+pend[0].text:'';
+  if(el.dataset.key===key)return;
+  el.dataset.key=key;
+  el.textContent='';
+  if(!pend.length){el.style.display='none';return;}
+  const m=pend[0];
+  const hora=m.clock||new Date(m.ts).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  const mk=(tag,cls,txt)=>{const n=document.createElement(tag);n.className=cls;n.textContent=txt;el.appendChild(n);return n;};
+  mk('span','en-org-banner-tag','📢 ORGANIZACIÓN · '+hora);
+  mk('span','en-org-banner-text',m.text).onclick=_enShowMessages;
+  if(pend.length>1)mk('span','en-org-banner-more','+'+(pend.length-1)+' más').onclick=_enShowMessages;
+  const x=mk('button','en-org-banner-x','✕');
+  x.title='Cerrar aviso';
+  x.onclick=()=>{EnMessages.dismissBanner(EnSession);_enUpdateOrgBanner();_enScheduleRender();};
+  el.style.display='flex';
+}
+
 // Paradas de MI equipo: standsCount oficial de Apex o, sin él, las contadas por
 // la app (incluidas las reconstruidas del historial del logger).
 function _enMyStops(){
@@ -736,7 +767,7 @@ function _enOnNewSession(){
   EnSession.raceStart=null; EnSession.flag=null; EnSession.raceStopped=false; EnSession.raceEvents=[];
   EnSession._toursCompleto=false; EnSession._toursSuelo=undefined;
   EnSession._finished=false;
-  EnSession.messages=[]; EnSession.msgUnread={mias:false,otras:false};
+  EnSession.messages=[]; EnSession.msgUnread={mias:false,otras:false,general:false};
   EnBox.queue=[]; EnBox.queueInited=false; EnBox.swapped={}; EnBox.pending={}; EnBox._lastInAt={};
   _enSaveRaceState();
   if(EnSession._archivedStints)_enShowNewSessionBanner(EnSession._archivedStints.stintHistory.length);
@@ -821,6 +852,7 @@ window.showEnduranceDashboard=function(cfg){
     // Cartel de bandera roja / precaución (fuera del if del reloj: debe verse
     // aunque el reloj no esté sincronizado durante la detención).
     _enUpdateFlagBanner();
+    _enUpdateOrgBanner();
     // Red de seguridad: guarda el estado de carrera cada ~20s aunque no haya
     // eventos de pit — fuera del `if(cv&&ApexClock)` para que no deje de
     // guardar cuando el reloj no está sincronizado (justo tras reconectar).
@@ -1221,7 +1253,7 @@ window.showEnduranceDashboard=function(cfg){
       // dorsal?) y el anti-duplicado viven en en-messages.js, con test.
       (msg)=>{
         if(!window.EnMessages)return;
-        if(EnMessages.ingestMessage(EnSession, msg, window.AppState?.config?.myDorsal, msg.ts))_enScheduleRender();
+        if(EnMessages.ingestMessage(EnSession, msg, window.AppState?.config?.myDorsal, msg.ts)){_enUpdateOrgBanner();_enScheduleRender();}
       },
       ()=>{ try{ _enOnNewSession(); }catch(err){ console.error('[StintPro] Error en sesión nueva:',err); } }
     );
@@ -1315,7 +1347,7 @@ window._enGoBack=function(){
   EnSession.pitInLastPass={};
   EnSession._finished=false;
   EnSession.messages=[];
-  EnSession.msgUnread={mias:false,otras:false};
+  EnSession.msgUnread={mias:false,otras:false,general:false};
   EnSession._reconcilePending=false;
   EnSession._lastPersist=null;
   EnSession._archivedStints=null;

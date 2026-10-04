@@ -124,6 +124,10 @@ const Logger = {
             this._flag = msg.snapshot.flag || null;
             // Marcar como snapshot histórico para que el cliente reconstruya estado derivado
             this.onData({ ...msg.snapshot, _isHistory: true });
+            // Mensajes de dirección de carrera ya emitidos en esta sesión: se listan
+            // con su hora, sin encender luces (history).
+            if (Array.isArray(msg.snapshot.messages) && this.onMessage)
+              msg.snapshot.messages.forEach(m => this.onMessage({ ...m, history: true }));
           }
 
           if (msg.type === 'error') {
