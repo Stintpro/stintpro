@@ -5,7 +5,7 @@ from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, NextPageTemplate
+from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Image, Table, TableStyle, PageBreak, NextPageTemplate, KeepTogether
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from PIL import Image as PI
@@ -62,7 +62,8 @@ def construir(R, cfg, graf, salida):
     nl, n = len(R.T[yo]), len(R.T)
     dur = f"{int(R.fin // 60)} min {int(R.fin % 60)} s" + (' desde el relanzamiento' if R.relanzada else '')
     npar = len(R.paradas_vuelta(yo)); mand = R.snap.get('mandatoryPitSec')
-    linea3 = f"{n} karts · {R.tours[R.orden[0]]} vueltas · {dur} · {npar} parada{'s' if npar != 1 else ''}" + (f" obligatoria{'s' if npar != 1 else ''} de {mand} s" if mand else '') + ' · datos: StintPro Logger'
+    sprint = not any(R.stops.values())   # carrera sin paradas
+    linea3 = f"{n} karts · {R.tours[R.orden[0]]} vueltas · {dur} · " + ('sin paradas' if sprint else f"{npar} parada{'s' if npar != 1 else ''}") + (f" obligatoria{'s' if npar != 1 else ''} de {mand} s" if mand else '') + ' · datos: StintPro Logger'
     pie = f"Informe de carrera · {cat} {circ} · {d0.strftime('%d-%m-%Y')} · Kart {yo} {piloto}"
 
     def page(c, doc):
@@ -102,19 +103,23 @@ def construir(R, cfg, graf, salida):
     tt.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), SOFT), ('LINEAFTER', (0, 0), (-2, -1), .6, colors.white), ('TOPPADDING', (0, 0), (-1, 0), 8), ('BOTTOMPADDING', (0, 1), (-1, 1), 8), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
     s += [tt, Spacer(1, 8), P('<b>Veredicto.</b> ' + tx['veredicto'], key)]
     filas = cfg['tabla']
-    top = [['Pos', 'Kart · piloto', 'Crono', 'Vueltas', 'Diferencia', 'Mejor vuelta', 'Ritmo medio*', 'Paradas (min)']]
+    top = [['Pos', 'Kart · piloto', 'Crono', 'Vueltas', 'Diferencia', 'Mejor vuelta', 'Ritmo medio*'] + ([] if sprint else ['Paradas (min)'])]
     for d in filas:
         e = R.eq[d]
-        top.append([f"P{e['pos']}", f"{d} · {R.nombre(d)}", qtxt(d), e['tours'], e['gap'].replace('.', ',').replace('v', ' v') or 'ganador', fmt(e['bestLap']), fmt(R.stats(d)['media']), paradas(d)])
-    s += [tbl(top, [10 * mm, 42 * mm, 26 * mm, 13 * mm, 19 * mm, 21 * mm, 22 * mm, CW - 153 * mm], hl=[filas.index(yo) + 1], der=2),
-          P('* Ritmo medio sin la vuelta de salida ni la primera vuelta cronometrada tras cada parada. Diferencia tal como la publica el cronometraje. ' + tx.get('tabla_nota', ''), cap)]
+        top.append([f"P{e['pos']}", f"{d} · {R.nombre(d)}", qtxt(d), R.vueltas(d), e['gap'].replace('.', ',').replace('v', ' v') or 'ganador', fmt(e['bestLap']), fmt(R.stats(d)['media'])] + ([] if sprint else [paradas(d)]))
+    cwt = [10 * mm, 42 * mm, 26 * mm, 13 * mm, 19 * mm, 21 * mm, 22 * mm]
+    cwt += [] if sprint else [CW - 153 * mm]
+    if sprint:
+        cwt[1] += CW - sum(cwt)
+    s += [tbl(top, cwt, hl=[filas.index(yo) + 1], der=2),
+          P('* Ritmo medio sin la vuelta de salida' + ('' if sprint else ' ni la primera vuelta cronometrada tras cada parada') + '. Diferencia tal como la publica el cronometraje. ' + tx.get('tabla_nota', ''), cap)]
     s += [P('Evolución de la posición', h2), img('pos'), P(tx['pos_caption'], cap)]
 
     # ---------- página 2: lectura y vueltas ----------
     s += [PageBreak(), P('Lectura de la carrera', h1)] + B(tx['lectura'])
     ocultas = ' y '.join(f'{a}-{b}' for a, b in R.paradas_vuelta(yo))
     s += [Spacer(1, 4), P('Todas las vueltas', h1), img('laps'),
-          P(f"Las {len(me)} vueltas cronometradas del kart {yo} (tabla completa al final). Numeración oficial de carrera{' desde el relanzamiento' if R.relanzada else ''}: las vueltas {ocultas} son las de entrada y salida de box, sin tiempo publicado. Línea discontinua: media del stint sin su primera vuelta.", cap)]
+          P(f"Las {len(me)} vueltas cronometradas del kart {yo} (tabla completa al final). Numeración oficial de carrera{' desde el relanzamiento' if R.relanzada else ''}" + (f": las vueltas {ocultas} son las de entrada y salida de box, sin tiempo publicado" if ocultas else '') + ". Línea discontinua: media del stint sin su primera vuelta.", cap)]
     rows = [['Stint', 'Vueltas', 'Nº', 'Media', 'Mediana', 'Mejor', 'Dispersión (σ)', 'Contexto']]
     for i, ss in enumerate(R.stint_stats(yo)):
         ctx = (tx.get('stint_contexto') or [])[i] if i < len(tx.get('stint_contexto') or []) else ''
@@ -139,10 +144,26 @@ def construir(R, cfg, graf, salida):
           P(du.get('caption_cascada') or 'Descomposición del hueco por tramos, con las marcas de paso por meta (±0,2 s) y anclada a la diferencia oficial en meta.', cap)] + B(du['bullets'])
 
     # ---------- página 6: paradas y crono ----------
-    bx = tx['box']
-    s += [PageBreak(), P('Paradas', h1), img('box', CW * .92), P(bx['caption'], cap)] + B(bx['bullets'])
+    bx = tx.get('box') or {}
+    s += [PageBreak()]
+    if not sprint:
+        s += [P('Paradas', h1), img('box', CW * .92), P(bx['caption'], cap)] + B(bx['bullets'])
+    if cfg.get('kart_dia'):
+        kt = tx.get('kart') or {}
+        s += [P(kt.get('titulo') or f"El kart {cfg['kart_dia']['kart']} a lo largo del día", h1)] + ([P(kt['intro'])] if kt.get('intro') else []) + [img('kart', CW), P(kt.get('caption', ''), cap)]
+        pares = cfg['kart_dia'].get('pares') or []
+        if pares:
+            fx = lambda r: f"+{coma(r['mejor_vs_pole'], 3, False)}" + (f" · {coma(r['mediana_vs_campo'], 3)}" if r['mediana'] is not None else ' · —')
+            rows = [['Piloto', f"Con el kart {cfg['kart_dia']['kart']}", 'Mejor · ritmo', 'Con otro kart', 'Mejor · ritmo']]
+            for p in pares:
+                c, o = p['con'], p['sin']
+                rows.append([p['piloto'].title(), f"{c['titulo']} (k{c['kart']})", fx(c), f"{o['titulo']} (k{o['kart']})", fx(o)])
+            mio = [i + 1 for i, p in enumerate(pares) if p['con']['sesion'] == R.id]
+            s += [tbl(rows, [34 * mm, 42 * mm, 26 * mm, 42 * mm, CW - 144 * mm], hl=mio, fs=7.6, der=2, pad=2.2),
+                  P("Mismo piloto y misma categoría, con y sin este kart. Mejor: segundos más lento que la vuelta más rápida de esa sesión. Ritmo: mediana de sus vueltas frente a la mediana del campo (negativo = más rápido).", cap)]
+        s += B(kt.get('bullets'))
     if q and yo in q['pos']:
-        s += [P('Crono', h1), img('qual', CW * .92), P(tx['crono']['caption'], cap)]
+        s += [KeepTogether([P('Crono', h1), img('qual', CW * .92), P(tx['crono']['caption'], cap)])]
 
     # ---------- página 7: valoración ----------
     s += [PageBreak(), P('Valoración del ingeniero', h1)] + B(tx['valoracion']) + [P('Plan para la próxima carrera', h2)] + B(tx['plan'])
@@ -150,7 +171,8 @@ def construir(R, cfg, graf, salida):
     if R.relanzada:
         ps = R.relanzada['paron_s']
         lim.append(f"La carrera se detuvo {R.relanzada['tras_s']:.0f} s después de la primera salida y se relanzó {int(ps // 60)} min {int(ps % 60)} s más tarde. Todo el informe cuenta desde el relanzamiento; la vuelta de la salida anulada no se incluye.")
-    lim.append('Las vueltas de entrada y salida de box no tienen tiempo publicado: se analiza el paso completo (3 vueltas oficiales) con las marcas de recepción del paso por meta, con resolución de unos 0,2 s.')
+    if not sprint:
+        lim.append('Las vueltas de entrada y salida de box no tienen tiempo publicado: se analiza el paso completo (3 vueltas oficiales) con las marcas de recepción del paso por meta, con resolución de unos 0,2 s.')
     lim.append('No hay sectores ni mensajes de dirección de carrera: los adelantamientos y las causas de las vueltas lentas se deducen del orden de paso por meta, no de lo que pasó en cada curva.')
     dup = sorted({d for k, d, _ in R.reparaciones if k == 'duplicado'}, key=int); nor = sorted({d for k, d, _ in R.reparaciones if k == 'no registrado'}, key=int)
     if dup or nor:
@@ -188,14 +210,17 @@ def construir(R, cfg, graf, salida):
     s += [two, Spacer(1, 5), P(f"V: vuelta oficial. Δ mejor: diferencia con mi mejor vuelta ({fmt(best)}). Pos: posición en la clasificación al pasar por meta (incluye karts con paradas pendientes). Delante: kart que cruza la meta justo antes y a cuántos segundos (puede ser un doblado, un líder o un kart con distinta parada). En naranja, vueltas por encima de {fmt(umbral)}.", cap)]
 
     # ---------- clasificación ----------
-    s += [PageBreak(), P('Clasificación final y paradas', h1)]
-    rows = [['Pos', 'Kart', 'Piloto', 'Vueltas', 'Diferencia', 'Intervalo', 'Mejor vuelta', 'Crono', 'Parada 1', 'Parada 2']]
+    s += [PageBreak(), P('Clasificación final' + ('' if sprint else ' y paradas'), h1)]
+    rows = [['Pos', 'Kart', 'Piloto', 'Vueltas', 'Diferencia', 'Intervalo', 'Mejor vuelta', 'Crono'] + ([] if sprint else ['Parada 1', 'Parada 2'])]
     for e in R.snap['equipos']:
         d = e['dorsal']
         ps = [f"min {coma(a / 60, 1, False)}" + (f" · {du_ // 1000} s" if du_ else '') for a, b, du_ in R.stops[d][:2]] + ['—'] * (2 - len(R.stops[d][:2]))
-        rows.append([f"P{e['pos']}", d, R.nombre(d), e['tours'], e['gap'].replace('.', ',').replace('v', ' v') or '—', e['interval'].replace('.', ',').replace('v', ' v') or '—', fmt(e['bestLap']),
-                     f"P{q['pos'][d]}" if q and d in q['pos'] else '—', ps[0], ps[1]])
-    t = tbl(rows, [10 * mm, 10 * mm, 34 * mm, 13 * mm, 18 * mm, 16 * mm, 20 * mm, 11 * mm, (CW - 132 * mm) / 2, (CW - 132 * mm) / 2], hl=[R.orden.index(yo) + 1], fs=7.6 if n > 24 else 7.8, der=3, pad=2.2 if n > 24 else 2.6)
-    s += [t, Spacer(1, 5), P(f"Diferencia e intervalo tal como los publica el cronometraje (v = vueltas). Paradas: minuto de carrera de la entrada{' (desde el relanzamiento)' if R.relanzada else ''} y duración según el cronómetro de parada del circuito (resolución de 1 s). Fuente: StintPro Logger, sesión {R.id}.", cap)]
+        rows.append([f"P{e['pos']}", d, R.nombre(d), R.vueltas(d), e['gap'].replace('.', ',').replace('v', ' v') or '—', e['interval'].replace('.', ',').replace('v', ' v') or '—', fmt(e['bestLap']),
+                     f"P{q['pos'][d]}" if q and d in q['pos'] else '—'] + ([] if sprint else [ps[0], ps[1]]))
+    cwc = [10 * mm, 10 * mm, 34 * mm, 13 * mm, 18 * mm, 16 * mm, 20 * mm, 11 * mm] + ([] if sprint else [(CW - 132 * mm) / 2] * 2)
+    if sprint:
+        cwc[2] += CW - sum(cwc)
+    t = tbl(rows, cwc, hl=[R.orden.index(yo) + 1], fs=7.6 if n > 24 else 7.8, der=3, pad=2.2 if n > 24 else 2.6)
+    s += [t, Spacer(1, 5), P(f"Diferencia e intervalo tal como los publica el cronometraje (v = vueltas). " + ("" if sprint else "Paradas: minuto de carrera de la entrada{' (desde el relanzamiento)' if R.relanzada else ''} y duración según el cronómetro de parada del circuito (resolución de 1 s). ") + f"Fuente: StintPro Logger, sesión {R.id}.", cap)]
     doc.build(s)
     return salida

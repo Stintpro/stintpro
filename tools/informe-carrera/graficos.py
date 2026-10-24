@@ -168,7 +168,7 @@ def generar(R, cfg, out):
     save(fig, 'gap')
 
     # 7 ---- cascada del hueco
-    rc = cfg['cascada']; pasos = R.cascada(yo, rc)
+    rc = cfg['cascada']; pasos = R.cascada(yo, rc, cfg.get('cascada_cortes'))
     et = cfg.get('cascada_etiquetas') or [p['etiqueta'] for p in pasos]
     vals = np.cumsum([p['valor'] if p['tipo'] == 'd' else 0 for p in pasos]) + pasos[0]['valor']
     lo, hi = min(0, vals.min(), pasos[-1]['valor']), max(0, vals.max(), pasos[0]['valor']); esc = (hi - lo) or 1
@@ -228,6 +228,10 @@ def generar(R, cfg, out):
 
     # 9 ---- pasos por box
     filas = [d for d in cfg['box'] if len(R.ciclos(d)) >= 1]; CY = {d: R.ciclos(d)[:2] for d in filas}
+    if cfg.get('kart_dia'):
+        grafico_kart(R, cfg, save)
+    if not filas:   # carrera sin paradas (sprint)
+        return crono(R, cfg, save, SN)
     lo, hi = min(min(c) for c in CY.values()), max(max(c) for c in CY.values()); xt = hi + .14 * (hi - lo + 1)
     fig, ax = plt.subplots(figsize=(7.3, .9 + .25 * len(filas)))
     for i, d in enumerate(filas):
@@ -242,6 +246,36 @@ def generar(R, cfg, out):
     ax.set_xlabel('paso completo por box (entrada + parada + salida), en min:s'); ax.set_title('Tiempo de paso completo por box (un punto por parada)')
     save(fig, 'box')
 
+    crono(R, cfg, save, SN)
+
+
+def grafico_kart(R, cfg, save):
+    """El kart de la carrera en cada sesión del día: a una vuelta y en ritmo, frente al resto de la sesión."""
+    kd = cfg['kart_dia']; F = [r for r in kd['filas']]; yo = cfg['dorsal']
+    fig, axs = plt.subplots(1, 2, figsize=(7.3, .9 + .27 * len(F)), sharey=True, gridspec_kw={'wspace': .08})
+    lab = [f"{r['hora']} · {r['titulo'].replace(' AMATEUR', ' AMAT.')} · {'sin nombre' if r['piloto'].startswith('KART ') else r['piloto'].title()}" for r in F]
+    for ax, campo, tit, rk, nn in ((axs[0], 'mejor_vs_pole', 'Mejor vuelta: s más lento que la más rápida', 'rk_mejor', 'n'),
+                                   (axs[1], 'mediana_vs_campo', 'Ritmo (mediana): s frente a la del campo', 'rk_mediana', 'n_med')):
+        tope = 2.0 if campo == 'mejor_vs_pole' else 1.6
+        for i, r in enumerate(F):
+            v = r[campo]; mio = r['sesion'] == R.id
+            if v is None:
+                ax.text(0, i, 'sin vueltas limpias', va='center', fontsize=7, color=SEC); continue
+            col = AZUL if mio else GR
+            ax.barh(i, min(v, tope), color=col, height=.62, alpha=1 if mio else .75)
+            ax.text(min(v, tope) + (.04 if v >= 0 else -.04), i, f"{coma(v, 3)}{' ▸' if v > tope else ''}  #{r[rk]}/{r[nn]}", va='center',
+                    ha='left' if v >= 0 else 'right', fontsize=7, fontweight='bold' if mio else 'normal')
+        lo = min([r[campo] for r in F if r[campo] is not None] + [0])
+        ax.set_xlim(lo - .75 if lo < 0 else -.1, tope + .75); ax.axvline(0, color=INK, lw=.8); ax.set_title(tit, fontsize=8.5); ax.grid(axis='y', visible=False)
+    axs[0].set_yticks(range(len(F))); axs[0].set_yticklabels(lab, fontsize=7.4); axs[0].invert_yaxis()
+    j = [r['sesion'] for r in F].index(R.id) if R.id in [r['sesion'] for r in F] else None
+    if j is not None:
+        axs[0].get_yticklabels()[j].set_fontweight('bold'); axs[0].get_yticklabels()[j].set_color(INK)
+    save(fig, 'kart')
+
+
+def crono(R, cfg, save, SN):
+    yo = cfg['dorsal']
     # 10 ---- crono
     if R.q and yo in R.q['pos']:
         q = R.q; o = q['orden']; k = o.index(yo); qo = [d for d in (cfg.get('crono_filas') or o[max(0, k - 2):k + 3]) if d in q['laps']]

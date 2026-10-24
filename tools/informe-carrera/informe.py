@@ -3,6 +3,7 @@
 
   informe.py sesiones [--circuito henakart] [--n 40]        lista sesiones recientes (para sacar los IDs)
   informe.py analiza --carrera ID [--crono ID] --dorsal N   descarga, analiza y crea trabajo/<ID>-<N>/ (analisis.md + informe.json)
+  informe.py kart trabajo/<ID>-<N>                          el kart en todas las sesiones del día (calidad del kart)
   informe.py pdf trabajo/<ID>-<N>                           genera gráficos y PDF con los textos de informe.json
   informe.py revisar trabajo/<ID>-<N>                       renderiza las páginas a PNG para revisarlas
 
@@ -81,7 +82,7 @@ def cmd_analiza(a):
         w(f"| {i + 1} | {s['ini']}-{s['fin']} | {s['n']} | {fmt(s['media'])} | {fmt(s['mediana'])} | {fmt(s['mejor'])} | {s['sd']:.3f} |")
     x = [v for l, v in R.la[yo].items() if l > 1]; md = float(np.median(x))
     w(f"\n- Vueltas por debajo de {fmt(md - .15)}: {sum(v < md - .15 for v in x)} · por encima de {fmt(md + .4)}: {sum(v > md + .4 for v in x)} · total {len(x)}")
-    w(f"- Paso por box: {[round(c, 1) for c in R.ciclos(yo)]} s · mejor de la carrera: {min((min(R.ciclos(d)), d) for d in R.T if R.ciclos(d))}")
+    w(f"- Paso por box: {[round(c, 1) for c in R.ciclos(yo)]} s · mejor de la carrera: {min(((min(R.ciclos(d)), d) for d in R.T if R.ciclos(d)), default='sin paradas en la carrera')}")
     w('\n## Mis vueltas (pos = clasificación en vivo; delante/detrás = en pista al paso por meta, con su posición final)\n')
     w('| V | Tiempo | Pos | Delante en pista | Detrás en pista |'); w('|---|---|---|---|---|')
     log = {l: (t, v) for t, v, l in me}
@@ -109,12 +110,59 @@ def cmd_analiza(a):
     if q and yo in q['pos']:
         w('\n## Crono\n'); k2 = q['orden'].index(yo)
         for d in q['orden'][max(0, k2 - 3):k2 + 4]:
-            w(f"- P{q['pos'][d]} {d} {R.nombre(d) if d in R.names else d}: {fmt(q['best'][d])} · vueltas: " + ' '.join(fmt(v, 3)[2:] for v in q['laps'].get(d, [])))
+            w(f"- P{q['pos'][d]} {d} {R.nombre(d) if d in R.names else d} (kart {q['kart'].get(d, d)} en el crono): {fmt(q['best'][d])} · vueltas: " + ' '.join(fmt(v, 3)[2:] for v in q['laps'].get(d, [])))
         w(f"- Pole: {fmt(q['best'][q['orden'][0]])}")
     open(os.path.join(carpeta, 'analisis.md'), 'w').write('\n'.join(W) + '\n')
     print(f'Carpeta de trabajo: {carpeta}\n  analisis.md  -> hechos para redactar\n  informe.json -> rivales, grupo y textos (rellenar los PENDIENTE)')
     for av in R.avisos:
         print('  AVISO:', av)
+
+
+def cmd_kart(a):
+    """Rendimiento del kart de la carrera en todas las sesiones del día, y cada piloto que lo llevó frente a sí mismo en otro kart."""
+    import statistics as S
+    R, cfg = cargar(a.carpeta); k = str(a.kart or cfg['dorsal'])
+    clave = lambda n: unicodedata.normalize('NFKD', n or '').encode('ascii', 'ignore').decode().upper().strip()
+    dia = datetime.datetime.fromtimestamp(R.sesion['started_at'] / 1000).date()
+    ses = sorted((x for x in N.api('/api/sessions?limit=300') if x['slug'] == R.sesion['slug']
+                  and datetime.datetime.fromtimestamp(x['started_at'] / 1000).date() == dia and x['started_at'] <= R.sesion['started_at'] + 3600e3), key=lambda x: x['started_at'])
+    filas, porpiloto = [], {}
+    cat = lambda t: re.sub(r'^(Q|R|CLASIFICACION|CARRERA)\s*-\s*', '', clave(t))
+    for x in ses:
+        by = {}
+        for l in N.api(f"/api/laps/{x['id']}"):
+            by.setdefault((l['dorsal'], clave(l['name'])), []).append(l['lap_time_ms'] / 1000)
+        tipo = S.median([v for z in by.values() for v in z])
+        med = {d: S.median(c) for d, z in by.items() if len(c := [v for v in z if v < tipo + 1.6]) >= 3}
+        best = {d: min(z) for d, z in by.items()}; pole = min(best.values()); mc = S.median(med.values())
+        rb, rm = sorted(best, key=best.get), sorted(med, key=med.get)
+        for d in by:
+            r = dict(sesion=x['id'], titulo=x['title'], hora=datetime.datetime.fromtimestamp(x['started_at'] / 1000).strftime('%H:%M'), kart=d[0], piloto=d[1],
+                     vueltas=len(by[d]), mejor=best[d], mejor_vs_pole=best[d] - pole, rk_mejor=rb.index(d) + 1, n=len(rb),
+                     mediana=med.get(d), mediana_vs_campo=(med[d] - mc) if d in med else None, rk_mediana=(rm.index(d) + 1) if d in med else None, n_med=len(rm))
+            porpiloto.setdefault(d[1], []).append(r)
+            if d[0] == k:
+                filas.append(r)
+    # mismo piloto, otra sesión del día en otro kart: aísla el kart del piloto
+    pares = []
+    for r in filas:
+        if r['piloto'].startswith('KART '):
+            continue
+        for o in porpiloto.get(r['piloto'], []):
+            # misma categoría (Q y R del mismo grupo): entre categorías cambia el lastre y no es comparable
+            if o['sesion'] != r['sesion'] and o['kart'] != k and cat(o['titulo']) == cat(r['titulo']):
+                pares.append(dict(piloto=r['piloto'], con=dict(r), sin=dict(o)))
+    cfg['kart_dia'] = dict(kart=k, filas=filas, pares=pares)
+    json.dump(cfg, open(os.path.join(a.carpeta, 'informe.json'), 'w'), ensure_ascii=False, indent=1)
+    print(f'Kart {k} · {len(filas)} sesiones del día con él (mediana vs campo: negativo = más rápido que la mediana)')
+    for r in filas:
+        print(f"  {r['sesion']} {r['hora']} {r['titulo']:<22} {r['piloto']:<20} {r['vueltas']:>2} v · mejor {fmt(r['mejor'])} #{r['rk_mejor']}/{r['n']} (+{r['mejor_vs_pole']:.3f})"
+              + (f" · mediana {fmt(r['mediana'])} #{r['rk_mediana']}/{r['n_med']} ({r['mediana_vs_campo']:+.3f})" if r['mediana'] else ' · sin vueltas limpias'))
+    print('Mismo piloto con y sin este kart (mejor vs pole · mediana vs campo):')
+    for p in pares:
+        c, o = p['con'], p['sin']
+        f_ = lambda r: f"{r['titulo']} kart {r['kart']}: +{r['mejor_vs_pole']:.3f} · " + ('%+.3f' % r['mediana_vs_campo'] if r['mediana'] else '—')
+        print(f"  {p['piloto']:<18} {f_(c)}   |   {f_(o)}")
 
 
 def cmd_pdf(a):
@@ -159,6 +207,7 @@ if __name__ == '__main__':
     p = sub.add_parser('sesiones'); p.add_argument('--circuito'); p.add_argument('--n', type=int, default=40); p.set_defaults(f=cmd_sesiones)
     p = sub.add_parser('analiza'); p.add_argument('--carrera', type=int, required=True); p.add_argument('--crono', type=int); p.add_argument('--dorsal', required=True)
     p.add_argument('--rivales', help='dorsales separados por coma (por defecto, los 2 de delante y los 2 de detrás)'); p.add_argument('--reiniciar', action='store_true'); p.set_defaults(f=cmd_analiza)
+    p = sub.add_parser('kart'); p.add_argument('carpeta'); p.add_argument('--kart', help='por defecto, el dorsal de la carrera'); p.set_defaults(f=cmd_kart)
     p = sub.add_parser('pdf'); p.add_argument('carpeta'); p.add_argument('--borrador', action='store_true'); p.set_defaults(f=cmd_pdf)
     p = sub.add_parser('revisar'); p.add_argument('carpeta'); p.set_defaults(f=cmd_revisar)
     a = ap.parse_args(); a.f(a)

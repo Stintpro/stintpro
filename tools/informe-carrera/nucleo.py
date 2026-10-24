@@ -7,7 +7,7 @@ Todo lo que el informe afirma con números sale de aquí. Convenciones:
 - LOG[d]: [(t, tiempo_vuelta, L)] solo de las vueltas cronometradas.
 - Hueco a igualdad de vuelta con un rival r: T[r][L-1] - T[yo][L-1]  (positivo = voy delante).
 """
-import json, os, collections, bisect, urllib.request
+import json, os, collections, bisect, unicodedata, urllib.request
 import numpy as np
 
 BASE = os.environ.get('STINTPRO_LOGGER_URL', 'https://stintpro.duckdns.org')
@@ -110,8 +110,12 @@ class Carrera:
             ev.sort(key=lambda e: e[0])
             Td = [e[0] for e in ev]
             i = 0
-            while i < len(Td) - 1 and len(Td) < self.tours.get(d, 0):   # paso por meta no registrado
-                if 1.85 * self.vuelta_tipo < Td[i + 1] - Td[i] < 2.15 * self.vuelta_tipo:
+            vt = {t: v for t, v, ok in ev if ok}
+            # paso por meta no registrado: hueco de ~2 vueltas entre pasos y la vuelta siguiente es normal
+            # (la cuenta oficial del snapshot puede llegar atrasada en la última vuelta, así que no basta con ella)
+            while i < len(Td) - 1:
+                if (1.85 * self.vuelta_tipo < Td[i + 1] - Td[i] < 2.15 * self.vuelta_tipo
+                        and (len(Td) < self.tours.get(d, 0) or (vt.get(Td[i + 1]) or 99 * self.vuelta_tipo) < 1.4 * self.vuelta_tipo)):
                     Td.insert(i + 1, (Td[i] + Td[i + 1]) / 2)
                     self.reparaciones.append(('no registrado', d, round(Td[i + 1], 1)))
                 i += 1
@@ -144,14 +148,22 @@ class Carrera:
         self.q = None
         if crono:
             qs, ql = L('snapshot', crono), L('laps', crono)
-            base = qs['equipos'][0]['bestLap']
+            # en alquiler el kart cambia entre crono y carrera: se casa por nombre de piloto, no por dorsal
+            clave = lambda n: unicodedata.normalize('NFKD', n or '').encode('ascii', 'ignore').decode().upper().strip()
+            porn = {clave(n): d for d, n in self.names.items()}
+            a_carrera = lambda dq, n: porn.get(clave(n), dq if dq not in self.names or clave(self.names[dq]) == clave(n) else 'Q' + dq)
+            eqs = [e for e in qs['equipos'] if e.get('bestLap') and e.get('tours')]
+            base = eqs[0]['bestLap']
+            qn = {l['dorsal']: l['name'] for l in ql}
             qb = collections.defaultdict(list)
             for l in ql:
-                qb[l['dorsal']].append(l['lap_time_ms'] / 1000)
+                qb[a_carrera(l['dorsal'], l['name'])].append(l['lap_time_ms'] / 1000)
             num = lambda g: float(g) if g and g[0] == '+' and 'v' not in g else 0.0
-            self.q = dict(pos={e['dorsal']: e['pos'] for e in qs['equipos']},
-                          best={e['dorsal']: base + num(e['gap']) for e in qs['equipos']},
-                          laps=dict(qb), orden=[e['dorsal'] for e in qs['equipos']])
+            dq = {e['dorsal']: a_carrera(e['dorsal'], e.get('name') or qn.get(e['dorsal'])) for e in eqs}
+            self.q = dict(pos={dq[e['dorsal']]: e['pos'] for e in eqs},
+                          best={dq[e['dorsal']]: base + num(e['gap']) for e in eqs},
+                          kart={v: k for k, v in dq.items()},
+                          laps=dict(qb), orden=[dq[e['dorsal']] for e in eqs])
 
     # ---------- utilidades ----------
     def nombre(self, d, corto=False):
@@ -171,6 +183,10 @@ class Carrera:
             r.append((-k, Td[k - 1] if k else 0, d))
         r.sort()
         return {d: i + 1 for i, (_, _, d) in enumerate(r)}
+
+    def vueltas(self, d):
+        """Vueltas completadas: las reconstruidas si el snapshot oficial se quedó atrás (último paso sin contar)."""
+        return max(self.tours.get(d, 0), len(self.T.get(d, [])))
 
     def ocultas(self, d):
         logged = set(self.la[d])
@@ -198,7 +214,7 @@ class Carrera:
         return [v for l, v in self.la[d].items() if l not in ini and v < tope]
 
     def stats(self, d):
-        x = self.limpias(d)
+        x = self.limpias(d) or sorted(self.la[d].values())   # kart muy lento: ninguna vuelta bajo el tope
         return dict(media=float(np.mean(x)), mediana=float(np.median(x)), q1=float(np.percentile(x, 25)),
                     q3=float(np.percentile(x, 75)), mejor=min(self.la[d].values()), sd=float(np.std(x)), n=len(x))
 
@@ -259,15 +275,19 @@ class Carrera:
             return None
         return base[r][1] - base[yo][1]
 
-    def cascada(self, yo, r):
-        """Descompone la evolución del hueco con r en tramos comparables y fases de paradas descompasadas."""
-        tr = self.tramos_comparables(yo, r)
+    def cascada(self, yo, r, cortes=None):
+        """Descompone la evolución del hueco con r en tramos comparables y fases de paradas descompasadas.
+        cortes: vueltas donde partir además los tramos en pista (en una sprint sin paradas, las fases de la carrera)."""
+        tr = []
+        for a, b in self.tramos_comparables(yo, r):
+            cs = [a] + sorted(c for c in cortes or [] if a < c < b) + [b]
+            tr += list(zip(cs, cs[1:]))
         if not tr:
             return []
         g = lambda L: self.hueco(yo, r, L)
         pasos = [dict(tipo='abs', etiqueta=f'Hueco\nvuelta {tr[0][0]}', valor=g(tr[0][0]))]
         for i, (a, b) in enumerate(tr):
-            if i:
+            if i and tr[i - 1][1] != a:
                 pa, pb = tr[i - 1][1], a
                 pasos.append(dict(tipo='d', etiqueta=f'Paradas\ndescompasadas\n(v{pa}-{pb})', valor=g(pb) - g(pa), fase='paradas', ini=pa, fin=pb))
             if b > a:
@@ -292,14 +312,16 @@ class Carrera:
         for r in self.T:
             if r == yo:
                 continue
-            prev = None
+            prev = None   # último hueco claro (|g| > 0,15 s); los empates de resolución no cuentan como cambio
             for L in range(1, min(len(self.T[yo]), len(self.T[r])) + 1):
                 if not self.comparable(yo, r, L):
-                    continue
+                    prev = None; continue
                 g = self.hueco(yo, r, L)
                 if abs(g) > 30:
                     prev = None; continue
-                if prev and prev[0] == L - 1 and min(prev[1], g) < -0.15 and max(prev[1], g) > 0.15:
+                if abs(g) <= 0.15:
+                    continue
+                if prev and L - prev[0] <= 3 and (prev[1] > 0) != (g > 0):
                     out.append((L, r, 'adelanto a' if g > 0 else 'me pasa'))
                 prev = (L, g)
         return sorted(out)

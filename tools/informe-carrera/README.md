@@ -6,6 +6,7 @@ Genera el informe de carrera en PDF de un piloto a partir de una sesión grabada
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt   # solo la primera vez
 ./.venv/bin/python informe.py sesiones --circuito henakart
 ./.venv/bin/python informe.py analiza --carrera 2676 --crono 2674 --dorsal 13
+./.venv/bin/python informe.py kart trabajo/2676-13      # opcional: el kart en todas las sesiones del día
 # redactar los textos PENDIENTE de trabajo/2676-13/informe.json
 ./.venv/bin/python informe.py pdf trabajo/2676-13
 ./.venv/bin/python informe.py revisar trabajo/2676-13
