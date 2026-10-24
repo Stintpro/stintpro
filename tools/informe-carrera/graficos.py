@@ -285,7 +285,7 @@ def crono(R, cfg, save, SN):
             b = q['best'][d]; x = [v for v in q['laps'][d] if b + .0005 < v < x1]; col = AZUL if d == yo else GR
             ax.scatter(x, [i] * len(x), s=26, color=col, alpha=.75, edgecolor='white', linewidth=.7, zorder=3)
             ax.scatter([b], [i], s=70, color=col, edgecolor=INK, linewidth=1.4, zorder=4); ax.text(b, i - .33, fmt(b), ha='center', fontsize=7.5, fontweight='bold' if d == yo else 'normal')
-        ax.set_yticks(range(len(qo))); ax.set_yticklabels([f"P{q['pos'][d]} · {SN(d)}" for d in qo])
+        ax.set_yticks(range(len(qo))); ax.set_yticklabels([(f"sin tiempo · {SN(d)} (kart {q['kart'].get(d, d)})" if d in (cfg.get('crono_sin_tiempo') or []) else f"P{q['pos'][d]} · {SN(d)}") for d in qo])
         j = qo.index(yo); ax.get_yticklabels()[j].set_fontweight('bold'); ax.get_yticklabels()[j].set_color(INK)
         ax.set_ylim(len(qo) - .5, -.7); ax.set_xlim(x0, x1); ax.xaxis.set_major_formatter(lapfmt); ax.grid(axis='y', visible=False)
         ax.set_title('Crono: todas las vueltas de cada piloto (aro negro = mejor vuelta)')

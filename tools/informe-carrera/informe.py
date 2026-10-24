@@ -19,7 +19,7 @@ INFORMES = os.path.normpath(os.path.join(AQUI, '..', '..', '..', 'Informes'))
 
 def cargar(carpeta):
     cfg = json.load(open(os.path.join(carpeta, 'informe.json')))
-    R = N.Carrera(carpeta, cfg['carrera'], cfg.get('crono'))
+    R = N.Carrera(carpeta, cfg['carrera'], cfg.get('crono'), cfg.get('crono_alias'))
     R.alias = cfg.get('nombres') or {}
     return R, cfg
 

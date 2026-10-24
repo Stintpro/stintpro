@@ -91,7 +91,8 @@ def construir(R, cfg, graf, salida):
     s = [NextPageTemplate('rest')]
     me, la = R.LOG[yo], R.la[yo]
     q = R.q
-    qtxt = lambda d: f"P{q['pos'][d]} · {fmt(q['best'][d])}" if q and d in q['pos'] else '—'
+    sint = set(cfg.get('crono_sin_tiempo') or [])   # vueltas de crono anuladas (p. ej. kart equivocado): se ven en el gráfico, no cuentan
+    qtxt = lambda d: 'sin tiempo' if d in sint else f"P{q['pos'][d]} · {fmt(q['best'][d])}" if q and d in q['pos'] else '—'
     paradas = lambda d: ' y '.join(f"{a / 60:.0f}" for a, b, _ in R.stops[d]) or '—'
 
     # ---------- página 1: resumen ----------
@@ -216,8 +217,8 @@ def construir(R, cfg, graf, salida):
         d = e['dorsal']
         ps = [f"min {coma(a / 60, 1, False)}" + (f" · {du_ // 1000} s" if du_ else '') for a, b, du_ in R.stops[d][:2]] + ['—'] * (2 - len(R.stops[d][:2]))
         rows.append([f"P{e['pos']}", d, R.nombre(d), R.vueltas(d), e['gap'].replace('.', ',').replace('v', ' v') or '—', e['interval'].replace('.', ',').replace('v', ' v') or '—', fmt(e['bestLap']),
-                     f"P{q['pos'][d]}" if q and d in q['pos'] else '—'] + ([] if sprint else [ps[0], ps[1]]))
-    cwc = [10 * mm, 10 * mm, 34 * mm, 13 * mm, 18 * mm, 16 * mm, 20 * mm, 11 * mm] + ([] if sprint else [(CW - 132 * mm) / 2] * 2)
+                     'sin tiempo' if d in sint else f"P{q['pos'][d]}" if q and d in q['pos'] else '—'] + ([] if sprint else [ps[0], ps[1]]))
+    cwc = [10 * mm, 10 * mm, 31 * mm, 13 * mm, 18 * mm, 16 * mm, 20 * mm, 14 * mm] + ([] if sprint else [(CW - 132 * mm) / 2] * 2)
     if sprint:
         cwc[2] += CW - sum(cwc)
     t = tbl(rows, cwc, hl=[R.orden.index(yo) + 1], fs=7.6 if n > 24 else 7.8, der=3, pad=2.2 if n > 24 else 2.6)

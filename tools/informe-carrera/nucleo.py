@@ -51,7 +51,7 @@ def coma(v, n=1, signo=True):
 
 
 class Carrera:
-    def __init__(self, carpeta, carrera, crono=None):
+    def __init__(self, carpeta, carrera, crono=None, crono_alias=None):
         L = lambda e, i: json.load(open(os.path.join(carpeta, f'{e}-{i}.json')))
         self.id, self.crono_id = carrera, crono
         self.sesion = L('sesion', carrera)
@@ -129,6 +129,27 @@ class Carrera:
             self.T[d], self.LOG[d] = Td, log
             if d in self.tours and len(Td) != self.tours[d]:
                 self.avisos.append(f'kart {d}: {len(Td)} vueltas reconstruidas frente a {self.tours[d]} oficiales')
+        # paso por meta no registrado al principio o al final: el kart está en la vuelta del líder según la diferencia oficial,
+        # pero le falta el paso final; se reconstruye con el paso del líder + su diferencia oficial
+        lid = self.orden[0]
+        for e in self.snap['equipos']:
+            d, g = e['dorsal'], e['gap'] or ''
+            if d == lid or d not in self.T or 'v' in g or not g.startswith('+') or len(self.T[d]) != len(self.T[lid]) - 1:
+                continue
+            t = self.T[lid][-1] + float(g)
+            primeros = sorted(T[0] for T in self.T.values())
+            if 0.8 * self.vuelta_tipo < t - self.T[d][-1] < 1.6 * self.vuelta_tipo:
+                self.T[d].append(t)
+                self.reparaciones.append(('no registrado', d, round(t, 1)))
+            elif self.T[d][0] - primeros[len(primeros) // 2] > 0.8 * self.vuelta_tipo and self.LOG[d]:
+                # le falta el primer paso (fin de la vuelta 1): se reconstruye restando su primera vuelta cronometrada
+                t = self.T[d][0] - self.LOG[d][0][1]
+                self.T[d].insert(0, t)
+                self.LOG[d] = [(a, v, L + 1) for a, v, L in self.LOG[d]]
+                self.reparaciones.append(('no registrado', d, round(t, 1)))
+                self.avisos = [a for a in self.avisos if not a.startswith(f'kart {d}:')]
+                if len(self.T[d]) != self.tours.get(d):
+                    self.avisos.append(f'kart {d}: {len(self.T[d])} vueltas reconstruidas frente a {self.tours[d]} oficiales')
         # un paso por meta registrado a destiempo aparece como duplicado + no registrado: no es una anomalía doble
         nor = {(d, t) for k, d, t in self.reparaciones if k == 'no registrado'}
         self.reparaciones = [(k, d, t) for k, d, t in self.reparaciones
@@ -151,7 +172,8 @@ class Carrera:
             # en alquiler el kart cambia entre crono y carrera: se casa por nombre de piloto, no por dorsal
             clave = lambda n: unicodedata.normalize('NFKD', n or '').encode('ascii', 'ignore').decode().upper().strip()
             porn = {clave(n): d for d, n in self.names.items()}
-            a_carrera = lambda dq, n: porn.get(clave(n), dq if dq not in self.names or clave(self.names[dq]) == clave(n) else 'Q' + dq)
+            # crono_alias {kart del crono: dorsal de carrera}: piloto que rodó el crono en un kart sin su nombre
+            a_carrera = lambda dq, n: (crono_alias or {}).get(dq) or porn.get(clave(n), dq if dq not in self.names or clave(self.names[dq]) == clave(n) else 'Q' + dq)
             eqs = [e for e in qs['equipos'] if e.get('bestLap') and e.get('tours')]
             base = eqs[0]['bestLap']
             qn = {l['dorsal']: l['name'] for l in ql}
