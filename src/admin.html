@@ -79,13 +79,7 @@
     .tbl-users .table-head,.tbl-users .table-row{grid-template-columns:1fr 140px 80px 110px 100px}
     /* Circuits table: name | slug | port | actions */
     .tbl-circuits .table-head,.tbl-circuits .table-row{grid-template-columns:1fr 160px 80px 100px}
-    /* Requests table: name | email | reason | date | status | actions */
-    .tbl-requests .table-head,.tbl-requests .table-row{grid-template-columns:140px 1fr 1fr 100px 110px 160px}
 
-    .req-status{display:inline-flex;align-items:center;padding:2px 9px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.04em}
-    .req-pending{background:rgba(240,144,64,.12);color:var(--orange);border:1px solid rgba(240,144,64,.25)}
-    .req-invited{background:var(--green-dim);color:var(--green);border:1px solid rgba(61,219,111,.25)}
-    .req-dismissed{background:var(--bg-raised);color:var(--text-3);border:1px solid var(--border)}
 
     .role-badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.04em}
     .role-admin{background:rgba(192,132,252,.15);color:var(--purple);border:1px solid rgba(192,132,252,.25)}
@@ -130,7 +124,7 @@
 <div id="authScreen">Verificando acceso…</div>
 
 <nav id="appNav" style="display:none">
-  <a class="nav-logo" href="landing.html">
+  <a class="nav-logo" href="hub.html">
     Stint<span class="ac">Pro</span>
     <span class="nav-badge">ADMIN</span>
   </a>
@@ -145,7 +139,7 @@
 <div class="layout" id="appLayout" style="display:none">
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <a href="landing.html" class="sb-back">← Volver al inicio</a>
+    <a href="hub.html" class="sb-back">← Volver al hub</a>
     <div class="sb-section">
       <div class="sb-label">Gestión</div>
       <button class="sb-link active" id="sb-users" onclick="showPage('users')">
@@ -153,10 +147,6 @@
       </button>
       <button class="sb-link" id="sb-circuits" onclick="showPage('circuits')">
         <span class="icon">🏎</span> Circuitos
-      </button>
-      <button class="sb-link" id="sb-requests" onclick="showPage('requests')">
-        <span class="icon">📬</span> Solicitudes
-        <span id="requests-badge" style="display:none;margin-left:auto;background:var(--orange);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:100px"></span>
       </button>
       <button class="sb-link" id="sb-demo" onclick="showPage('demo')">
         <span class="icon">📼</span> Modo Demo
@@ -177,7 +167,10 @@
           <div class="page-title">Usuarios</div>
           <div class="page-sub">Gestiona el acceso a StintPro</div>
         </div>
-        <button class="btn btn-p" onclick="openCreateUser()">+ Nuevo usuario</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-g" onclick="openInviteUser()">✉ Invitar por email</button>
+          <button class="btn btn-p" onclick="openCreateUser()">+ Nuevo usuario</button>
+        </div>
       </div>
       <div class="stats-row" id="userStats"></div>
       <div class="table-wrap tbl-users">
@@ -186,17 +179,6 @@
         </div>
         <div id="usersList"><div class="loading">Cargando usuarios…</div></div>
       </div>
-    </div>
-
-    <!-- ── SOLICITUDES ── -->
-    <div class="page" id="page-requests">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Solicitudes de acceso</div>
-          <div class="page-sub">Usuarios que han pedido acceso a StintPro</div>
-        </div>
-      </div>
-      <div id="requestsList"><div class="loading">Cargando solicitudes…</div></div>
     </div>
 
     <!-- ── DEMO ── -->
@@ -231,7 +213,7 @@
           <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text-2);line-height:1.5">
             <div>&#8226; Los <strong style="color:var(--text-1)">admins</strong> siempre acceden al dashboard real, sin cambios.</div>
             <div>&#8226; Los <strong style="color:var(--text-1)">usuarios normales</strong>, si el modo demo está activo, ven un modal de cuenta atrás (20 s) y después una carrera grabada reproduciéndose en bucle.</div>
-            <div>&#8226; Si el modo demo está <strong style="color:var(--text-1)">desactivado</strong>, los usuarios normales son redirigidos a la landing.</div>
+            <div>&#8226; Si el modo demo está <strong style="color:var(--text-1)">desactivado</strong>, los usuarios normales son redirigidos a la pantalla de acceso.</div>
             <div>&#8226; El archivo de demo se sirve desde <code style="font-family:'DM Mono',monospace;font-size:12px;background:var(--bg-raised);padding:1px 6px;border-radius:4px">/demo/demo-race.ndjson</code></div>
           </div>
         </div>
@@ -305,6 +287,22 @@
   </div>
 </div>
 
+<!-- MODAL INVITAR USUARIO -->
+<div class="overlay" id="modalInvite" onclick="if(event.target===this)closeModal('modalInvite')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modalInvite')">✕</button>
+    <h3>Invitar por email</h3>
+    <p class="modal-desc">Le llegará un enlace para poner su nombre y su contraseña.</p>
+    <div class="form-group"><label>Email</label><input type="email" id="iu-email" placeholder="usuario@email.com"/></div>
+    <div class="form-group"><label>Nombre</label><input type="text" id="iu-name" placeholder="Nombre completo"/></div>
+    <div class="modal-err" id="iu-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-g" onclick="closeModal('modalInvite')">Cancelar</button>
+      <button class="btn btn-p" id="iu-btn" onclick="inviteUser()">Enviar invitación</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CREAR CIRCUITO -->
 <div class="overlay" id="modalCircuit" onclick="if(event.target===this)closeModal('modalCircuit')">
   <div class="modal">
@@ -319,24 +317,6 @@
       <button class="btn btn-g" onclick="closeModal('modalCircuit')">Cancelar</button>
       <button class="btn btn-p" id="cc-btn" onclick="createCircuit()">Añadir circuito</button>
     </div>
-  </div>
-</div>
-
-<!-- MODAL DETALLE SOLICITUD -->
-<div class="overlay" id="modalRequest" onclick="if(event.target===this)closeModal('modalRequest')">
-  <div class="modal">
-    <button class="modal-close" onclick="closeModal('modalRequest')">✕</button>
-    <h3 id="req-modal-name"></h3>
-    <p class="modal-desc" id="req-modal-email"></p>
-    <div class="form-group">
-      <label>Fecha</label>
-      <div id="req-modal-date" style="font-size:13px;color:var(--text-2);padding:4px 0"></div>
-    </div>
-    <div class="form-group">
-      <label>Motivo</label>
-      <div id="req-modal-reason" style="font-size:13px;color:var(--text-2);line-height:1.6;padding:10px 12px;background:var(--bg-raised);border-radius:8px;border:1px solid var(--border-md);min-height:60px;white-space:pre-wrap"></div>
-    </div>
-    <div id="req-modal-actions" class="modal-actions"></div>
   </div>
 </div>
 
@@ -365,7 +345,6 @@ let _circuits = [];
 
   loadUsers();
   loadCircuits();
-  loadRequests();
   loadDemoMode();
   loadBlackboxDiag();
 })();
@@ -475,6 +454,32 @@ async function createUser() {
   loadUsers();
 }
 
+function openInviteUser() {
+  document.getElementById('iu-email').value = '';
+  document.getElementById('iu-name').value = '';
+  document.getElementById('iu-err').textContent = '';
+  openModal('modalInvite');
+  setTimeout(() => document.getElementById('iu-email').focus(), 150);
+}
+
+async function inviteUser() {
+  const btn = document.getElementById('iu-btn');
+  const errEl = document.getElementById('iu-err');
+  const email = document.getElementById('iu-email').value.trim();
+  const name  = document.getElementById('iu-name').value.trim();
+
+  if (!email) { errEl.textContent = 'El email es obligatorio'; return; }
+
+  btn.textContent = 'Enviando…'; btn.disabled = true; errEl.textContent = '';
+  const res = await adminAPI('invite-user', { email, name });
+  btn.textContent = 'Enviar invitación'; btn.disabled = false;
+
+  if (res.error) { errEl.textContent = res.error; return; }
+  closeModal('modalInvite');
+  toast(`Invitación enviada a ${email}`);
+  loadUsers();
+}
+
 async function deleteUser(id) {
   const u = _users.find(x => x.id === id);
   if (!confirm(`¿Eliminar el usuario ${u?.email || id}? Esta acción no se puede deshacer.`)) return;
@@ -571,87 +576,6 @@ async function deleteCircuit(id) {
   loadCircuits();
 }
 
-// ── SOLICITUDES ──────────────────────────────────────────────
-let _requests = [];
-
-async function loadRequests() {
-  const { requests, error } = await adminAPI('list-requests');
-  if (error) { document.getElementById('requestsList').innerHTML = `<div class="loading">Error: ${error}</div>`; return; }
-  _requests = requests || [];
-  renderRequests();
-  _updateRequestsBadge();
-}
-
-function _updateRequestsBadge() {
-  const pending = _requests.filter(r => r.status === 'pending').length;
-  const badge = document.getElementById('requests-badge');
-  if (!badge) return;
-  badge.style.display = pending > 0 ? '' : 'none';
-  badge.textContent = pending;
-}
-
-function renderRequests() {
-  const el = document.getElementById('requestsList');
-  if (!_requests.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📬</div><p>No hay solicitudes todavía</p></div>';
-    return;
-  }
-  el.innerHTML = `
-    <div class="table-wrap tbl-requests">
-      <div class="table-head">
-        <span>Nombre</span><span>Email</span><span>Motivo</span><span>Fecha</span><span>Estado</span><span style="text-align:right">Acciones</span>
-      </div>
-      ${_requests.map(r => `
-      <div class="table-row" onclick="openRequestModal('${r.id}')" style="cursor:pointer">
-        <span style="font-weight:500;color:var(--text-1)">${escapeHtml(r.name)}</span>
-        <span style="color:var(--text-2)">${escapeHtml(r.email)}</span>
-        <span style="color:var(--text-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.reason) || '—'}</span>
-        <span style="color:var(--text-3)">${fmtDate(r.created_at)}</span>
-        <span><span class="req-status req-${r.status}">${r.status === 'pending' ? 'Pendiente' : r.status === 'invited' ? 'Invitado' : 'Descartado'}</span></span>
-        <div class="col-actions" onclick="event.stopPropagation()">
-          ${r.status === 'pending' ? `
-            <button class="btn btn-p btn-sm" onclick="inviteRequest('${r.id}')">Invitar</button>
-            <button class="btn btn-g btn-sm" onclick="dismissRequest('${r.id}')">Descartar</button>
-          ` : ''}
-        </div>
-      </div>`).join('')}
-    </div>`;
-}
-
-function openRequestModal(id) {
-  const r = _requests.find(x => x.id === id);
-  if (!r) return;
-  document.getElementById('req-modal-name').textContent  = r.name;
-  document.getElementById('req-modal-email').textContent = r.email;
-  document.getElementById('req-modal-date').textContent  = fmtDate(r.created_at);
-  document.getElementById('req-modal-reason').textContent = r.reason || '(sin motivo especificado)';
-  const actions = document.getElementById('req-modal-actions');
-  actions.innerHTML = r.status === 'pending' ? `
-    <button class="btn btn-g" onclick="closeModal('modalRequest')">Cerrar</button>
-    <button class="btn btn-d" onclick="closeModal('modalRequest');dismissRequest('${r.id}')">Descartar</button>
-    <button class="btn btn-p" onclick="closeModal('modalRequest');inviteRequest('${r.id}')">Enviar invitación</button>
-  ` : `<button class="btn btn-g" onclick="closeModal('modalRequest')">Cerrar</button>`;
-  openModal('modalRequest');
-}
-
-async function inviteRequest(id) {
-  const r = _requests.find(x => x.id === id);
-  if (!r) return;
-  if (!confirm(`¿Enviar invitación a ${r.email}?`)) return;
-  const res = await adminAPI('invite-user', { requestId: id, email: r.email, name: r.name });
-  if (res.error) { toast(res.error, 'err'); return; }
-  toast('Invitación enviada a ' + r.email);
-  loadRequests();
-}
-
-async function dismissRequest(id) {
-  if (!confirm('¿Descartar esta solicitud?')) return;
-  const res = await adminAPI('dismiss-request', { requestId: id });
-  if (res.error) { toast(res.error, 'err'); return; }
-  toast('Solicitud descartada');
-  loadRequests();
-}
-
 // ── DEMO MODE ────────────────────────────────────────────────
 let _demoActive = false;
 
@@ -675,7 +599,7 @@ function _renderDemoToggle() {
   dot.style.background  = _demoActive ? 'var(--green)' : 'var(--text-3)';
   txt.textContent       = _demoActive
     ? 'Activo — los usuarios normales ven la simulación al entrar'
-    : 'Inactivo — los usuarios normales son redirigidos a la landing';
+    : 'Inactivo — los usuarios normales son redirigidos a la pantalla de acceso';
   txt.style.color       = _demoActive ? 'var(--green)' : 'var(--text-3)';
   row.style.background  = _demoActive ? 'var(--green-dim)' : 'var(--bg-raised)';
   row.style.border      = _demoActive ? '1px solid rgba(61,219,111,.2)' : '1px solid transparent';
