@@ -66,6 +66,8 @@ function next() {
 const express = require('express');
 const { WebSocketServer, WebSocket } = require('ws');
 const db = require('./db');
+const { createTeamLink, validateRoster, validatePilotIndex, validateTeamMsg } = require('./team-link');
+const teamLink = createTeamLink();
 
 const app    = express();
 const server = http.createServer(app);
@@ -87,20 +89,30 @@ wss.on('connection', (ws, req) => {
       const msg = JSON.parse(raw.toString());
       // La app manda { type:'auth', token|apikey } primero y espera auth_ok
       // para suscribirse; en el replay local no se verifica.
+      const err = (m) => ws.send(JSON.stringify({ type: 'error', msg: m }));
+      // La app manda { type:'auth', token|apikey } primero y espera auth_ok
+      // para suscribirse; en el replay local no se verifica.
       if (msg.type === 'auth') {
         ws.send(JSON.stringify({ type: 'auth_ok' }));
       } else if (msg.type === 'pilot') {
+        const p = validatePilotIndex(msg.pilot);
+        if (p.error) return err(p.error);
         mon.subscribePilot(ws, msg.dorsal);
+        teamLink.registerPilot(ws, slug, msg.dorsal, p.pilot);
       } else if (msg.type === 'subscribe') {
         mon.subscribe(ws);
+      } else if (msg.type === 'team_roster') {
+        const r = validateRoster(msg);
+        if (r.error) return err(r.error);
+        teamLink.setRoster(ws, slug, r);
+      } else if (msg.type === 'roster_get') {
+        const r = teamLink.getRoster(slug, msg.dorsal);
+        ws.send(JSON.stringify({ type: 'team_roster', pilotos: r ? r.pilotos : null, current: r ? r.current : null }));
       } else if (msg.type === 'team_msg') {
-        const clients = mon.pilotSubscribers.get(String(msg.dorsal));
-        if (clients) {
-          const payload = JSON.stringify({ type: 'team_msg', text: msg.text });
-          for (const c of clients) {
-            if (c.readyState === WebSocket.OPEN) try { c.send(payload); } catch(e) {}
-          }
-        }
+        const v = validateTeamMsg(msg);
+        if (v.error) return err(v.error);
+        const delivered = teamLink.deliver(slug, v);
+        ws.send(JSON.stringify({ type: 'team_msg_sent', id: v.id, dorsal: v.dorsal, pilot: v.pilot, text: v.text, delivered }));
       }
     } catch(e) {}
   });
