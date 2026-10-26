@@ -79,6 +79,8 @@ Puro y testeable; la red va aparte.
 - **Validación con un caso real:** pedir a la API de previsiones históricas de Open-Meteo (`historical-forecast-api.open-meteo.com`) lo que daba el modelo en Ariza el 2026-10-04 entre 16:00 y 18:00 locales, pasarlo por `rainRisk` cada 10 min y comprobar en qué minuto habría salido "riesgo alto" frente al inicio real de la subida de tiempos (~min 28, 17:32). Si no avisa antes, ajustar umbrales y documentarlo aquí. Si esa API no devuelve `minutely_15` para la fecha, repartir la `precipitation` horaria en 4 tramos iguales y anotarlo como limitación de la validación.
 - Navegador: panel con conexión en directo a un circuito con coordenadas → línea correcta según el estado; sin red → "meteo sin datos" tras 30 min; repetición → no consulta (sin peticiones a open-meteo en la pestaña de red).
 
+**Resultado de la validación (2026-10-26):** con la previsión histórica de Open-Meteo para Ariza el 2026-10-04 (15 min: 0,1 mm de 17:15 a 18:00; probabilidad 28 % a las 16 h y 35 % a las 17 h) y los umbrales de esta spec, el panel habría mostrado «Riesgo medio» desde las 17:00 y «Lloviendo» desde las 17:15; la subida de tiempos empezó hacia las 17:32 → ~30 min de margen. Con `MM_RISK = 0.1` habría salido «Riesgo alto · ~30 min» ya a las 16:45. Se mantienen los umbrales de la spec salvo que el usuario decida bajar `MM_RISK`. Límite: la API histórica junta los primeros pasos de cada pasada del modelo; no es exactamente lo que se veía en vivo.
+
 ## Riesgos y límites
 
 - Chubascos: el aviso puede llegar tarde o no llegar; por eso existe la confirmación por tiempos.
