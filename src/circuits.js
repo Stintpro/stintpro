@@ -126,6 +126,31 @@ window.CircuitDB.trackSlug = function(slug) {
   return this.trackAliases[slug] || slug;
 };
 
+// Coordenadas [lat, lon] de cada circuito, para la meteo (en-weather.js). Van por
+// slug, aparte de `list`, para que sobrevivan a loadFromSupabase(). Las de
+// ariza/henakart/los santos son el centro de la vuelta GPS de su trazado; el resto,
+// OpenStreetMap. Un canal itinerante (cronosystem2) hereda las de su pista por
+// trackAliases.
+window.CircuitDB.coords = {
+  'ariza-racing-circuit':      [40.06576, -4.19387],
+  'cabanillas':                [40.62894, -3.24569],
+  'campillos':                 [37.03822, -4.91438],
+  'henakart':                  [40.42828, -3.44353],
+  'karting-lossantos':         [40.49458, -3.25061],
+  'rivas':                     [40.34716, -3.53535],
+  'sevilla':                   [37.55845, -5.93243],
+  'rkc':                       [49.10388,  2.03663],
+  'rkc2':                      [49.10388,  2.03663],
+  'kartodromo-lucas-guerrero': [39.50822, -0.74679],
+  'circuitosona':              [41.95034,  2.28088],
+  'kip-palmela':               [38.57828, -8.82769],
+  'lemans-karting2':           [47.94232,  0.21241],
+};
+window.CircuitDB.coordsOf = function(slug) {
+  if (!slug) return null;
+  return this.coords[slug] || this.coords[this.trackSlug(slug)] || null;
+};
+
 // Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
 window.CircuitDB.loadFromSupabase = async function() {
   if (!window.supabaseClient) return;
