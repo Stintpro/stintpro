@@ -12,7 +12,9 @@ function app() {
   if (!raw) return null;
   let cred;
   try { cred = JSON.parse(raw); } catch (e) { return null; }
-  _app = (admin.apps && admin.apps.length) ? admin.app() : admin.initializeApp({ credential: admin.credential.cert(cred) });
+  try {
+    _app = (admin.apps && admin.apps.length) ? admin.app() : admin.initializeApp({ credential: admin.credential.cert(cred) });
+  } catch (e) { return null; }
   return _app;
 }
 

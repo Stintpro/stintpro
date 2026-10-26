@@ -108,6 +108,16 @@ function fakeLogger(opts = {}) {
   const auth = { authorization: 'Bearer valido' };
   const q = (question, type = 'query', headers = auth) => ({ method: 'POST', headers, body: { type, snapshot: {}, question } });
 
+  await test('SECURITY-1: cuenta de servicio no utilizable → 500 controlado, sin llamar a la IA', async () => {
+    const { st, fakes } = aiFakes();
+    fakes['firebase-admin'] = { apps: [], initializeApp: () => ({}), credential: { cert: () => { throw new Error('must contain a string private_key'); } } };
+    const h = load('ai-engineer.js', fakes);
+    const r = await call(h, q('¿paro?'));
+    strictEqual(r.statusCode, 500);
+    strictEqual(r.body.error, 'Servidor no configurado (variables de entorno faltantes)');
+    strictEqual(st.anthropicCalls, 0);
+  });
+
   await test('SECURITY-5: pregunta demasiado larga → rechazada sin llamar a la IA', async () => {
     const { st, fakes } = aiFakes();
     const h = load('ai-engineer.js', fakes);
