@@ -27,16 +27,17 @@ function bearer(req) {
 }
 
 // ID token de Firebase de la cabecera Authorization → token decodificado o null.
-async function verifyRequest(req) {
+// checkRevoked = true además rechaza tokens de sesiones revocadas.
+async function verifyRequest(req, checkRevoked = false) {
   const t = bearer(req), a = auth();
   if (!t || !a) return null;
-  try { return await a.verifyIdToken(t); } catch (e) { return null; }
+  try { return await a.verifyIdToken(t, checkRevoked); } catch (e) { return null; }
 }
 
 // Exige un admin (custom claim admin:true). Si no, responde y devuelve null.
 async function requireAdmin(req, res) {
   if (!configured()) { res.status(500).json({ error: 'Servidor no configurado (FIREBASE_SERVICE_ACCOUNT)' }); return null; }
-  const d = await verifyRequest(req);
+  const d = await verifyRequest(req, true);
   if (!d) { res.status(401).json({ error: 'Token inválido' }); return null; }
   if (d.admin !== true) { res.status(403).json({ error: 'Se requiere rol admin' }); return null; }
   return d;

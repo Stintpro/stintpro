@@ -13,6 +13,8 @@ const MESSAGES = {
 };
 const messageOf = (e) => (e && MESSAGES[e.code]) || 'No se ha podido completar la operación';
 const nameOr = (name, email) => (name && String(name).trim()) || String(email).split('@')[0];
+const ROLES = ['admin', 'user'];
+const validRole = (role) => ROLES.includes(role);
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -44,6 +46,7 @@ module.exports = async (req, res) => {
 
     if (action === 'create-user') {
       const { email, password, name, role = 'user' } = body;
+      if (!validRole(role)) return res.status(400).json({ error: 'Rol no válido' });
       if (!email || !password) return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
       const u = await fa.createUser({ email, password, displayName: nameOr(name, email) });
       if (role === 'admin') await fa.setCustomUserClaims(u.uid, { admin: true });
@@ -61,9 +64,16 @@ module.exports = async (req, res) => {
 
     if (action === 'set-role') {
       const { userId, role } = body;
+      if (!validRole(role)) return res.status(400).json({ error: 'Rol no válido' });
       if (!userId) return res.status(400).json({ error: 'userId requerido' });
       if (userId === me.uid && role !== 'admin') return res.status(400).json({ error: 'No puedes quitarte el rol admin a ti mismo' });
-      await fa.setCustomUserClaims(userId, role === 'admin' ? { admin: true } : {});
+      if (role === 'admin') {
+        await fa.setCustomUserClaims(userId, { admin: true });
+      } else {
+        await fa.setCustomUserClaims(userId, {});
+        // Cierra la sesión vigente: el ID token ya emitido no puede seguir siendo admin.
+        await fa.revokeRefreshTokens(userId);
+      }
       return res.json({ ok: true });
     }
 

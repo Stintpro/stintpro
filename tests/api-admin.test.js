@@ -40,7 +40,8 @@ function rig() {
     { uid: 'u1', email: 'pepe@x.com', displayName: '', customClaims: null, metadata: { creationTime: 'Mon, 26 Oct 2026 11:00:00 GMT' } },
   ], calls: [] };
   const auth = {
-    verifyIdToken: async (t) => {
+    verifyIdToken: async (t, checkRevoked) => {
+      st.lastCheckRevoked = checkRevoked;
       if (t === 'admin') return { uid: 'a1', admin: true };
       if (t === 'user') return { uid: 'u1' };
       throw new Error('bad');
@@ -54,6 +55,7 @@ function rig() {
     },
     setCustomUserClaims: async (uid, c) => { st.calls.push(['setCustomUserClaims', uid, c]); },
     deleteUser: async (uid) => { st.calls.push(['deleteUser', uid]); },
+    revokeRefreshTokens: async (uid) => { st.calls.push(['revokeRefreshTokens', uid]); },
   };
   const fa = { apps: [], initializeApp: () => ({ auth: () => auth }), credential: { cert: (x) => x } };
   return { st, h: load({ 'firebase-admin': fa }) };
@@ -110,6 +112,37 @@ function rig() {
     strictEqual((await call(h, { action: 'set-role', userId: 'u1', role: 'user' })).statusCode, 200);
     deepStrictEqual(st.calls[1], ['setCustomUserClaims', 'u1', {}]);
     strictEqual((await call(h, { action: 'set-role', userId: 'a1', role: 'user' })).statusCode, 400);
+  });
+
+  await test('set-role y create-user rechazan roles no válidos sin llamar a Firebase', async () => {
+    const { h, st } = rig();
+    for (const role of ['Admin', undefined]) {
+      const r = await call(h, { action: 'set-role', userId: 'u1', role });
+      strictEqual(r.statusCode, 400);
+      strictEqual(r.body.error, 'Rol no válido');
+    }
+    const r2 = await call(h, { action: 'create-user', email: 'ana@x.com', password: 'secreta1', role: 'superuser' });
+    strictEqual(r2.statusCode, 400);
+    strictEqual(r2.body.error, 'Rol no válido');
+    deepStrictEqual(st.calls, []);
+  });
+
+  await test('demotar revoca los refresh tokens justo después; ascender no', async () => {
+    const { h, st } = rig();
+    await call(h, { action: 'set-role', userId: 'u1', role: 'admin' });
+    deepStrictEqual(st.calls, [['setCustomUserClaims', 'u1', { admin: true }]]);
+    st.calls.length = 0;
+    await call(h, { action: 'set-role', userId: 'u1', role: 'user' });
+    deepStrictEqual(st.calls, [
+      ['setCustomUserClaims', 'u1', {}],
+      ['revokeRefreshTokens', 'u1'],
+    ]);
+  });
+
+  await test('las peticiones de admin verifican el token con checkRevoked', async () => {
+    const { h, st } = rig();
+    await call(h, { action: 'list-users' });
+    strictEqual(st.lastCheckRevoked, true);
   });
 
   await test('delete-user: borra a otro; no a uno mismo', async () => {
