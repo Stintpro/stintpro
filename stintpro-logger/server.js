@@ -13,11 +13,10 @@ const db             = require('./db');
 const CircuitMonitor = require('./circuit-monitor');
 const { computePilotRatings } = require('./scoring');
 
-// ── Verificación de JWT de Supabase (ES256, clave pública vía JWKS) ──────────
-// Sin secretos: descarga la clave PÚBLICA de Supabase y verifica firma + exp.
-// Usado por readAuth para autenticar lecturas desde la app (además de la API key).
-const SUPABASE_PROJECT_URL = (process.env.SUPABASE_URL || 'https://nyybrybnvflwbdwdqpwa.supabase.co').replace(/\/$/, '');
-const _JWKS_URL = SUPABASE_PROJECT_URL + '/auth/v1/.well-known/jwks.json';
+// ── Verificación de ID tokens de Firebase (RS256, claves públicas de Google) ──
+// Sin secretos: descarga las claves PÚBLICAS de Google y verifica firma, emisor,
+// proyecto y fechas. Usado por readAuth y por el auth del WS (además de la API key).
+const _JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 let _jwksCache = { keys: [], at: 0 };
 
 function _fetchJwks() {
@@ -56,27 +55,30 @@ function keyEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-// Devuelve el payload si el token es válido (firma ES256 + no caducado); si no, null.
+// Devuelve el payload si el ID token de Firebase es válido; si no, null.
 // Nunca lanza: pensado para usarse con `await` sin try/catch en el llamante.
-async function verifySupabaseJwt(token) {
+async function verifyFirebaseIdToken(token) {
   try {
+    const projectId = (process.env.FIREBASE_PROJECT_ID || '').trim();
+    if (!projectId) return null;                         // sin proyecto configurado ningún token vale
     const parts = String(token || '').split('.');
     if (parts.length !== 3) return null;
     const [h, p, s] = parts;
     const header = _b64urlToJson(h);
-    if (header.alg !== 'ES256') return null;            // pin de algoritmo (evita alg:none / confusión de tipo)
+    if (header.alg !== 'RS256') return null;             // pin de algoritmo (evita alg:none / confusión de tipo)
     const jwk = await _getJwk(header.kid);
     if (!jwk) return null;
     const pubKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
-    const ok = crypto.verify(
-      'sha256',
-      Buffer.from(h + '.' + p),
-      { key: pubKey, dsaEncoding: 'ieee-p1363' },        // ECDSA JOSE = firma cruda R||S, no DER
-      Buffer.from(s, 'base64url'),
-    );
+    const ok = crypto.verify('sha256', Buffer.from(h + '.' + p), pubKey, Buffer.from(s, 'base64url'));
     if (!ok) return null;
     const payload = _b64urlToJson(p);
-    if (payload.exp && Math.floor(Date.now() / 1000) >= payload.exp) return null;
+    const t = Math.floor(Date.now() / 1000), SKEW = 60;
+    if (payload.aud !== projectId) return null;
+    if (payload.iss !== 'https://securetoken.google.com/' + projectId) return null;
+    if (!(payload.exp > t)) return null;
+    if (!(payload.iat <= t + SKEW)) return null;
+    if (!(payload.auth_time <= t + SKEW)) return null;
+    if (typeof payload.sub !== 'string' || !payload.sub) return null;
     return payload;
   } catch (e) {
     return null;
@@ -130,7 +132,7 @@ function httpAuth(req, res, next) {
 
 // Autenticación de LECTURAS de datos. Acepta:
 //   (a) API key  → usada por los paneles propios del logger (/stats, /recordings)
-//   (b) JWT de Supabase (Authorization: Bearer …) → usado por la app web/Electron
+//   (b) ID token de Firebase (Authorization: Bearer …) → usado por la app web
 // Rollout: si ENFORCE_READ_AUTH !== 'true', deja pasar SIN credencial pero lo
 // registra ([read-noauth]) — fase de observación, cero rotura. Al poner el flag
 // a 'true' en el .env, las lecturas sin credencial válida devuelven 401.
@@ -142,7 +144,7 @@ async function readAuth(req, res, next) {
 
   const auth  = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (token && await verifySupabaseJwt(token)) return next();
+  if (token && await verifyFirebaseIdToken(token)) return next();
 
   if (ENFORCE_READ_AUTH) return res.status(401).json({ error: 'Autenticación requerida' });
 
@@ -958,7 +960,7 @@ wss.on('connection', (ws) => {
   // Los mensajes se procesan en cola por conexión (ver registro de 'message'
   // más abajo): si el cliente manda auth+subscribe/list seguidos sin esperar
   // auth_ok (patrón habitual — ver logger-connector.js), el segundo mensaje
-  // podía colarse ANTES de que terminara el await a verifySupabaseJwt del
+  // podía colarse ANTES de que terminara el await a verifyFirebaseIdToken del
   // primero (un await, aunque resuelva rápido, siempre cede el turno al
   // microtask queue) → "list"/"subscribe" veían ws._authed aún en false y el
   // servidor cerraba con auth_required fatal aunque el JWT fuera válido.
@@ -969,10 +971,10 @@ wss.on('connection', (ws) => {
     catch(e) { ws.send(JSON.stringify({ type: 'error', msg: 'json_invalido' })); return; }
 
     // auth — primer mensaje obligatorio cuando hay API_KEY.
-    // Acepta la API key (paneles/admin) O un JWT de Supabase (app con sesión).
+    // Acepta la API key (paneles/admin) O un ID token de Firebase (app con sesión).
     if (msg.type === 'auth') {
       const okKey = !API_KEY || keyEqual(msg.apikey, API_KEY);
-      const okJwt = msg.token ? !!(await verifySupabaseJwt(msg.token)) : false;
+      const okJwt = msg.token ? !!(await verifyFirebaseIdToken(msg.token)) : false;
       if (okKey || okJwt) {
         ws._authed = true;
         if (authTimeout) clearTimeout(authTimeout);
@@ -1140,7 +1142,7 @@ async function start() {
     console.log(`[Logger] Escuchando en ${BIND}:${PORT}`);
     console.log(`[Logger] API Key: ${API_KEY ? API_KEY.substring(0, 8) + '...' : '(ninguna)'}`);
     if (enforceReadAuth) {
-      console.log('[Logger] Read-auth: ENFORZADO (las lecturas exigen API key o JWT de Supabase)');
+      console.log('[Logger] Read-auth: ENFORZADO (las lecturas exigen API key o ID token de Firebase)');
     } else {
       console.warn('[SEGURIDAD] Read-auth NO enforzado (ENFORCE_READ_AUTH!=="true") → las lecturas de datos se sirven SIN credencial. Define ENFORCE_READ_AUTH=true en el .env para cerrarlas.');
     }
@@ -1150,7 +1152,7 @@ async function start() {
   return server;
 }
 
-module.exports = { createServer, start, verifySupabaseJwt, _injectJwksForTest };
+module.exports = { createServer, start, verifyFirebaseIdToken, _injectJwksForTest };
 
 // Apagado limpio. systemctl restart manda SIGTERM y el proceso moría sin más, así
 // que el último snapshot podía tener hasta 10s de antigüedad. Se fuerza uno final

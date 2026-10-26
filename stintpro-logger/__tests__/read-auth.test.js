@@ -1,83 +1,126 @@
 'use strict';
 
-// Cobertura del control de autenticación de LECTURAS (Hallazgo A):
-//   - verifySupabaseJwt: verificación ES256 hecha con crypto nativo (JWKS).
-//   - readAuth: gate que acepta API key O JWT de Supabase, con enforcement
+// Cobertura del control de autenticación de LECTURAS:
+//   - verifyFirebaseIdToken: ID token de Firebase (RS256) verificado con crypto
+//     nativo contra las claves públicas de Google (inyectadas en el test).
+//   - readAuth y WS: aceptan API key O ID token de Firebase, con enforcement
 //     controlado por ENFORCE_READ_AUTH.
 
 const http   = require('http');
 const crypto = require('crypto');
 const { WebSocket } = require('ws');
-const { verifySupabaseJwt, _injectJwksForTest } = require('../server');
+const { verifyFirebaseIdToken, _injectJwksForTest } = require('../server');
 const { createTestServer } = require('./helpers/test-server');
 
 const VALID_KEY = 'test-key-abc';
 const KID = 'test-kid-1';
+const PROJECT = 'stintpro-test';
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
+const now = () => Math.floor(Date.now() / 1000);
 
 let privateKey;
 
-function makeJwt(payload, { priv = privateKey, kid = KID, alg = 'ES256' } = {}) {
+function makeJwt(payload, { priv = privateKey, kid = KID, alg = 'RS256' } = {}) {
   const header = b64url(JSON.stringify({ alg, kid, typ: 'JWT' }));
   const body   = b64url(JSON.stringify(payload));
-  const sig    = crypto.sign('sha256', Buffer.from(header + '.' + body), { key: priv, dsaEncoding: 'ieee-p1363' });
+  const sig    = crypto.sign('sha256', Buffer.from(header + '.' + body), priv);
   return header + '.' + body + '.' + b64url(sig);
 }
 
-const now = () => Math.floor(Date.now() / 1000);
+// Payload de un ID token de Firebase válido para PROJECT; `over` lo modifica.
+function claims(over = {}) {
+  const t = now();
+  return Object.assign({
+    iss: 'https://securetoken.google.com/' + PROJECT,
+    aud: PROJECT, sub: 'user-123', user_id: 'user-123',
+    iat: t - 10, auth_time: t - 10, exp: t + 3600,
+  }, over);
+}
 
+let prevProject;
 beforeAll(() => {
-  // Par EC P-256 que imita la clave de firma de Supabase; publicamos su JWK.
-  const kp = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  prevProject = process.env.FIREBASE_PROJECT_ID;
+  process.env.FIREBASE_PROJECT_ID = PROJECT;
+  const kp = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   privateKey = kp.privateKey;
   const jwk = kp.publicKey.export({ format: 'jwk' });
-  jwk.kid = KID; jwk.alg = 'ES256'; jwk.use = 'sig';
+  jwk.kid = KID; jwk.alg = 'RS256'; jwk.use = 'sig';
   _injectJwksForTest([jwk]);
 });
+afterAll(() => {
+  if (prevProject === undefined) delete process.env.FIREBASE_PROJECT_ID;
+  else process.env.FIREBASE_PROJECT_ID = prevProject;
+});
 
-// ── verifySupabaseJwt ─────────────────────────────────────────────────────────
+// ── verifyFirebaseIdToken ────────────────────────────────────────────────────
 
-describe('verifySupabaseJwt (ES256 / JWKS)', () => {
+describe('verifyFirebaseIdToken (RS256 / claves de Google)', () => {
   test('token válido → devuelve payload', async () => {
-    const p = await verifySupabaseJwt(makeJwt({ sub: 'user-123', exp: now() + 3600, aud: 'authenticated' }));
+    const p = await verifyFirebaseIdToken(makeJwt(claims()));
     expect(p).toBeTruthy();
     expect(p.sub).toBe('user-123');
   });
 
-  test('token caducado → null', async () => {
-    expect(await verifySupabaseJwt(makeJwt({ sub: 'u', exp: now() - 10 }))).toBeNull();
+  test('caducado → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ exp: now() - 10 })))).toBeNull();
+  });
+
+  test('aud de otro proyecto → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ aud: 'otro' })))).toBeNull();
+  });
+
+  test('iss de otro proyecto → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ iss: 'https://securetoken.google.com/otro' })))).toBeNull();
+  });
+
+  test('iat en el futuro (> 60 s) → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ iat: now() + 600 })))).toBeNull();
+  });
+
+  test('auth_time en el futuro (> 60 s) → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ auth_time: now() + 600 })))).toBeNull();
+  });
+
+  test('sub vacío → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ sub: '' })))).toBeNull();
   });
 
   test('kid desconocido → null', async () => {
-    expect(await verifySupabaseJwt(makeJwt({ sub: 'u', exp: now() + 3600 }, { kid: 'otro-kid' }))).toBeNull();
+    expect(await verifyFirebaseIdToken(makeJwt(claims(), { kid: 'otro-kid' }))).toBeNull();
   });
 
   test('firmado con otra clave → null', async () => {
-    const otra = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey;
-    expect(await verifySupabaseJwt(makeJwt({ sub: 'u', exp: now() + 3600 }, { priv: otra }))).toBeNull();
+    const otra = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+    expect(await verifyFirebaseIdToken(makeJwt(claims(), { priv: otra }))).toBeNull();
   });
 
-  test('alg:none → null', async () => {
-    const tok = b64url(JSON.stringify({ alg: 'none', kid: KID })) + '.' +
-                b64url(JSON.stringify({ sub: 'u', exp: now() + 3600 })) + '.';
-    expect(await verifySupabaseJwt(tok)).toBeNull();
+  test('alg distinto de RS256 (none) → null', async () => {
+    const tok = b64url(JSON.stringify({ alg: 'none', kid: KID })) + '.' + b64url(JSON.stringify(claims())) + '.';
+    expect(await verifyFirebaseIdToken(tok)).toBeNull();
   });
 
   test('payload manipulado tras firmar → null', async () => {
-    const parts = makeJwt({ sub: 'user-123', exp: now() + 3600 }).split('.');
-    parts[1] = b64url(JSON.stringify({ sub: 'ATACANTE', exp: now() + 3600 }));
-    expect(await verifySupabaseJwt(parts.join('.'))).toBeNull();
+    const parts = makeJwt(claims()).split('.');
+    parts[1] = b64url(JSON.stringify(claims({ sub: 'ATACANTE' })));
+    expect(await verifyFirebaseIdToken(parts.join('.'))).toBeNull();
+  });
+
+  test('sin FIREBASE_PROJECT_ID → null', async () => {
+    const tok = makeJwt(claims());
+    delete process.env.FIREBASE_PROJECT_ID;
+    try { expect(await verifyFirebaseIdToken(tok)).toBeNull(); }
+    finally { process.env.FIREBASE_PROJECT_ID = PROJECT; }
   });
 
   test('basura / vacío → null', async () => {
-    expect(await verifySupabaseJwt('no.es.jwt')).toBeNull();
-    expect(await verifySupabaseJwt('')).toBeNull();
-    expect(await verifySupabaseJwt(null)).toBeNull();
+    expect(await verifyFirebaseIdToken('no.es.jwt')).toBeNull();
+    expect(await verifyFirebaseIdToken('')).toBeNull();
+    expect(await verifyFirebaseIdToken(null)).toBeNull();
   });
 });
 
-// ── readAuth con ENFORCE_READ_AUTH=true ───────────────────────────────────────
+// ── readAuth y WS con ENFORCE_READ_AUTH=true ─────────────────────────────────
 
 describe('readAuth — enforcement activado', () => {
   let baseUrl, wsUrl, server, prevEnforce;
@@ -116,20 +159,17 @@ describe('readAuth — enforcement activado', () => {
     expect((await get('/api/sessions', { 'X-API-Key': VALID_KEY })).status).toBe(200);
   });
 
-  test('lectura con JWT de Supabase válido → 200', async () => {
-    const jwt = makeJwt({ sub: 'user-123', exp: now() + 3600, aud: 'authenticated' });
-    expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).toBe(200);
+  test('lectura con ID token de Firebase válido → 200', async () => {
+    expect((await get('/api/sessions', { Authorization: 'Bearer ' + makeJwt(claims()) })).status).toBe(200);
   });
 
-  test('lectura con JWT firmado por otra clave → 401', async () => {
-    const otra = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey;
-    const jwt = makeJwt({ sub: 'u', exp: now() + 3600 }, { priv: otra });
-    expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).toBe(401);
+  test('lectura con token firmado por otra clave → 401', async () => {
+    const otra = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
+    expect((await get('/api/sessions', { Authorization: 'Bearer ' + makeJwt(claims(), { priv: otra }) })).status).toBe(401);
   });
 
-  test('lectura con JWT caducado → 401', async () => {
-    const jwt = makeJwt({ sub: 'u', exp: now() - 10 });
-    expect((await get('/api/sessions', { Authorization: 'Bearer ' + jwt })).status).toBe(401);
+  test('lectura con token caducado → 401', async () => {
+    expect((await get('/api/sessions', { Authorization: 'Bearer ' + makeJwt(claims({ exp: now() - 10 })) })).status).toBe(401);
   });
 
   test('relevos de piloto de una sesión: exige auth y responde con API key', async () => {
@@ -158,16 +198,15 @@ describe('readAuth — enforcement activado', () => {
     });
   }
 
-  test('WS auth con JWT válido → auth_ok', async () => {
-    const jwt = makeJwt({ sub: 'user-123', exp: now() + 3600, aud: 'authenticated' });
-    expect(await wsAuth({ token: jwt })).toBe('auth_ok');
+  test('WS auth con ID token válido → auth_ok', async () => {
+    expect(await wsAuth({ token: makeJwt(claims()) })).toBe('auth_ok');
   });
 
   test('WS auth con API key → auth_ok', async () => {
     expect(await wsAuth({ apikey: VALID_KEY })).toBe('auth_ok');
   });
 
-  test('WS auth con JWT inválido y sin key → error', async () => {
+  test('WS auth con token inválido y sin key → error', async () => {
     expect(await wsAuth({ token: 'no.es.jwt' })).toBe('error');
   });
 });
