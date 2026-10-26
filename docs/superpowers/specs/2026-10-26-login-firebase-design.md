@@ -63,21 +63,29 @@ Sin coordenadas el aviso de lluvia simplemente no aparece en ese circuito. El te
 
 - `api/_firebase.js` (nuevo, el `_` evita que Vercel lo publique): inicializa `firebase-admin` con `FIREBASE_SERVICE_ACCOUNT` (JSON completo en una variable de entorno). `verifyRequest(req) → decodedToken | null` (cabecera `Authorization: Bearer`), `requireAdmin(req, res) → decodedToken | null` (401/403 si no).
 - `api/admin.js`, acciones (todas exigen admin):
-  - `list-users` → `listUsers(1000)` → `{uid, email, name, admin, createdAt, lastSignIn}`.
-  - `create-user` `{email, name, password, role}` → `createUser` + claim si `role==='admin'`.
-  - `invite-user` `{email, name}` → `createUser` sin contraseña; el navegador del admin llama luego a `SPAuth.sendReset(email)`.
-  - `set-role` `{uid, role}` → `setCustomUserClaims(uid, role==='admin' ? {admin:true} : {})`; no permite quitarse el admin a uno mismo.
+  - `list-users` → `listUsers(1000)`. Implementado: filas `{id, email, name, role:'admin'|'user', created_at}` (compatibles con la UI de admin existente); no se devuelve `lastSignIn`.
+  - `create-user` `{email, name, password, role}` → `createUser` + siempre `setCustomUserClaims`: `{member:true}` o, si `role==='admin'`, `{admin:true, member:true}`.
+  - `invite-user` `{email, name}` → `createUser` sin contraseña + claim `{member:true}`; el navegador del admin llama luego a `SPAuth.sendReset(email)`.
+  - `set-role` `{uid, role}` → `setCustomUserClaims(uid, role==='admin' ? {admin:true, member:true} : {member:true})`; al demotar, además `revokeRefreshTokens(uid)`; no permite quitarse el admin a uno mismo.
   - `delete-user` `{uid}` → `deleteUser`; no permite borrarse a uno mismo.
-- `api/ai-engineer.js`: `verifyRequest`; sin token válido → 401. Fuera la consulta a `profiles`.
+- `api/ai-engineer.js`: `verifyRequest`; sin token válido → 401; token válido sin claim de miembro (`isMember`) → 403 `Usuario sin acceso`, antes de llamar a Anthropic. Fuera la consulta a `profiles`.
 - `api/profile.js`: borrar (lo hace el navegador).
 - `package.json`: fuera `@supabase/supabase-js`, dentro `firebase-admin` (versión exacta fijada).
+
+### 3 bis. Claim `member` y revocación
+
+Con «Email/contraseña» activado, Firebase permite a cualquiera darse de alta por REST con el `apiKey` público y obtener un ID token válido. Por eso un token válido **no basta**: hace falta un custom claim que solo pone el servidor.
+
+- **Quién lo pone:** `api/admin.js` (`create-user`, `invite-user`, `set-role`) y `tools/firebase-set-admin.js`. Toda cuenta de StintPro lleva `{member:true}`; un admin `{admin:true, member:true}`.
+- **Quién lo exige** (`member === true || admin === true`): `verifyFirebaseIdToken` del logger (lecturas HTTP y WS), `api/ai-engineer.js` (`isMember` de `api/_firebase.js`, 403), `SPAuth.isMember()` en `landing.html` (cierra la sesión y avisa «Tu cuenta no tiene acceso…»), `index.html` (→ `/landing.html?sin-acceso=1`) y `logger-stats.html`. `requireAdmin` sigue exigiendo `admin` (que implica miembro).
+- **Revocación:** al demotar se revocan los refresh tokens; las llamadas de admin verifican con `checkRevoked`, así que el ex-admin queda fuera de `/api/admin` al instante. El logger y `/api/ai-engineer` no consultan la revocación: aceptan un ID token válido hasta que caduca (máx. 1 h).
 
 ### 4. Logger del VPS — `stintpro-logger/server.js`
 
 Sustituye `verifySupabaseJwt` por `verifyFirebaseIdToken(token)`:
 - Claves públicas JWK de `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`, caché 1 h (respetando la misma estructura que la caché JWKS actual).
 - Cabecera `alg === 'RS256'` y `kid` conocido; firma RS256 con `crypto.verify('sha256', …, {key: jwk, format: 'jwk'})`.
-- Payload: `aud === FIREBASE_PROJECT_ID`, `iss === 'https://securetoken.google.com/' + FIREBASE_PROJECT_ID`, `exp > ahora`, `iat <= ahora + 60 s`, `auth_time <= ahora + 60 s`, `sub` no vacío.
+- Payload: `aud === FIREBASE_PROJECT_ID`, `iss === 'https://securetoken.google.com/' + FIREBASE_PROJECT_ID`, `exp > ahora`, `iat <= ahora + 60 s`, `auth_time <= ahora + 60 s`, `sub` no vacío, y claim `member === true` o `admin === true` (§3 bis).
 - `FIREBASE_PROJECT_ID` por variable de entorno del servicio systemd (sin secreto). Sin la variable, ningún token es válido (las lecturas con API key siguen funcionando).
 - La ruta con `x-api-key` no cambia. Se conserva `_injectJwksForTest` (renombrada si hace falta) para los tests.
 
@@ -87,7 +95,7 @@ Sustituye `verifySupabaseJwt` por `verifyFirebaseIdToken(token)`:
 
 ### 6. Herramienta para el primer admin — `tools/firebase-set-admin.js`
 
-`node tools/firebase-set-admin.js <ruta-cuenta-servicio.json> <email>` → pone `{admin:true}` en esa cuenta e imprime el resultado. La ejecuta el usuario en su Mac; la clave no entra en el repo (`.gitignore` con `*service-account*.json`).
+`node tools/firebase-set-admin.js <ruta-cuenta-servicio.json> <email>` → pone `{admin:true, member:true}` (conservando los claims que ya tuviera) en esa cuenta e imprime el resultado. La ejecuta el usuario en su Mac; la clave no entra en el repo (`.gitignore` con `*service-account*.json`).
 
 ## Lo que hace el usuario (no Claude)
 
@@ -97,6 +105,8 @@ Sustituye `verifySupabaseJwt` por `verifyFirebaseIdToken(token)`:
 4. Crear su propia cuenta (desde la consola de Firebase) y ejecutar `tools/firebase-set-admin.js` una vez.
 5. Autorizar el despliegue: push a `main` (Vercel) y, en el VPS, `FIREBASE_PROJECT_ID` en el servicio + copiar `server.js` + reiniciar en un hueco sin sesiones activas.
 6. Volver a invitar a los usuarios.
+7. Defensa en profundidad: si la consola de Firebase lo permite, desactivar el alta pública (Authentication → Settings → User actions → desmarcar «Enable create (sign-up)»). El claim `member` ya cierra el acceso aunque no se haga.
+8. Tras desplegar, mirar la consola del navegador en Safari/iPad por violaciones de CSP desde `<proyecto>.firebaseapp.com/__/auth/iframe` o `apis.google.com`; si aparecen, añadir `frame-src https://<proyecto>.firebaseapp.com` y `https://apis.google.com` a `script-src` en `vercel.json`.
 
 ## Pruebas
 
