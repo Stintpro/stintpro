@@ -15,7 +15,7 @@ async function test(name, fn) {
 const API = path.join(__dirname, '..', 'api');
 
 // Carga un módulo de api/ desde cero (su estado en memoria —límites— empieza vacío)
-// con dependencias falsas para @supabase/supabase-js y @anthropic-ai/sdk.
+// con dependencias falsas para firebase-admin y @anthropic-ai/sdk.
 function load(file, fakes = {}) {
   const orig = Module._load;
   Module._load = function (req, ...rest) {
@@ -93,20 +93,20 @@ function fakeLogger(opts = {}) {
 
   console.log('\n▸ /api/ai-engineer\n');
 
-  process.env.SUPABASE_URL = 'https://x.supabase.co';
-  process.env.SUPABASE_SERVICE_KEY = 'svc';
+  process.env.FIREBASE_SERVICE_ACCOUNT = JSON.stringify({ project_id: 'stintpro-test' });
   process.env.ANTHROPIC_API_KEY = 'k';
-  function aiFakes({ profile = true } = {}) {
-    const st = { anthropicCalls: 0 };
-    const supa = { createClient: () => ({
-      auth: { getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }) },
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile ? { id: 'u1' } : null, error: null }) }) }) }),
-    }) };
-    function Anthropic() { this.messages = { create: async () => { st.anthropicCalls++; return { content: [{ type: 'text', text: 'ok' }] }; } }; }
-    return { st, fakes: { '@supabase/supabase-js': supa, '@anthropic-ai/sdk': Anthropic } };
+  // firebase-admin falso: verifyIdToken acepta solo el token 'valido'.
+  function fakeFirebaseAdmin() {
+    const auth = { verifyIdToken: async (t) => { if (t !== 'valido') throw new Error('bad'); return { uid: 'u1' }; } };
+    return { apps: [], initializeApp: () => ({ auth: () => auth }), credential: { cert: (x) => x } };
   }
-  const auth = { authorization: 'Bearer t' };
-  const q = (question, type = 'query') => ({ method: 'POST', headers: auth, body: { type, snapshot: {}, question } });
+  function aiFakes() {
+    const st = { anthropicCalls: 0 };
+    function Anthropic() { this.messages = { create: async () => { st.anthropicCalls++; return { content: [{ type: 'text', text: 'ok' }] }; } }; }
+    return { st, fakes: { 'firebase-admin': fakeFirebaseAdmin(), '@anthropic-ai/sdk': Anthropic } };
+  }
+  const auth = { authorization: 'Bearer valido' };
+  const q = (question, type = 'query', headers = auth) => ({ method: 'POST', headers, body: { type, snapshot: {}, question } });
 
   await test('SECURITY-5: pregunta demasiado larga → rechazada sin llamar a la IA', async () => {
     const { st, fakes } = aiFakes();
@@ -129,10 +129,17 @@ function fakeLogger(opts = {}) {
     strictEqual((await call(h, q('x', 'constructor'))).statusCode, 400);
   });
 
-  await test('SECURITY-1: usuario sin perfil (no invitado) → 403', async () => {
-    const { st, fakes } = aiFakes({ profile: false });
+  await test('SECURITY-1: token inválido → 401 sin llamar a la IA', async () => {
+    const { st, fakes } = aiFakes();
     const h = load('ai-engineer.js', fakes);
-    strictEqual((await call(h, q('¿paro?'))).statusCode, 403);
+    strictEqual((await call(h, q('¿paro?', 'query', { authorization: 'Bearer falso' }))).statusCode, 401);
+    strictEqual(st.anthropicCalls, 0);
+  });
+
+  await test('SECURITY-1: sin cabecera Authorization → 401', async () => {
+    const { st, fakes } = aiFakes();
+    const h = load('ai-engineer.js', fakes);
+    strictEqual((await call(h, q('¿paro?', 'query', {}))).statusCode, 401);
     strictEqual(st.anthropicCalls, 0);
   });
 

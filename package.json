@@ -2,10 +2,14 @@
   "name": "stintpro",
   "version": "1.0.0",
   "main": "main.js",
-  "scripts": { "start": "electron ." },
+  "scripts": {
+    "start": "electron ."
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
-    "@supabase/supabase-js": "^2.49.0"
+    "firebase-admin": "12.7.0"
   },
-  "devDependencies": { "electron": "latest" }
+  "devDependencies": {
+    "electron": "latest"
+  }
 }

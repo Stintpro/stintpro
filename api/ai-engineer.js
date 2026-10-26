@@ -1,10 +1,9 @@
 // Vercel Serverless Function — IA "ingeniero de pista"
 // Variables de entorno necesarias en Vercel:
-//   SUPABASE_URL         → igual que en supabase-config.js
-//   SUPABASE_SERVICE_KEY → Settings → API → service_role (NUNCA en el cliente)
-//   ANTHROPIC_API_KEY    → console.anthropic.com (NUNCA en el cliente)
+//   FIREBASE_SERVICE_ACCOUNT → JSON de la cuenta de servicio de Firebase (NUNCA en el cliente)
+//   ANTHROPIC_API_KEY        → console.anthropic.com (NUNCA en el cliente)
 
-const { createClient } = require('@supabase/supabase-js');
+const { verifyRequest, configured } = require('./_firebase');
 const Anthropic = require('@anthropic-ai/sdk');
 
 // Config por tipo consolidada en un único objeto — evita que un tipo nuevo
@@ -63,26 +62,14 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const token = (req.headers.authorization || '').replace('Bearer ', '').trim();
-  if (!token) return res.status(401).json({ error: 'No token' });
-
-  const { SUPABASE_URL, SUPABASE_SERVICE_KEY, ANTHROPIC_API_KEY } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !ANTHROPIC_API_KEY) {
+  const { ANTHROPIC_API_KEY } = process.env;
+  if (!configured() || !ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Servidor no configurado (variables de entorno faltantes)' });
   }
 
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false }
-  });
-
-  const { data: { user }, error: authErr } = await adminClient.auth.getUser(token);
-  if (authErr || !user) return res.status(401).json({ error: 'Token inválido' });
-
-  // Solo usuarios invitados: la invitación crea su fila en profiles. Un JWT
-  // válido de alguien que se registró por su cuenta no basta (el alta pública
-  // está cerrada en Supabase; esto es la segunda barrera).
-  const { data: profile } = await adminClient.from('profiles').select('id').eq('id', user.id).maybeSingle();
-  if (!profile) return res.status(403).json({ error: 'Usuario sin acceso' });
+  // Solo cuentas creadas por un admin: el alta pública no existe en StintPro.
+  const user = await verifyRequest(req);
+  if (!user) return res.status(401).json({ error: 'Token inválido' });
 
   let body;
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); }
@@ -97,7 +84,7 @@ module.exports = async (req, res) => {
     if (typeof question !== 'string' || !question.trim()) return res.status(400).json({ error: 'Falta question' });
     if (question.length > MAX_QUESTION_CHARS) return res.status(413).json({ error: `Pregunta demasiado larga (máx. ${MAX_QUESTION_CHARS} caracteres)` });
   }
-  if (!(type === 'alert' ? allowAlert : allowManual)(user.id)) {
+  if (!(type === 'alert' ? allowAlert : allowManual)(user.uid)) {
     return res.status(429).json({ error: 'Has llegado al límite de consultas a la IA por hora' });
   }
 
