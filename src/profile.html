@@ -364,23 +364,17 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firebase-auth.js"></script>
 <script>
-  var _sb = supabase.createClient(
-    'https://nyybrybnvflwbdwdqpwa.supabase.co',
-    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
-  );
+  var _askPw = function () { return window.prompt('Por seguridad, vuelve a escribir tu contraseña actual:'); };
 
-  var _currentUser = null;
-
-  _sb.auth.getSession().then(function(r) {
-    if (!r.data.session) { window.location.replace('/landing.html'); return; }
-    _currentUser = r.data.session.user;
-    _sb.from('profiles').select('name').eq('id', _currentUser.id).single().then(function(res) {
-      var name = res.data?.name || _currentUser.email;
-      document.getElementById('profile-name').textContent = name;
-      document.getElementById('profile-email').textContent = _currentUser.email;
-    });
+  SPAuth.ready().then(function (u) {
+    if (!u) { window.location.replace('/landing.html'); return; }
+    document.getElementById('profile-name').textContent = SPAuth.name();
+    document.getElementById('profile-email').textContent = u.email;
   });
 
   function openModal(id) {
@@ -416,14 +410,14 @@
     if (pw.length < 6) { setMsg(msg, 'La contraseña debe tener al menos 6 caracteres', 'err'); return; }
     if (pw !== pw2)    { setMsg(msg, 'Las contraseñas no coinciden', 'err'); return; }
     btn.disabled = true; btn.textContent = 'Actualizando…';
-    var { error } = await _sb.auth.updateUser({ password: pw });
-    if (error) {
-      setMsg(msg, error.message, 'err');
-      btn.disabled = false; btn.textContent = 'Actualizar contraseña';
-    } else {
+    try {
+      await SPAuth.withRecentLogin(function () { return SPAuth.user().updatePassword(pw); }, _askPw);
       setMsg(msg, 'Contraseña actualizada correctamente', 'ok');
       btn.textContent = 'Actualizar contraseña';
       setTimeout(function() { document.getElementById('overlay').style.display = 'none'; }, 1500);
+    } catch (e) {
+      setMsg(msg, SPAuth.errorMessage(e), 'err');
+      btn.disabled = false; btn.textContent = 'Actualizar contraseña';
     }
   }
 
@@ -433,13 +427,13 @@
     var btn   = document.getElementById('email-btn');
     if (!email || !email.includes('@')) { setMsg(msg, 'Introduce un email válido', 'err'); return; }
     btn.disabled = true; btn.textContent = 'Actualizando…';
-    var { error } = await _sb.auth.updateUser({ email: email });
-    if (error) {
-      setMsg(msg, error.message, 'err');
-      btn.disabled = false; btn.textContent = 'Actualizar email';
-    } else {
+    try {
+      await SPAuth.withRecentLogin(function () { return SPAuth.user().verifyBeforeUpdateEmail(email); }, _askPw);
       setMsg(msg, 'Revisa tu bandeja: te hemos enviado un enlace de confirmación', 'ok');
       btn.textContent = 'Actualizar email';
+    } catch (e) {
+      setMsg(msg, SPAuth.errorMessage(e), 'err');
+      btn.disabled = false; btn.textContent = 'Actualizar email';
     }
   }
 
@@ -450,21 +444,10 @@
     if (confirm !== 'ELIMINAR') { setMsg(msg, 'Escribe ELIMINAR para confirmar', 'err'); return; }
     btn.disabled = true; btn.textContent = 'Eliminando…';
     try {
-      var session = (await _sb.auth.getSession()).data.session;
-      var res = await fetch('/api/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + session.access_token
-        },
-        body: JSON.stringify({ action: 'delete-self' })
-      });
-      var data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'Error al eliminar');
-      await _sb.auth.signOut();
+      await SPAuth.withRecentLogin(function () { return SPAuth.user().delete(); }, _askPw);
       window.location.replace('/landing.html');
     } catch(e) {
-      setMsg(msg, e.message, 'err');
+      setMsg(msg, SPAuth.errorMessage(e), 'err');
       btn.disabled = false; btn.textContent = 'Eliminar mi cuenta';
     }
   }

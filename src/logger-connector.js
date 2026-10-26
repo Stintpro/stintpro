@@ -36,7 +36,7 @@ const Logger = {
       return;
     }
     this._serverUrl = loggerUrl.replace(/\/$/, '');
-    // Auth: se prefiere el JWT de Supabase (por usuario). La API key solo si el
+    // Auth: se prefiere el ID token de Firebase (por usuario). La API key solo si el
     // admin la configura explícitamente; ya NO se incrusta ninguna key por defecto.
     this._apiKey = window.AppState?.loggerApiKey || localStorage.getItem('stintpro_logger_apikey') || '';
     this._doConnect();
@@ -49,7 +49,7 @@ const Logger = {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = async () => {
-        // Auth como primer mensaje: JWT de Supabase preferente; API key de reserva.
+        // Auth como primer mensaje: ID token de Firebase preferente; API key de reserva.
         const token = await this._getToken();
         if (token) {
           this.ws.send(JSON.stringify({ type: 'auth', token }));
@@ -173,23 +173,14 @@ const Logger = {
     this.connected = false;
   },
 
-  // Token de sesión de Supabase (para autenticar lecturas y WS por usuario).
-  // getSession() no refresca si el timer de fondo no ha corrido (p.ej. pestaña
-  // suspendida en Safari/iPad al cambiar de app) → puede devolver un access_token
-  // ya caducado. Se fuerza un refresco activo cuando falta <60s o ya caducó.
+  // ID token de Firebase (para autenticar lecturas y WS por usuario). El SDK
+  // lo renueva si ha caducado o está a punto (p.ej. tras suspender la pestaña).
   async _getToken() {
-    try {
-      const client = window.supabaseClient;
-      let session = (await client?.auth?.getSession())?.data?.session;
-      const nearExpiry = session?.expires_at && (session.expires_at * 1000 - Date.now() < 60000);
-      if (session && nearExpiry) {
-        session = (await client.auth.refreshSession())?.data?.session || session;
-      }
-      return session?.access_token || '';
-    } catch(e) { return ''; }
+    try { return window.SPAuth ? await window.SPAuth.idToken() : ''; }
+    catch(e) { return ''; }
   },
 
-  // Cabeceras de auth para las lecturas: JWT de Supabase preferente; API key de
+  // Cabeceras de auth para las lecturas: ID token de Firebase preferente; API key de
   // reserva solo si el admin la configuró (AppState/localStorage). Autónomo:
   // usable desde cualquier módulo (p.ej. en-state.js) sin depender del estado.
   async _authHeaders() {

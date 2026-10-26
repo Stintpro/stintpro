@@ -3,17 +3,8 @@ const _ACCESS_PIN = '2712';
 const _PIN_KEY    = 'stintpro_unlocked';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await window.CircuitDB.loadFromSupabase();
   const role = await window._spRolePromise;
   window._spUserRole = role;
-  if (role !== 'admin') {
-    const { data } = await window.supabaseClient
-      .from('settings').select('value').eq('key', 'demo_mode').single();
-    if (data?.value === 'true') {
-      _launchDemoMode();
-      return;
-    }
-  }
   renderSetup();
 });
 

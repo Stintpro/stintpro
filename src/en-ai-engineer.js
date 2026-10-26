@@ -118,12 +118,12 @@ function _enBuildAiSnapshot(){
 }
 
 // ── Fetch autenticado al endpoint serverless ─────────────────────────────
-// Mismo patrón que src/supabase.js: JWT de la sesión Supabase del cliente
+// ID token de Firebase (SPAuth) del cliente
 // como Bearer token; el endpoint verifica el usuario y guarda la key de
 // Anthropic solo como env var de Vercel (nunca llega al navegador).
 async function _enFetchAiEngineer(type, snapshot, question){
-  const token=(await window.supabaseClient?.auth?.getSession())?.data?.session?.access_token;
-  if(!token)throw new Error('Sin sesión de Supabase');
+  const token=window.SPAuth?await window.SPAuth.idToken():'';
+  if(!token)throw new Error('Sin sesión');
   // Timeout explícito: sin esto, una red inestable en boxes puede dejar el fetch
   // colgado indefinidamente y con él _enAiEngineer.fetching=true para siempre
   // (bloquea el botón "Boletín" el resto de la carrera).

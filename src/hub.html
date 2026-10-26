@@ -47,23 +47,16 @@
   <div class="cards" id="cards"></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firebase-auth.js"></script>
 <script>
-  var _sb = supabase.createClient(
-    'https://nyybrybnvflwbdwdqpwa.supabase.co',
-    'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H'
-  );
-
-  _sb.auth.getSession().then(function(r) {
-    if (!r.data.session) { window.location.replace('/landing.html'); return; }
-    var user = r.data.session.user;
-    _sb.from('profiles').select('role,name').eq('id', user.id).single().then(function(res) {
-      var role = res.data?.role || 'user';
-      if (role !== 'admin') { window.location.replace('/index.html'); return; }
-      var name = res.data?.name || user.email;
-      document.getElementById('nav-user').textContent = name;
-      renderCards(role);
-    });
+  SPAuth.ready().then(async function (u) {
+    if (!u) { window.location.replace('/landing.html'); return; }
+    if (!(await SPAuth.isAdmin())) { window.location.replace('/index.html'); return; }
+    document.getElementById('nav-user').textContent = SPAuth.name();
+    renderCards('admin');
   });
 
   function renderCards(role) {
@@ -72,7 +65,7 @@
       { href: 'https://stintpro.duckdns.org/stats?v=2', icon: '📊', title: 'Logger Stats', desc: 'Historial de sesiones y pilotos' },
     ];
     if (role === 'admin') {
-      cards.push({ href: '/admin.html', icon: '⚙️', title: 'Panel Admin', desc: 'Usuarios, circuitos y configuración' });
+      cards.push({ href: '/admin.html', icon: '⚙️', title: 'Panel Admin', desc: 'Usuarios y diagnóstico' });
     }
     document.getElementById('cards').innerHTML = cards.map(function(c) {
       return '<a class="card" href="' + c.href + '">' +
@@ -83,7 +76,7 @@
   }
 
   async function signOut() {
-    await _sb.auth.signOut();
+    await SPAuth.signOut();
     window.location.replace('/landing.html');
   }
 </script>

@@ -152,34 +152,15 @@
     </div>
   </form>
 
-  <!-- Activar cuenta (flujo de invitación) -->
-  <form id="card-invite" class="card" hidden onsubmit="handleActivate(); return false;">
-    <div class="card-title">ACTIVAR CUENTA</div>
-    <div class="fields">
-      <div class="field">
-        <label for="invite-name">NOMBRE</label>
-        <input id="invite-name" type="text" autocomplete="name" placeholder="Tu nombre"/>
-      </div>
-      <div class="field">
-        <label for="invite-pw">CONTRASEÑA</label>
-        <input id="invite-pw" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"/>
-      </div>
-      <div class="field">
-        <label for="invite-pw2">CONFIRMAR CONTRASEÑA</label>
-        <input id="invite-pw2" type="password" autocomplete="new-password" placeholder="Repite la contraseña"/>
-      </div>
-      <div id="invite-err" class="err" role="alert"></div>
-      <button id="invite-btn" type="submit" class="btn-submit">Activar mi cuenta</button>
-    </div>
-  </form>
-
+  <p class="note"><a href="#" id="reset-link" onclick="handleReset(); return false;" style="color:#8A9AAE">¿Has olvidado la contraseña?</a></p>
   <p class="note">Acceso solo por invitación</p>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firebase-auth.js"></script>
 <script>
-  var SUPA_URL = 'https://nyybrybnvflwbdwdqpwa.supabase.co';
-  var SUPA_KEY = 'sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H';
-
   async function handleLogin() {
     var email = (document.getElementById('login-email').value || '').trim();
     var pw    = document.getElementById('login-pw').value || '';
@@ -188,119 +169,31 @@
     if (!email || !pw) { errEl.textContent = 'Introduce email y contraseña'; return; }
     errEl.textContent = '';
     btn.disabled = true; btn.textContent = 'Accediendo…';
-
     try {
-      var res = await fetch(SUPA_URL + '/auth/v1/token?grant_type=password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPA_KEY
-        },
-        body: JSON.stringify({ email: email, password: pw })
-      });
-      var data = await res.json();
-      if (!res.ok || data.error) {
-        errEl.textContent = 'Email o contraseña incorrectos';
-        btn.disabled = false; btn.textContent = 'Entrar';
-        return;
-      }
-      localStorage.setItem('sb-nyybrybnvflwbdwdqpwa-auth-token', JSON.stringify({
-        access_token:  data.access_token,
-        refresh_token: data.refresh_token,
-        expires_in:    data.expires_in,
-        expires_at:    Math.floor(Date.now() / 1000) + data.expires_in,
-        token_type:    'bearer',
-        user:          data.user
-      }));
-      var profileRes = await fetch(SUPA_URL + '/rest/v1/profiles?select=role&id=eq.' + data.user.id, {
-        headers: {
-          'apikey': SUPA_KEY,
-          'Authorization': 'Bearer ' + data.access_token
-        }
-      });
-      var profile = await profileRes.json();
-      var role = (profile[0] && profile[0].role) || 'user';
-      window.location.href = role === 'admin' ? '/hub.html' : '/index.html';
-    } catch(e) {
-      errEl.textContent = 'Error de red. Comprueba la conexión.';
+      await SPAuth.signIn(email, pw);
+      window.location.href = (await SPAuth.isAdmin()) ? '/hub.html' : '/index.html';
+    } catch (e) {
+      errEl.textContent = SPAuth.errorMessage(e);
       btn.disabled = false; btn.textContent = 'Entrar';
     }
   }
 
-  var _inviteToken = null;
-
-  (function detectInvite() {
-    var hash = window.location.hash.slice(1);
-    if (!hash) return;
-    var params = {};
-    hash.split('&').forEach(function(p) { var kv = p.split('='); params[kv[0]] = decodeURIComponent(kv[1] || ''); });
-    if (params.type !== 'invite' || !params.access_token) return;
-
-    _inviteToken = { access_token: params.access_token, refresh_token: params.refresh_token };
-    history.replaceState(null, '', window.location.pathname);
-
-    var jwtPayload = JSON.parse(atob(params.access_token.split('.')[1]));
-    fetch(SUPA_URL + '/rest/v1/profiles?select=name&id=eq.' + jwtPayload.sub, {
-      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + params.access_token }
-    }).then(function(r) { return r.json(); }).then(function(rows) {
-      var name = rows && rows[0] && rows[0].name;
-      if (name) document.getElementById('invite-name').value = name;
-    }).catch(function() {});
-
-    document.getElementById('card-login').hidden = true;
-    document.getElementById('card-invite').hidden = false;
-  })();
-
-  async function handleActivate() {
-    var name  = (document.getElementById('invite-name').value || '').trim();
-    var pw    = document.getElementById('invite-pw').value || '';
-    var pw2   = document.getElementById('invite-pw2').value || '';
-    var errEl = document.getElementById('invite-err');
-    var btn   = document.getElementById('invite-btn');
-
-    if (!name)        { errEl.textContent = 'Introduce tu nombre'; return; }
-    if (pw.length < 8){ errEl.textContent = 'La contraseña debe tener al menos 8 caracteres'; return; }
-    if (pw !== pw2)   { errEl.textContent = 'Las contraseñas no coinciden'; return; }
-    if (!_inviteToken){ errEl.textContent = 'Enlace de invitación inválido'; return; }
-
-    errEl.textContent = '';
-    btn.disabled = true; btn.textContent = 'Activando…';
-
+  async function handleReset() {
+    var email = (document.getElementById('login-email').value || '').trim();
+    var errEl = document.getElementById('login-err');
+    if (!email) { errEl.textContent = 'Escribe tu email y vuelve a pulsar «¿Has olvidado la contraseña?»'; return; }
     try {
-      var res = await fetch(SUPA_URL + '/auth/v1/user', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + _inviteToken.access_token },
-        body: JSON.stringify({ password: pw, data: { name: name } })
-      });
-      var data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al activar');
-
-      await fetch(SUPA_URL + '/rest/v1/profiles?id=eq.' + data.id, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + _inviteToken.access_token, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ name: name })
-      });
-
-      localStorage.setItem('sb-nyybrybnvflwbdwdqpwa-auth-token', JSON.stringify({
-        access_token:  _inviteToken.access_token,
-        refresh_token: _inviteToken.refresh_token,
-        expires_in:    3600,
-        expires_at:    Math.floor(Date.now() / 1000) + 3600,
-        token_type:    'bearer',
-        user:          data
-      }));
-
-      var profileRes = await fetch(SUPA_URL + '/rest/v1/profiles?select=role&id=eq.' + data.id, {
-        headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + _inviteToken.access_token }
-      });
-      var profile = await profileRes.json();
-      var role = (profile[0] && profile[0].role) || 'user';
-      window.location.href = role === 'admin' ? '/hub.html' : '/index.html';
-    } catch(e) {
-      errEl.textContent = e.message || 'Error al activar la cuenta';
-      btn.disabled = false; btn.textContent = 'Activar mi cuenta';
+      await SPAuth.sendReset(email);
+      errEl.textContent = 'Si la cuenta existe, te hemos enviado un correo para poner una contraseña nueva.';
+    } catch (e) {
+      errEl.textContent = SPAuth.errorMessage(e);
     }
   }
+
+  // Con sesión ya abierta, no se queda en el login.
+  SPAuth.ready().then(async function (u) {
+    if (u) window.location.replace((await SPAuth.isAdmin()) ? '/hub.html' : '/index.html');
+  });
 </script>
 
 </body>

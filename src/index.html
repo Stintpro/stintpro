@@ -47,27 +47,19 @@
       document.getElementById('sp-hc-btn').classList.toggle('sp-nav-hc', on);
     }
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="firebase-auth.js"></script>
   <script>
-    if (window.location.hash.includes('type=invite')) {
-      window.location.replace('/landing.html' + window.location.hash);
-    }
-    window.supabaseClient = supabase.createClient('https://nyybrybnvflwbdwdqpwa.supabase.co','sb_publishable_sXd5RxPkUkDlopEW4Rah9g_WpocEK5H');
-    window._spRolePromise = new Promise(function(resolve) {
-      if (navigator.userAgent.includes('Electron')) { resolve('admin'); return; }
-      window.supabaseClient.auth.getSession().then(function(r) {
-        if (!r.data.session) { window.location.replace('/landing.html'); resolve('user'); return; }
-        if (new URLSearchParams(location.search).has('hub')) { resolve('admin'); return; }
-        window.supabaseClient.from('profiles').select('role,name').eq('id', r.data.session.user.id).single().then(function(res) {
-          var role = res.data?.role || 'user';
-          var name = res.data?.name || r.data.session.user.email;
-          document.getElementById('sp-nav-user').textContent = name;
-          if (role === 'admin') { window.location.replace('/hub.html'); }
-          resolve(role);
-        });
-      });
+    window._spRolePromise = SPAuth.ready().then(async function (u) {
+      if (!u) { window.location.replace('/landing.html'); return 'user'; }
+      document.getElementById('sp-nav-user').textContent = SPAuth.name();
+      var role = (await SPAuth.isAdmin()) ? 'admin' : 'user';
+      if (role === 'admin' && !new URLSearchParams(location.search).has('hub')) { window.location.replace('/hub.html'); }
+      return role;
     });
-    async function signOutSP(){ await window.supabaseClient.auth.signOut(); window.location.replace('/landing.html'); }
+    async function signOutSP(){ await SPAuth.signOut(); window.location.replace('/landing.html'); }
   </script>
   <script src="circuits.js"></script>
   <script src="state.js"></script>
