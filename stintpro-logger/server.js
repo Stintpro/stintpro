@@ -12,6 +12,7 @@ const https          = require('https');
 const db             = require('./db');
 const CircuitMonitor = require('./circuit-monitor');
 const { computePilotRatings } = require('./scoring');
+const { createTeamLink, validateRoster, validatePilotIndex, validateTeamMsg } = require('./team-link');
 
 // ── Verificación de ID tokens de Firebase (RS256, claves públicas de Google) ──
 // Sin secretos: descarga las claves PÚBLICAS de Google y verifica firma, emisor,
@@ -941,6 +942,9 @@ const server = http.createServer(app);
 // anónimo podía llevar el proceso (que graba todos los circuitos) a OOM.
 const wss    = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 
+// Mensajes del panel al piloto en pista (listas de pilotos y móviles por piloto).
+const teamLink = createTeamLink();
+
 wss.on('connection', (ws) => {
   ws._authed = !API_KEY; // si no hay key configurada, auto-autenticado
   // Errores de protocolo del cliente (frame > maxPayload, UTF-8 inválido…): ws los
@@ -1019,7 +1023,8 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // pilot — subscripción filtrada por dorsal para la app del piloto
+    // pilot — subscripción filtrada por dorsal para la app del piloto.
+    // `pilot` (opcional) = índice del piloto en la lista que publica el panel.
     if (msg.type === 'pilot') {
       const slug   = (msg.slug   || '').trim();
       const dorsal = (msg.dorsal || '').toString().trim();
@@ -1032,23 +1037,51 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'error', msg: 'dorsal requerido' }));
         return;
       }
+      const p = validatePilotIndex(msg.pilot);
+      if (p.error) {
+        ws.send(JSON.stringify({ type: 'error', msg: p.error }));
+        return;
+      }
       mon.subscribePilot(ws, dorsal);
+      teamLink.registerPilot(ws, slug, dorsal, p.pilot);
+      return;
+    }
+
+    // team_roster — el panel publica sus pilotos y cuál va en pista
+    if (msg.type === 'team_roster') {
+      const slug = (msg.slug || '').trim();
+      if (!monitors.get(slug)) {
+        ws.send(JSON.stringify({ type: 'error', msg: `Circuito '${slug}' no encontrado` }));
+        return;
+      }
+      const r = validateRoster(msg);
+      if (r.error) {
+        ws.send(JSON.stringify({ type: 'error', msg: r.error }));
+        return;
+      }
+      teamLink.setRoster(ws, slug, r);
+      return;
+    }
+
+    // roster_get — la app pide la lista para «¿Quién eres?»
+    if (msg.type === 'roster_get') {
+      const slug = (msg.slug || '').trim();
+      if (!monitors.get(slug)) {
+        ws.send(JSON.stringify({ type: 'error', msg: `Circuito '${slug}' no encontrado` }));
+        return;
+      }
+      const r = teamLink.getRoster(slug, msg.dorsal);
+      ws.send(JSON.stringify({ type: 'team_roster', pilotos: r ? r.pilotos : null, current: r ? r.current : null }));
       return;
     }
 
     // team_msg — mensaje del equipo al piloto
     if (msg.type === 'team_msg') {
-      const slug   = (msg.slug   || '').trim();
-      const dorsal = (msg.dorsal || '').toString().trim();
-      const text   = (msg.text   || '').toString().trim();
-      const mon    = monitors.get(slug);
-      if (!mon || !dorsal || !text) {
-        ws.send(JSON.stringify({ type: 'error', msg: 'slug, dorsal y text requeridos' }));
-        return;
-      }
-      // Límites de forma (defensa en profundidad — el pilot app muestra el texto).
-      if (dorsal.length > 16 || text.length > 500) {
-        ws.send(JSON.stringify({ type: 'error', msg: 'dorsal (≤16) o text (≤500) demasiado largos' }));
+      const slug = (msg.slug || '').trim();
+      const mon  = monitors.get(slug);
+      const v    = mon ? validateTeamMsg(msg) : { error: 'slug, dorsal y text requeridos' };
+      if (v.error) {
+        ws.send(JSON.stringify({ type: 'error', msg: v.error }));
         return;
       }
       // Rate limit por conexión (máx 10 mensajes / 10 s): no hay control de
@@ -1065,14 +1098,8 @@ wss.on('connection', (ws) => {
       }
       ws._teamMsgTimes.push(nowTs);
 
-      const clients = mon.pilotSubscribers.get(dorsal);
-      if (clients) {
-        const payload = JSON.stringify({ type: 'team_msg', text });
-        for (const c of clients) {
-          if (c.readyState === 1) try { c.send(payload); } catch(e) {}
-        }
-      }
-      ws.send(JSON.stringify({ type: 'team_msg_sent', dorsal, text }));
+      const delivered = teamLink.deliver(slug, v);
+      ws.send(JSON.stringify({ type: 'team_msg_sent', id: v.id, dorsal: v.dorsal, pilot: v.pilot, text: v.text, delivered }));
       return;
     }
 

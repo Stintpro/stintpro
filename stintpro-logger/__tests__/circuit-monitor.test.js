@@ -1312,3 +1312,18 @@ describe('raw log de sesión', () => {
     expect(lineas.some(l => l.raw.includes('grid|'))).toBe(false);
   });
 });
+
+describe('subscribePilot — resuscripción', () => {
+  test('la misma conexión cambia de dorsal sin seguir en el anterior ni duplicar listeners', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m.subscribePilot(ws, '9');
+    m.subscribePilot(ws, '9');
+    expect(m.pilotSubscribers.get('7').has(ws)).toBe(false);
+    expect(m.pilotSubscribers.get('9').size).toBe(1);
+    expect(ws.listenerCount('close')).toBe(1);
+    ws.emit('close');
+    expect(m.pilotSubscribers.get('9').size).toBe(0);
+  });
+});

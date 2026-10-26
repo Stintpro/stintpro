@@ -919,11 +919,18 @@ class CircuitMonitor {
 
   subscribePilot(ws, dorsal) {
     const key = String(dorsal);
+    // Resuscripción desde la misma conexión (la app cambia de dorsal o de piloto):
+    // fuera de cualquier otro dorsal para no recibir datos de dos karts.
+    for (const [d, set] of this.pilotSubscribers) if (d !== key) set.delete(ws);
     if (!this.pilotSubscribers.has(key)) this.pilotSubscribers.set(key, new Set());
-    const clients = this.pilotSubscribers.get(key);
-    clients.add(ws);
-    ws.on('close', () => clients.delete(ws));
-    ws.on('error', () => clients.delete(ws));
+    this.pilotSubscribers.get(key).add(ws);
+    if (!this._pilotHooked) this._pilotHooked = new WeakSet();
+    if (!this._pilotHooked.has(ws)) {
+      this._pilotHooked.add(ws);
+      const off = () => { for (const set of this.pilotSubscribers.values()) set.delete(ws); };
+      ws.on('close', off);
+      ws.on('error', off);
+    }
     ws.send(JSON.stringify({ type: 'pilot_ack', slug: this.slug, dorsal: key }));
   }
 
