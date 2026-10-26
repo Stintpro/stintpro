@@ -57,6 +57,9 @@
     if (!(await SPAuth.isAdmin())) { window.location.replace('/index.html'); return; }
     document.getElementById('nav-user').textContent = SPAuth.name();
     renderCards('admin');
+  }).catch(function (e) {
+    console.warn('[StintPro] comprobación de rol fallida:', e);
+    window.location.replace('/index.html');
   });
 
   function renderCards(role) {

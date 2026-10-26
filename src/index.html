@@ -52,6 +52,9 @@
   <script src="firebase-config.js"></script>
   <script src="firebase-auth.js"></script>
   <script>
+    // app.js espera esta promesa: NUNCA debe rechazar ni quedarse colgada. Si la
+    // comprobación de rol falla (p.ej. renovar el token sin red en boxes) se
+    // sigue como 'user'; solo un "no es miembro" definitivo saca al login.
     window._spRolePromise = SPAuth.ready().then(async function (u) {
       if (!u) { window.location.replace('/landing.html'); return 'user'; }
       if (!(await SPAuth.isMember())) {
@@ -63,6 +66,9 @@
       var role = (await SPAuth.isAdmin()) ? 'admin' : 'user';
       if (role === 'admin' && !new URLSearchParams(location.search).has('hub')) { window.location.replace('/hub.html'); }
       return role;
+    }).catch(function (e) {
+      console.warn('[StintPro] comprobación de rol fallida:', e);
+      return 'user';
     });
     async function signOutSP(){ await SPAuth.signOut(); window.location.replace('/landing.html'); }
   </script>
