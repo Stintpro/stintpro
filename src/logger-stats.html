@@ -6,10 +6,16 @@
 <title>StintPro — Logger Stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firebase-auth.js"></script>
 <script>
-(function(){
-  const key=Object.keys(localStorage).find(k=>k.startsWith('sb-')&&k.endsWith('-auth-token'));
-  if(!key)window.location.replace('/landing.html');
+// Solo miembros de StintPro (sesión de Firebase con claim member o admin).
+(async function(){
+  let ok=false;
+  try{ ok=!!(await SPAuth.ready()) && await SPAuth.isMember(); }catch(e){ ok=false; }
+  if(!ok)window.location.replace('/landing.html');
 })();
 </script>
 <style>
