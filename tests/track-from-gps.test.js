@@ -184,5 +184,16 @@ test('RaceChrono Format 3 (Campillos): timestamp unix, lap_number, preambuló, C
   near(j.lengthM, L, L * 0.01);
 });
 
+test('lapCenter: media de lat/lon de la vuelta, redondeada a 5 decimales', () => {
+  const samples = [
+    { t: 0, lat: 99, lon: 99, lap: 0 },          // fuera de la vuelta
+    { t: 1, lat: 40.000001, lon: -3.000001, lap: 1 },
+    { t: 2, lat: 40.000003, lon: -3.000003, lap: 1 },
+    { t: 3, lat: 40.000005, lon: -3.000005, lap: 2 },
+    { t: 4, lat: 99, lon: 99, lap: 2 },          // fuera de la vuelta
+  ];
+  deepStrictEqual(G.lapCenter(samples, { start: 1, end: 3 }), [40, -3]);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

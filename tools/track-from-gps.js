@@ -65,6 +65,14 @@ function splitLaps(samples) {
   return laps;
 }
 
+// Centro geográfico [lat, lon] de una vuelta: para CircuitDB.coords (meteo).
+function lapCenter(samples, lapInfo) {
+  const seg = samples.slice(lapInfo.start, lapInfo.end + 1);
+  const r5 = v => Math.round(v * 1e5) / 1e5;
+  return [r5(seg.reduce((s, p) => s + p.lat, 0) / seg.length),
+          r5(seg.reduce((s, p) => s + p.lon, 0) / seg.length)];
+}
+
 function buildTrack(samples, lapInfo, opts) {
   const o = opts || {};
   const seg = samples.slice(lapInfo.start, lapInfo.end + 1);
@@ -162,10 +170,12 @@ function main() {
   const prev = path.join(prevDir, a.slug + '.preview.svg');
   fs.writeFileSync(prev, previewSvg(json));
   console.log(`✓ ${outFile}  (${json.lengthM} m · V${pick.lap} ${fmtLap(pick.timeS)})\n  vista previa: ${prev}`);
+  const [clat, clon] = lapCenter(samples, pick);
+  console.log(`  coordenadas para CircuitDB.coords: '${a.slug}': [${clat}, ${clon}],`);
 }
 
 if (require.main === module) {
   try { main(); } catch (e) { console.error('✗', e.message); process.exit(1); }
 }
 
-module.exports = { parseGpsCsv, splitLaps, buildTrack, previewSvg, fmtLap };
+module.exports = { parseGpsCsv, splitLaps, buildTrack, previewSvg, fmtLap, lapCenter };
