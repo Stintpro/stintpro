@@ -61,13 +61,14 @@ function _enCheckAlerts(eq, trackAvg){
   _enAiAlerts.trackAvgHistory.push({ts:now, avg:trackAvg});
   while(_enAiAlerts.trackAvgHistory.length&&now-_enAiAlerts.trackAvgHistory[0].ts>15*60*1000)
     _enAiAlerts.trackAvgHistory.shift();
-  if(!onCooldown('rain')){
-    const baseline=_enAiAlerts.trackAvgHistory.find(s=>now-s.ts>=9*60*1000);
-    if(baseline&&trackAvg-baseline.avg>1.5){
+  if(!onCooldown('rain')&&window.EnWeatherCore){
+    // Misma regla que la línea de lluvia del KPI Media pista (en-weather.js).
+    const r=window.EnWeatherCore.rainByLapTimes(_enAiAlerts.trackAvgHistory, now, trackAvg);
+    if(r.rising){
       _enFireAlert('rain', {
         trackAvgNowS:    Math.round(trackAvg*100)/100,
-        trackAvgBeforeS: Math.round(baseline.avg*100)/100,
-        minutesAgo:      Math.round((now-baseline.ts)/60000),
+        trackAvgBeforeS: Math.round(r.baselineAvg*100)/100,
+        minutesAgo:      Math.round((now-r.baselineTs)/60000),
       });
       return;
     }
