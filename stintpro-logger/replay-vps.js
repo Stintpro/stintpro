@@ -85,7 +85,11 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
-      if (msg.type === 'pilot') {
+      // La app manda { type:'auth', token|apikey } primero y espera auth_ok
+      // para suscribirse; en el replay local no se verifica.
+      if (msg.type === 'auth') {
+        ws.send(JSON.stringify({ type: 'auth_ok' }));
+      } else if (msg.type === 'pilot') {
         mon.subscribePilot(ws, msg.dorsal);
       } else if (msg.type === 'subscribe') {
         mon.subscribe(ws);
