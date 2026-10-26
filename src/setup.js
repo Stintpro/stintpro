@@ -10,7 +10,7 @@ let _slugFetchTimer = null; // debounce del fetch de auto-detección de puerto
 let _trackDirection = 'normal'; // 'normal' o 'inverso' — solo relevante en circuitos con CircuitDB.hasDirectionVariants
 const _loggerUrl   = (()=>{const a=[104,116,116,112,115,58,47,47,115,116,105,110,116,112,114,111,46,100,117,99,107,100,110,115,46,111,114,103];return a.map(c=>String.fromCharCode(c)).join('');})();
 // La API key ya NO se incrusta en el cliente: la app autentica el logger con el
-// JWT de Supabase (ver logger-connector._authHeaders). Vacío a propósito.
+// ID token de Firebase (ver logger-connector._authHeaders). Vacío a propósito.
 const _loggerApiKey = '';
 const _origApex  = window.ApexConnector; // guardar conector original
 

@@ -29,12 +29,22 @@ test('coordsOf devuelve null para un slug desconocido o vacío', () => {
   strictEqual(DB.coordsOf(undefined), null);
 });
 
-test('todos los circuitos del catálogo embebido tienen coordenadas válidas', () => {
+const SIN_COORDS = ['misanino-kart', 'worldkarts', 'grancanaria-karting'];
+
+test('el catálogo incluye los 21 circuitos que graba el VPS', () => {
+  strictEqual(DB.list.length, 21);
+  for (const s of ['korridas', 'kartodromo-de-tapia', 'misanino-kart', 'worldkarts', 'firstkartinn', 'grancanaria-karting', 'prestige-karting'])
+    ok(DB.list.some(c => c.slug === s), 'falta ' + s);
+});
+
+test('coordenadas válidas (Europa) en todos salvo los pendientes', () => {
+  const sin = [];
   for (const c of DB.list) {
     const xy = DB.coordsOf(c.slug);
-    ok(xy, 'sin coordenadas: ' + c.slug);
-    ok(xy[0] > 27 && xy[0] < 50 && xy[1] > -16 && xy[1] < 3, 'fuera de rango: ' + c.slug);
+    if (!xy) { sin.push(c.slug); continue; }
+    ok(xy[0] > 27 && xy[0] < 56 && xy[1] > -17 && xy[1] < 20, 'fuera de rango: ' + c.slug);
   }
+  deepStrictEqual(sin.sort(), SIN_COORDS.slice().sort());
 });
 
 console.log(`\n${passed} OK, ${failed} fallos\n`);

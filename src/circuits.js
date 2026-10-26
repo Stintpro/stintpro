@@ -16,6 +16,14 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_osona',        name: 'Circuito de Osona',         slug: 'circuitosona',              port: 9623 },
   { id: 'cat_kippalmela',   name: 'KIP Palmela',               slug: 'kip-palmela',               port: 10113 }, // Portugal (configPort 10110 + 3)
   { id: 'cat_lemans',       name: 'Le Mans Karting 2 (FR)',    slug: 'lemans-karting2',           port: 8013  }, // Francia — 24H Open Kart 390cc
+  // Circuitos que graba el logger del VPS (puertos de /api/status, 2026-10-26).
+  { id: 'cat_korridas',     name: 'Korridas',                  slug: 'korridas',                  port: 7633  }, // Portugal (Matosinhos)
+  { id: 'cat_tapia',        name: 'Kartódromo de Tapia',       slug: 'kartodromo-de-tapia',       port: 8443  },
+  { id: 'cat_misanino',     name: 'Misanino Kart (IT)',        slug: 'misanino-kart',             port: 8043  },
+  { id: 'cat_worldkarts',   name: 'WorldKarts (BE)',           slug: 'worldkarts',                port: 8143  },
+  { id: 'cat_firstkartinn', name: 'First Kart Inn (BE)',       slug: 'firstkartinn',              port: 8113  },
+  { id: 'cat_grancanaria',  name: 'Gran Canaria Karting',      slug: 'grancanaria-karting',       port: 9183  },
+  { id: 'cat_prestige',     name: 'Prestige Karting',          slug: 'prestige-karting',          port: 9613  }, // Francia (Le Luc)
   // Cronosystem = canal del CRONOMETRADOR, itinerante (no es un circuito fijo): 24H KIP
   // Portugal en sept-2026, 30H Campillos en oct-2026. Puerto real 8803 (el configPort
   // 8800 de Apex no hace TLS). El trazado va por trackAliases, más abajo.
@@ -80,7 +88,7 @@ window.CircuitDB = {
 // local (que solo se rellena tras calibrar 2 paradas en ESE dispositivo). Se usan
 // solo como fallback: si el dispositivo ya tiene su propia calibración guardada
 // (más reciente/afinada), esa tiene prioridad. Propiedad separada de `list` para
-// que sobreviva a loadFromSupabase() (que reemplaza `list` pero no toca esto).
+// que no dependa del orden de carga de `list`.
 // Valor: número (un solo sentido conocido) u objeto {normal, inverso} para
 // circuitos que corren en ambos sentidos según el evento — el offset pit
 // exit→meta cambia radicalmente según el sentido (Apex no lo indica en el
@@ -127,7 +135,7 @@ window.CircuitDB.trackSlug = function(slug) {
 };
 
 // Coordenadas [lat, lon] de cada circuito, para la meteo (en-weather.js). Van por
-// slug, aparte de `list`, para que sobrevivan a loadFromSupabase(). Las de
+// slug, aparte de `list`. Las de
 // ariza/henakart/los santos son el centro de la vuelta GPS de su trazado; el resto,
 // OpenStreetMap. Un canal itinerante (cronosystem2) hereda las de su pista por
 // trackAliases.
@@ -145,31 +153,16 @@ window.CircuitDB.coords = {
   'circuitosona':              [41.95034,  2.28088],
   'kip-palmela':               [38.57828, -8.82769],
   'lemans-karting2':           [47.94232,  0.21241],
+  'korridas':                  [41.17568, -8.68299],
+  'kartodromo-de-tapia':       [43.54655, -6.90399],
+  'firstkartinn':              [50.90603,  4.41669],
+  'prestige-karting':          [43.34890,  6.33847],
+  // Sin coordenadas aún (no se muestra el aviso de lluvia): misanino-kart,
+  // worldkarts (OSM da dos sedes) y grancanaria-karting.
 };
 window.CircuitDB.coordsOf = function(slug) {
   if (!slug) return null;
   return this.coords[slug] || this.coords[this.trackSlug(slug)] || null;
-};
-
-// Carga async desde Supabase — Supabase es la fuente de verdad, catálogo hardcodeado es fallback
-window.CircuitDB.loadFromSupabase = async function() {
-  if (!window.supabaseClient) return;
-  try {
-    const { data, error } = await window.supabaseClient
-      .from('circuits').select('*').order('name');
-    if (!error && data && data.length > 0) {
-      const custom = this.list.filter(c => c._custom);
-      // Un circuito del catálogo embebido que aún no esté dado de alta en
-      // Supabase se conserva: añadirlo al código basta para que aparezca.
-      this.list = [
-        ...data.map(c => ({ id:'sb_'+c.id, name:c.name, slug:c.slug, port:c.port||7913, _supabase:true, _sbId:c.id })),
-        ..._CIRCUIT_CATALOG.filter(c => !data.find(d => d.slug === c.slug)),
-        ...custom.filter(c => !data.find(d => d.slug === c.slug) && !_CIRCUIT_CATALOG.find(d => d.slug === c.slug))
-      ];
-    }
-  } catch(e) {
-    console.warn('[StintPro] No se pudieron cargar circuitos de Supabase:', e.message);
-  }
 };
 
 // Cargar circuitos al iniciar
