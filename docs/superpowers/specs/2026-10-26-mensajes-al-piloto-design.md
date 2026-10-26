@@ -99,7 +99,7 @@ Conexión propia al WebSocket del VPS, **independiente del modo de datos** del p
 
 ### Botón y modal
 
-- Botón **📱** en la baldosa del stint, junto al botón de mensajes de dirección de carrera (`_enMsgBtnHtml` en `en-grid.js`). Desactivado y con título «sin conexión» si el enlace no está autenticado.
+- Botón **📻 RADIO** en la pestaña **Mi equipo**, en la tarjeta «Piloto en pista», junto a «🔄 Cambio» (`_enRenderTeam` en `en-team.js`). Desactivado y con título «sin conexión» si el enlace no está autenticado. (Cambio pedido por el usuario el 2026-10-26: antes iba como 📱 en la baldosa del stint.)
 - Modal con estética del panel (`sp-modal`):
   - Cabecera: «Para: **{piloto en pista}** · 📱 conectado / sin móvil» (de `pilot_presence`). Sin piloto marcado → «Marca quién va en pista» y botones desactivados.
   - Rejilla de los 13 mensajes rápidos, coloreados por tono, primera fila Box. Un toque envía.

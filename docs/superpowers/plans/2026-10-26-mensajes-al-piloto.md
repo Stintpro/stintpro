@@ -36,9 +36,9 @@
 - Modify `stintpro-logger/replay-vps.js` — mismo reparto que el servidor.
 - Create `src/en-pilot-link-core.js` — núcleo puro del panel (UMD): mensajes rápidos, lista, mensaje, etiqueta de entrega.
 - Create `tests/pilot-link.test.js` — tests del núcleo.
-- Create `src/en-pilot-link.js` — conexión WS del panel (`EnPilotLink`) + botón 📱 y modal.
+- Create `src/en-pilot-link.js` — conexión WS del panel (`EnPilotLink`) + botón 📻 RADIO y modal.
 - Modify `src/index.html` — cargar los dos scripts.
-- Modify `src/en-grid.js:398` — botón 📱 junto al ✉.
+- Modify `src/en-team.js` — botón 📻 RADIO en la tarjeta «Piloto en pista» de Mi equipo.
 - Modify `src/styles.css` — estilos del botón y el modal.
 
 **stintpro_pilot**
@@ -928,17 +928,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Conexión, botón 📱 y modal del panel
+### Task 5: Conexión, botón 📻 RADIO y modal del panel
 
 **Files:**
 - Create: `src/en-pilot-link.js`
 - Modify: `src/index.html` (tras `<script src="en-messages.js"></script>`, l.96)
-- Modify: `src/en-grid.js:398`
+- Modify: `src/en-team.js` (`_enRenderTeam`, tarjeta «Piloto en pista», junto al botón `🔄 Cambio`)
 - Modify: `src/styles.css` (tras el bloque `.en-msg-btn.mine`, ~l.244)
 
 **Interfaces:**
 - Consumes: `EnPilotLinkCore` (Task 4); protocolo WS (Task 2); globales existentes `AppState.config`, `AppState.loggerUrl`, `AppState.loggerApiKey`, `EnSession.currentPilot`, `SPAuth.idToken()`, `_esc()`, `_enDismissOverlay()`.
-- Produces: `window.EnPilotLink { start(), authed, presence:number[], lastStatus:{ok,text}|null, roster(), send(text, tone) → Promise<ack>, onChange(fn) → unsubscribe }`; globales `_enPilotMsgBtnHtml()`, `_enShowPilotMsg()`, `_enSendQuick(i)`, `_enSendFree()`.
+- Produces: `window.EnPilotLink { start(), authed, presence:number[], lastStatus:{ok,text}|null, roster(), send(text, tone) → Promise<ack>, onChange(fn) → unsubscribe }`; globales `_enRadioBtnHtml()`, `_enShowPilotMsg()`, `_enSendQuick(i)`, `_enSendFree()`.
 
 - [ ] **Step 1: Implement `src/en-pilot-link.js`**
 
@@ -966,7 +966,8 @@ window.EnPilotLink = {
   onChange(fn) { this._listeners.add(fn); return () => this._listeners.delete(fn); },
   _emit() { this._listeners.forEach(fn => { try { fn(); } catch (e) { console.error('[StintPro] pilot-link', e); } }); },
 
-  roster() { return EnPilotLinkCore.buildRoster(window.AppState?.config, window.EnSession); },
+  // EnSession es un `const` global (en-state.js): accesible por nombre, no como window.EnSession.
+  roster() { return EnPilotLinkCore.buildRoster(window.AppState?.config, typeof EnSession !== 'undefined' ? EnSession : null); },
 
   _url() {
     const u = window.AppState?.loggerUrl || localStorage.getItem('stintpro_logger_url') || '';
@@ -1039,13 +1040,13 @@ window.EnPilotLink = {
   },
 };
 
-// ── UI: botón 📱 en la baldosa del stint + modal ─────────────────────────────
+// ── UI: botón 📻 RADIO en Mi equipo (tarjeta «Piloto en pista») + modal ─────
 
-function _enPilotMsgBtnHtml(){
+function _enRadioBtnHtml(){
   EnPilotLink.start();
   const ok=EnPilotLink.authed;
-  const title=ok?'Mensaje al piloto en pista':'Mensajes al piloto: sin conexión con el servidor';
-  return `<button class="en-msg-btn en-pmsg-btn" title="${title}" ${ok?'':'disabled'} onclick="event.stopPropagation();_enShowPilotMsg()">📱</button>`;
+  const title=ok?'Mensaje al piloto en pista':'Radio: sin conexión con el servidor';
+  return `<button class="en-change-btn en-radio-btn" title="${title}" ${ok?'':'disabled'} onclick="event.stopPropagation();_enShowPilotMsg()">📻 RADIO</button>`;
 }
 
 function _enShowPilotMsg(){
@@ -1082,7 +1083,7 @@ function _enRenderPilotMsg(box){
   // Conservar lo escrito en el campo libre entre re-renders (presencia, acuses).
   const prev=box.querySelector('#en-pmsg-free')?.value||'';
   box.innerHTML=`
-    <div class="en-pmsg-title">📱 Mensaje al piloto</div>
+    <div class="en-pmsg-title">📻 Radio al piloto</div>
     <div class="en-pmsg-head">${head}</div>
     <div class="en-pmsg-grid">
       ${C.QUICK_MESSAGES.map((m,i)=>`<button class="en-pmsg-q ${m.tone}" ${enabled?'':'disabled'} onclick="_enSendQuick(${i})">${_esc(m.text)}</button>`).join('')}
@@ -1138,17 +1139,26 @@ async function _enSendFree(){
   <script src="en-pilot-link.js"></script>
 ```
 
-- [ ] **Step 3: Botón en la baldosa del stint** — en `src/en-grid.js:398` cambiar `${_enMsgBtnHtml()}</div>` por:
+- [ ] **Step 3: Botón RADIO en Mi equipo** — en `src/en-team.js`, `_enRenderTeam`, tarjeta «Piloto en pista»: cambiar
 
 ```js
-<span style="display:flex;gap:4px">${_enPilotMsgBtnHtml()}${_enMsgBtnHtml()}</span></div>
+      <button class="en-change-btn" style="background:#F5A623;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button>
 ```
+
+por
+
+```js
+      <span style="display:flex;gap:6px">${_enRadioBtnHtml()}<button class="en-change-btn" style="background:#F5A623;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button></span>
+```
+
+(El botón RADIO va junto al del cambio de piloto: es la tarjeta del piloto al que se le habla.)
 
 - [ ] **Step 4: Estilos** — en `src/styles.css`, tras la regla `.en-msg-btn.mine { … }`:
 
 ```css
-/* Mensajes al piloto en pista (en-pilot-link.js) */
-.en-pmsg-btn:disabled { opacity:0.35; cursor:not-allowed; }
+/* Radio al piloto en pista (en-pilot-link.js) */
+.en-radio-btn { background:color-mix(in srgb, #f97316 13%, transparent); color:#f97316; border:1px solid #f97316; font-weight:700; letter-spacing:0.5px; }
+.en-radio-btn:disabled { opacity:0.35; cursor:not-allowed; }
 .en-pmsg { border-radius:12px; padding:20px; width:min(560px, 92vw); font-family:sans-serif; }
 .en-pmsg-title { font-size:14.5px; font-weight:500; color:var(--text-1); margin-bottom:6px; }
 .en-pmsg-head { font-size:12.5px; color:var(--text-2); margin-bottom:14px; }
@@ -1178,7 +1188,7 @@ async function _enSendFree(){
 Run (desde la raíz de karting-v10):
 
 ```bash
-node -e "const fs=require('fs');for(const f of ['src/en-pilot-link.js','src/en-pilot-link-core.js','src/en-grid.js']){try{new Function(fs.readFileSync(f,'utf8'));console.log('OK',f)}catch(e){console.log('ERROR',f,e.message)}}"
+node -e "const fs=require('fs');for(const f of ['src/en-pilot-link.js','src/en-pilot-link-core.js','src/en-team.js']){try{new Function(fs.readFileSync(f,'utf8'));console.log('OK',f)}catch(e){console.log('ERROR',f,e.message)}}"
 for f in tests/*.test.js; do node "$f" >/dev/null 2>&1 || echo "FALLA $f"; done
 ```
 
@@ -1189,8 +1199,8 @@ La prueba en navegador de esta UI es la Task 8 (necesita el logger desplegado).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/en-pilot-link.js src/index.html src/en-grid.js src/styles.css
-git commit -m "panel: botón 📱 y modal de mensajes al piloto en pista
+git add src/en-pilot-link.js src/index.html src/en-team.js src/styles.css
+git commit -m "panel: botón 📻 RADIO en Mi equipo y modal de mensajes al piloto en pista
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1817,7 +1827,7 @@ node replay-vps.js "/Users/javiercoy/Downloads/karting-lossantos_2026-06-27T18-3
 
 - [ ] **Step 2: STOP — pedir permiso para desplegar el logger al VPS.** Antes: comprobar que no hay ninguna carrera en vivo (`curl -s https://stintpro.duckdns.org/api/status` → todos `sessionActive: false`) y mirar los raw logs vivos. Solo con un «sí» explícito: scp de `server.js`, `circuit-monitor.js`, `team-link.js` y `replay-vps.js` + `systemctl restart` + md5 de los ficheros en el VPS (comandos en la memoria `project_stintpro_vps.md`).
 
-- [ ] **Step 3: Panel en navegador contra el VPS ya desplegado.** Servir `src/` en `localhost` (Firebase admite `localhost` como dominio autorizado), iniciar sesión, abrir el panel en un circuito con dorsal y pilotos configurados y con la app del emulador (versión de producción) como piloto en pista. Comprobar: botón 📱 activo; modal con «Para: … · 📱 conectado»; BOX → «Entregado a …» y aviso en el emulador; cambiar el piloto en pista en el panel → la cabecera cambia y la app pierde «📢 TÚ EN PISTA» en ≤ 2 s; móvil cerrado → «No entregado: … no tiene el móvil conectado».
+- [ ] **Step 3: Panel en navegador contra el VPS ya desplegado.** Servir `src/` en `localhost` (Firebase admite `localhost` como dominio autorizado), iniciar sesión, abrir el panel en un circuito con dorsal y pilotos configurados y con la app del emulador (versión de producción) como piloto en pista. Comprobar: botón 📻 RADIO activo en Mi equipo; modal con «Para: … · 📱 conectado»; BOX → «Entregado a …» y aviso en el emulador; cambiar el piloto en pista en el panel → la cabecera cambia y la app pierde «📢 TÚ EN PISTA» en ≤ 2 s; móvil cerrado → «No entregado: … no tiene el móvil conectado».
 
 - [ ] **Step 4: STOP — pedir permiso para el push a `main` (Vercel).** Solo con un «sí» explícito.
 
