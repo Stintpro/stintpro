@@ -97,6 +97,10 @@ function _enRender(){
   const trackAvg=_enTrackAvgLive(eq)||EnSession.lastTrackAvg||( bests.length?bests[Math.floor(bests.length/2)]:null );
   const bestSess=bests[0]||null;
   const inPit=eq.filter(e=>e.pit).length;
+  // Meteo: guarda la media de pista y, cada 10 min y solo en directo, pide la
+  // previsión (en-weather.js). Un fallo aquí nunca para el panel.
+  try{ if(window.EnWeather)window.EnWeather.tick(window.AppState?.config?.slug, trackAvg); }
+  catch(err){console.error('[StintPro] Error meteo:',err);}
   const leader=eq.find(e=>e.pos===1);
   const clk=window.ApexClock?window.ApexClock.fmtMs(window.ApexClock.remainingMs()):'—';
   const isSimMode=window.AppState?.config?.simMode;
@@ -393,6 +397,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     <div class="sp-kpi-lbl">Media pista ${nExclAvg?'<span style="color:#f97316">('+nExclAvg+' excl.)</span>':''}</div>
     <div class="sp-kpi-val" style="color:#60a5fa">${trackStr}</div>
     <div class="sp-kpi-sub">click para filtrar equipos</div>
+    ${window.EnWeather?window.EnWeather.kpiLineHtml():''}
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Estado de Box</div>
