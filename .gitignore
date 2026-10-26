@@ -11,3 +11,7 @@ tools/_replays/
 
 # Vistas previas de la herramienta de trazados (se regeneran)
 tools/_tracks/
+
+# Claves de cuenta de servicio de Firebase (secretas: nunca al repo)
+*service-account*.json
+*firebase-adminsdk*.json
