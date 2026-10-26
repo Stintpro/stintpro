@@ -54,6 +54,11 @@
   <script>
     window._spRolePromise = SPAuth.ready().then(async function (u) {
       if (!u) { window.location.replace('/landing.html'); return 'user'; }
+      if (!(await SPAuth.isMember())) {
+        try { await SPAuth.signOut(); } catch (e) { /* se redirige igualmente */ }
+        window.location.replace('/landing.html?sin-acceso=1');
+        return 'user';
+      }
       document.getElementById('sp-nav-user').textContent = SPAuth.name();
       var role = (await SPAuth.isAdmin()) ? 'admin' : 'user';
       if (role === 'admin' && !new URLSearchParams(location.search).has('hub')) { window.location.replace('/hub.html'); }

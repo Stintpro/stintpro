@@ -34,6 +34,11 @@ async function verifyRequest(req, checkRevoked = false) {
   try { return await a.verifyIdToken(t, checkRevoked); } catch (e) { return null; }
 }
 
+// Miembro de StintPro = cuenta creada por un admin (claim member:true) o admin.
+// Los claims solo los pone el servidor: una cuenta dada de alta por la API
+// pública de Firebase (sign-up con el apiKey) no los tiene y no entra.
+const isMember = (decoded) => !!decoded && (decoded.member === true || decoded.admin === true);
+
 // Exige un admin (custom claim admin:true). Si no, responde y devuelve null.
 async function requireAdmin(req, res) {
   if (!configured()) { res.status(500).json({ error: 'Servidor no configurado (FIREBASE_SERVICE_ACCOUNT)' }); return null; }
@@ -43,4 +48,4 @@ async function requireAdmin(req, res) {
   return d;
 }
 
-module.exports = { verifyRequest, requireAdmin, auth, configured };
+module.exports = { verifyRequest, requireAdmin, isMember, auth, configured };

@@ -89,6 +89,14 @@ function fakeFirebase({ signedIn = null, claims = {} } = {}) {
     strictEqual(await A.create(fakeFirebase().fb, CFG).isAdmin(), false);
   });
 
+  await test('isMember: true con member o admin; false sin claims o sin sesión', async () => {
+    strictEqual(await A.create(fakeFirebase({ signedIn: 'yo@x.com', claims: { member: true } }).fb, CFG).isMember(), true);
+    strictEqual(await A.create(fakeFirebase({ signedIn: 'yo@x.com', claims: { admin: true } }).fb, CFG).isMember(), true);
+    strictEqual(await A.create(fakeFirebase({ signedIn: 'yo@x.com', claims: {} }).fb, CFG).isMember(), false);
+    strictEqual(await A.create(fakeFirebase({ signedIn: 'yo@x.com', claims: { member: 'si' } }).fb, CFG).isMember(), false);
+    strictEqual(await A.create(fakeFirebase().fb, CFG).isMember(), false);
+  });
+
   await test('sendReset vuelve a /landing.html del origen', async () => {
     const { fb, st } = fakeFirebase();
     const S = A.create(fb, CFG, { origin: 'https://stintpro.vercel.app' });

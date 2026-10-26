@@ -95,9 +95,14 @@ function fakeLogger(opts = {}) {
 
   process.env.FIREBASE_SERVICE_ACCOUNT = JSON.stringify({ project_id: 'stintpro-test' });
   process.env.ANTHROPIC_API_KEY = 'k';
-  // firebase-admin falso: verifyIdToken acepta solo el token 'valido'.
+  // firebase-admin falso: 'valido' → miembro; 'nomiembro' → token válido de una
+  // cuenta sin claim member (alta pública); cualquier otro → inválido.
   function fakeFirebaseAdmin() {
-    const auth = { verifyIdToken: async (t) => { if (t !== 'valido') throw new Error('bad'); return { uid: 'u1' }; } };
+    const auth = { verifyIdToken: async (t) => {
+      if (t === 'valido') return { uid: 'u1', member: true };
+      if (t === 'nomiembro') return { uid: 'u9' };
+      throw new Error('bad');
+    } };
     return { apps: [], initializeApp: () => ({ auth: () => auth }), credential: { cert: (x) => x } };
   }
   function aiFakes() {
@@ -144,6 +149,22 @@ function fakeLogger(opts = {}) {
     const h = load('ai-engineer.js', fakes);
     strictEqual((await call(h, q('¿paro?', 'query', { authorization: 'Bearer falso' }))).statusCode, 401);
     strictEqual(st.anthropicCalls, 0);
+  });
+
+  await test('token válido sin claim member (alta pública) → 403 sin llamar a la IA', async () => {
+    const { st, fakes } = aiFakes();
+    const h = load('ai-engineer.js', fakes);
+    const r = await call(h, q('¿paro?', 'query', { authorization: 'Bearer nomiembro' }));
+    strictEqual(r.statusCode, 403);
+    strictEqual(r.body.error, 'Usuario sin acceso');
+    strictEqual(st.anthropicCalls, 0);
+  });
+
+  await test('token de miembro → 200', async () => {
+    const { st, fakes } = aiFakes();
+    const h = load('ai-engineer.js', fakes);
+    strictEqual((await call(h, q('¿paro?'))).statusCode, 200);
+    strictEqual(st.anthropicCalls, 1);
   });
 
   await test('SECURITY-1: sin cabecera Authorization → 401', async () => {

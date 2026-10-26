@@ -83,7 +83,17 @@ function rig() {
     const r = await call(h, { action: 'create-user', email: 'ana@x.com', name: 'Ana', password: 'secreta1', role: 'admin' });
     strictEqual(r.statusCode, 200); ok(r.body.ok);
     deepStrictEqual(st.calls[0], ['createUser', { email: 'ana@x.com', password: 'secreta1', displayName: 'Ana' }]);
-    deepStrictEqual(st.calls[1], ['setCustomUserClaims', r.body.userId, { admin: true }]);
+    deepStrictEqual(st.calls[1], ['setCustomUserClaims', r.body.userId, { admin: true, member: true }]);
+  });
+
+  await test('create-user con rol user (o sin rol) pone el claim member', async () => {
+    const { h, st } = rig();
+    const r = await call(h, { action: 'create-user', email: 'eva@x.com', password: 'secreta1' });
+    strictEqual(r.statusCode, 200);
+    deepStrictEqual(st.calls[1], ['setCustomUserClaims', r.body.userId, { member: true }]);
+    st.calls.length = 0;
+    const r2 = await call(h, { action: 'create-user', email: 'leo@x.com', password: 'secreta1', role: 'user' });
+    deepStrictEqual(st.calls[1], ['setCustomUserClaims', r2.body.userId, { member: true }]);
   });
 
   await test('create-user sin contraseña → 400', async () => {
@@ -91,11 +101,12 @@ function rig() {
     strictEqual((await call(h, { action: 'create-user', email: 'ana@x.com' })).statusCode, 400);
   });
 
-  await test('invite-user crea la cuenta sin contraseña', async () => {
+  await test('invite-user crea la cuenta sin contraseña y con el claim member', async () => {
     const { h, st } = rig();
     const r = await call(h, { action: 'invite-user', email: 'luis@x.com', name: '' });
     strictEqual(r.statusCode, 200);
     deepStrictEqual(st.calls[0], ['createUser', { email: 'luis@x.com', displayName: 'luis' }]);
+    deepStrictEqual(st.calls[1], ['setCustomUserClaims', r.body.userId, { member: true }]);
   });
 
   await test('email repetido → 400 con mensaje en español', async () => {
@@ -108,9 +119,9 @@ function rig() {
   await test('set-role: dar y quitar admin; no a uno mismo', async () => {
     const { h, st } = rig();
     strictEqual((await call(h, { action: 'set-role', userId: 'u1', role: 'admin' })).statusCode, 200);
-    deepStrictEqual(st.calls[0], ['setCustomUserClaims', 'u1', { admin: true }]);
+    deepStrictEqual(st.calls[0], ['setCustomUserClaims', 'u1', { admin: true, member: true }]);
     strictEqual((await call(h, { action: 'set-role', userId: 'u1', role: 'user' })).statusCode, 200);
-    deepStrictEqual(st.calls[1], ['setCustomUserClaims', 'u1', {}]);
+    deepStrictEqual(st.calls[1], ['setCustomUserClaims', 'u1', { member: true }]);
     strictEqual((await call(h, { action: 'set-role', userId: 'a1', role: 'user' })).statusCode, 400);
   });
 
@@ -130,11 +141,11 @@ function rig() {
   await test('demotar revoca los refresh tokens justo después; ascender no', async () => {
     const { h, st } = rig();
     await call(h, { action: 'set-role', userId: 'u1', role: 'admin' });
-    deepStrictEqual(st.calls, [['setCustomUserClaims', 'u1', { admin: true }]]);
+    deepStrictEqual(st.calls, [['setCustomUserClaims', 'u1', { admin: true, member: true }]]);
     st.calls.length = 0;
     await call(h, { action: 'set-role', userId: 'u1', role: 'user' });
     deepStrictEqual(st.calls, [
-      ['setCustomUserClaims', 'u1', {}],
+      ['setCustomUserClaims', 'u1', { member: true }],
       ['revokeRefreshTokens', 'u1'],
     ]);
   });

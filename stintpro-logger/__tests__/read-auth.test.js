@@ -34,7 +34,7 @@ function claims(over = {}) {
   return Object.assign({
     iss: 'https://securetoken.google.com/' + PROJECT,
     aud: PROJECT, sub: 'user-123', user_id: 'user-123',
-    iat: t - 10, auth_time: t - 10, exp: t + 3600,
+    iat: t - 10, auth_time: t - 10, exp: t + 3600, member: true,
   }, over);
 }
 
@@ -113,6 +113,15 @@ describe('verifyFirebaseIdToken (RS256 / claves de Google)', () => {
     finally { process.env.FIREBASE_PROJECT_ID = PROJECT; }
   });
 
+  test('sin claim member ni admin (alta pública) → null', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ member: undefined })))).toBeNull();
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ member: 'true' })))).toBeNull();
+  });
+
+  test('solo admin (sin member) → válido', async () => {
+    expect(await verifyFirebaseIdToken(makeJwt(claims({ member: undefined, admin: true })))).toBeTruthy();
+  });
+
   test('basura / vacío → null', async () => {
     expect(await verifyFirebaseIdToken('no.es.jwt')).toBeNull();
     expect(await verifyFirebaseIdToken('')).toBeNull();
@@ -166,6 +175,10 @@ describe('readAuth — enforcement activado', () => {
   test('lectura con token firmado por otra clave → 401', async () => {
     const otra = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
     expect((await get('/api/sessions', { Authorization: 'Bearer ' + makeJwt(claims(), { priv: otra }) })).status).toBe(401);
+  });
+
+  test('lectura con token válido sin claim member → 401', async () => {
+    expect((await get('/api/sessions', { Authorization: 'Bearer ' + makeJwt(claims({ member: undefined })) })).status).toBe(401);
   });
 
   test('lectura con token caducado → 401', async () => {

@@ -1,6 +1,8 @@
 // Vercel Serverless Function — gestión de usuarios con Firebase Authentication.
 // Variable de entorno en Vercel: FIREBASE_SERVICE_ACCOUNT (ver api/_firebase.js).
-// Rol admin = custom claim { admin: true }; nombre = displayName.
+// Claims: toda cuenta creada aquí lleva { member: true } (sin ella el logger, la
+// IA y la app la rechazan); un admin lleva { admin: true, member: true }.
+// Nombre = displayName.
 
 const { requireAdmin, auth } = require('./_firebase');
 
@@ -15,6 +17,7 @@ const messageOf = (e) => (e && MESSAGES[e.code]) || 'No se ha podido completar l
 const nameOr = (name, email) => (name && String(name).trim()) || String(email).split('@')[0];
 const ROLES = ['admin', 'user'];
 const validRole = (role) => ROLES.includes(role);
+const claimsFor = (role) => (role === 'admin' ? { admin: true, member: true } : { member: true });
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -49,7 +52,7 @@ module.exports = async (req, res) => {
       if (!validRole(role)) return res.status(400).json({ error: 'Rol no válido' });
       if (!email || !password) return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
       const u = await fa.createUser({ email, password, displayName: nameOr(name, email) });
-      if (role === 'admin') await fa.setCustomUserClaims(u.uid, { admin: true });
+      await fa.setCustomUserClaims(u.uid, claimsFor(role));
       return res.json({ ok: true, userId: u.uid });
     }
 
@@ -59,6 +62,7 @@ module.exports = async (req, res) => {
       const { email, name } = body;
       if (!email) return res.status(400).json({ error: 'email requerido' });
       const u = await fa.createUser({ email, displayName: nameOr(name, email) });
+      await fa.setCustomUserClaims(u.uid, claimsFor('user'));
       return res.json({ ok: true, userId: u.uid });
     }
 
@@ -67,10 +71,8 @@ module.exports = async (req, res) => {
       if (!validRole(role)) return res.status(400).json({ error: 'Rol no válido' });
       if (!userId) return res.status(400).json({ error: 'userId requerido' });
       if (userId === me.uid && role !== 'admin') return res.status(400).json({ error: 'No puedes quitarte el rol admin a ti mismo' });
-      if (role === 'admin') {
-        await fa.setCustomUserClaims(userId, { admin: true });
-      } else {
-        await fa.setCustomUserClaims(userId, {});
+      await fa.setCustomUserClaims(userId, claimsFor(role));
+      if (role !== 'admin') {
         // Cierra la sesión vigente: el ID token ya emitido no puede seguir siendo admin.
         await fa.revokeRefreshTokens(userId);
       }

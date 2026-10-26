@@ -62,7 +62,7 @@
       if (!auth) return notConfigured();
       return auth.sendPasswordResetEmail(email, { url: (o.origin || '') + '/landing.html' });
     }
-    // idToken/isAdmin/withRecentLogin esperan a ready(): antes de que el SDK
+    // idToken/isAdmin/isMember/withRecentLogin esperan a ready(): antes de que el SDK
     // restaure la sesión persistida, currentUser es null aunque haya sesión.
     async function idToken(force) {
       await ready();
@@ -75,6 +75,15 @@
       if (!u) return false;
       const r = await u.getIdTokenResult();
       return !!(r && r.claims && r.claims.admin === true);
+    }
+    // Cuenta de StintPro: claim member (lo pone /api/admin al crearla) o admin.
+    async function isMember() {
+      await ready();
+      const u = user();
+      if (!u) return false;
+      const r = await u.getIdTokenResult();
+      const c = (r && r.claims) || {};
+      return c.member === true || c.admin === true;
     }
     function name() {
       const u = user();
@@ -95,7 +104,7 @@
       }
     }
 
-    return { configured, ready, user, signIn, signOut, sendReset, idToken, isAdmin, name, withRecentLogin, errorMessage };
+    return { configured, ready, user, signIn, signOut, sendReset, idToken, isAdmin, isMember, name, withRecentLogin, errorMessage };
   }
 
   return { create, errorMessage, isConfigured };

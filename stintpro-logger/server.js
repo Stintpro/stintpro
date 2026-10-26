@@ -55,7 +55,10 @@ function keyEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-// Devuelve el payload si el ID token de Firebase es válido; si no, null.
+// Devuelve el payload si el ID token de Firebase es válido Y la cuenta es de
+// StintPro (claim member:true o admin:true, que solo pone el servidor); si no,
+// null. Sin el claim, cualquiera podría darse de alta por la API pública de
+// Firebase con el apiKey del cliente y obtener un token válido.
 // Nunca lanza: pensado para usarse con `await` sin try/catch en el llamante.
 async function verifyFirebaseIdToken(token) {
   try {
@@ -79,6 +82,7 @@ async function verifyFirebaseIdToken(token) {
     if (!(payload.iat <= t + SKEW)) return null;
     if (!(payload.auth_time <= t + SKEW)) return null;
     if (typeof payload.sub !== 'string' || !payload.sub) return null;
+    if (!(payload.member === true || payload.admin === true)) return null;
     return payload;
   } catch (e) {
     return null;

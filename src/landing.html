@@ -161,6 +161,11 @@
 <script src="firebase-config.js"></script>
 <script src="firebase-auth.js"></script>
 <script>
+  var NO_ACCESS_MSG = 'Tu cuenta no tiene acceso a StintPro. Pide una invitación al administrador.';
+  if (new URLSearchParams(location.search).has('sin-acceso')) {
+    document.getElementById('login-err').textContent = NO_ACCESS_MSG;
+  }
+
   async function handleLogin() {
     var email = (document.getElementById('login-email').value || '').trim();
     var pw    = document.getElementById('login-pw').value || '';
@@ -171,6 +176,13 @@
     btn.disabled = true; btn.textContent = 'Accediendo…';
     try {
       await SPAuth.signIn(email, pw);
+      // Cuenta sin claim member (p.ej. dada de alta por la API pública de Firebase): fuera.
+      if (!(await SPAuth.isMember())) {
+        await SPAuth.signOut();
+        errEl.textContent = NO_ACCESS_MSG;
+        btn.disabled = false; btn.textContent = 'Entrar';
+        return;
+      }
       window.location.href = (await SPAuth.isAdmin()) ? '/hub.html' : '/index.html';
     } catch (e) {
       errEl.textContent = SPAuth.errorMessage(e);
@@ -190,10 +202,11 @@
     }
   }
 
-  // Con sesión ya abierta, no se queda en el login.
+  // Con sesión ya abierta (y de un miembro), no se queda en el login.
   SPAuth.ready().then(async function (u) {
-    if (u) window.location.replace((await SPAuth.isAdmin()) ? '/hub.html' : '/index.html');
-  });
+    if (!u || !(await SPAuth.isMember())) return;
+    window.location.replace((await SPAuth.isAdmin()) ? '/hub.html' : '/index.html');
+  }).catch(function (e) { console.warn('[StintPro] comprobación de sesión fallida:', e); });
 </script>
 
 </body>

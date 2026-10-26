@@ -3,7 +3,7 @@
 //   FIREBASE_SERVICE_ACCOUNT → JSON de la cuenta de servicio de Firebase (NUNCA en el cliente)
 //   ANTHROPIC_API_KEY        → console.anthropic.com (NUNCA en el cliente)
 
-const { verifyRequest, configured } = require('./_firebase');
+const { verifyRequest, isMember, configured } = require('./_firebase');
 const Anthropic = require('@anthropic-ai/sdk');
 
 // Config por tipo consolidada en un único objeto — evita que un tipo nuevo
@@ -67,9 +67,11 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'Servidor no configurado (variables de entorno faltantes)' });
   }
 
-  // Solo cuentas creadas por un admin: el alta pública no existe en StintPro.
+  // Solo cuentas creadas por un admin (claim member) — un token válido de una
+  // cuenta dada de alta por la API pública de Firebase no basta.
   const user = await verifyRequest(req);
   if (!user) return res.status(401).json({ error: 'Token inválido' });
+  if (!isMember(user)) return res.status(403).json({ error: 'Usuario sin acceso' });
 
   let body;
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}); }
