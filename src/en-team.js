@@ -534,7 +534,7 @@ function _enRenderTeam(myKart, trackAvg){
         <div class="en-pilot-name">${_esc(currentPilot.name)}</div>
         <div class="en-pilot-sub">Stint: ${_enFmtStint(stintMs)}${myKart?' · P'+myKart.pos:''}${EnSession.posIn?' (entró P'+EnSession.posIn+')':''}${EnSession.stintBestLap?' · Best: '+_enFmt(EnSession.stintBestLap):''}</div>
       </div>
-      <button class="en-change-btn" style="background:#F5A623;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button>
+      <span style="display:flex;gap:6px">${_enRadioBtnHtml()}<button class="en-change-btn" style="background:#F5A623;color:#fff" onclick="_enChangePilot()">🔄 Cambio</button></span>
     </div>
   </div>`;
 
