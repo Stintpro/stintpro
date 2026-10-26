@@ -83,7 +83,73 @@
     return null;
   }
 
-  function createWeather() { return null; }   // la implementa la Task 4
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const hhmm = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+  // Instancia con estado: un circuito a la vez. tick() se llama en cada render del
+  // panel (en-grid.js): guarda la media de pista y, si toca, lanza la consulta.
+  // Como _enRender solo corre con el panel abierto, no hace falta start/stop.
+  function createWeather(deps) {
+    const d = Object.assign({
+      fetch: typeof fetch === 'function' ? (u, o) => fetch(u, o) : null,
+      now: () => Date.now(),
+      isLive: () => typeof window !== 'undefined' && !!window.ApexConnector && window.ApexConnector !== window.ReplayConnector,
+      coordsOf: slug => (typeof window !== 'undefined' && window.CircuitDB && window.CircuitDB.coordsOf) ? window.CircuitDB.coordsOf(slug) : null,
+    }, deps || {});
+    const st = { slug: null, since: 0, data: null, fetchedAt: 0, lastTryAt: 0, inFlight: false, error: null, avgHist: [] };
+
+    function tick(slug, trackAvgS) {
+      const now = d.now();
+      if (slug !== st.slug) Object.assign(st, { slug, since: now, data: null, fetchedAt: 0, lastTryAt: 0, inFlight: false, error: null, avgHist: [] });
+      if (trackAvgS) {
+        st.avgHist.push({ ts: now, avg: trackAvgS });
+        while (st.avgHist.length && now - st.avgHist[0].ts > LAP_KEEP_MS) st.avgHist.shift();
+      }
+      const c = d.coordsOf(slug);
+      if (!c || !d.isLive() || !d.fetch || st.inFlight || (st.lastTryAt && now - st.lastTryAt < POLL_MS)) return null;
+      st.inFlight = true; st.lastTryAt = now;
+      const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
+      return Promise.resolve()
+        .then(() => d.fetch(buildUrl(c[0], c[1]), ctrl ? { signal: ctrl.signal } : undefined))
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(j => { if (slug === st.slug) { st.data = j; st.fetchedAt = d.now(); st.error = null; } })
+        .catch(e => { if (slug === st.slug) st.error = (e && e.message) || String(e); })
+        .then(() => { if (slug === st.slug) st.inFlight = false; if (timer) clearTimeout(timer); });
+    }
+
+    function current() {
+      const now = d.now();
+      const enabled = !!d.coordsOf(st.slug) && d.isLive();
+      const fresh = !!st.data && now - st.fetchedAt <= STALE_MS;
+      const lastAvg = st.avgHist.length ? st.avgHist[st.avgHist.length - 1].avg : null;
+      return {
+        enabled,
+        risk: fresh ? rainRisk(st.data, now) : null,
+        lap: rainByLapTimes(st.avgHist, now, lastAvg),
+        stale: enabled && !fresh && now - Math.max(st.since, st.fetchedAt) > STALE_MS,
+        fetchedAt: st.fetchedAt,
+        error: st.error,
+      };
+    }
+
+    function kpiLineHtml() {
+      const cur = current();
+      const line = lineFor(cur);
+      if (!line) return '';
+      const parts = [];
+      if (cur.risk) {
+        parts.push(cur.risk.slots.map(s => hhmm(s.t) + ' ' + fmtS(s.mm) + ' mm').join(' · '));
+        if (cur.risk.probNextHour != null) parts.push('Probabilidad esta hora: ' + cur.risk.probNextHour + ' %');
+      }
+      if (cur.lap && cur.lap.deltaS != null) parts.push('Media de pista ' + (cur.lap.deltaS >= 0 ? '+' : '') + fmtS(cur.lap.deltaS) + ' s frente a hace ' + Math.round((d.now() - cur.lap.baselineTs) / 60000) + ' min');
+      parts.push(cur.fetchedAt ? 'Actualizado ' + hhmm(cur.fetchedAt) : 'Sin previsión todavía');
+      parts.push('Open-Meteo, cuadrícula ~1,5-9 km');
+      return '<div class="sp-kpi-sub" style="color:' + line.color + ';margin-top:2px" title="' + esc(parts.join('\n')) + '">' + esc(line.text) + '</div>';
+    }
+
+    return { tick, current, kpiLineHtml, _state: st };
+  }
 
   return {
     buildUrl, rainRisk, rainByLapTimes, lineFor, createWeather,
