@@ -76,5 +76,45 @@ test('etiquetas de entregado / no entregado', () => {
   deepStrictEqual(C.deliveryLabel({ delivered: 0 }, 'Javier'), { ok: false, text: 'No entregado: Javier no tiene el móvil conectado' });
 });
 
+console.log('\nErrores del servidor (en-pilot-link.js)');
+// Se carga el script del navegador en un contexto aislado con un window mínimo.
+function loadLink() {
+  const vm = require('vm'), fs = require('fs'), path = require('path');
+  const ctx = { window: {}, EnPilotLinkCore: C, console, setTimeout, clearTimeout, setInterval: () => 0 };
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/en-pilot-link.js'), 'utf8'), ctx);
+  return ctx.window.EnPilotLink;
+}
+test('error con id de un envío pendiente → lo rechaza con el mensaje del servidor', () => {
+  const L = loadLink();
+  let err = null;
+  L._pending.set('m-1', { resolve: () => {}, reject: (e) => { err = e; }, t: setTimeout(() => {}, 0) });
+  L._onMsg({ type: 'error', id: 'm-1', msg: 'demasiados mensajes, espera unos segundos' });
+  strictEqual(err && err.name, 'Error'); // Error del contexto vm (otro realm)
+  strictEqual(err.message, 'demasiados mensajes, espera unos segundos');
+  strictEqual(L._pending.has('m-1'), false);
+});
+test('error de team_roster → guarda rosterError y fuerza republicar; pilot_presence lo limpia', () => {
+  const L = loadLink();
+  let emitted = 0;
+  L.onChange(() => emitted++);
+  L._sig = 'algo';
+  L._onMsg({ type: 'error', about: 'team_roster', msg: 'pilotos: entre 1 y 10' });
+  strictEqual(L.rosterError, 'pilotos: entre 1 y 10');
+  strictEqual(L._sig, '');
+  ok(emitted > 0);
+  L._onMsg({ type: 'pilot_presence', dorsal: '7', connected: [0] });
+  strictEqual(L.rosterError, null);
+});
+test('error sin id ni about no toca los pendientes', () => {
+  const L = loadLink();
+  let err = null;
+  L._pending.set('m-2', { resolve: () => {}, reject: (e) => { err = e; }, t: setTimeout(() => {}, 0) });
+  L._onMsg({ type: 'error', msg: 'Tipo desconocido: x' });
+  strictEqual(err, null);
+  ok(L._pending.has('m-2'));
+  clearTimeout(L._pending.get('m-2').t);
+});
+
 console.log(`\n${passed + failed} tests — ${passed} pasados, ${failed} fallados\n`);
 if (failed > 0) process.exit(1);

@@ -6,7 +6,7 @@
 // Núcleo puro en en-pilot-link-core.js.
 
 window.EnPilotLink = {
-  ws: null, authed: false, presence: [], lastStatus: null,
+  ws: null, authed: false, presence: [], lastStatus: null, rosterError: null,
   _started: false, _timer: null, _sig: '', _pending: new Map(), _listeners: new Set(),
 
   start() {
@@ -63,11 +63,22 @@ window.EnPilotLink = {
       this.authed = true; this._sig = '';
       this._syncRoster(); this._emit();
     } else if (m.type === 'pilot_presence') {
+      // El servidor la manda tras aceptar la lista: ya no hay error de lista.
       this.presence = Array.isArray(m.connected) ? m.connected : [];
+      this.rosterError = null;
       this._emit();
     } else if (m.type === 'team_msg_sent' && m.id && this._pending.has(m.id)) {
       const p = this._pending.get(m.id);
       this._pending.delete(m.id); clearTimeout(p.t); p.resolve(m);
+    } else if (m.type === 'error' && m.id && this._pending.has(m.id)) {
+      // team_msg rechazado (validación, rate limit…): el modal muestra «No enviado: …».
+      const p = this._pending.get(m.id);
+      this._pending.delete(m.id); clearTimeout(p.t); p.reject(new Error(m.msg || 'error del servidor'));
+    } else if (m.type === 'error' && m.about === 'team_roster') {
+      // Lista rechazada: se reintenta en el próximo _syncRoster y el modal lo dice.
+      this._sig = '';
+      this.rosterError = m.msg || 'lista de pilotos no aceptada';
+      this._emit();
     }
   },
 
@@ -133,6 +144,7 @@ function _enRenderPilotMsg(box){
   if(!EnPilotLink.authed) head='<span class="en-pmsg-warn">Sin conexión con el servidor</span>';
   else if(!r) head='<span class="en-pmsg-warn">Configura tu dorsal y tus pilotos</span>';
   else if(!name) head='<span class="en-pmsg-warn">Marca quién va en pista</span>';
+  else if(EnPilotLink.rosterError) head=`<span class="en-pmsg-warn">El servidor rechazó la lista de pilotos: ${_esc(EnPilotLink.rosterError)}</span>`;
   else head=`Para: <b>${_esc(name)}</b> (en pista) · <span class="${conectado?'en-pmsg-on':'en-pmsg-off'}">📱 ${conectado?'conectado':'sin móvil'}</span>`;
   const st=EnPilotLink.lastStatus;
   // Conservar lo escrito en el campo libre entre re-renders (presencia, acuses).
