@@ -64,7 +64,7 @@ function next() {
 
 // Arrancar el servidor HTTP/WS para que la app Flutter pueda conectar
 const express = require('express');
-const { WebSocketServer, WebSocket } = require('ws');
+const { WebSocketServer } = require('ws');
 const db = require('./db');
 const { createTeamLink, validateRoster, validatePilotIndex, validateTeamMsg } = require('./team-link');
 const teamLink = createTeamLink();
@@ -87,9 +87,8 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
-      // La app manda { type:'auth', token|apikey } primero y espera auth_ok
-      // para suscribirse; en el replay local no se verifica.
-      const err = (m) => ws.send(JSON.stringify({ type: 'error', msg: m }));
+      // Errores con `extra` (id del team_msg / about:'team_roster') como el servidor.
+      const err = (m, extra) => ws.send(JSON.stringify({ type: 'error', msg: m, ...extra }));
       // La app manda { type:'auth', token|apikey } primero y espera auth_ok
       // para suscribirse; en el replay local no se verifica.
       if (msg.type === 'auth') {
@@ -103,14 +102,14 @@ wss.on('connection', (ws, req) => {
         mon.subscribe(ws);
       } else if (msg.type === 'team_roster') {
         const r = validateRoster(msg);
-        if (r.error) return err(r.error);
+        if (r.error) return err(r.error, { about: 'team_roster' });
         teamLink.setRoster(ws, slug, r);
       } else if (msg.type === 'roster_get') {
         const r = teamLink.getRoster(slug, msg.dorsal);
         ws.send(JSON.stringify({ type: 'team_roster', pilotos: r ? r.pilotos : null, current: r ? r.current : null }));
       } else if (msg.type === 'team_msg') {
         const v = validateTeamMsg(msg);
-        if (v.error) return err(v.error);
+        if (v.error) return err(v.error, typeof msg.id === 'string' ? { id: msg.id } : {});
         const delivered = teamLink.deliver(slug, v);
         ws.send(JSON.stringify({ type: 'team_msg_sent', id: v.id, dorsal: v.dorsal, pilot: v.pilot, text: v.text, delivered }));
       }

@@ -88,3 +88,33 @@ test.each([
   expect((await waitFor(ws, m => m.type === 'error')).type).toBe('error');
   ws.close();
 });
+
+// Los errores deben poder atribuirse: el panel rechaza el envío pendiente por
+// `id` y muestra el fallo de la lista por `about`.
+test.each([
+  [{ type: 'team_msg', slug: 'test-slug', dorsal: '7', text: 'X'.repeat(41), pilot: 0, id: 'e-1' }],
+  [{ type: 'team_msg', slug: 'test-slug', dorsal: '7', text: 'hola', tone: 'verde', id: 'e-1' }],
+  [{ type: 'team_msg', slug: 'circuito-fantasma', dorsal: '7', text: 'BOX', pilot: 0, id: 'e-1' }],
+])('error de team_msg lleva el id: %j', async (msg) => {
+  const ws = await client();
+  send(ws, msg);
+  expect(await waitFor(ws, m => m.type === 'error')).toMatchObject({ id: 'e-1' });
+  ws.close();
+});
+
+test('error por rate limit de team_msg lleva el id', async () => {
+  const ws = await client();
+  for (let i = 0; i < 11; i++) send(ws, { type: 'team_msg', slug: 'test-slug', dorsal: '77', text: 'hola', id: `r-${i}` });
+  expect(await waitFor(ws, m => m.type === 'error')).toMatchObject({ id: 'r-10' });
+  ws.close();
+});
+
+test.each([
+  [{ type: 'team_roster', slug: 'test-slug', dorsal: '7', pilotos: [] }],
+  [{ type: 'team_roster', slug: 'circuito-fantasma', dorsal: '7', pilotos: ['A'] }],
+])('error de team_roster lleva about: %j', async (msg) => {
+  const ws = await client();
+  send(ws, msg);
+  expect(await waitFor(ws, m => m.type === 'error')).toMatchObject({ about: 'team_roster' });
+  ws.close();
+});

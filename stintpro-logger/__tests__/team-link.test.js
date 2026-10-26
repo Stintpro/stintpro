@@ -10,6 +10,10 @@ function fakeWs() {
   ws.sent = [];
   ws.send = (s) => ws.sent.push(JSON.parse(s));
   ws.last = (type) => [...ws.sent].reverse().find(m => m.type === type);
+  ws.pings = 0;
+  ws.ping = () => { ws.pings++; };
+  ws.terminated = false;
+  ws.terminate = () => { ws.terminated = true; ws.readyState = 3; };
   return ws;
 }
 
@@ -150,5 +154,84 @@ describe('createTeamLink', () => {
 
   test('getRoster de un dorsal sin lista → null', () => {
     expect(createTeamLink().getRoster('s', '7')).toBeNull();
+  });
+
+  test('mover un móvil a otro dorsal actualiza la presencia del anterior y deja de recibir sus mensajes', () => {
+    const tl = createTeamLink();
+    const panel7 = fakeWs(), panel9 = fakeWs(), movil = fakeWs();
+    tl.setRoster(panel7, 's', ROSTER);
+    tl.setRoster(panel9, 's', { ...ROSTER, dorsal: '9' });
+    tl.registerPilot(movil, 's', '7', 0);
+    expect(panel7.last('pilot_presence').connected).toEqual([0]);
+    tl.registerPilot(movil, 's', '9', 1);
+    expect(panel7.last('pilot_presence').connected).toEqual([]);
+    expect(panel9.last('pilot_presence').connected).toEqual([1]);
+    expect(tl.deliver('s', { dorsal: '7', text: 'BOX', tone: 'red', pilot: 0 })).toBe(0);
+    expect(tl.deliver('s', { dorsal: '7', text: 'hola', tone: 'orange', pilot: null })).toBe(0);
+    expect(tl.deliver('s', { dorsal: '9', text: 'BOX', tone: 'red', pilot: 1 })).toBe(1);
+  });
+});
+
+// Latido: «Entregado» solo cuenta móviles con conexión viva. Un socket medio
+// abierto (el móvil perdió cobertura sin cerrar) se corta al no contestar pong.
+describe('createTeamLink — latido de los móviles', () => {
+  const ROSTER = { dorsal: '7', pilotos: ['Javier', 'Pablo'], current: 0 };
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  test('hace ping a los móviles en cada latido y no corta a los que contestan pong', () => {
+    const tl = createTeamLink({ heartbeatMs: 10000 });
+    const movil = fakeWs();
+    tl.registerPilot(movil, 's', '7', 0);
+    jest.advanceTimersByTime(10000);
+    expect(movil.pings).toBe(1);
+    movil.emit('pong');
+    jest.advanceTimersByTime(10000);
+    expect(movil.pings).toBe(2);
+    expect(movil.terminated).toBe(false);
+    tl.stop();
+  });
+
+  test('sin pong desde el ping anterior → terminate, presencia actualizada y 0 entregados', () => {
+    const tl = createTeamLink({ heartbeatMs: 10000 });
+    const panel = fakeWs(), movil = fakeWs();
+    tl.setRoster(panel, 's', ROSTER);
+    tl.registerPilot(movil, 's', '7', 0);
+    jest.advanceTimersByTime(10000);          // ping
+    expect(movil.terminated).toBe(false);
+    jest.advanceTimersByTime(10000);          // sin pong → fuera
+    expect(movil.terminated).toBe(true);
+    expect(panel.last('pilot_presence').connected).toEqual([]);
+    expect(tl.deliver('s', { dorsal: '7', text: 'BOX', tone: 'red', pilot: 0 })).toBe(0);
+    tl.stop();
+  });
+
+  test('los paneles (solo publican la lista) no reciben ping ni se cortan', () => {
+    const tl = createTeamLink({ heartbeatMs: 10000 });
+    const panel = fakeWs();
+    tl.setRoster(panel, 's', ROSTER);
+    jest.advanceTimersByTime(30000);
+    expect(panel.pings).toBe(0);
+    expect(panel.terminated).toBe(false);
+    tl.stop();
+  });
+
+  test('un móvil que se cerró deja de recibir pings', () => {
+    const tl = createTeamLink({ heartbeatMs: 10000 });
+    const movil = fakeWs();
+    tl.registerPilot(movil, 's', '7', 0);
+    movil.emit('close');
+    jest.advanceTimersByTime(30000);
+    expect(movil.pings).toBe(0);
+    tl.stop();
+  });
+
+  test('stop() detiene el latido', () => {
+    const tl = createTeamLink({ heartbeatMs: 10000 });
+    const movil = fakeWs();
+    tl.registerPilot(movil, 's', '7', 0);
+    tl.stop();
+    jest.advanceTimersByTime(30000);
+    expect(movil.pings).toBe(0);
   });
 });

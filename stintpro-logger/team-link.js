@@ -5,6 +5,9 @@
 // móvil se suscribe con su índice en esa lista; un team_msg con `pilot` solo
 // llega a los móviles de ese índice. Todo en memoria: tras un reinicio el
 // panel republica la lista al reconectar.
+// Latido (solo móviles): un socket medio abierto (el móvil perdió cobertura sin
+// cerrar) seguiría contando como «Entregado». Cada heartbeatMs se le hace ping;
+// si no contestó pong desde el ping anterior se corta → presencia al día.
 
 const TONES       = new Set(['red', 'orange', 'blue']);
 const MAX_PILOTS  = 10;   // = MAX_PILOTS del panel (src/en-race-config.js)
@@ -59,10 +62,28 @@ function validateTeamMsg(msg) {
   return { dorsal, text, pilot: p.pilot, tone, id };
 }
 
-function createTeamLink() {
+function createTeamLink({ heartbeatMs = 10000 } = {}) {
   const rosters = new Map();  // `${slug}|${dorsal}` → { dorsal, pilotos, current, publishers:Set<ws> }
   const pilots  = new Map();  // ws (móvil) → { key, pilot:number|null }
   const keyOf   = (slug, dorsal) => `${slug}|${dorsal}`;
+
+  // Latido: en cada vuelta, el móvil que no contestó el ping anterior se corta
+  // (y sale de la presencia ya, sin esperar al 'close'); el resto, nuevo ping.
+  // Fallo detectado en ≤ 2·heartbeatMs (~20 s). Los paneles no entran.
+  function beat() {
+    for (const ws of [...pilots.keys()]) {
+      if (ws._teamLinkAwaitingPong) {
+        try { ws.terminate(); } catch (e) {}
+        drop(ws);
+        continue;
+      }
+      ws._teamLinkAwaitingPong = true;
+      try { ws.ping(); } catch (e) {}
+    }
+  }
+  const timer = heartbeatMs > 0 ? setInterval(beat, heartbeatMs) : null;
+  if (timer && timer.unref) timer.unref();
+  function stop() { if (timer) clearInterval(timer); }
 
   function hook(ws) {
     if (ws._teamLinkHooked) return;
@@ -107,6 +128,10 @@ function createTeamLink() {
     const prev = pilots.get(ws);
     pilots.set(ws, { key, pilot: Number.isInteger(pilot) ? pilot : null });
     hook(ws);
+    if (!ws._teamLinkBeat) {
+      ws._teamLinkBeat = true;
+      ws.on('pong', () => { ws._teamLinkAwaitingPong = false; });
+    }
     if (prev && prev.key !== key) presence(prev.key);
     presence(key);
     const r = rosters.get(key);
@@ -132,7 +157,7 @@ function createTeamLink() {
     for (const r of rosters.values()) r.publishers.delete(ws);
   }
 
-  return { setRoster, getRoster, registerPilot, deliver, drop };
+  return { setRoster, getRoster, registerPilot, deliver, drop, stop };
 }
 
 module.exports = { createTeamLink, validateRoster, validatePilotIndex, validateTeamMsg, TONES };

@@ -943,7 +943,9 @@ const server = http.createServer(app);
 const wss    = new WebSocketServer({ server, maxPayload: 64 * 1024 });
 
 // Mensajes del panel al piloto en pista (listas de pilotos y móviles por piloto).
+// Su latido (ping a los móviles) se para al cerrar el servidor.
 const teamLink = createTeamLink();
+server.on('close', () => teamLink.stop());
 
 wss.on('connection', (ws) => {
   ws._authed = !API_KEY; // si no hay key configurada, auto-autenticado
@@ -1048,15 +1050,16 @@ wss.on('connection', (ws) => {
     }
 
     // team_roster — el panel publica sus pilotos y cuál va en pista
+    // Los errores llevan about:'team_roster' para que el panel los muestre.
     if (msg.type === 'team_roster') {
       const slug = (msg.slug || '').trim();
       if (!monitors.get(slug)) {
-        ws.send(JSON.stringify({ type: 'error', msg: `Circuito '${slug}' no encontrado` }));
+        ws.send(JSON.stringify({ type: 'error', msg: `Circuito '${slug}' no encontrado`, about: 'team_roster' }));
         return;
       }
       const r = validateRoster(msg);
       if (r.error) {
-        ws.send(JSON.stringify({ type: 'error', msg: r.error }));
+        ws.send(JSON.stringify({ type: 'error', msg: r.error, about: 'team_roster' }));
         return;
       }
       teamLink.setRoster(ws, slug, r);
@@ -1075,13 +1078,15 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // team_msg — mensaje del equipo al piloto
+    // team_msg — mensaje del equipo al piloto. Todo error lleva el `id` del
+    // mensaje (si vino) para que el panel rechace ese envío pendiente.
     if (msg.type === 'team_msg') {
-      const slug = (msg.slug || '').trim();
-      const mon  = monitors.get(slug);
-      const v    = mon ? validateTeamMsg(msg) : { error: 'slug, dorsal y text requeridos' };
+      const slug  = (msg.slug || '').trim();
+      const mon   = monitors.get(slug);
+      const v     = mon ? validateTeamMsg(msg) : { error: 'slug, dorsal y text requeridos' };
+      const errId = typeof msg.id === 'string' ? { id: msg.id } : {};
       if (v.error) {
-        ws.send(JSON.stringify({ type: 'error', msg: v.error }));
+        ws.send(JSON.stringify({ type: 'error', msg: v.error, ...errId }));
         return;
       }
       // Rate limit por conexión (máx 10 mensajes / 10 s): no hay control de
@@ -1093,7 +1098,7 @@ wss.on('connection', (ws) => {
       const nowTs = Date.now();
       ws._teamMsgTimes = (ws._teamMsgTimes || []).filter(t => nowTs - t < 10000);
       if (ws._teamMsgTimes.length >= 10) {
-        ws.send(JSON.stringify({ type: 'error', msg: 'demasiados mensajes, espera unos segundos' }));
+        ws.send(JSON.stringify({ type: 'error', msg: 'demasiados mensajes, espera unos segundos', ...errId }));
         return;
       }
       ws._teamMsgTimes.push(nowTs);
