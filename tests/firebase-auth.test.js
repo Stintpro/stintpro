@@ -2,7 +2,7 @@
 // Ejecutar: node tests/firebase-auth.test.js
 'use strict';
 
-const { strictEqual, deepStrictEqual, ok } = require('assert');
+const { strictEqual, deepStrictEqual } = require('assert');
 const A = require('../src/firebase-auth');
 
 let passed = 0, failed = 0;
@@ -129,6 +129,37 @@ function fakeFirebase({ signedIn = null, claims = {} } = {}) {
     const S = A.create(fb, CFG);
     await S.signOut();
     strictEqual(S.user(), null);
+  });
+
+  await test('idToken e isAdmin esperan a la sesión restaurada (sin await ready previo)', async () => {
+    const { fb, auth } = fakeFirebase({ signedIn: 'yo@x.com', claims: { admin: true } });
+    const u = auth.currentUser;
+    auth.currentUser = null;
+    auth.onAuthStateChanged = (cb) => { setTimeout(() => { auth.currentUser = u; cb(u); }, 0); return () => {}; };
+    const S = A.create(fb, CFG);
+    strictEqual(await S.idToken(), 'tok-yo@x.com');
+    strictEqual(await S.isAdmin(), true);
+  });
+
+  await test('withRecentLogin acepta askPassword asíncrono', async () => {
+    const { fb, st } = fakeFirebase({ signedIn: 'yo@x.com' });
+    const S = A.create(fb, CFG);
+    let n = 0;
+    const r = await S.withRecentLogin(async () => {
+      n++; if (n === 1) { const e = new Error('x'); e.code = 'auth/requires-recent-login'; throw e; }
+      return 'hecho';
+    }, async () => 'clave');
+    strictEqual(r, 'hecho');
+    deepStrictEqual(st.calls.find(c => c[0] === 'reauth'), ['reauth', { e: 'yo@x.com', p: 'clave' }]);
+  });
+
+  await test('ready() con onAuthStateChanged síncrono resuelve y desuscribe', async () => {
+    const { fb, auth } = fakeFirebase({ signedIn: 'yo@x.com' });
+    let unsubbed = false;
+    auth.onAuthStateChanged = (cb) => { cb(auth.currentUser); return () => { unsubbed = true; }; };
+    const S = A.create(fb, CFG);
+    strictEqual((await S.ready()).email, 'yo@x.com');
+    strictEqual(unsubbed, true);
   });
 
   console.log(`\n${passed} OK, ${failed} fallos\n`);

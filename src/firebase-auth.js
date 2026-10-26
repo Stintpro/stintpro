@@ -41,7 +41,12 @@
     function ready() {
       if (!auth) return Promise.resolve(null);
       if (!readyP) readyP = new Promise((resolve) => {
-        const off = auth.onAuthStateChanged((u) => { if (typeof off === 'function') off(); resolve(u || null); });
+        let off = null, fired = false;
+        // Si el SDK avisa de forma síncrona, `off` aún no está asignado: se
+        // desuscribe justo después de suscribirse (fired).
+        const cb = (u) => { fired = true; resolve(u || null); if (typeof off === 'function') off(); };
+        off = auth.onAuthStateChanged(cb);
+        if (fired && typeof off === 'function') off();
       });
       return readyP;
     }
@@ -57,11 +62,15 @@
       if (!auth) return notConfigured();
       return auth.sendPasswordResetEmail(email, { url: (o.origin || '') + '/landing.html' });
     }
+    // idToken/isAdmin/withRecentLogin esperan a ready(): antes de que el SDK
+    // restaure la sesión persistida, currentUser es null aunque haya sesión.
     async function idToken(force) {
+      await ready();
       const u = user();
       return u ? u.getIdToken(!!force) : '';
     }
     async function isAdmin() {
+      await ready();
       const u = user();
       if (!u) return false;
       const r = await u.getIdTokenResult();
@@ -74,11 +83,12 @@
     // Operaciones sensibles (cambiar contraseña/email, borrar cuenta): si Firebase
     // pide un login reciente, se pide la contraseña, se reautentica y se reintenta.
     async function withRecentLogin(fn, askPassword) {
+      await ready();
       try { return await fn(); }
       catch (e) {
         if (!e || e.code !== 'auth/requires-recent-login') throw e;
         const u = user();
-        const pw = askPassword ? askPassword() : null;
+        const pw = askPassword ? await askPassword() : null;
         if (!u || !pw) throw e;
         await u.reauthenticateWithCredential(fb.auth.EmailAuthProvider.credential(u.email, pw));
         return fn();
