@@ -86,3 +86,4 @@ Puro y testeable; la red va aparte.
 - Chubascos: el aviso puede llegar tarde o no llegar; por eso existe la confirmación por tiempos.
 - Resolución de 7-9 km fuera de la zona de AROME.
 - Si Open-Meteo cambia o limita su API gratuita, el panel muestra "meteo sin datos" y nada más se rompe.
+- La confirmación por tiempos se suprime con bandera amarilla/roja o carrera parada y ~9-15 min después (el historial se vacía y necesita ≥ 9 min de base), y se reinicia al cambiar el filtro de la media (dorsales/categorías excluidos). La previsión no se suprime.

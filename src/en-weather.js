@@ -36,7 +36,7 @@
     if (!m || !Array.isArray(m.time) || !Array.isArray(m.precipitation)) return out;
     for (let i = 0; i < m.time.length; i++) {
       const t = m.time[i] * 1000, mm = m.precipitation[i];
-      if (typeof mm !== 'number' || t + SLOT_MS <= nowMs || t > nowMs + 60 * 60 * 1000) continue;
+      if (!Number.isFinite(t) || typeof mm !== 'number' || t + SLOT_MS <= nowMs || t > nowMs + 60 * 60 * 1000) continue;
       out.slots.push({ t, mm });
     }
     if (h && Array.isArray(h.time) && Array.isArray(h.precipitation_probability)) {
@@ -94,14 +94,30 @@
       fetch: typeof fetch === 'function' ? (u, o) => fetch(u, o) : null,
       now: () => Date.now(),
       isLive: () => typeof window !== 'undefined' && !!window.ApexConnector && window.ApexConnector !== window.ReplayConnector,
+      // Bandera amarilla/roja o carrera parada: todo el pelotón va lento sin que llueva.
+      neutralized: () => typeof EnSession !== 'undefined' && !!EnSession &&
+        (EnSession.flag === 'yellow' || EnSession.flag === 'red' || !!EnSession.raceStopped),
+      // Excluir dorsales/categorías de la media cambia trackAvg al instante.
+      avgFilterKey: () => {
+        if (typeof EnUi === 'undefined' || !EnUi) return '';
+        const ks = o => Object.keys(o || {}).filter(k => o[k]).sort();
+        return JSON.stringify([ks(EnUi.excludedFromAvg), ks(EnUi.excludedCategories)]);
+      },
       coordsOf: slug => (typeof window !== 'undefined' && window.CircuitDB && window.CircuitDB.coordsOf) ? window.CircuitDB.coordsOf(slug) : null,
     }, deps || {});
-    const st = { slug: null, since: 0, data: null, fetchedAt: 0, lastTryAt: 0, inFlight: false, error: null, avgHist: [] };
+    const st = { slug: null, since: 0, data: null, fetchedAt: 0, lastTryAt: 0, inFlight: false, error: null, avgHist: [], filterKey: null };
 
     function tick(slug, trackAvgS) {
       const now = d.now();
-      if (slug !== st.slug) Object.assign(st, { slug, since: now, data: null, fetchedAt: 0, lastTryAt: 0, inFlight: false, error: null, avgHist: [] });
-      if (trackAvgS) {
+      if (slug !== st.slug) Object.assign(st, { slug, since: now, data: null, fetchedAt: 0, lastTryAt: 0, inFlight: false, error: null, avgHist: [], filterKey: null });
+      // Neutralización: se vacía el historial y no se guardan muestras. La línea de
+      // tiempos necesita ≥ 9 min de base, así que queda suprimida ~9-15 min tras
+      // acabar la bandera. La previsión (risk) no se suprime.
+      if (d.neutralized()) st.avgHist.length = 0;
+      else if (trackAvgS) {
+        const key = d.avgFilterKey();
+        if (st.filterKey !== null && key !== st.filterKey) st.avgHist.length = 0;
+        st.filterKey = key;
         st.avgHist.push({ ts: now, avg: trackAvgS });
         while (st.avgHist.length && now - st.avgHist[0].ts > LAP_KEEP_MS) st.avgHist.shift();
       }
@@ -125,7 +141,7 @@
       const lastAvg = st.avgHist.length ? st.avgHist[st.avgHist.length - 1].avg : null;
       return {
         enabled,
-        risk: fresh ? rainRisk(st.data, now) : null,
+        risk: fresh && enabled ? rainRisk(st.data, now) : null,
         lap: rainByLapTimes(st.avgHist, now, lastAvg),
         stale: enabled && !fresh && now - Math.max(st.since, st.fetchedAt) > STALE_MS,
         fetchedAt: st.fetchedAt,

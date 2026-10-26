@@ -129,6 +129,12 @@ test('lineFor: textos y prioridades', () => {
   strictEqual(W.lineFor({ risk: { level: 'high', etaMin: 10 }, lap: none, stale: true }).kind, 'high');
 });
 
+test('rainRisk ignora huecos con hora no numérica', () => {
+  const r = W.rainRisk({ minutely_15: { time: [undefined, NaN, T0 / 1000], precipitation: [5, 5, 0] } }, T0 + 1000);
+  strictEqual(r.slots.length, 1);
+  strictEqual(r.level, null);
+});
+
 module.exports = { resp, T0, MIN, DRY, withMm };
 if (require.main === module) {
   console.log(`\n${passed} OK, ${failed} fallos\n`);

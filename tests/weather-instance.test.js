@@ -89,6 +89,47 @@ function rig(over) {
     strictEqual(s.calls.length, 1);
   });
 
+  await test('bandera/neutralización: sin «Lloviendo · tiempos» y tras acabar, hasta tener base de 9 min', async () => {
+    const f = { neut: false };
+    const { s, w } = rig({ neutralized: () => f.neut });
+    w.tick('henakart', 66);
+    s.now += 10 * MIN; f.neut = true; w.tick('henakart', 68);
+    ok(!w.kpiLineHtml().includes('tiempos'));
+    s.now += 1 * MIN; f.neut = false; w.tick('henakart', 68);
+    s.now += 5 * MIN; w.tick('henakart', 68.5);
+    ok(!w.kpiLineHtml().includes('tiempos'));
+    s.now += 5 * MIN; w.tick('henakart', 68.5);
+    ok(!w.kpiLineHtml().includes('tiempos'), 'base 66 ya no existe; la nueva ya es 68');
+    s.now += 5 * MIN; w.tick('henakart', 70.2);
+    ok(w.kpiLineHtml().includes('Lloviendo · tiempos +'));
+  });
+
+  await test('cambio del filtro de media vacía el historial', async () => {
+    const f = { k: 'a' };
+    const { s, w } = rig({ avgFilterKey: () => f.k });
+    w.tick('henakart', 66);
+    s.now += 10 * MIN; f.k = 'b'; w.tick('henakart', 68);
+    ok(!w.kpiLineHtml().includes('tiempos'));
+    strictEqual(w._state.avgHist.length, 1);
+  });
+
+  await test('tick(slug, null) no guarda historial pero sondea si toca', async () => {
+    const { s, w } = rig();
+    await w.tick('henakart', null);
+    strictEqual(w._state.avgHist.length, 0);
+    strictEqual(s.calls.length, 1);
+    s.now += 11 * MIN; await w.tick('henakart', null);
+    strictEqual(s.calls.length, 2);
+    strictEqual(w._state.avgHist.length, 0);
+  });
+
+  await test('repetición (no en directo): current().risk es null aunque haya datos frescos', async () => {
+    const { s, w } = rig();
+    await w.tick('henakart', 66);
+    s.live = false;
+    strictEqual(w.current().risk, null);
+  });
+
   console.log(`\n${passed} OK, ${failed} fallos\n`);
   if (failed) process.exit(1);
 })();
