@@ -6,6 +6,8 @@
 <title>StintPro — Logger Stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- sp-auth-gate:inicio — puerta de sesión (solo Vercel). El logger del VPS
+     quita todo lo que hay entre estas marcas al servir /stats (server.js). -->
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
 <script src="firebase-config.js"></script>
@@ -18,6 +20,7 @@
   if(!ok)window.location.replace('/landing.html');
 })();
 </script>
+<!-- sp-auth-gate:fin -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#07090F;color:#C8D0E0;font-family:'Inter',sans-serif;font-size:13px;min-height:100vh}

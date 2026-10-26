@@ -649,11 +649,10 @@ app.get('/stats', (req, res) => {
   try {
     let html = fs.readFileSync(path.join(__dirname, '../src/logger-stats.html'), 'utf8');
 
-    // Eliminar redirect a /landing.html (no existe en el VPS)
-    html = html.replace(
-      /\(function\(\)\{[\s\S]*?if\(!key\)window\.location\.replace\('\/landing\.html'\);[\s\S]*?\}\)\(\);/,
-      '',
-    );
+    // Quitar la puerta de sesión de Firebase (solo vale en Vercel): en el VPS no
+    // existen firebase-*.js ni /landing.html y la sesión es de otro origen. Va
+    // delimitada por marcas en el HTML para no depender de cómo esté escrita.
+    html = html.replace(/<!-- sp-auth-gate:inicio[\s\S]*?<!-- sp-auth-gate:fin -->\n?/, '');
     // Auto-conectar al propio servidor si no hay URL guardada en localStorage
     html = html.replace(
       `localStorage.getItem(LS_URL) || 'https://stintpro.duckdns.org'`,
