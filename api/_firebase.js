@@ -11,10 +11,11 @@ function app() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!raw) return null;
   let cred;
-  try { cred = JSON.parse(raw); } catch (e) { return null; }
+  try { cred = JSON.parse(raw); }
+  catch (e) { console.error('[firebase] FIREBASE_SERVICE_ACCOUNT no utilizable:', e.message); return null; }
   try {
     _app = (admin.apps && admin.apps.length) ? admin.app() : admin.initializeApp({ credential: admin.credential.cert(cred) });
-  } catch (e) { return null; }
+  } catch (e) { console.error('[firebase] FIREBASE_SERVICE_ACCOUNT no utilizable:', e.message); return null; }
   return _app;
 }
 
