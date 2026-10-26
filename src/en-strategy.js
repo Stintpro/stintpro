@@ -861,6 +861,8 @@ window.showEnduranceDashboard=function(cfg){
       _enSaveRaceState();
     }
     // Actualizar stint en KPIs cada segundo
+    try{ if(window.EnWeather)window.EnWeather.tick(window.AppState?.config?.slug, null); }
+    catch(err){console.error('[StintPro] Error meteo:',err);}
     _enUpdateKpis(document.getElementById('screen-dash'),
       EnSession.data.equipos.find(e=>e.pos===1),
       _enTrackAvgLive(EnSession.data.equipos),

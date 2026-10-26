@@ -293,6 +293,12 @@ function _enRenderSkeleton(el, clk, isSimMode, leader, trackAvg, bestSess, inPit
   if(_b&&_h)_b.addEventListener('scroll',()=>{ _h.scrollLeft=_b.scrollLeft; });
 }
 
+// Línea de meteo del KPI «Media pista»: una excepción aquí nunca debe vaciar la tira de KPIs.
+function _enWeatherLine(){
+  try{ return window.EnWeather?window.EnWeather.kpiLineHtml():''; }
+  catch(err){ console.error('[StintPro] Error meteo:',err); return ''; }
+}
+
 function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   // Stint timer. Hasta que la carrera arranca (cuenta atrás regresiva / salida
   // oficial), stintStart es null → "esperando salida" en vez de un 0:00 que
@@ -397,7 +403,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
     <div class="sp-kpi-lbl">Media pista ${nExclAvg?'<span style="color:#f97316">('+nExclAvg+' excl.)</span>':''}</div>
     <div class="sp-kpi-val" style="color:#60a5fa">${trackStr}</div>
     <div class="sp-kpi-sub">click para filtrar equipos</div>
-    ${window.EnWeather?window.EnWeather.kpiLineHtml():''}
+    ${_enWeatherLine()}
   </div>
   <div class="sp-kpi">
     <div class="sp-kpi-lbl">Estado de Box</div>
