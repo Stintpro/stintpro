@@ -384,8 +384,10 @@ class CircuitMonitor {
 
       ws.on('message', (data) => {
         if (!current()) return;
-        this._lastDataAt = Date.now();
         const raw = data.toString();
+        // Apex manda a cada conexión un "\n" pelado cada 60 s con su propio
+        // temporizador, aparte del feed: igual que el pong, NO cuenta como dato.
+        if (raw.trim() !== '') this._lastDataAt = Date.now();
         // Parsear ANTES de capturar: así, si esta línea abre una sesión nueva
         // (_onLap → abre fichero) o cierra la anterior (_onNewSession), el crudo
         // cae en el fichero correcto. La 1ª vuelta abre el .ndjson y a continuación

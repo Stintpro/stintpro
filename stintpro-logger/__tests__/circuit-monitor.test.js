@@ -158,6 +158,33 @@ describe('conexión a Apex', () => {
     expect(() => ws.emit('message', Buffer.from('esto-no-es-protocolo-apex'))).not.toThrow();
   });
 
+  // Apex manda a CADA conexión un frame "\n" pelado cada 60 s con su propio
+  // temporizador, aparte del broadcast de datos (docs/apex-protocol.md de
+  // apex-timing-mirror). Si contara como dato, un feed que deja de emitir pero
+  // mantiene el socket vivo nunca pasaría el umbral del vigilante.
+  test('el keepalive "\\n" de Apex no cuenta como dato para el vigilante', () => {
+    jest.useFakeTimers();
+    try {
+      const m = createMonitor();
+      m.start();
+      const ws = WebSocket.instances[0];
+      ws.readyState = WebSocket.OPEN;
+      ws.ping = () => ws.emit('pong');   // socket vivo: el heartbeat no lo mata
+      ws.emit('open');
+
+      // 31 min ociosos, sin espectadores (umbral 30 min), solo con keepalives
+      for (let i = 0; i < 31; i++) {
+        jest.advanceTimersByTime(60 * 1000);
+        ws.emit('message', Buffer.from('\n'));
+      }
+      jest.advanceTimersByTime(5000);
+
+      expect(WebSocket.instances.length).toBeGreaterThan(1); // reconectó
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   // Regresión: el 2026-07-20, tras reiniciar el VPS, campillos abrió el socket y
   // se quedó en CONNECTING sin emitir 'open', 'error' ni 'close'. Como la
   // reconexión solo colgaba de 'close', el monitor quedó muerto en silencio
