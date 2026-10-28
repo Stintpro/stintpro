@@ -8,6 +8,8 @@
 // Latido (solo móviles): un socket medio abierto (el móvil perdió cobertura sin
 // cerrar) seguiría contando como «Entregado». Cada heartbeatMs se le hace ping;
 // si no contestó pong desde el ping anterior se corta → presencia al día.
+// Radio web (móvil): puede observar un dorsal sin publicar (watch) y, si no hay
+// panel conectado, publicar la lista con source:'radio'. El panel siempre gana.
 
 const TONES       = new Set(['red', 'orange', 'blue']);
 const MAX_PILOTS  = 10;   // = MAX_PILOTS del panel (src/en-race-config.js)
@@ -36,7 +38,9 @@ function validateRoster(msg) {
   if (current !== null && !(Number.isInteger(current) && current >= 0 && current < pilotos.length)) {
     return { error: 'current fuera de rango' };
   }
-  return { dorsal, pilotos, current };
+  const source = msg.source ?? 'panel';
+  if (source !== 'panel' && source !== 'radio') return { error: 'source inválido' };
+  return { dorsal, pilotos, current, source };
 }
 
 function validatePilotIndex(v) {
@@ -97,25 +101,55 @@ function createTeamLink({ heartbeatMs = 10000 } = {}) {
     return [...s].sort((a, b) => a - b);
   }
 
-  // A los paneles del dorsal (o solo a `only`): qué pilotos tienen móvil conectado.
-  function presence(key, only) {
+  const watchers = new Map(); // ws (radio web) → key: observa un dorsal sin publicar
+
+  const dorsalOfKey = key => key.slice(key.indexOf('|') + 1);
+  const watchersOf  = key => [...watchers].filter(([, k]) => k === key).map(([w]) => w);
+  const panelLive   = r => [...r.panelPubs].some(p => p.readyState === OPEN);
+
+  // A observadores: la lista con su origen y si queda un panel conectado.
+  function watcherRoster(key) {
     const r = rosters.get(key);
-    if (!r) return;
-    const msg = { type: 'pilot_presence', dorsal: r.dorsal, connected: connectedFor(key) };
-    for (const ws of (only ? [only] : r.publishers)) send(ws, msg);
+    return r
+      ? { type: 'team_roster', pilotos: r.pilotos, current: r.current, source: r.source, panel: panelLive(r) }
+      : { type: 'team_roster', pilotos: null, current: null, source: null, panel: false };
   }
 
+  // A los paneles y observadores del dorsal (o solo a `only`): qué pilotos tienen móvil conectado.
+  function presence(key, only) {
+    const r = rosters.get(key);
+    const msg = { type: 'pilot_presence', dorsal: r ? r.dorsal : dorsalOfKey(key), connected: connectedFor(key) };
+    const to = only ? [only] : [...(r ? r.publishers : []), ...watchersOf(key)];
+    for (const ws of new Set(to)) send(ws, msg);
+  }
+
+  // El panel siempre gana: una lista de la radio web no pisa la de un panel conectado.
   function setRoster(ws, slug, roster) {
     const key = keyOf(slug, roster.dorsal);
+    const source = roster.source || 'panel';
     let r = rosters.get(key);
-    if (!r) { r = { dorsal: roster.dorsal, publishers: new Set() }; rosters.set(key, r); }
+    if (r && source === 'radio' && r.source === 'panel' && panelLive(r)) return { error: 'lista del panel activa' };
+    if (!r) { r = { dorsal: roster.dorsal, publishers: new Set(), panelPubs: new Set() }; rosters.set(key, r); }
     r.pilotos = roster.pilotos;
     r.current = roster.current;
+    r.source  = source;
     r.publishers.add(ws);
+    if (source === 'panel') r.panelPubs.add(ws); else r.panelPubs.delete(ws);
     hook(ws);
     const out = { type: 'team_roster', pilotos: r.pilotos, current: r.current };
     for (const [m, e] of pilots) if (e.key === key) send(m, out);
+    const wr = watcherRoster(key);
+    for (const w of watchersOf(key)) send(w, wr);
     presence(key, ws);
+    return { ok: true };
+  }
+
+  function watch(ws, slug, dorsal) {
+    const key = keyOf(slug, cleanDorsal(dorsal));
+    watchers.set(ws, key);
+    hook(ws);
+    send(ws, watcherRoster(key));
+    send(ws, { type: 'pilot_presence', dorsal: cleanDorsal(dorsal), connected: connectedFor(key) });
   }
 
   function getRoster(slug, dorsal) {
@@ -152,12 +186,20 @@ function createTeamLink({ heartbeatMs = 10000 } = {}) {
   }
 
   function drop(ws) {
+    watchers.delete(ws);
     const e = pilots.get(ws);
     if (e) { pilots.delete(ws); presence(e.key); }
-    for (const r of rosters.values()) r.publishers.delete(ws);
+    for (const [key, r] of rosters) {
+      r.publishers.delete(ws);
+      // Se fue el último panel: los observadores pueden tomar el relevo.
+      if (r.panelPubs.delete(ws) && !panelLive(r)) {
+        const wr = watcherRoster(key);
+        for (const w of watchersOf(key)) send(w, wr);
+      }
+    }
   }
 
-  return { setRoster, getRoster, registerPilot, deliver, drop, stop };
+  return { setRoster, getRoster, registerPilot, deliver, drop, watch, stop };
 }
 
 module.exports = { createTeamLink, validateRoster, validatePilotIndex, validateTeamMsg, TONES };

@@ -20,7 +20,11 @@ function fakeWs() {
 describe('validateRoster', () => {
   test('acepta una lista válida y normaliza', () => {
     expect(validateRoster({ dorsal: 17, pilotos: [' Javier ', 'Pablo'], current: 1 }))
-      .toEqual({ dorsal: '17', pilotos: ['Javier', 'Pablo'], current: 1 });
+      .toEqual({ dorsal: '17', pilotos: ['Javier', 'Pablo'], current: 1, source: 'panel' });
+  });
+  test('source radio se conserva; otro valor se rechaza', () => {
+    expect(validateRoster({ dorsal: '7', pilotos: ['A'], source: 'radio' }).source).toBe('radio');
+    expect(validateRoster({ dorsal: '7', pilotos: ['A'], source: 'x' }).error).toBe('source inválido');
   });
   test('current ausente → null', () => {
     expect(validateRoster({ dorsal: '7', pilotos: ['A'] }).current).toBeNull();
@@ -233,5 +237,79 @@ describe('createTeamLink — latido de los móviles', () => {
     tl.stop();
     jest.advanceTimersByTime(30000);
     expect(movil.pings).toBe(0);
+  });
+});
+
+describe('watch (radio web)', () => {
+  const R = (over = {}) => ({ dorsal: '7', pilotos: ['Ana', 'Luis'], current: 0, source: 'panel', ...over });
+
+  test('al apuntarse recibe la lista vacía y la presencia', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const w = fakeWs();
+    tl.watch(w, 'henakart', '7');
+    expect(w.last('team_roster')).toEqual({ type: 'team_roster', pilotos: null, current: null, source: null, panel: false });
+    expect(w.last('pilot_presence')).toEqual({ type: 'pilot_presence', dorsal: '7', connected: [] });
+  });
+
+  test('recibe la lista del panel con source y panel:true, y los cambios', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const panel = fakeWs(), w = fakeWs();
+    tl.watch(w, 'henakart', '7');
+    tl.setRoster(panel, 'henakart', R());
+    expect(w.last('team_roster')).toEqual({ type: 'team_roster', pilotos: ['Ana', 'Luis'], current: 0, source: 'panel', panel: true });
+    tl.setRoster(panel, 'henakart', R({ current: 1 }));
+    expect(w.last('team_roster').current).toBe(1);
+  });
+
+  test('los móviles siguen recibiendo la forma de siempre (sin source)', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const panel = fakeWs(), movil = fakeWs();
+    tl.registerPilot(movil, 'henakart', '7', 0);
+    tl.setRoster(panel, 'henakart', R());
+    expect(movil.last('team_roster')).toEqual({ type: 'team_roster', pilotos: ['Ana', 'Luis'], current: 0 });
+  });
+
+  test('recibe la presencia cuando un móvil se conecta y se va', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const w = fakeWs(), movil = fakeWs();
+    tl.watch(w, 'henakart', '7');
+    tl.registerPilot(movil, 'henakart', '7', 1);
+    expect(w.last('pilot_presence').connected).toEqual([1]);
+    movil.emit('close');
+    expect(w.last('pilot_presence').connected).toEqual([]);
+  });
+
+  test('lista radio rechazada con panel conectado; aceptada cuando el panel se va', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const panel = fakeWs(), radio = fakeWs();
+    tl.watch(radio, 'henakart', '7');
+    tl.setRoster(panel, 'henakart', R());
+    expect(tl.setRoster(radio, 'henakart', R({ pilotos: ['X'], source: 'radio' }))).toEqual({ error: 'lista del panel activa' });
+    expect(tl.getRoster('henakart', '7').pilotos).toEqual(['Ana', 'Luis']);
+    panel.emit('close');
+    expect(radio.last('team_roster')).toMatchObject({ source: 'panel', panel: false });
+    expect(tl.setRoster(radio, 'henakart', R({ pilotos: ['X'], source: 'radio' }))).toEqual({ ok: true });
+    expect(radio.last('team_roster')).toEqual({ type: 'team_roster', pilotos: ['X'], current: 0, source: 'radio', panel: false });
+  });
+
+  test('un panel pisa una lista radio', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const panel = fakeWs(), radio = fakeWs();
+    tl.setRoster(radio, 'henakart', R({ source: 'radio' }));
+    expect(tl.setRoster(panel, 'henakart', R({ pilotos: ['P'] }))).toEqual({ ok: true });
+    expect(tl.getRoster('henakart', '7').pilotos).toEqual(['P']);
+  });
+
+  test('un nuevo watch sustituye al anterior y el cierre lo quita', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const w = fakeWs(), movil = fakeWs();
+    tl.watch(w, 'henakart', '7');
+    tl.watch(w, 'henakart', '8');
+    const n = w.sent.length;
+    tl.registerPilot(movil, 'henakart', '7', 0);
+    expect(w.sent.length).toBe(n);           // ya no observa el 7
+    w.emit('close');
+    tl.registerPilot(fakeWs(), 'henakart', '8', 0);
+    expect(w.sent.length).toBe(n);           // ni el 8 tras cerrar
   });
 });
