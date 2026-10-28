@@ -49,7 +49,7 @@ radio.html (móvil) ──login──▶ Firebase Auth (SPAuth, firebase-auth.js
   a una función pura reutilizable `EnApexTeam.rowIdFor(slug, port, dorsal)`
   (misma lógica: WS puntual, `grid|`, `ApexGrid.parseGridHtml`, timeout 12 s)
   y el panel pasa a usarla también.
-- `src/en-pilot-link-core.js`: `QUICK_MESSAGES`, `MAX_TEXT` (40), `deliveryLabel`.
+- `src/en-pilot-link-core.js`: `QUICK_MESSAGES` (mismos textos y tonos que el panel).
 - `src/circuits.js` `_CIRCUIT_CATALOG`: los 21 circuitos con slug y puerto.
 
 ### Piezas nuevas
@@ -68,9 +68,13 @@ radio.html (móvil) ──login──▶ Firebase Auth (SPAuth, firebase-auth.js
 
 El socket se apunta como **observador** del dorsal sin publicar nada. Recibe:
 
-- en el acto, `team_roster {pilotos, current, source}` (o `pilotos:null` si no
-  hay lista) y `pilot_presence {dorsal, connected}`;
-- después, cada cambio de lista (`team_roster`) y de presencia (`pilot_presence`).
+- en el acto, `team_roster {pilotos, current, source, panel}` (o `pilotos:null`
+  si no hay lista; `panel` = sigue conectado algún panel que publicó la lista)
+  y `pilot_presence {dorsal, connected}`;
+- después, cada cambio de lista (`team_roster`), la desconexión del último
+  panel (`team_roster` con `panel:false`) y cada cambio de presencia
+  (`pilot_presence`). Los móviles siguen recibiendo `team_roster` con la forma
+  de siempre (`{pilotos, current}`).
 
 Errores con `about:'team_watch'`. Requiere `auth` como el resto de mensajes de
 equipo. Un socket observa un solo dorsal; un nuevo `team_watch` sustituye al
@@ -113,11 +117,13 @@ móviles del dorsal.
 5. **Destinatario:** preseleccionado el `current` de la lista (de Apex o del
    panel). Si no hay `current`, ninguno: los mensajes rápidos quedan inactivos
    hasta elegir. Elegir otro piloto no cambia la lista publicada; solo el
-   destino de los mensajes siguientes.
+   destino de los mensajes siguientes. **Si cambia el piloto en pista (o la
+   lista), la elección manual se descarta** y vuelve a preseleccionarse el que
+   va en pista: un BOX no puede acabar en el móvil del que acaba de bajarse.
 6. **Enviar:** un toque en un mensaje rápido o «Enviar» del texto libre →
    `team_msg{slug, dorsal, text, tone, pilot, id}` → `team_msg_sent` →
    «Entregado a CARLOS ✓» (verde) o «No entregado: CARLOS sin móvil conectado»
-   (rojo), con `deliveryLabel`. Sin respuesta en 5 s → «Sin confirmación».
+   (rojo); en modo «todo el dorsal», «Entregado a N móviles del #7 ✓». Sin respuesta en 5 s → «Sin confirmación».
 
 ## Interfaz — solo móvil
 
@@ -174,7 +180,7 @@ móviles del dorsal.
 
 - Requiere token Firebase con claim member/admin (el logger ya lo exige).
 - Todo texto que llega del servidor o de Apex (nombres de pilotos) se pinta
-  con `textContent`, nunca `innerHTML` (el test `xss-sinks` lo vigila).
+  con `textContent`, nunca `innerHTML` (`tests/radio-page.test.js` lo vigila).
 - La CSP actual de `vercel.json` ya permite logger, Firebase y Apex; no cambia.
 
 ## Pruebas
