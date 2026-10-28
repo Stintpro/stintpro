@@ -54,6 +54,33 @@ const APEX_RECONNECT_MS       = 5000;
 const RAW_PRELUDE_WINDOW_MS = 15 * 60 * 1000;  // ventana de apertura conservada (últimos 15 min)
 const RAW_PRELUDE_MAX       = 5000;            // tope duro de líneas (backstop de memoria)
 const RAW_IDLE_CLOSE_MS     = 45 * 60 * 1000;  // cierra el fichero si nadie rueda (tanda acabada sin bandera)
+
+// ── Intervalo para la app del piloto ──────────────────────────────────────────
+// Hay circuitos que no mandan la columna `int` (KIP Palmela, 2026-10-28): solo
+// el gap al líder. Entonces el intervalo se saca restando los gaps del kart y del
+// de delante. Gap de Apex: '' (líder), '+18.022', '+1:05.500' o '1 Lap'/'2 Tours'.
+function _parseApexGap(g) {
+  const s = String(g ?? '').trim();
+  if (!s) return { sec: 0 };                       // líder
+  const laps = s.match(/^\+?\s*(\d+)\s*[a-z]/i);   // '1 Lap', '+2 Tours', '3 vueltas'
+  if (laps) return { laps: Number(laps[1]) };
+  const t = s.replace(/^\+/, '').match(/^(?:(\d+):)?(\d+(?:[.,]\d+)?)$/);
+  if (!t) return null;
+  return { sec: (t[1] ? Number(t[1]) * 60 : 0) + Number(t[2].replace(',', '.')) };
+}
+
+function _pilotInterval(kart, ahead) {
+  if (kart.interval) return kart.interval;          // si Apex lo manda, manda Apex
+  const a = _parseApexGap(ahead.gap), b = _parseApexGap(kart.gap);
+  if (!a || !b) return null;
+  if (a.sec != null && b.sec != null) {
+    const d = b.sec - a.sec;
+    if (d < 0) return null;
+    return d >= 60 ? `+${Math.floor(d / 60)}:${(d % 60).toFixed(3).padStart(6, '0')}` : `+${d.toFixed(3)}`;
+  }
+  if (a.laps != null && b.laps != null && b.laps > a.laps) return `+${b.laps - a.laps} V`;
+  return null;                                      // uno en tiempo y otro en vueltas: no se sabe
+}
 // ── Reanudar una sesión tras un reinicio del logger ────────────────────────
 // `sessionId` vive en memoria, así que un reinicio a mitad de carrera creaba una
 // sesión NUEVA y la partía en dos. Se intenta reanudar la que quedó abierta, pero
@@ -773,13 +800,17 @@ class CircuitMonitor {
       const myIdx  = sorted.findIndex(e => String(e.dorsal) === String(dorsal));
       const behind = myIdx >= 0 && myIdx + 1 < sorted.length ? sorted[myIdx + 1] : null;
 
+      const ahead = myIdx > 0 ? sorted[myIdx - 1] : null;
+
       const msg = JSON.stringify({
         type:       'pilot',
         pos:        kart.pos,
         gap:        kart.gap,
-        interval:   kart.interval,
-        gapBehind:  behind ? behind.interval : null,
+        interval:   ahead ? _pilotInterval(kart, ahead) : kart.interval,
+        gapBehind:  behind ? _pilotInterval(behind, kart) : null,
         lastLap:    kart.lastLap,
+        bestLap:    kart.bestLap ?? null,
+        laps:       kart.tours ?? null,
         pit:        kart.pit,
       });
 

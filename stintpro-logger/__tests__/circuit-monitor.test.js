@@ -625,6 +625,46 @@ describe('_broadcastPilots (vía _onState)', () => {
     expect(msg).toMatchObject({ type: 'pilot', pos: 1, gapBehind: '+1.200' });
   });
 
+  test('sin columna de intervalo (KIP Palmela) lo deriva de los gaps al líder', () => {
+    const m       = createMonitor();
+    const wsPilot = fakeClientWs();
+    m.subscribePilot(wsPilot, '13');
+    wsPilot.send.mockClear();
+
+    m._onState({
+      equipos: [
+        { dorsal: '4',  pos: 1, gap: '',        interval: '', lastLap: 72.8 },
+        { dorsal: '13', pos: 2, gap: '+18.022', interval: '', lastLap: 76.7, bestLap: 73.409, tours: 41 },
+        { dorsal: '7',  pos: 3, gap: '+29.816', interval: '', lastLap: 79.3 },
+      ],
+      leaderLap: 1, timestamp: Date.now(), sessionFinished: false,
+    });
+
+    const msg = JSON.parse(wsPilot.send.mock.calls[0][0]);
+    expect(msg).toMatchObject({ interval: '+18.022', gapBehind: '+11.794', bestLap: 73.409, laps: 41 });
+  });
+
+  test('intervalo derivado: con vueltas de diferencia, o sin gap legible, no inventa', () => {
+    const m       = createMonitor();
+    const wsPilot = fakeClientWs();
+    m.subscribePilot(wsPilot, '9');
+    wsPilot.send.mockClear();
+
+    m._onState({
+      equipos: [
+        { dorsal: '4', pos: 1, gap: '',        interval: '' },
+        { dorsal: '8', pos: 2, gap: '+1:05.500', interval: '' },
+        { dorsal: '9', pos: 3, gap: '1 Lap',   interval: '' },
+        { dorsal: '5', pos: 4, gap: '2 Laps',  interval: '' },
+      ],
+      leaderLap: 1, timestamp: Date.now(), sessionFinished: false,
+    });
+
+    const msg = JSON.parse(wsPilot.send.mock.calls[0][0]);
+    expect(msg.interval).toBeNull();      // delante en tiempo y yo en vueltas: no se puede saber
+    expect(msg.gapBehind).toBe('+1 V');   // los dos en vueltas: diferencia de vueltas
+  });
+
   test('no envía nada si el dorsal suscrito no está en la clasificación actual', () => {
     const m      = createMonitor();
     const wsPilot = fakeClientWs();
