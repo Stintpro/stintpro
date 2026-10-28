@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Radio">
+<title>StintPro Radio</title>
+<link rel="manifest" href="radio.webmanifest">
+<link rel="apple-touch-icon" href="radio-icon-192.png">
+<link rel="stylesheet" href="radio.css">
+</head>
+<body>
+<main id="app">
+  <section id="v-login" class="view" hidden>
+    <h1>📻 StintPro Radio</h1>
+    <p class="muted">Entra con tu cuenta de StintPro</p>
+    <form id="login-form" class="form">
+      <label>Correo<input id="login-email" type="email" autocomplete="username" required></label>
+      <label>Contraseña<input id="login-pass" type="password" autocomplete="current-password" required></label>
+      <p id="login-error" class="err" role="alert"></p>
+      <button class="btn-primary" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <section id="v-setup" class="view" hidden>
+    <h1>¿A qué kart?</h1>
+    <form id="setup-form" class="form">
+      <label>Circuito<select id="setup-circuit" required></select></label>
+      <label>Dorsal<input id="setup-dorsal" inputmode="numeric" maxlength="16" autocomplete="off" required></label>
+      <button class="btn-primary" type="submit">Abrir radio</button>
+    </form>
+    <button id="logout" class="btn-link" type="button">Cerrar sesión</button>
+  </section>
+
+  <section id="v-radio" class="view" hidden>
+    <header class="bar">
+      <span id="bar-where" class="where"></span>
+      <span id="bar-conn" class="conn" data-state="off"></span>
+      <button id="bar-change" class="btn-link" type="button">Cambiar</button>
+    </header>
+    <p id="roster-note" class="muted note"></p>
+    <div id="pilots" class="grid pilots"></div>
+    <div class="bottom">
+      <p id="result" class="result" role="status" aria-live="polite"></p>
+      <div id="quick" class="grid quick"></div>
+      <form id="free" class="free">
+        <input id="free-text" maxlength="40" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="Mensaje libre">
+        <span id="free-count" class="count">0/40</span>
+        <button id="free-send" class="btn-primary" type="submit">Enviar</button>
+      </form>
+    </div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="firebase-auth.js"></script>
+<script src="circuits.js"></script>
+<script src="apex-protocol.js"></script>
+<script src="apex-grid.js"></script>
+<script src="en-apex-team.js"></script>
+<script src="en-pilot-link-core.js"></script>
+<script src="radio-core.js"></script>
+<script src="radio.js"></script>
+</body>
+</html>
