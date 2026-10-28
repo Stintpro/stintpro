@@ -103,7 +103,12 @@ wss.on('connection', (ws, req) => {
       } else if (msg.type === 'team_roster') {
         const r = validateRoster(msg);
         if (r.error) return err(r.error, { about: 'team_roster' });
-        teamLink.setRoster(ws, slug, r);
+        const res = teamLink.setRoster(ws, slug, r);
+        if (res.error) return err(res.error, { about: 'team_roster' });
+      } else if (msg.type === 'team_watch') {
+        const dorsal = (msg.dorsal ?? '').toString().trim();
+        if (!dorsal || dorsal.length > 16) return err('dorsal requerido (≤16)', { about: 'team_watch' });
+        teamLink.watch(ws, slug, dorsal);
       } else if (msg.type === 'roster_get') {
         const r = teamLink.getRoster(slug, msg.dorsal);
         ws.send(JSON.stringify({ type: 'team_roster', pilotos: r ? r.pilotos : null, current: r ? r.current : null }));

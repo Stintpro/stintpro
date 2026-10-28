@@ -118,3 +118,42 @@ test.each([
   expect(await waitFor(ws, m => m.type === 'error')).toMatchObject({ about: 'team_roster' });
   ws.close();
 });
+
+test('team_watch: lista y presencia al apuntarse y lista del panel en vivo', async () => {
+  const radio = await client(), panel = await client();
+  send(radio, { type: 'team_watch', slug: 'test-slug', dorsal: '81' });
+  expect(await waitFor(radio, m => m.type === 'team_roster'))
+    .toEqual({ type: 'team_roster', pilotos: null, current: null, source: null, panel: false });
+  expect(await waitFor(radio, m => m.type === 'pilot_presence')).toEqual({ type: 'pilot_presence', dorsal: '81', connected: [] });
+  send(panel, { ...ROSTER, dorsal: '81' });
+  expect(await waitFor(radio, m => m.type === 'team_roster'))
+    .toEqual({ type: 'team_roster', pilotos: ['Javier', 'Pablo'], current: 0, source: 'panel', panel: true });
+  [radio, panel].forEach(w => w.close());
+});
+
+test('lista de la radio rechazada con panel conectado y aceptada al irse', async () => {
+  const radio = await client(), panel = await client();
+  send(panel, { ...ROSTER, dorsal: '82' });
+  await waitFor(panel, m => m.type === 'pilot_presence');
+  send(radio, { type: 'team_watch', slug: 'test-slug', dorsal: '82' });
+  await waitFor(radio, m => m.type === 'team_roster');
+  send(radio, { type: 'team_roster', slug: 'test-slug', dorsal: '82', pilotos: ['Apex'], current: 0, source: 'radio' });
+  expect(await waitFor(radio, m => m.type === 'error'))
+    .toEqual({ type: 'error', msg: 'lista del panel activa', about: 'team_roster' });
+  panel.close();
+  await waitFor(radio, m => m.type === 'team_roster' && m.panel === false);
+  send(radio, { type: 'team_roster', slug: 'test-slug', dorsal: '82', pilotos: ['Apex'], current: 0, source: 'radio' });
+  expect(await waitFor(radio, m => m.type === 'team_roster' && m.source === 'radio'))
+    .toMatchObject({ pilotos: ['Apex'], current: 0 });
+  radio.close();
+});
+
+test.each([
+  [{ type: 'team_watch', slug: 'circuito-fantasma', dorsal: '7' }, "Circuito 'circuito-fantasma' no encontrado"],
+  [{ type: 'team_watch', slug: 'test-slug', dorsal: '' }, 'dorsal requerido (≤16)'],
+])('team_watch inválido %j → error con about', async (msg, text) => {
+  const ws = await client();
+  send(ws, msg);
+  expect(await waitFor(ws, m => m.type === 'error')).toEqual({ type: 'error', msg: text, about: 'team_watch' });
+  ws.close();
+});

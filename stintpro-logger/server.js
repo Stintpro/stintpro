@@ -1062,7 +1062,25 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'error', msg: r.error, about: 'team_roster' }));
         return;
       }
-      teamLink.setRoster(ws, slug, r);
+      const res = teamLink.setRoster(ws, slug, r);
+      if (res.error) ws.send(JSON.stringify({ type: 'error', msg: res.error, about: 'team_roster' }));
+      return;
+    }
+
+    // team_watch — la radio web observa un dorsal sin publicar: recibe la
+    // lista (con su origen y si hay panel conectado) y la presencia de móviles.
+    if (msg.type === 'team_watch') {
+      const slug   = (msg.slug || '').trim();
+      const dorsal = (msg.dorsal ?? '').toString().trim();
+      if (!monitors.get(slug)) {
+        ws.send(JSON.stringify({ type: 'error', msg: `Circuito '${slug}' no encontrado`, about: 'team_watch' }));
+        return;
+      }
+      if (!dorsal || dorsal.length > 16) {
+        ws.send(JSON.stringify({ type: 'error', msg: 'dorsal requerido (≤16)', about: 'team_watch' }));
+        return;
+      }
+      teamLink.watch(ws, slug, dorsal);
       return;
     }
 
