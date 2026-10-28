@@ -171,5 +171,64 @@ test('vueltas muy largas (ventana ≥ 5 min): duración ambigua → null si no e
   strictEqual(A.currentStintStart(cur, reloj(2 * H - 1300000), 2 * H, NOW), NOW - 550000);
 });
 
-console.log(`\n${passed} OK, ${failed} fallos\n`);
-if (failed) process.exit(1);
+console.log('\nRadio web: fila del dorsal y plantilla');
+const INF_RADIO = 'D70.INF#<driver  id="70" member="0" center="5" num="7" name="EQUIPO UNO " nat="ESP"><driver  id="10" member="0" num="1" name="RESERVA SIN RODAR" nat="" color="#000000"/><driver  id="11" member="0" num="2" name="ANA  LÓPEZ" nat="" color="#000000" current="1"/></driver>';
+
+test('infRequest pide solo la plantilla', () => {
+  strictEqual(A.infRequest('70'), 'D#1#D70.INF');
+});
+
+// WebSocket falso: al abrir manda `lines`; registra lo enviado y si se cerró.
+function fakeWsClass(lines, log) {
+  return class {
+    constructor(url) { log.url = url; this.closed = false; setTimeout(() => { this.onopen && this.onopen(); lines.forEach(l => this.onmessage && this.onmessage({ data: l })); }, 0); }
+    send(s) { log.sent = s; }
+    close() { log.closed = true; }
+  };
+}
+const asyncTests = [];
+function testAsync(name, fn) { asyncTests.push([name, fn]); }
+
+testAsync('rowIdFor: lee la parrilla y devuelve la fila del dorsal', async () => {
+  const log = {};
+  const id = await A.rowIdFor('henakart', 9983, ' 7 ', {
+    WebSocket: fakeWsClass(['init|r|', 'grid|<tr>…</tr>'], log),
+    parseGrid: html => [{ dorsal: '3', rowId: 'r100' }, { dorsal: '7', rowId: 'r70' }],
+  });
+  strictEqual(id, 'r70');
+  strictEqual(log.url, 'wss://live-data.apex-timing.com:9983/');
+  strictEqual(log.sent, 'henakart');
+  ok(log.closed);
+});
+testAsync('rowIdFor: dorsal ausente → null; sin dependencias → null', async () => {
+  const id = await A.rowIdFor('henakart', 9983, '99', { WebSocket: fakeWsClass(['grid|x'], {}), parseGrid: () => [{ dorsal: '7', rowId: 'r70' }] });
+  strictEqual(id, null);
+  strictEqual(await A.rowIdFor('henakart', 9983, '7', {}), null);
+});
+testAsync('rowIdFor: sin parrilla → null al vencer el plazo', async () => {
+  const id = await A.rowIdFor('henakart', 9983, '7', { WebSocket: fakeWsClass([], {}), parseGrid: () => [], timeoutMs: 20 });
+  strictEqual(id, null);
+});
+testAsync('fetchInf: POST al puerto http con la petición .INF y plantilla parseada', async () => {
+  let call;
+  const fetchFn = async (url, opts) => { call = { url, opts }; return { ok: true, text: async () => INF_RADIO + '\n' }; };
+  const inf = await A.fetchInf(9980, 'r70', fetchFn);
+  strictEqual(call.url, A.REQUEST_URL);
+  strictEqual(call.opts.body, 'port=9980&request=' + encodeURIComponent('D#1#D70.INF'));
+  deepStrictEqual(inf.drivers.map(d => [d.name, d.current]), [['RESERVA SIN RODAR', false], ['ANA LÓPEZ', true]]);
+});
+testAsync('fetchInf: error, vacío o red caída → null', async () => {
+  strictEqual(await A.fetchInf(9980, 'r70', async () => ({ ok: true, text: async () => 'error' })), null);
+  strictEqual(await A.fetchInf(9980, 'r70', async () => ({ ok: true, text: async () => '' })), null);
+  strictEqual(await A.fetchInf(9980, 'r70', async () => { throw new Error('red'); }), null);
+  strictEqual(await A.fetchInf(0, 'r70', async () => ({})), null);
+});
+
+(async () => {
+  for (const [name, fn] of asyncTests) {
+    try { await fn(); console.log('  ✓', name); passed++; }
+    catch (e) { console.log('  ✗', name, '→', e.message); failed++; }
+  }
+  console.log(`\n${passed} OK, ${failed} fallos\n`);
+  if (failed) process.exit(1);
+})();

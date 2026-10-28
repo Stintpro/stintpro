@@ -20,6 +20,8 @@
 
   // Una sola "D" inicial y pares (cantidad, elemento): repetir la D devuelve vacío.
   const requestFor = id => `D#-999#D${id}.L#-999#D${id}.P#1#D${id}.INF`;
+  // Solo la plantilla (la radio web la repite cada minuto: sin vueltas ni paradas).
+  const infRequest = id => `D#1#D${id}.INF`;
 
   const attr = (tag, name) => { const m = new RegExp('\\b' + name + '="([^"]*)"').exec(tag); return m ? m[1] : null; };
 
@@ -163,7 +165,58 @@
     return out;
   }
 
-  return { REQUEST_URL, requestFor, parseInf, parsePits, parseLaps, build, currentStintStart, lapsRequest, parseLapsById };
+  // Fila rNNN de un dorsal: conexión WS puntual a Apex que se cierra en cuanto
+  // llega la parrilla. WebSocket y parseGrid se inyectan (navegador o tests).
+  function rowIdFor(slug, port, dorsal, deps) {
+    const { WebSocket: WS, parseGrid, timeoutMs = 12000 } = deps || {};
+    const my = String(dorsal ?? '').trim();
+    if (!slug || !port || !my || !WS || !parseGrid) return Promise.resolve(null);
+    return new Promise(resolve => {
+      let done = false, ws = null;
+      const end = v => {
+        if (done) return; done = true; clearTimeout(timer);
+        try { ws.onmessage = ws.onerror = ws.onclose = null; ws.close(); } catch (e) {}
+        resolve(v);
+      };
+      const timer = setTimeout(() => end(null), timeoutMs);
+      try {
+        ws = new WS(`wss://live-data.apex-timing.com:${port}/`);
+        ws.onopen = () => { try { ws.send(slug); } catch (e) {} };
+        ws.onmessage = ev => {
+          const line = String(ev.data).split('\n').find(l => l.startsWith('grid|'));
+          if (!line) return;
+          try {
+            const k = (parseGrid(line.substring(5)) || []).find(x => String(x.dorsal).trim() === my);
+            end(k ? k.rowId : null);
+          } catch (e) { end(null); }
+        };
+        ws.onerror = () => end(null);
+        ws.onclose = () => end(null);
+      } catch (e) { end(null); }
+    });
+  }
+
+  // Plantilla del equipo (.INF) por request.php; null si Apex no la da.
+  async function fetchInf(httpPort, rowId, fetchFn, timeoutMs = 12000) {
+    const id = String(rowId || '').replace(/^r/, '');
+    if (!httpPort || httpPort < 1 || !id || !fetchFn) return null;
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const t = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    try {
+      const res = await fetchFn(REQUEST_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'port=' + httpPort + '&request=' + encodeURIComponent(infRequest(id)),
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      const text = (await res.text()).trim();
+      if (!res.ok || !text || text === 'error') return null;
+      return parseInf(text);
+    } catch (e) { return null; }
+    finally { if (t) clearTimeout(t); }
+  }
+
+  return { REQUEST_URL, requestFor, infRequest, rowIdFor, fetchInf, parseInf, parsePits, parseLaps, build, currentStintStart, lapsRequest, parseLapsById };
 });
 
 // ── Pegamento con el panel (solo navegador) ──────────────────────────────────
@@ -180,22 +233,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const id = p && p.getKartIds && pick(p.getKartIds());
       if (id) return Promise.resolve(id);
     } catch (e) {}
-    if (!cfg.port || !cfg.slug || typeof WebSocket === 'undefined' || !window.ApexGrid) return Promise.resolve(null);
-    return new Promise(resolve => {
-      let done = false, ws = null;
-      const end = v => { if (done) return; done = true; clearTimeout(timer); try { ws.onmessage = ws.onerror = ws.onclose = null; ws.close(); } catch (e) {} resolve(v); };
-      const timer = setTimeout(() => end(null), 12000);
-      try {
-        ws = new WebSocket(`wss://live-data.apex-timing.com:${cfg.port}/`);
-        ws.onopen = () => { try { ws.send(cfg.slug); } catch (e) {} };
-        ws.onmessage = ev => {
-          const line = String(ev.data).split('\n').find(l => l.startsWith('grid|'));
-          if (!line) return;
-          try { end(pick(window.ApexGrid.parseGridHtml(line.substring(5)).karts)); } catch (e) { end(null); }
-        };
-        ws.onerror = () => end(null);
-        ws.onclose = () => end(null);
-      } catch (e) { end(null); }
+    if (!window.ApexGrid || typeof WebSocket === 'undefined') return Promise.resolve(null);
+    return EnApexTeam.rowIdFor(cfg.slug, cfg.port, my, {
+      WebSocket, parseGrid: html => window.ApexGrid.parseGridHtml(html).karts,
     });
   }
 
