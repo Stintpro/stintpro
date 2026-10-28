@@ -312,4 +312,16 @@ describe('watch (radio web)', () => {
     tl.registerPilot(fakeWs(), 'henakart', '8', 0);
     expect(w.sent.length).toBe(n);           // ni el 8 tras cerrar
   });
+
+  test('un panel que pasa del dorsal 7 al 8 deja de bloquear al 7', () => {
+    const tl = createTeamLink({ heartbeatMs: 0 });
+    const panel = fakeWs(), w = fakeWs(), web = fakeWs();
+    tl.watch(w, 'henakart', '7');
+    tl.setRoster(panel, 'henakart', R());
+    tl.setRoster(panel, 'henakart', R({ dorsal: '8' }));
+    // el observador del 7 se entera de que ya no hay panel
+    expect(w.last('team_roster').panel).toBe(false);
+    // y la web puede publicar en el 7
+    expect(tl.setRoster(web, 'henakart', R({ source: 'radio' }))).toEqual({ ok: true });
+  });
 });

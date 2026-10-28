@@ -182,7 +182,10 @@
       }
       const inf = await EnApexTeam.fetchInf(port - 3, rowId, (u, o) => fetch(u, o));
       if (gen !== st.gen) return;
-      if (inf) { st.apex = RadioCore.rosterFromInf(inf); st.apexNote = ''; }  // fallo → se queda la anterior
+      // Sin respuesta, o la fila ya no es mi dorsal (cambió la sesión de Apex): se
+      // descarta, se conserva la lista anterior y la fila se vuelve a resolver.
+      if (!inf || String(inf.teamNum || '').trim() !== String(dorsal).trim()) { st.rowId = null; return; }
+      st.apex = RadioCore.rosterFromInf(inf); st.apexNote = '';
       updateRoster();
     } catch (e) {
       // se conserva la lista anterior
@@ -249,7 +252,7 @@
     const id = `radio-${Date.now()}-${++st.seq}`;
     const msg = RadioCore.teamMessage({ slug: st.slug, dorsal: st.dorsal, roster: r, target, text, tone, id });
     if (msg.error) { showResult(false, msg.error); return false; }
-    if (!cooldown.tryFire(msg.text, Date.now())) return false;
+    if (!cooldown.tryFire(`${target}|${msg.text}`, Date.now())) return false;  // por destinatario y texto
     send(msg);
     const name = r.mode === 'dorsal' ? null : r.pilotos[target];
     st.pending.set(id, { name, timer: setTimeout(() => settle(id, null, 'Sin confirmación del servidor'), ACK_TIMEOUT_MS) });

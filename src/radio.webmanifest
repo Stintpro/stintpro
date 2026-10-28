@@ -2,7 +2,7 @@
   "name": "StintPro Radio",
   "short_name": "Radio",
   "start_url": "/radio.html",
-  "scope": "/",
+  "scope": "/radio.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#08090a",

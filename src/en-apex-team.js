@@ -30,14 +30,17 @@
   function parseInf(text) {
     const line = String(text || '').split('\n').find(l => /\.INF#/.test(l)) || '';
     const tags = line.match(/<driver\b[^>]*>/g) || [];
-    if (!tags.length) return { team: null, drivers: [] };
+    if (!tags.length) return { team: null, teamNum: null, drivers: [] };
     const team = (attr(tags[0], 'name') || '').trim() || null;
+    // Dorsal del equipo (num del <driver> raíz): permite comprobar que la fila es la de mi kart.
+    const tn = (attr(tags[0], 'num') || '').trim();
+    const teamNum = tn || null;
     const drivers = tags.slice(1).map(t => ({
       id: attr(t, 'id'), num: parseInt(attr(t, 'num'), 10) || 0,
       name: (attr(t, 'name') || '').replace(/\s+/g, ' ').trim(),
       current: attr(t, 'current') === '1',
     })).filter(d => d.id && d.name);
-    return { team, drivers };
+    return { team, teamNum, drivers };
   }
 
   // .P → paradas en orden: [{n, lap, inMs, outMs|null, durMs, stintMs, stintLaps, driverId, driverTotalMs}]

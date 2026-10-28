@@ -42,8 +42,8 @@ test('lista radio igual a la de Apex → no republica; distinta → sí', () => 
   strictEqual(R.chooseRoster({ ...APEX, source: 'radio', panel: false }, APEX).publish, false);
   strictEqual(R.chooseRoster({ pilotos: ['ANA', 'LUIS'], current: 0, source: 'radio', panel: false }, APEX).publish, true);
 });
-test('panel desconectado y Apex → la web toma el relevo', () => {
-  deepStrictEqual(R.chooseRoster({ ...PANEL, panel: false }, APEX), { mode: 'radio', pilotos: ['ANA', 'LUIS'], current: 1, publish: true });
+test('panel desconectado y Apex → se queda con la lista del panel, sin publicar (nunca la reemplaza)', () => {
+  deepStrictEqual(R.chooseRoster({ ...PANEL, panel: false }, APEX), { mode: 'panel', pilotos: ['Javier', 'Pablo'], current: 0, publish: false });
 });
 test('panel desconectado sin Apex → se queda con la del panel, sin publicar', () => {
   deepStrictEqual(R.chooseRoster({ ...PANEL, panel: false }, null), { mode: 'panel', pilotos: ['Javier', 'Pablo'], current: 0, publish: false });

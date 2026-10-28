@@ -42,6 +42,11 @@ test('.INF: equipo, plantilla completa y piloto en pista', () => {
   deepStrictEqual(inf.drivers.filter(d => d.current).map(d => d.id), ['11']);
 });
 
+test('.INF: dorsal del equipo (num del primer driver); null si falta', () => {
+  strictEqual(A.parseInf(RESP).teamNum, '7');
+  strictEqual(A.parseInf('D70.INF#<driver id="70" name="X"><driver id="1" num="1" name="A"/></driver>').teamNum, null);
+});
+
 test('.P: paradas en orden, con la que sigue abierta sin salida', () => {
   const p = A.parsePits(RESP);
   deepStrictEqual(p.map(x => x.n), [1, 2, 3]);

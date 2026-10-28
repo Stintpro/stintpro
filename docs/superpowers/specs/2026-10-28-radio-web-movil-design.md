@@ -87,7 +87,11 @@ anterior. Al cerrar, sale de los observadores.
 - **El panel siempre gana**: un `team_roster` con `source:'radio'` se rechaza
   (`error`, `about:'team_roster'`, `msg:'lista del panel activa'`) si la lista
   actual es de `'panel'` y algún panel que la publicó sigue conectado. Si el
-  panel se desconectó, la web puede tomar el relevo.
+  panel se desconectó, el logger acepta la lista de la web, pero **la web
+  nunca reemplaza una lista `source:'panel'`** (ni con `panel:false`): los
+  nombres del panel los teclea el equipo y no coinciden con los de Apex;
+  sustituirlos haría que los móviles olvidaran su piloto guardado y la radio
+  del panel dejara de entregar (un corte de Wi-Fi de 1 s bastaría).
 - Todo cambio de lista se reenvía a móviles **y** a observadores, con `source`.
   Hoy los paneles no reciben el `team_roster` de otro; los observadores sí.
 
@@ -103,7 +107,9 @@ móviles del dorsal.
    `localStorage` la última elección, en try/catch).
 3. Conecta al logger: `auth{token}` → `team_watch{slug, dorsal}`.
 4. **Lista de pilotos:**
-   - Si el logger devuelve lista `source:'panel'` → se usa tal cual, solo lectura.
+   - Si el logger devuelve lista `source:'panel'` → se usa tal cual, solo lectura,
+     esté el panel conectado o no (la web nunca la reemplaza; si el panel cae se
+     avisa «Lista del panel StintPro (panel desconectado)»).
    - Si no hay lista o es `source:'radio'` → la web pide `.INF` a Apex y publica
      `team_roster{source:'radio', pilotos, current}` con esos nombres (máx. 10,
      40 caracteres). Repite cada **60 s** para que `current` siga a Apex (la app

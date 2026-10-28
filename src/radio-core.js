@@ -27,8 +27,10 @@
   // server: último team_roster recibido como observador; apex: rosterFromInf o null.
   function chooseRoster(server, apex) {
     const srv = server && Array.isArray(server.pilotos) ? server : null;
-    // Panel conectado: manda su lista y la web no republica nada.
-    if (srv && srv.source === 'panel' && srv.panel) {
+    // Lista del panel (conectado o no): manda y la web NUNCA la reemplaza. Los
+    // nombres los teclea el equipo y no coinciden con los de Apex; sustituirlos
+    // haría que los móviles olvidaran su piloto (un corte de Wi-Fi de 1 s basta).
+    if (srv && srv.source === 'panel') {
       return { mode: 'panel', pilotos: srv.pilotos, current: srv.current, publish: false };
     }
     // Sin panel pero con plantilla de Apex: la web toma el relevo y la publica

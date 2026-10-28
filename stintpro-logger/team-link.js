@@ -133,6 +133,17 @@ function createTeamLink({ heartbeatMs = 10000 } = {}) {
     r.pilotos = roster.pilotos;
     r.current = roster.current;
     r.source  = source;
+    // Un socket publica para un solo dorsal: se le quita de los demás (si no, un
+    // panel que cambió de 7 a 8 bloquearía para siempre a la web en el 7).
+    for (const [k, o] of rosters) {
+      if (k === key) continue;
+      const estaba = o.panelPubs.delete(ws);
+      o.publishers.delete(ws);
+      if (estaba && !panelLive(o)) {
+        const wo = watcherRoster(k);
+        for (const w of watchersOf(k)) send(w, wo);
+      }
+    }
     r.publishers.add(ws);
     if (source === 'panel') r.panelPubs.add(ws); else r.panelPubs.delete(ws);
     hook(ws);
