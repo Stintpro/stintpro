@@ -26,7 +26,7 @@ button:active:not(:disabled) { transform: scale(.98); }
 button:disabled { opacity: .35; }
 :focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
 .btn-primary { background: var(--green); color: #000; font-size: 17px; letter-spacing: 1px; }
-.btn-link { background: none; color: var(--muted); min-height: 44px; }
+.btn-link { background: none; color: var(--muted); min-height: var(--tap); }
 .err { color: #ff6b6b; min-height: 1.3em; margin: 0; }
 .bar { display: flex; align-items: center; gap: 10px; }
 .where { flex: 1; font-weight: 700; font-size: 17px; }
@@ -38,7 +38,9 @@ button:disabled { opacity: .35; }
 .pilot { background: var(--cell); color: var(--text); border: 2px solid var(--line); display: flex;
   flex-direction: column; align-items: flex-start; justify-content: center; padding: 8px 12px; text-align: left; }
 .pilot.sel { border-color: var(--text); background: #23252b; }
-.pilot .name { font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.pilot .name { font-size: 18px; display: flex; align-items: center; gap: 8px; max-width: 100%; min-width: 0; }
+.pilot .name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pilot { min-width: 0; }
 .pilot .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; display: inline-block; }
 .pilot .dot.on { background: var(--green); }
 .pilot .tag { font-size: 11px; letter-spacing: 1px; color: var(--amber); }

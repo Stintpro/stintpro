@@ -35,6 +35,10 @@ test('CSS: pulsables ≥ 56 px, safe-area y campo ≥ 16 px', () => {
   ok(/safe-area-inset-bottom/.test(CSS));
   ok(/font-size:\s*(1[6-9]|[2-9]\d)px/.test(CSS));
 });
+test('CSS: ningún min-height en px por debajo de 56', () => {
+  const bad = [...CSS.matchAll(/min-height:\s*(\d+(?:\.\d+)?)px/g)].filter(m => parseFloat(m[1]) < 56);
+  ok(bad.length === 0, 'min-height < 56px: ' + bad.map(m => m[0]).join(', '));
+});
 test('manifest standalone con iconos 192 y 512', () => {
   ok(MAN.display === 'standalone' && MAN.start_url === '/radio.html');
   ok(['192x192', '512x512'].every(s => MAN.icons.some(i => i.sizes === s)));

@@ -17,7 +17,7 @@
     ws: null, authed: false, attempt: 0, reconnectTimer: null, authFailed: 0,
     server: null, apex: null, rowId: null, apexNote: '',
     roster: RadioCore.chooseRoster(null, null), picked: null, presence: [],
-    pending: new Map(), apexTimer: null, wakeLock: null, seq: 0, lastSent: null,
+    pending: new Map(), apexTimer: null, wakeLock: null, seq: 0, lastSent: null, gen: 0, refreshing: false,
   };
   const cooldown = RadioCore.createCooldown();
 
@@ -75,7 +75,8 @@
   // ── Radio ──
   function openRadio(c, dorsal) {
     Object.assign(st, { slug: c.slug, port: parseInt(c.port, 10), name: c.name, dorsal,
-      server: null, apex: null, rowId: null, apexNote: '', picked: null, presence: [], attempt: 0, authFailed: 0, lastSent: null });
+      server: null, apex: null, rowId: null, apexNote: '', picked: null, presence: [], attempt: 0, authFailed: 0, lastSent: null, refreshing: false });
+    st.gen++;
     st.roster = RadioCore.chooseRoster(null, null);
     $('bar-where').textContent = `${c.name} · #${dorsal}`;
     showResult(null, '');
@@ -88,6 +89,7 @@
     clearInterval(st.apexTimer); clearTimeout(st.reconnectTimer);
     if (st.ws) { st.ws.onclose = null; try { st.ws.close(); } catch (e) {} }
     st.ws = null; st.authed = false; st.slug = null;
+    st.gen++; st.refreshing = false;
     failPending('Envío cancelado');
     if (st.wakeLock) { st.wakeLock.release().catch(() => {}); st.wakeLock = null; }
   }
@@ -98,7 +100,11 @@
     el.dataset.state = state;
     el.textContent = state === 'ok' ? 'Conectado' : state === 'connecting' ? 'Reconectando' : 'Sin conexión';
   }
-  function send(obj) { if (st.ws && st.ws.readyState === 1) st.ws.send(JSON.stringify(obj)); }
+  function send(obj) {
+    if (st.ws && st.ws.readyState === 1) { st.ws.send(JSON.stringify(obj)); return true; }
+    return false;
+  }
+  const rosterKey = r => JSON.stringify([r.pilotos, r.current]);
 
   function connect() {
     setConn('connecting');
@@ -118,6 +124,8 @@
         send({ type: 'team_watch', slug: st.slug, dorsal: st.dorsal });
         render();
       } else if (m.type === 'team_roster') {
+        // Si no es el eco de lo que publicamos nosotros, hay que poder republicar.
+        if (!(m.source === 'radio' && st.lastSent === rosterKey(m))) st.lastSent = null;
         st.server = m; updateRoster();
       } else if (m.type === 'pilot_presence') {
         st.presence = m.connected || []; render();
@@ -127,13 +135,13 @@
         if (m.msg === 'auth_failed') { st.authFailed++; return; }
         if (m.id) return settle(m.id, null, m.msg);
         // «lista del panel activa»: llegará el team_roster del panel; nada que mostrar.
-        if (m.about === 'team_roster' && m.msg === 'lista del panel activa') return;
+        if (m.about === 'team_roster' && m.msg === 'lista del panel activa') { st.lastSent = null; return; }
         if (m.about) showResult(false, m.msg);
       }
     };
     ws.onclose = () => {
       if (st.ws !== ws) return;
-      st.authed = false; st.ws = null;
+      st.authed = false; st.ws = null; st.presence = [];
       failPending('Conexión perdida: no se sabe si llegó');
       if (st.authFailed >= 2) { closeRadio(); return showLogin('Sesión caducada. Vuelve a entrar.'); }
       setConn('off'); render(); scheduleReconnect();
@@ -151,27 +159,36 @@
     st.picked = RadioCore.keepPick(st.picked, prev, st.roster);
     if (st.roster.publish && st.authed) {
       const msg = RadioCore.rosterMessage(st.slug, st.dorsal, st.roster);
-      const json = JSON.stringify(msg);
-      // No reenviar lo mismo que ya publicamos: evita un bucle de republicación
-      // si servidor y cliente normalizaran los nombres de forma distinta.
-      if (json !== st.lastSent) { st.lastSent = json; send(msg); }
+      const key = rosterKey(msg);
+      // No reenviar lo mismo que ya publicamos (evita bucles de republicación);
+      // lastSent solo se fija si el envío salió de verdad por el WS.
+      if (key !== st.lastSent && send(msg)) st.lastSent = key;
     }
     render();
   }
   async function refreshApex() {
-    const slug = st.slug, dorsal = st.dorsal, port = st.port;
-    if (!slug) return;
-    if (!st.rowId) {
-      st.rowId = await EnApexTeam.rowIdFor(slug, port, dorsal, {
-        WebSocket, parseGrid: html => ApexGrid.parseGridHtml(html).karts,
-      });
-      if (slug !== st.slug || dorsal !== st.dorsal) return;
-      if (!st.rowId) { st.apexNote = `Dorsal ${dorsal} no aparece en Apex`; return render(); }
+    const slug = st.slug, dorsal = st.dorsal, port = st.port, gen = st.gen;
+    if (!slug || st.refreshing) return;
+    st.refreshing = true;
+    try {
+      let rowId = st.rowId;
+      if (!rowId) {
+        rowId = await EnApexTeam.rowIdFor(slug, port, dorsal, {
+          WebSocket, parseGrid: html => ApexGrid.parseGridHtml(html).karts,
+        });
+        if (gen !== st.gen) return;           // cambió de kart mientras buscaba
+        if (!rowId) { st.apexNote = `Dorsal ${dorsal} no aparece en Apex`; return render(); }
+        st.rowId = rowId;
+      }
+      const inf = await EnApexTeam.fetchInf(port - 3, rowId, (u, o) => fetch(u, o));
+      if (gen !== st.gen) return;
+      if (inf) { st.apex = RadioCore.rosterFromInf(inf); st.apexNote = ''; }  // fallo → se queda la anterior
+      updateRoster();
+    } catch (e) {
+      // se conserva la lista anterior
+    } finally {
+      if (gen === st.gen) st.refreshing = false;
     }
-    const inf = await EnApexTeam.fetchInf(port - 3, st.rowId, (u, o) => fetch(u, o));
-    if (slug !== st.slug || dorsal !== st.dorsal) return;
-    if (inf) { st.apex = RadioCore.rosterFromInf(inf); st.apexNote = ''; }  // fallo → se queda la anterior
-    updateRoster();
   }
 
   // ── Pintado ──
@@ -198,7 +215,9 @@
     }));
     const can = st.authed && (r.mode === 'dorsal' || Number.isInteger(target));
     document.querySelectorAll('#quick button, #free-send').forEach(b => { if (!b.classList.contains('cooling')) b.disabled = !can; });
-    if (!st.authed && st.slug) showResult(false, 'Sin conexión — no se puede enviar');
+    const OFFLINE = 'Sin conexión — no se puede enviar', cur = $('result').textContent;
+    // No pisar un aviso útil (p. ej. «no se sabe si llegó») con el texto genérico.
+    if (!st.authed && st.slug) { if (!cur || $('result').dataset.offline === '1') showResult(false, OFFLINE); }
     else if (st.authed && $('result').dataset.offline === '1') showResult(null, '');
   }
   function showResult(okFlag, text) {
