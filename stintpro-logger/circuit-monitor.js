@@ -222,6 +222,9 @@ class CircuitMonitor {
     // y reconstruir el reloj en el snapshot al conectar a mitad de sesión.
     this._lastClock = null;
 
+    // Vueltas desde la última salida de box, por dorsal (para el móvil del piloto)
+    this._stintLaps = new Map();
+
     // Ancla de salida oficial de carrera sacada del canal com| de dirección de
     // carrera — lógica compartida con el conector directo de la app (ver
     // createRaceStartTracker en apex-protocol.js). _onComment le pasa el html.
@@ -597,6 +600,7 @@ class CircuitMonitor {
       const title = [title1, title2].filter(Boolean).join(' · ') || null;
       this.sessionId = db.createSession(this.slug, this.name, title);
       this.pitEvents = [];
+      this._stintLaps.clear();
       this._lapCount = 0;
       // Auto-guardar snapshot cada 10s
       if (this._saveTimer) clearInterval(this._saveTimer);
@@ -605,6 +609,8 @@ class CircuitMonitor {
     this._lapCount++;
     const cleanName = (name || '').replace(/\s*\[\d+:\d+\]\s*$/, '').trim();
     db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp, category || null, !!isPitLap);
+    const sd = String(dorsal);
+    this._stintLaps.set(sd, (this._stintLaps.get(sd) || 0) + 1);
   }
 
   // Se ejecuta UNA vez por arranque, en la primera vuelta. Si hay una sesión
@@ -651,6 +657,7 @@ class CircuitMonitor {
     const ev = { dorsal, event: eventType, time: timestamp, standsCount };
     if (eventType === 'out' && pitDurationSec != null) ev.pitDur = pitDurationSec;
     this.pitEvents.push(ev);
+    if (eventType === 'out') this._stintLaps.set(String(dorsal), 0);
   }
 
   // Relevo de piloto (tiempo oficial [h:mm] de Apex): se guarda con los minutos
@@ -812,6 +819,9 @@ class CircuitMonitor {
         bestLap:    kart.bestLap ?? null,
         laps:       kart.tours ?? null,
         pit:        kart.pit,
+        now:        Date.now(),
+        clock:      this._adjustedClock(),
+        ...this._pilotTimes(dorsal),
       });
 
       for (const ws of clients) {
@@ -854,6 +864,7 @@ class CircuitMonitor {
     this._messages = [];
     this._lapCount = 0;
     this._lastClock = null;
+    this._stintLaps.clear();
     this._flagTracker.reset();
     // La verde de la sesión entrante suele llegar ANTES de que el parser detecte
     // la sesión nueva (primer grid/vueltas) → un ancla reciente se conserva;
@@ -879,6 +890,32 @@ class CircuitMonitor {
       this._lastClock = { ms, mode, at: Date.now() };
     }
     this._broadcast({ type: 'clock', ms: this._lastClock.ms, mode: this._lastClock.mode });
+  }
+
+  // Reloj de Apex ajustado a ahora (el último valor llegó hace un rato).
+  _adjustedClock() {
+    const c = this._lastClock;
+    if (!c) return null;
+    if (c.mode === 'stop' || c.ms == null) return { ms: null, mode: 'stop' };
+    const elapsed = Date.now() - c.at;
+    return { ms: c.mode === 'count' ? c.ms + elapsed : c.ms - elapsed, mode: c.mode };
+  }
+
+  // Box y stint de un dorsal, con las horas del VPS (el móvil las pasa a la suya).
+  _pilotTimes(dorsal) {
+    const d = String(dorsal);
+    let lastIn = null, lastOut = null;
+    for (const ev of this.pitEvents) {
+      if (String(ev.dorsal) !== d) continue;
+      if (ev.event === 'in'  && (lastIn  == null || ev.time > lastIn))  lastIn  = ev.time;
+      if (ev.event === 'out' && (lastOut == null || ev.time > lastOut)) lastOut = ev.time;
+    }
+    const rs = this._raceTracker.raceStart;
+    return {
+      pitInAt:      lastIn != null && (lastOut == null || lastIn > lastOut) ? lastIn : null,
+      stintStartAt: lastOut != null ? lastOut : (rs ? rs.at : null),
+      stintLaps:    this._stintLaps.has(d) ? this._stintLaps.get(d) : null,
+    };
   }
 
   // ── Cronograma oficial (canal com| de dirección de carrera) ─────────────
@@ -1033,13 +1070,8 @@ class CircuitMonitor {
     }
     // Reloj: reconstruir el countdown ajustado por el tiempo transcurrido desde
     // el último valor recibido, para que al conectar tarde el reloj ya esté sincronizado.
-    if (this._lastClock && this._lastClock.mode !== 'stop' && this._lastClock.ms != null) {
-      const elapsed = Date.now() - this._lastClock.at;
-      const adj = this._lastClock.mode === 'count'
-        ? this._lastClock.ms + elapsed
-        : this._lastClock.ms - elapsed;
-      snapshot.clock = { ms: adj, mode: this._lastClock.mode };
-    }
+    const clock = this._adjustedClock();
+    if (clock && clock.mode !== 'stop') snapshot.clock = clock;
     try { ws.send(JSON.stringify({ type: 'history', snapshot })); } catch(e) {}
   }
 

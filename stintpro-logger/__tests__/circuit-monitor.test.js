@@ -674,6 +674,70 @@ describe('_broadcastPilots (vía _onState)', () => {
     m._onState({ equipos: [{ dorsal: '7', pos: 1 }], leaderLap: 1, timestamp: Date.now(), sessionFinished: false });
     expect(wsPilot.send).not.toHaveBeenCalled();
   });
+
+  test('incluye la hora del VPS y el reloj de Apex ajustado al envío', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onCountdown(600000, 'countdown');
+    ws.send.mockClear();
+
+    m._onState({ equipos: [{ dorsal: '7', pos: 1 }], leaderLap: 1, timestamp: Date.now(), sessionFinished: false });
+    const msg = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(typeof msg.now).toBe('number');
+    expect(msg.clock.mode).toBe('countdown');
+    expect(msg.clock.ms).toBeLessThanOrEqual(600000);
+    expect(msg.clock.ms).toBeGreaterThan(590000);
+  });
+
+  test('sin reloj de Apex: clock null; tras stop: ms null y mode stop', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    ws.send.mockClear();
+    const st = { equipos: [{ dorsal: '7', pos: 1 }], leaderLap: 1, timestamp: Date.now(), sessionFinished: false };
+
+    m._onState(st);
+    expect(JSON.parse(ws.send.mock.calls[0][0]).clock).toBeNull();
+
+    m._onCountdown(null, 'stop');
+    ws.send.mockClear();
+    m._lastBroadcast = 0;   // salta el throttle entre envíos
+    m._onState(st);
+    expect(JSON.parse(ws.send.mock.calls[0][0]).clock).toEqual({ ms: null, mode: 'stop' });
+  });
+
+  test('stint desde la última salida de box y entrada a box en curso', () => {
+    const m  = createMonitor();
+    const t0 = Date.now();
+    m._onLap('7', 'JAVIER', null, 64000, 1, t0);      // abre sesión
+    m._onPit('7', 'out', 1, t0 + 1000);
+    m._onLap('7', 'JAVIER', null, 64000, 2, t0 + 65000);
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    ws.send.mockClear();
+    const st = { equipos: [{ dorsal: '7', pos: 1 }], leaderLap: 1, timestamp: Date.now(), sessionFinished: false };
+
+    m._onState(st);
+    expect(JSON.parse(ws.send.mock.calls[0][0])).toMatchObject({ pitInAt: null, stintStartAt: t0 + 1000, stintLaps: 1 });
+
+    m._onPit('7', 'in', 2, t0 + 70000);
+    ws.send.mockClear();
+    m._lastBroadcast = 0;   // salta el throttle entre envíos
+    m._onState(st);
+    expect(JSON.parse(ws.send.mock.calls[0][0]).pitInAt).toBe(t0 + 70000);
+  });
+
+  test('sin paradas: stintLaps cuenta desde el inicio y stintStartAt es null sin ancla de salida', () => {
+    const m  = createMonitor();
+    const t0 = Date.now();
+    m._onLap('7', 'JAVIER', null, 64000, 1, t0);
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    ws.send.mockClear();
+    m._onState({ equipos: [{ dorsal: '7', pos: 1 }], leaderLap: 1, timestamp: Date.now(), sessionFinished: false });
+    expect(JSON.parse(ws.send.mock.calls[0][0])).toMatchObject({ stintStartAt: null, stintLaps: 1 });
+  });
 });
 
 // ── Raw log: robustez y cierre (LOGGER-3, LOGGER-6) ──────────────────────────
