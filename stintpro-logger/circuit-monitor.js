@@ -224,6 +224,15 @@ class CircuitMonitor {
 
     // Vueltas desde la última salida de box, por dorsal (para el móvil del piloto)
     this._stintLaps = new Map();
+    // Mejor vuelta del stint en curso (sin vueltas de box) y clase de cada dorsal:
+    // para avisar al piloto de que entra en box un kart del top‑5 (fast_pit).
+    // Un kart que para conserva la de su último stint hasta la primera vuelta
+    // del siguiente: si saliera de la tabla al entrar, en una ola de paradas
+    // cada kart que entra "subiría" al top‑5 de los pocos que quedan.
+    this._stintBest = new Map();
+    this._newStint  = new Set();  // salió de box y aún no ha marcado vuelta
+    this._inBox     = new Set();  // ya avisado de su entrada (Apex repite el 'in')
+    this._category  = new Map();
 
     // Ancla de salida oficial de carrera sacada del canal com| de dirección de
     // carrera — lógica compartida con el conector directo de la app (ver
@@ -601,6 +610,7 @@ class CircuitMonitor {
       this.sessionId = db.createSession(this.slug, this.name, title);
       this.pitEvents = [];
       this._stintLaps.clear();
+      this._clearFastPit();
       this._lapCount = 0;
       // Auto-guardar snapshot cada 10s
       if (this._saveTimer) clearInterval(this._saveTimer);
@@ -611,6 +621,11 @@ class CircuitMonitor {
     db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp, category || null, !!isPitLap);
     const sd = String(dorsal);
     this._stintLaps.set(sd, (this._stintLaps.get(sd) || 0) + 1);
+    if (category) this._category.set(sd, category);
+    if (!isPitLap && lapMs > 0 && (this._newStint.has(sd) || !(this._stintBest.get(sd) <= lapMs))) {
+      this._stintBest.set(sd, lapMs);
+      this._newStint.delete(sd);
+    }
   }
 
   // Se ejecuta UNA vez por arranque, en la primera vuelta. Si hay una sesión
@@ -658,6 +673,46 @@ class CircuitMonitor {
     if (eventType === 'out' && pitDurationSec != null) ev.pitDur = pitDurationSec;
     this.pitEvents.push(ev);
     if (eventType === 'out') this._stintLaps.set(String(dorsal), 0);
+    const sd = String(dorsal);
+    if (eventType === 'in' && !this._inBox.has(sd)) {
+      this._inBox.add(sd);
+      this._sendFastPit(sd, timestamp);
+    }
+    if (eventType === 'out') {
+      this._inBox.delete(sd);
+      this._newStint.add(sd);
+    }
+  }
+
+  _clearFastPit() {
+    this._stintBest.clear();
+    this._newStint.clear();
+    this._inBox.clear();
+  }
+
+  // Aviso a los móviles de piloto: entra en box un kart con una de las 5 mejores
+  // vueltas del stint entre los que ruedan (dentro de su clase si Apex la manda).
+  _sendFastPit(dorsal, at) {
+    const best = this._stintBest.get(dorsal);
+    // Sin vueltas en este stint (entra justo tras salir) no hay nada que comparar
+    if (best == null || this._newStint.has(dorsal) || !this.pilotSubscribers.size) return;
+    const cat = this._category.get(dorsal) || null;
+    let rank = 1;
+    for (const [d, ms] of this._stintBest) {
+      if (d === dorsal || ms >= best) continue;
+      if (cat && this._category.get(d) && this._category.get(d) !== cat) continue;
+      rank++;
+    }
+    if (rank > 5) return;
+    const msg = JSON.stringify({ type: 'fast_pit', dorsal, rank, bestLapMs: best, at });
+    for (const [d, clients] of this.pilotSubscribers) {
+      if (d === dorsal) continue;
+      const myCat = this._category.get(d);
+      if (cat && myCat && myCat !== cat) continue;
+      for (const ws of clients) {
+        if (ws.readyState === 1) try { ws.send(msg); } catch(e) {}
+      }
+    }
   }
 
   // Relevo de piloto (tiempo oficial [h:mm] de Apex): se guarda con los minutos
@@ -866,6 +921,8 @@ class CircuitMonitor {
     this._lapCount = 0;
     this._lastClock = null;
     this._stintLaps.clear();
+    this._clearFastPit();
+    this._category.clear();
     this._flagTracker.reset();
     // La verde de la sesión entrante suele llegar ANTES de que el parser detecte
     // la sesión nueva (primer grid/vueltas) → un ancla reciente se conserva;

@@ -1447,3 +1447,117 @@ describe('subscribePilot — resuscripción', () => {
     expect(m.pilotSubscribers.get('9').size).toBe(0);
   });
 });
+
+// ── Aviso al piloto: entra en box un kart del top‑5 de vueltas del stint ─────
+
+describe('aviso fast_pit (top‑5 por vueltas del stint)', () => {
+  // Abre sesión y pone a rodar a cada dorsal con su mejor vuelta del stint.
+  function conStints(m, bests, cats = {}) {
+    const t0 = Date.now();
+    for (const [d, ms] of Object.entries(bests)) {
+      m._onLap(d, 'P' + d, null, ms + 900, 1, t0, cats[d] || null);
+      m._onLap(d, 'P' + d, null, ms, 2, t0, cats[d] || null);
+    }
+    return t0;
+  }
+  function avisos(ws) {
+    return ws.send.mock.calls.map(c => JSON.parse(c[0])).filter(x => x.type === 'fast_pit');
+  }
+
+  test('entra en box el 2º mejor del stint → aviso al resto con puesto y vuelta', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 1: 64000, 2: 63000, 3: 65000, 7: 66000 });
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('1', 'in', 2, t0 + 1000);
+    expect(avisos(ws)).toEqual([{ type: 'fast_pit', dorsal: '1', rank: 2, bestLapMs: 64000, at: t0 + 1000 }]);
+  });
+
+  test('fuera del top‑5 no avisa', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 1: 61000, 2: 62000, 3: 63000, 4: 64000, 5: 65000, 6: 66000, 7: 67000 });
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('6', 'in', 2, t0);
+    expect(avisos(ws)).toHaveLength(0);
+    m._onPit('5', 'in', 2, t0);
+    expect(avisos(ws)).toHaveLength(1);
+  });
+
+  test('mi propio kart no me avisa', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 7: 60000, 2: 63000 });
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('7', 'in', 2, t0);
+    expect(avisos(ws)).toHaveLength(0);
+  });
+
+  test('cuenta solo el stint actual: lo rodado antes de su última salida no vale', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 1: 60000, 2: 63000, 3: 63500, 4: 64000, 5: 64500, 6: 65000, 7: 66000 });
+    m._onPit('1', 'in', 2, t0);
+    m._onPit('1', 'out', 1, t0 + 90000);
+    m._onLap('1', 'P1', null, 67000, 3, t0 + 160000);   // stint nuevo, lento
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('1', 'in', 2, t0 + 200000);
+    expect(avisos(ws)).toHaveLength(0);
+  });
+
+  test('las vueltas de box (entrada/salida) no cuentan como mejor vuelta', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 2: 63000, 3: 63500, 4: 64000, 5: 64500, 6: 65000, 7: 66000 });
+    m._onLap('1', 'P1', null, 70000, 1, t0);
+    m._onLap('1', 'P1', null, 50000, 2, t0, null, true);   // vuelta marcada de pit
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('1', 'in', 2, t0);
+    expect(avisos(ws)).toHaveLength(0);
+  });
+
+  test('en una ola de paradas los que ya entraron siguen contando con su último stint', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 1: 61000, 2: 62000, 3: 63000, 4: 64000, 5: 65000, 6: 66000, 7: 67000 });
+    m._onPit('1', 'in', 2, t0);
+    m._onPit('1', 'out', 1, t0 + 60000);       // vuelta de salida: aún sin vueltas nuevas
+    m._onPit('2', 'in', 2, t0 + 61000);
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('6', 'in', 2, t0 + 62000);
+    expect(avisos(ws)).toHaveLength(0);         // sigue siendo 6º
+    m._onLap('1', 'P1', null, 69000, 3, t0 + 130000);   // su stint nuevo ya manda: lento
+    m._onPit('5', 'in', 2, t0 + 131000);
+    expect(avisos(ws)).toEqual([expect.objectContaining({ dorsal: '5', rank: 4 })]);
+  });
+
+  test('un segundo "in" seguido del mismo kart no repite el aviso', () => {
+    const m = createMonitor();
+    const t0 = conStints(m, { 1: 61000, 7: 67000 });
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('1', 'in', 2, t0);
+    m._onPit('1', 'in', 2, t0 + 500);
+    expect(avisos(ws)).toHaveLength(1);
+  });
+
+  test('con categorías: el puesto es dentro de su clase y solo avisa a esa clase', () => {
+    const m = createMonitor();
+    const t0 = conStints(m,
+      { 1: 58000, 2: 58500, 3: 59000, 4: 59500, 5: 60000, 6: 66000, 7: 67000, 8: 57000 },
+      { 1: 'PRO', 2: 'PRO', 3: 'PRO', 4: 'PRO', 5: 'PRO', 6: 'AM', 7: 'AM', 8: 'PRO' });
+    const am = fakeClientWs();  m.subscribePilot(am, '7');
+    const pro = fakeClientWs(); m.subscribePilot(pro, '8');
+    m._onPit('6', 'in', 2, t0);      // 1º de AM
+    expect(avisos(am)).toEqual([expect.objectContaining({ dorsal: '6', rank: 1 })]);
+    expect(avisos(pro)).toHaveLength(0);
+  });
+
+  test('sin sesión o con recording=false no avisa', () => {
+    const m = createMonitor({ recording: false });
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onPit('1', 'in', 2, Date.now());
+    expect(avisos(ws)).toHaveLength(0);
+  });
+});
