@@ -818,7 +818,8 @@ class CircuitMonitor {
         lastLap:    kart.lastLap,
         bestLap:    kart.bestLap ?? null,
         laps:       kart.tours ?? null,
-        pit:        kart.pit,
+        // En la vuelta de salida (so) Apex deja pit=true hasta el siguiente sector: no es 'en box'
+        pit:        !!kart.pit && kart.pitState !== 'out',
         now:        Date.now(),
         clock:      this._adjustedClock(),
         ...this._pilotTimes(dorsal),

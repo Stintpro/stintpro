@@ -606,6 +606,22 @@ describe('_onState', () => {
 });
 
 describe('_broadcastPilots (vía _onState)', () => {
+  test('pit: en vuelta de salida (pitState out) no se envía como en box', () => {
+    const run = (pitState) => {
+      const m = createMonitor();
+      const ws = fakeClientWs();
+      m.subscribePilot(ws, '7');
+      ws.send.mockClear();
+      m._onState({
+        equipos: [{ dorsal: '7', pos: 1, gap: '', interval: '', pit: true, pitState }],
+        leaderLap: 1, timestamp: Date.now(), sessionFinished: false,
+      });
+      return JSON.parse(ws.send.mock.calls[0][0]).pit;
+    };
+    expect(run('out')).toBe(false);
+    expect(run('in')).toBe(true);
+  });
+
   test('el piloto suscrito recibe solo su dato, con gapBehind del siguiente en clasificación', () => {
     const m      = createMonitor();
     const wsPilot = fakeClientWs();
