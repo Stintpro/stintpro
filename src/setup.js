@@ -187,7 +187,7 @@ function renderSprintSetup() {
         <div style="display:flex;gap:6px;align-items:center">
           <select class="circuit-select" id="circuitSelect" onchange="onCircuitSelect()" style="flex:1">
             <option value="">— Selecciona circuito —</option>
-            ${window.CircuitDB.list.map(c=>`<option value="${c.id}"${c._custom?' data-custom="1"':''}>${c.name}${c._custom?' ✕':''}</option>`).join('')}
+            ${window.CircuitDB.optionsHtml()}
           </select>
           <button class="btn" id="btnDeleteCircuit" onclick="deleteCircuit()" style="display:none;color:var(--red,#f55);flex-shrink:0" title="Borrar circuito">🗑</button>
         </div>
@@ -335,7 +335,7 @@ function renderEnduranceSetup() {
         <div style="display:flex;gap:6px;align-items:center">
           <select class="circuit-select" id="circuitSelect" onchange="onCircuitSelect()" style="flex:1">
             <option value="">— Selecciona circuito —</option>
-            ${window.CircuitDB.list.map(c=>`<option value="${c.id}"${c._custom?' data-custom="1"':''}>${c.name}${c._custom?' ✕':''}</option>`).join('')}
+            ${window.CircuitDB.optionsHtml()}
           </select>
           <button class="btn" id="btnDeleteCircuit" onclick="deleteCircuit()" style="display:none;color:var(--red,#f55);flex-shrink:0" title="Borrar circuito">🗑</button>
         </div>
@@ -587,7 +587,7 @@ function _refreshCircuitSelect() {
   const sel=document.getElementById('circuitSelect');
   if(!sel)return;
   sel.innerHTML='<option value="">— Selecciona circuito —</option>'+
-    window.CircuitDB.list.map(c=>`<option value="${c.id}"${c._custom?' data-custom="1"':''}>${c.name}${c._custom?' ✕':''}</option>`).join('');
+    window.CircuitDB.optionsHtml();
   _updateDeleteBtn();
 }
 

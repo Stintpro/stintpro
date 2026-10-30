@@ -47,5 +47,35 @@ test('coordenadas válidas (Europa) en todos salvo los pendientes', () => {
   deepStrictEqual(sin.sort(), SIN_COORDS.slice().sort());
 });
 
+test('todos los circuitos del catálogo tienen grupo de país conocido', () => {
+  const keys = DB.countries.map(g => g.key);
+  for (const c of DB.list) ok(keys.includes(c.country), 'sin país: ' + c.slug);
+});
+
+test('grouped: orden de países, alfabético dentro y ninguno perdido', () => {
+  const g = DB.grouped();
+  deepStrictEqual(g.map(x => x.label), DB.countries.map(c => c.label));
+  strictEqual(g[0].circuits[0].slug, 'ariza-racing-circuit');
+  for (const x of g) {
+    const n = x.circuits.map(c => c.name);
+    deepStrictEqual(n, n.slice().sort((a, b) => a.localeCompare(b, 'es')));
+  }
+  strictEqual(g.reduce((t, x) => t + x.circuits.length, 0), DB.list.length);
+});
+
+test('grouped: un circuito propio va al final en Mis circuitos', () => {
+  DB.list.push({ id: 'custom_x', name: 'Zzz', slug: 'x', port: 1, _custom: true });
+  const g = DB.grouped();
+  DB.list.pop();
+  strictEqual(g[g.length - 1].label, 'Mis circuitos');
+  strictEqual(g[g.length - 1].circuits[0].slug, 'x');
+});
+
+test('optionsHtml genera un optgroup por grupo y una opción por circuito', () => {
+  const h = DB.optionsHtml();
+  strictEqual(h.match(/<optgroup /g).length, DB.countries.length);
+  strictEqual(h.match(/<option /g).length, DB.list.length);
+});
+
 console.log(`\n${passed} OK, ${failed} fallos\n`);
 if (failed) process.exit(1);

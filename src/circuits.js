@@ -2,33 +2,34 @@
 // Para añadir un circuito: copia una línea del array, rellena nombre/slug/puerto y haz deploy.
 // El slug es el identificador que aparece en la URL de Apex Timing (ej: apextiming.eu/live/rkc)
 // Puerto por defecto: 7913 (consulta con el circuito si no funciona)
+// `country` = clave de CircuitDB.countries (grupo del desplegable); SERIE = canal itinerante.
 const _CIRCUIT_CATALOG = [
-  { id: 'cat_cabanillas',   name: 'Karting Cabanillas',        slug: 'cabanillas',       port: 10433 },
-  { id: 'cat_campillos',    name: 'Karting Campillos',         slug: 'campillos',        port: 9373  },
-  { id: 'cat_lossantos',    name: 'Karting Club Los Santos',   slug: 'karting-lossantos',port: 8093  },
-  { id: 'cat_rivas',        name: 'Karting Rivas',             slug: 'rivas',            port: 10073 },
-  { id: 'cat_sevilla',      name: 'Karting Sevilla',           slug: 'sevilla',          port: 6953  },
-  { id: 'cat_henakart',     name: 'Henakart',                  slug: 'henakart',         port: 9983  },
-  { id: 'cat_rkc',          name: 'RKC Paris',                 slug: 'rkc',              port: 7913  },
-  { id: 'cat_rkc2',         name: 'RKC Paris 2',               slug: 'rkc2',             port: 9263  },
-  { id: 'cat_lucasguerrero', name: 'Circuito Lucas Guerrero',  slug: 'kartodromo-lucas-guerrero', port: 9953 },
-  { id: 'cat_ariza',        name: 'Ariza Racing Circuit',      slug: 'ariza-racing-circuit',      port: 8973 },
-  { id: 'cat_osona',        name: 'Circuito de Osona',         slug: 'circuitosona',              port: 9623 },
-  { id: 'cat_kippalmela',   name: 'KIP Palmela',               slug: 'kip-palmela',               port: 10113 }, // Portugal (configPort 10110 + 3)
-  { id: 'cat_lemans',       name: 'Le Mans Karting 2 (FR)',    slug: 'lemans-karting2',           port: 8013  }, // Francia — 24H Open Kart 390cc
+  { id: 'cat_cabanillas',    name: 'Cabanillas',                   slug: 'cabanillas',                 port: 10433, country: 'ES' },
+  { id: 'cat_campillos',     name: 'Campillos',                    slug: 'campillos',                  port: 9373,  country: 'ES' },
+  { id: 'cat_lossantos',     name: 'Los Santos',                   slug: 'karting-lossantos',          port: 8093,  country: 'ES' },
+  { id: 'cat_rivas',         name: 'Rivas',                        slug: 'rivas',                      port: 10073, country: 'ES' },
+  { id: 'cat_sevilla',       name: 'Sevilla',                      slug: 'sevilla',                    port: 6953,  country: 'ES' },
+  { id: 'cat_henakart',      name: 'Henakart',                     slug: 'henakart',                   port: 9983,  country: 'ES' },
+  { id: 'cat_rkc',           name: 'RKC Paris',                    slug: 'rkc',                        port: 7913,  country: 'FR' },
+  { id: 'cat_rkc2',          name: 'RKC Paris 2',                  slug: 'rkc2',                       port: 9263,  country: 'FR' },
+  { id: 'cat_lucasguerrero', name: 'Lucas Guerrero',               slug: 'kartodromo-lucas-guerrero',  port: 9953,  country: 'ES' },
+  { id: 'cat_ariza',         name: 'Ariza Racing Circuit',         slug: 'ariza-racing-circuit',       port: 8973,  country: 'ES' },
+  { id: 'cat_osona',         name: 'Osona',                        slug: 'circuitosona',               port: 9623,  country: 'ES' },
+  { id: 'cat_kippalmela',    name: 'KIP Palmela',                  slug: 'kip-palmela',                port: 10113, country: 'PT' }, // Portugal (configPort 10110 + 3)
+  { id: 'cat_lemans',        name: 'Le Mans Karting',              slug: 'lemans-karting2',            port: 8013,  country: 'FR' }, // Francia — 24H Open Kart 390cc
   // Circuitos que graba el logger del VPS (puertos de /api/status, 2026-10-26).
-  { id: 'cat_korridas',     name: 'Korridas',                  slug: 'korridas',                  port: 7633  }, // Portugal (Matosinhos)
-  { id: 'cat_tapia',        name: 'Kartódromo de Tapia',       slug: 'kartodromo-de-tapia',       port: 8443  },
-  { id: 'cat_misanino',     name: 'Misanino Kart (IT)',        slug: 'misanino-kart',             port: 8043  },
-  { id: 'cat_worldkarts',   name: 'WorldKarts (BE)',           slug: 'worldkarts',                port: 8143  },
-  { id: 'cat_firstkartinn', name: 'First Kart Inn (BE)',       slug: 'firstkartinn',              port: 8113  },
-  { id: 'cat_grancanaria',  name: 'Gran Canaria Karting',      slug: 'grancanaria-karting',       port: 9183  },
-  { id: 'cat_prestige',     name: 'Prestige Karting',          slug: 'prestige-karting',          port: 9613  }, // Francia (Le Luc)
-  { id: 'cat_alcanede',     name: 'Kartódromo de Alcanede',    slug: 'kartalcanede',              port: 9743  }, // Portugal (configPort 9740 + 3); solo emite con evento en pista
+  { id: 'cat_korridas',      name: 'Korridas',                     slug: 'korridas',                   port: 7633,  country: 'SERIE' }, // Portugal (Matosinhos)
+  { id: 'cat_tapia',         name: 'Tapia',                        slug: 'kartodromo-de-tapia',        port: 8443,  country: 'ES' },
+  { id: 'cat_misanino',      name: 'Misanino Kart',                slug: 'misanino-kart',              port: 8043,  country: 'IT' },
+  { id: 'cat_worldkarts',    name: 'WorldKarts',                   slug: 'worldkarts',                 port: 8143,  country: 'BE' },
+  { id: 'cat_firstkartinn',  name: 'First Kart Inn',               slug: 'firstkartinn',               port: 8113,  country: 'BE' },
+  { id: 'cat_grancanaria',   name: 'Gran Canaria',                 slug: 'grancanaria-karting',        port: 9183,  country: 'ES' },
+  { id: 'cat_prestige',      name: 'Prestige Karting',             slug: 'prestige-karting',           port: 9613,  country: 'FR' }, // Francia (Le Luc)
+  { id: 'cat_alcanede',      name: 'Alcanede',                     slug: 'kartalcanede',               port: 9743,  country: 'PT' }, // Portugal (configPort 9740 + 3); solo emite con evento en pista
   // Cronosystem = canal del CRONOMETRADOR, itinerante (no es un circuito fijo): 24H KIP
   // Portugal en sept-2026, 30H Campillos en oct-2026. Puerto real 8803 (el configPort
   // 8800 de Apex no hace TLS). El trazado va por trackAliases, más abajo.
-  { id: 'cat_cronosystem2', name: 'Cronosystem (30H Campillos)', slug: 'cronosystem2',            port: 8803  },
+  { id: 'cat_cronosystem2',  name: 'Cronosystem (30H Campillos)',  slug: 'cronosystem2',               port: 8803,  country: 'SERIE' },
 ];
 
 window.CircuitDB = {
@@ -82,6 +83,34 @@ window.CircuitDB = {
   add(circuit) {
     if (!this.list.find(c => c.slug === circuit.slug)) this.list.push(circuit);
   }
+};
+
+// Grupos del desplegable, en este orden. La bandera tiene que ser emoji: un <optgroup>
+// no admite imágenes (Windows pinta las letras del país en vez de la bandera).
+window.CircuitDB.countries = [
+  { key: 'ES',    label: '🇪🇸 España' },
+  { key: 'PT',    label: '🇵🇹 Portugal' },
+  { key: 'FR',    label: '🇫🇷 Francia' },
+  { key: 'BE',    label: '🇧🇪 Bélgica' },
+  { key: 'IT',    label: '🇮🇹 Italia' },
+  { key: 'SERIE', label: '🏁 Series itinerantes' },
+];
+
+// Circuitos por grupo, alfabéticos dentro de cada uno; los del usuario, al final.
+window.CircuitDB.grouped = function() {
+  const byName = (a, b) => a.name.localeCompare(b.name, 'es');
+  const inGroup = key => this.list.filter(c => !c._custom && c.country === key).sort(byName);
+  const groups = this.countries.map(g => ({ label: g.label, circuits: inGroup(g.key) }));
+  const known = new Set(this.countries.map(g => g.key));
+  groups.push({ label: 'Mis circuitos', circuits: this.list.filter(c => c._custom || !known.has(c.country)).sort(byName) });
+  return groups.filter(g => g.circuits.length);
+};
+
+// <optgroup>s del selector de circuito del setup.
+window.CircuitDB.optionsHtml = function() {
+  return this.grouped().map(g => `<optgroup label="${g.label}">` +
+    g.circuits.map(c => `<option value="${c.id}"${c._custom?' data-custom="1"':''}>${c.name}${c._custom?' ✕':''}</option>`).join('') +
+    '</optgroup>').join('');
 };
 
 // Offsets pit exit→meta ya medidos en sesiones reales — listos desde la selección

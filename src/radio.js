@@ -53,8 +53,12 @@
   // ── Circuito y dorsal ──
   const circuits = () => (window.CircuitDB && CircuitDB.list) || [];
   function showSetup() {
-    $('setup-circuit').replaceChildren(...circuits().map(c => {
-      const o = document.createElement('option'); o.value = c.slug; o.textContent = c.name; return o;
+    $('setup-circuit').replaceChildren(...CircuitDB.grouped().map(g => {
+      const og = document.createElement('optgroup'); og.label = g.label;
+      og.append(...g.circuits.map(c => {
+        const o = document.createElement('option'); o.value = c.slug; o.textContent = c.name; return o;
+      }));
+      return og;
     }));
     let last = null;
     try { last = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
