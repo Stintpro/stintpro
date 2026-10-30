@@ -24,6 +24,7 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_firstkartinn', name: 'First Kart Inn (BE)',       slug: 'firstkartinn',              port: 8113  },
   { id: 'cat_grancanaria',  name: 'Gran Canaria Karting',      slug: 'grancanaria-karting',       port: 9183  },
   { id: 'cat_prestige',     name: 'Prestige Karting',          slug: 'prestige-karting',          port: 9613  }, // Francia (Le Luc)
+  { id: 'cat_alcanede',     name: 'Kartódromo de Alcanede',    slug: 'kartalcanede',              port: 9743  }, // Portugal (configPort 9740 + 3); solo emite con evento en pista
   // Cronosystem = canal del CRONOMETRADOR, itinerante (no es un circuito fijo): 24H KIP
   // Portugal en sept-2026, 30H Campillos en oct-2026. Puerto real 8803 (el configPort
   // 8800 de Apex no hace TLS). El trazado va por trackAliases, más abajo.
@@ -157,6 +158,7 @@ window.CircuitDB.coords = {
   'kartodromo-de-tapia':       [43.54655, -6.90399],
   'firstkartinn':              [50.90603,  4.41669],
   'prestige-karting':          [43.34890,  6.33847],
+  'kartalcanede':              [39.42263, -8.80469],
   // Sin coordenadas aún (no se muestra el aviso de lluvia): misanino-kart,
   // worldkarts (OSM da dos sedes) y grancanaria-karting.
 };
