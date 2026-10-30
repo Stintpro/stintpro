@@ -230,6 +230,7 @@ function renderSprintSetup() {
 
     <button class="btn-cta" id="startBtn" onclick="startSprint()" disabled>Iniciar sesión →</button>
   </div>`;
+  window.CircuitPicker.attach(document.getElementById('circuitSelect'));
   // Forzar estado inicial del botón
   setTimeout(sprintUpd, 50);
 }
@@ -371,6 +372,7 @@ function renderEnduranceSetup() {
     <button class="btn-cta" id="startBtn" onclick="startEndurance()" disabled>Iniciar carrera →</button>
   </div>`;
 
+  window.CircuitPicker.attach(document.getElementById('circuitSelect'));
   renderPilotInputs(); setupUpd();
 }
 
@@ -417,6 +419,7 @@ function setCircuitMode(mode) {
 function onCircuitSelect() {
   const id=document.getElementById('circuitSelect')?.value;
   const circ=window.CircuitDB.list.find(x=>x.id===id);
+  window.CircuitPicker.sync(document.getElementById('circuitSelect'));
   const dot=document.getElementById('cdot'), lbl=document.getElementById('cLabel');
   if(circ){dot.className='cdot ok';lbl.textContent=circ.name+' — listo';}
   else {dot.className='cdot';lbl.textContent='Sin verificar';}
@@ -588,6 +591,7 @@ function _refreshCircuitSelect() {
   if(!sel)return;
   sel.innerHTML='<option value="">— Selecciona circuito —</option>'+
     window.CircuitDB.optionsHtml();
+  window.CircuitPicker.sync(sel);
   _updateDeleteBtn();
 }
 

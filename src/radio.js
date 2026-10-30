@@ -63,6 +63,7 @@
     let last = null;
     try { last = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
     if (last) { $('setup-circuit').value = last.slug; $('setup-dorsal').value = last.dorsal; }
+    CircuitPicker.attach($('setup-circuit'));
     show('v-setup');
   }
   $('setup-form').addEventListener('submit', e => {

@@ -1,0 +1,43 @@
+/* Desplegable de circuito (circuit-picker.js). Cargado por el panel y por la radio:
+   los valores van con fallback porque cada página define sus propios tokens. */
+.cp-native {
+  position: absolute !important; width: 1px !important; height: 1px !important; min-height: 0 !important;
+  padding: 0 !important; border: 0 !important; opacity: 0; pointer-events: none;
+}
+.cp-button {
+  flex: 1; width: 100%; min-width: 0; min-height: var(--tap, 38px); display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; text-align: left; font: inherit; font-size: 14.5px; font-weight: 500; cursor: pointer;
+  color: var(--text-1, var(--text, #f0f0f4)); background: var(--bg-raised, var(--cell, #131820));
+  border: 1px solid var(--border-md, var(--line, #242E40)); border-radius: var(--r-md, 12px);
+}
+.cp-button:hover, .cp-button[aria-expanded="true"] { border-color: #F5A623; }
+.cp-button:focus-visible { outline: 2px solid #F5A623; outline-offset: 2px; }
+.cp-button.cp-empty .cp-value { color: var(--text-2, var(--muted, #b8b8cc)); }
+.cp-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-chevron {
+  flex: none; width: 8px; height: 8px; margin: -4px 3px 0 0; transform: rotate(45deg);
+  border-right: 2px solid #F5A623; border-bottom: 2px solid #F5A623;
+}
+.cp-button[aria-expanded="true"] .cp-chevron { margin-top: 4px; transform: rotate(225deg); }
+
+.cp-list {
+  position: fixed; z-index: 10000; overflow-y: auto; overscroll-behavior: contain; outline: none;
+  background: #0D1018; border: 1px solid #2A3448; border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .65);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.cp-group {
+  position: sticky; top: 0; z-index: 1; padding: 8px 14px 8px 10px;
+  background: #EEF1F6; color: #000; border-left: 4px solid #F5A623;
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-size: 16px; font-weight: 700;
+}
+.cp-option {
+  position: relative; padding: 9px 14px 9px 36px; scroll-margin-top: 42px; cursor: pointer;
+  color: #f0f0f4; font-size: 15px; font-weight: 500;
+}
+.cp-option.cp-active { background: #222B3D; }
+.cp-option[aria-selected="true"] { color: #F5A623; }
+.cp-option[aria-selected="true"]::before { content: '✓'; position: absolute; left: 14px; font-weight: 700; }
+@media (pointer: coarse) {
+  .cp-option { padding-top: 14px; padding-bottom: 14px; font-size: 17px; }
+}
