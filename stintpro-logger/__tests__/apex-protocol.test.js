@@ -463,6 +463,47 @@ describe('tokens no catalogados en la columna de estado', () => {
   });
 });
 
+// ── Columna sin tipo con clase 'to' ───────────────────────────────────────────
+// Misanino ("Tempo Pit"), cronosystem2 ("Tiempo pit") y worldkarts ("Totale pit tijd")
+// añaden una columna con data-type="" que recibe la duración de la parada 0,2 s
+// DESPUÉS del 'so', con clase 'to'. Leerla como crono de pit corriendo volvía a poner
+// pit=true y _pitTimerActive, y el 'sr' ya no lo limpiaba: cada kart que paraba se
+// quedaba en pit para siempre (24H Misanino: 51/51 karts "en pit" rodando).
+
+describe("columna sin tipo con clase 'to'", () => {
+  function makeParserTempoPit(callbacks = {}) {
+    const p = createParser(callbacks);
+    p.setGrid({
+      colMap:   { no: 'c1', sta: 'c2', pit: 'c3' },
+      colByNum: { c1: 'no', c2: 'sta', c3: 'pit' },
+      karts: [{ rowId: 'r1', dorsal: '7', name: 'JAVIER' }],
+    });
+    p.parse('grid|');
+    return p;
+  }
+
+  test('la duración que llega tras el so no devuelve el kart a boxes', () => {
+    const p = makeParserTempoPit();
+    parse(p, 'r1c2|si|', 'r1c3|in|1');
+    parse(p, 'r1c2|so|');
+    parse(p, 'r1c18|to|03:01');
+    parse(p, 'r1c2|sr|');
+    expect(kart7(p).pit).toBe(false);
+  });
+
+  test('no marca pit a un kart que rueda', () => {
+    const p = makeParserTempoPit();
+    parse(p, 'r1c2|sr|', 'r1c18|to|03:01');
+    expect(kart7(p).pit).toBe(false);
+  });
+
+  test('sin parrilla mapeada se sigue leyendo como crono de pit', () => {
+    const p = createParser();
+    parse(p, 'r1c3|to|45');
+    expect(p.getState().equipos[0].pit).toBe(true);
+  });
+});
+
 // ── Dorsal: no contaminar con el rowId (transponder) sin colMap ────────────────
 describe('dorsal: fallback rowId solo con columna "no" mapeada', () => {
   // Reproduce la corrupción de la COPA PISTON (sesión 1075): las celdas de vuelta

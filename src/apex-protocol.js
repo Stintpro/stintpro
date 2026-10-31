@@ -783,7 +783,11 @@
       }
 
       // ── Sin dtype mapeado ─────────────────────────────────────────────
-      if (type === 'to') {
+      // Solo sin parrilla (colMap perdido en una reconexión). Con parrilla, una columna
+      // sin tipo no es el crono de pit: "Tempo Pit" (Misanino, cronosystem2, worldkarts)
+      // trae con clase 'to' la duración ya cerrada tras el 'so', y leerla aquí dejaba
+      // a cada kart en pit para siempre porque _pitTimerActive impide que 'sr' lo limpie.
+      if (type === 'to' && !Object.keys(_colByNum).length) {
         const s = parsePitTimer((val !== undefined && val !== '') ? val : type);
         if (s !== null) { k.pitS = s; k.pit = true; k._pitTimerActive = true; }
         return;
