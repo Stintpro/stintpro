@@ -53,17 +53,17 @@ const FULL_COLMAP = { rk: 'c1', no: 'c2', dr: 'c3', lc: 'c6', llp: 'c7', blp: 'c
 const DEFAULT_SEL = COLUMNS.filter(c => c.default !== false).map(c => c.id);
 
 group('catálogo', () => {
-  test('tiene 15 columnas (las 14 de hoy + Clase)', () => {
-    strictEqual(COLUMNS.length, 15);
+  test('tiene 16 columnas (las 14 originales + Clase + Pos. clase)', () => {
+    strictEqual(COLUMNS.length, 16);
   });
 
   test('los ids son únicos', () => {
     strictEqual(new Set(COLUMNS.map(c => c.id)).size, COLUMNS.length);
   });
 
-  test('el orden reproduce el de la tabla actual, con Clase tras Equipo', () => {
+  test('el orden reproduce el de la tabla actual, con Clase y Pos. clase tras Equipo', () => {
     deepStrictEqual(COLUMNS.map(c => c.id), [
-      'dot', 'pos', 'kart', 'driver', 'team', 'class', 'tours',
+      'dot', 'pos', 'kart', 'driver', 'team', 'class', 'classPos', 'tours',
       'last', 'best', 'm5v', 'delta', 'gap', 'int', 'score', 'pit',
     ]);
   });
@@ -85,10 +85,10 @@ group('catálogo', () => {
       ['dot', 'pos', 'kart', 'driver']);
   });
 
-  test('ninguna columna arranca desmarcada (Clase ya no es default:false)', () => {
+  test('solo Pos. clase arranca desmarcada (Clase ya no es default:false)', () => {
     // Clase se promocionó a defecto: aparece sola cuando Apex manda categoría y
-    // sigue oculta en monoclase por su `requires`. Ya no hay columnas default:false.
-    deepStrictEqual(COLUMNS.filter(c => c.default === false).map(c => c.id), []);
+    // sigue oculta en monoclase por su `requires`. Pos. clase es opcional a propósito.
+    deepStrictEqual(COLUMNS.filter(c => c.default === false).map(c => c.id), ['classPos']);
   });
 });
 
@@ -413,6 +413,48 @@ test('dorsal y nombre con HTML/JS salen escapados en toda la fila', () => {
   ok(!html.includes('<img'), 'dorsal sin escapar');
   ok(!html.includes('<b>') && !html.includes('<i>'), 'nombre o equipo sin escapar');
   ok(!/\('7'/.test(html), "el dorsal rompe la cadena JS del onclick");
+});
+
+group('Pos. clase', () => {
+  const { classPositions } = require('../src/en-columns');
+
+  test('es opcional: no entra en la selección por defecto', () => {
+    ok(!defaultSelection().includes('classPos'));
+  });
+
+  test('solo está disponible si Apex manda la clase', () => {
+    strictEqual(isAvailable(col('classPos'), { class: 'c9' }), true);
+    strictEqual(isAvailable(col('classPos'), {}), false);
+  });
+
+  test('numera dentro de cada clase por posición general (heat 3A de Sevilla)', () => {
+    const eq = [
+      { dorsal: 'd', pos: 14, category: 'Amateur' },
+      { dorsal: 'a', pos: 8,  category: 'Pro' },
+      { dorsal: 'c', pos: 9,  category: 'Start' },
+      { dorsal: 'b', pos: 10, category: 'Pro' },
+      { dorsal: 'e', pos: 17, category: 'Amateur' },
+    ];
+    const r = classPositions(eq);
+    deepStrictEqual(['a', 'b', 'c', 'd', 'e'].map(x => r[x]), [1, 2, 1, 1, 2]);
+  });
+
+  test('no numera karts sin clase ni sin posición', () => {
+    const r = classPositions([
+      { dorsal: 'a', pos: 1,  category: '' },
+      { dorsal: 'b', pos: 99, category: 'Pro' },
+      { dorsal: 'c', pos: 3,  category: 'Pro' },
+    ]);
+    strictEqual(r.a, undefined);
+    strictEqual(r.b, undefined);
+    strictEqual(r.c, 1);
+  });
+
+  test('la celda pinta la posición y una raya si no la hay', () => {
+    const d = fakeDerived();
+    ok(col('classPos').cell(fakeEquipo(), Object.assign(d, { classPos: 3 })).includes('>3<'));
+    ok(col('classPos').cell(fakeEquipo(), Object.assign(d, { classPos: undefined })).includes('>—<'));
+  });
 });
 
 console.log(`\n${passed} pasados, ${failed} fallados`);

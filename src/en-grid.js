@@ -588,9 +588,12 @@ function _enRenderRows(eq, trackAvg, bestSess, leader, myDorsal){
     </div>`;
   }
 
+  const classPos=EnColumns.classPositions(eq);
   eq.forEach(e=>{
     try{
-      html+=_enRenderRow(e, _enDeriveRow(e, trackAvg, bestSess, leader, myDorsal), cols);
+      const d=_enDeriveRow(e, trackAvg, bestSess, leader, myDorsal);
+      d.classPos=classPos[e.dorsal];
+      html+=_enRenderRow(e, d, cols);
     }catch(err){
       console.error('[StintPro] Error en fila kart',e.dorsal,err);
       html+=`<div class="sp-rowwrap"><div class="en-row"><div class="sp-dot"></div><div class="sp-pos">${e.pos||'?'}</div><div></div><div class="sp-name">${e.dorsal}</div></div></div>`;

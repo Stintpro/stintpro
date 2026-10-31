@@ -89,6 +89,16 @@
       cell: (e, d) => `<div class="sp-cls">${e.category ? _esc(e.category) : '—'}</div>`,
     },
     {
+      id: 'classPos', label: 'Pos. clase', align: 'center',
+      width: '46px', widthMid: '40px', widthNarrow: '36px',
+      // La calculamos con la posición y la clase: Sevilla la manda sin data-type
+      // solo en competición, y así vale en cualquier carrera multicategoría.
+      source: 'stintpro', default: false,
+      requires: cm => !!cm.class,
+      head: () => `<span title="Posición dentro de la clase">P.Cl</span>`,
+      cell: (e, d) => `<div class="sp-cls">${d.classPos || '—'}</div>`,
+    },
+    {
       id: 'tours', label: 'Vtas', align: 'right',
       width: '44px', widthMid: '36px', widthNarrow: '30px',
       source: 'apex',
@@ -185,6 +195,18 @@
   function mergeColMap(prev, next) {
     if (next && Object.keys(next).length) return next;
     return prev || {};
+  }
+
+  // dorsal → posición dentro de su clase, según la posición general de Apex.
+  function classPositions(eq) {
+    const out = {};
+    const siguiente = {};
+    const conPos = (eq || []).filter(e => e.category && e.pos && e.pos !== 99);
+    for (const e of conPos.sort((a, b) => a.pos - b.pos)) {
+      siguiente[e.category] = (siguiente[e.category] || 0) + 1;
+      out[e.dorsal] = siguiente[e.category];
+    }
+    return out;
   }
 
   function isAvailable(col, colMap) {
@@ -308,5 +330,5 @@
 
   return { COLUMNS, isAvailable, visibleColumns, gridTemplate, theadHtml, rowCells,
            defaultSelection, migrate, loadSelection, saveSelection, STORAGE_KEY, mergeColMap,
-           panelHtml };
+           panelHtml, classPositions };
 });
