@@ -936,6 +936,9 @@ class CircuitMonitor {
 
   _onTitle(title) {
     if (!this.sessionId) return;
+    // Sin bandera la sesión sigue abierta: tras >10 min sin vueltas el título es
+    // de lo siguiente que abre Apex, no un título tardío de esta (sevilla #3425).
+    if (Date.now() - this._lastLapAt > 600000) return;
     db.updateSessionTitle(this.sessionId, title);
     console.log(`[${this.slug}] Título de sesión actualizado: "${title}"`);
   }

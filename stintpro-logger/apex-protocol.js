@@ -644,8 +644,11 @@
             // Reenvío = mismo tiempo (recoloreo) o corrección pequeña (≤0,5 s). Un
             // valor muy distinto (p.ej. la vuelta de parada de 3:18 tras una normal)
             // no es una corrección: se trata como antes, como vuelta nueva.
-            const resend = k.lapHistory.length && !newPass && sinceLast < Math.min(t * 500, 20000)
-              && Math.abs(t - k.lastLap) <= 0.5;
+            // Apex también vacía la celda en el si (joker lap de Sevilla) y repone el
+            // mismo tiempo tras el so, más de 60 s después: sin pase, sigue siendo reenvío.
+            const restored = k._llpCleared && t === k.lastLap;
+            const resend = k.lapHistory.length && !newPass
+              && (restored || (sinceLast < Math.min(t * 500, 20000) && Math.abs(t - k.lastLap) <= 0.5));
             if (resend) {
               if (t !== k.lastLap) {   // corrección: sustituye, sin contar otra vuelta
                 k.lapHistory[k.lapHistory.length - 1] = t;
@@ -675,6 +678,9 @@
           k._lapInvalid = false;
           k._lapFromFlash  = undefined;
           k._lapFromFlashTs = 0;
+          k._llpCleared = false;
+        } else if (v === '') {
+          k._llpCleared = true;
         }
         return;
       }

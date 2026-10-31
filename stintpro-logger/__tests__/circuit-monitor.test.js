@@ -986,6 +986,30 @@ describe('_onTitle', () => {
 
     expect(db.getAllSessions().find(s => s.id === m.sessionId).title).toBe('85 PRO · CARRERA');
   });
+
+  test('un título tardío con la carrera rodando actualiza la sesión', () => {
+    const m = createMonitor();
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    m._onLap('7', 'JAVIER', null, 64000, 1, T);
+    T += 9 * 60000;
+    m._onTitle('85 PRO · CARRERA');
+    spy.mockRestore();
+
+    expect(db.getAllSessions().find(s => s.id === m.sessionId).title).toBe('85 PRO · CARRERA');
+  });
+
+  test('el título de la jornada siguiente no pisa una sesión parada (sevilla #3425)', () => {
+    const m = createMonitor();
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    m._onTitle('ignorado');
+    m._onLap('7', 'JAVIER', null, 64000, 1, T);
+    m._onTitle('SENIOR · HEAT 2A SENIOR');
+    T += 12 * 3600000;
+    m._onTitle('SENIOR · SP 1A SENIOR');
+    spy.mockRestore();
+
+    expect(db.getAllSessions().find(s => s.id === m.sessionId).title).toBe('SENIOR · HEAT 2A SENIOR');
+  });
 });
 
 // ── _onCountdown ──────────────────────────────────────────────────────────────

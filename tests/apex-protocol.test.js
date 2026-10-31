@@ -993,6 +993,24 @@ group('tours reconciliado con lapHistory.length', () => {
     assert.equal(e.tours, 2, 'el contador usa la columna oficial de Apex, no el historial inflado');
   });
 
+  test('joker: llp vaciada y repuesta con el mismo tiempo no cuenta otra vuelta', () => {
+    // Sevilla, Paketes Cup 2026: Apex vacía llp en el si y repone el mismo valor
+    // ~15 s tras el so, más de 60 s después de la vuelta real.
+    const vueltas = [];
+    const p = createParser({ onLap: (d, n, tn, ms) => vueltas.push(ms) });
+    p.setGrid({ colMap:   { sta: 'c2', no: 'c6', llp: 'c14' },
+                colByNum: { c2: 'sta', c6: 'no', c14: 'llp' },
+                karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }] });
+    const realNow = Date.now; let T = realNow(); Date.now = () => T;
+    p.parse('r1c14|ti|1:36.500\nr1|*|96500|');            T += 32000;
+    p.parse('r1c2|si|\nr1c14||\nr1|*in|0');               T += 17000;
+    p.parse('r1c2|so|\nr1|*out|0');                       T += 15000;
+    p.parse('r1c2|su|\nr1c14|ti|1:36.500\nr1|*i2|');      T += 29000;
+    p.parse('r1c14|ti|1:32.967\nr1|*|92967|');
+    Date.now = realNow;
+    assert.deepEqual(vueltas, [96500, 92967]);
+  });
+
   test('sin vueltas ni columna: tours = 0', () => {
     const p = createParser({});
     p.setGrid({ colMap: { no: 'c1' }, colByNum: { c1: 'no' },

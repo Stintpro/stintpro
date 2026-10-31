@@ -592,6 +592,58 @@ describe('contador de vueltas: la columna oficial de Apex manda', () => {
   });
 });
 
+// ── Joker lap (Sevilla, Paketes Cup 2026): Apex vacía llp en el si y repone el
+// mismo valor ~15 s tras el so, más de 60 s después de la vuelta real.
+// La misma prueba está en tests/apex-protocol.test.js para la copia de src/.
+describe('llp vaciada y repuesta', () => {
+  function jokerParser(onLap) {
+    const p = createParser({ onLap });
+    p.setGrid({
+      colMap:   { sta: 'c2', no: 'c6', llp: 'c14' },
+      colByNum: { c2: 'sta', c6: 'no', c14: 'llp' },
+      karts: [{ rowId: 'r1', dorsal: '7', pos: 1 }],
+    });
+    return p;
+  }
+
+  test('reponer el mismo tiempo tras el joker no cuenta otra vuelta', () => {
+    const vueltas = [];
+    const p = jokerParser((d, n, tn, ms) => vueltas.push(ms));
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    p.parse('r1c14|ti|1:36.500\nr1|*|96500|');            T += 32000;
+    p.parse('r1c2|si|\nr1c14||\nr1|*in|0');               T += 17000;
+    p.parse('r1c2|so|\nr1|*out|0');                       T += 15000;
+    p.parse('r1c2|su|\nr1c14|ti|1:36.500\nr1|*i2|');      T += 29000;
+    p.parse('r1c14|ti|1:32.967\nr1|*|92967|');
+    spy.mockRestore();
+    expect(vueltas).toEqual([96500, 92967]);
+  });
+
+  test('un tiempo idéntico CON pase por meta tras el vaciado sí es vuelta nueva', () => {
+    const vueltas = [];
+    const p = jokerParser((d, n, tn, ms) => vueltas.push(ms));
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    p.parse('r1c14|ti|1:36.500\nr1|*|96500|');            T += 40000;
+    p.parse('r1c2|si|\nr1c14||');                         T += 17000;
+    p.parse('r1c2|so|');                                  T += 15000;
+    p.parse('r1c2|su|');                                  T += 24500;
+    p.parse('r1c14|ti|1:36.500\nr1|*|96501|');
+    spy.mockRestore();
+    expect(vueltas).toHaveLength(2);
+  });
+
+  test('un cambio de color sin tiempo no marca la celda como vaciada', () => {
+    const vueltas = [];
+    const p = jokerParser((d, n, tn, ms) => vueltas.push(ms));
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    p.parse('r1c14|ti|1:36.500');                         T += 1000;
+    p.parse('r1c14|tb|');                                 T += 95500;
+    p.parse('r1c14|ti|1:36.500');   // sin |*| en este circuito: vuelta real igual
+    spy.mockRestore();
+    expect(vueltas).toHaveLength(2);
+  });
+});
+
 // ── Contrato de onNewSession ────────────────────────────────────────────────
 // El parser limpia su estado al detectar una sesión nueva. Quien escucha necesita
 // la parrilla SALIENTE para poder persistirla (el logger guarda ahí el snapshot
