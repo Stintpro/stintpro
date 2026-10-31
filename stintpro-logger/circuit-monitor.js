@@ -224,6 +224,8 @@ class CircuitMonitor {
 
     // Vueltas desde la última salida de box, por dorsal (para el móvil del piloto)
     this._stintLaps = new Map();
+    // Hora de entrada deducida de pitS, para karts en box sin evento 'in' (ver _pilotTimes)
+    this._pitInGuess = new Map();
     // Mejor vuelta del stint en curso (sin vueltas de box) y clase de cada dorsal:
     // para avisar al piloto de que entra en box un kart del top‑5 (fast_pit).
     // Un kart que para conserva la de su último stint hasta la primera vuelta
@@ -594,7 +596,8 @@ class CircuitMonitor {
       this._openSessionRawLog([title1, title2].filter(Boolean).join(' · '));
     }
 
-    if (!this.recording) return;
+    // Sin grabar no hay sesión ni BD, pero el móvil del piloto sigue necesitando el stint
+    if (!this.recording) { this._trackStintLap(dorsal, lapMs, category, isPitLap); return; }
     if (!this.sessionId) {
       // Primera vuelta real. Antes de crear sesión, mirar si esto es la
       // continuación de una que quedó abierta por un reinicio del proceso.
@@ -619,6 +622,10 @@ class CircuitMonitor {
     this._lapCount++;
     const cleanName = (name || '').replace(/\s*\[\d+:\d+\]\s*$/, '').trim();
     db.insertLap(this.sessionId, dorsal, cleanName, teamName || null, lapMs, lapNumber, timestamp, category || null, !!isPitLap);
+    this._trackStintLap(dorsal, lapMs, category, isPitLap);
+  }
+
+  _trackStintLap(dorsal, lapMs, category, isPitLap) {
     const sd = String(dorsal);
     this._stintLaps.set(sd, (this._stintLaps.get(sd) || 0) + 1);
     if (category) this._category.set(sd, category);
@@ -663,12 +670,16 @@ class CircuitMonitor {
   }
 
   _onPit(dorsal, eventType, standsCount, timestamp, pitDurationSec) {
-    if (!this.recording || !this.sessionId) return;
-    // pitDur = duración oficial (crono otr) de la parada, en el evento 'out'.
-    // Se persiste en ms (coherente con lap_time_ms); null si el circuito no lo expone.
-    const durationMs = (eventType === 'out' && pitDurationSec != null)
-      ? Math.round(pitDurationSec * 1000) : null;
-    db.insertPitEvent(this.sessionId, dorsal, eventType, standsCount, timestamp, durationMs);
+    if (this.recording && !this.sessionId) return;
+    // Sin grabar no se toca la BD, pero el evento sigue en memoria: de él salen el crono
+    // de box y el stint del móvil del piloto (pitInAt, stintStartAt).
+    if (this.recording) {
+      // pitDur = duración oficial (crono otr) de la parada, en el evento 'out'.
+      // Se persiste en ms (coherente con lap_time_ms); null si el circuito no lo expone.
+      const durationMs = (eventType === 'out' && pitDurationSec != null)
+        ? Math.round(pitDurationSec * 1000) : null;
+      db.insertPitEvent(this.sessionId, dorsal, eventType, standsCount, timestamp, durationMs);
+    }
     const ev = { dorsal, event: eventType, time: timestamp, standsCount };
     if (eventType === 'out' && pitDurationSec != null) ev.pitDur = pitDurationSec;
     this.pitEvents.push(ev);
@@ -877,7 +888,7 @@ class CircuitMonitor {
         pit:        !!kart.pit && kart.pitState !== 'out',
         now:        Date.now(),
         clock:      this._adjustedClock(),
-        ...this._pilotTimes(dorsal),
+        ...this._pilotTimes(dorsal, kart),
       });
 
       for (const ws of clients) {
@@ -921,6 +932,7 @@ class CircuitMonitor {
     this._lapCount = 0;
     this._lastClock = null;
     this._stintLaps.clear();
+    this._pitInGuess.clear();
     this._clearFastPit();
     this._category.clear();
     this._flagTracker.reset();
@@ -963,7 +975,7 @@ class CircuitMonitor {
   }
 
   // Box y stint de un dorsal, con las horas del VPS (el móvil las pasa a la suya).
-  _pilotTimes(dorsal) {
+  _pilotTimes(dorsal, kart) {
     const d = String(dorsal);
     let lastIn = null, lastOut = null;
     for (const ev of this.pitEvents) {
@@ -972,8 +984,18 @@ class CircuitMonitor {
       if (ev.event === 'out' && (lastOut == null || ev.time > lastOut)) lastOut = ev.time;
     }
     const rs = this._raceTracker.raceStart;
+    let pitInAt = lastIn != null && (lastOut == null || lastIn > lastOut) ? lastIn : null;
+    // Ya en box cuando llegó la parrilla (el 'in' cayó en una reconexión): sin evento, se
+    // deduce de pitS y se fija para que el crono del móvil no salte. Sin sesión no: es el
+    // kart parado en parrilla antes de la salida, no una parada.
+    if (pitInAt != null || !this.sessionId || kart?.pitState !== 'in') {
+      this._pitInGuess.delete(d);
+    } else {
+      if (!this._pitInGuess.has(d)) this._pitInGuess.set(d, Date.now() - (kart.pitS || 0) * 1000);
+      pitInAt = this._pitInGuess.get(d);
+    }
     return {
-      pitInAt:      lastIn != null && (lastOut == null || lastIn > lastOut) ? lastIn : null,
+      pitInAt,
       stintStartAt: lastOut != null ? lastOut : (rs ? rs.at : null),
       stintLaps:    this._stintLaps.has(d) ? this._stintLaps.get(d) : null,
     };

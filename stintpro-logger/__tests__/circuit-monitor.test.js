@@ -344,12 +344,12 @@ describe('_onPit', () => {
     expect(db.getPitEventsBySession(m.sessionId)).toHaveLength(1);
   });
 
-  test('ignorado si recording=false aunque haya sesión activa', () => {
+  test('con recording=false no toca la BD aunque haya sesión activa', () => {
     const m = createMonitor();
     m._onLap('7', 'JAVIER', null, 64000, 1, Date.now());
     m.setRecording(false);
     m._onPit('7', 'in', 3, Date.now());
-    expect(m.pitEvents).toHaveLength(0);
+    expect(db.getPitEventsBySession(m.sessionId)).toHaveLength(0);
   });
 
   test('persiste en BD la duración oficial (segundos → ms) del evento out', () => {
@@ -742,6 +742,75 @@ describe('_broadcastPilots (vía _onState)', () => {
     m._lastBroadcast = 0;   // salta el throttle entre envíos
     m._onState(st);
     expect(JSON.parse(ws.send.mock.calls[0][0]).pitInAt).toBe(t0 + 70000);
+  });
+
+  test('circuito sin grabar: el móvil del piloto recibe box, stint y vueltas igual', () => {
+    const m  = createMonitor({ recording: false });
+    const t0 = Date.now();
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    const st = { equipos: [{ dorsal: '7', pos: 1 }], leaderLap: 1, timestamp: t0, sessionFinished: false };
+    const last = () => {
+      ws.send.mockClear();
+      m._lastBroadcast = 0;
+      m._onState(st);
+      return JSON.parse(ws.send.mock.calls[0][0]);
+    };
+
+    m._onPit('7', 'in', 1, t0 + 1000);
+    expect(last()).toMatchObject({ pitInAt: t0 + 1000 });
+
+    m._onPit('7', 'out', 1, t0 + 2000);
+    m._onLap('7', 'JAVIER', null, 64000, 1, t0 + 3000);
+    expect(last()).toMatchObject({ pitInAt: null, stintStartAt: t0 + 2000, stintLaps: 1 });
+
+    expect(m.sessionId).toBeNull();   // sigue sin grabar nada
+  });
+
+  test('circuito sin grabar: fast_pit también avisa', () => {
+    const m  = createMonitor({ recording: false });
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    m._onLap('14', 'RIVAL', null, 64000, 1, Date.now());
+    ws.send.mockClear();
+    m._onPit('14', 'in', 1, Date.now());
+    expect(ws.send.mock.calls.map(c => JSON.parse(c[0]).type)).toContain('fast_pit');
+  });
+
+  test('kart ya en box sin evento in: pitInAt se deduce de pitS y no salta', () => {
+    const m  = createMonitor();
+    m._onLap('7', 'JAVIER', null, 64000, 1, Date.now());
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    const kart = { dorsal: '7', pos: 1, pit: true, pitState: 'in', pitS: 40 };
+    const st = { equipos: [kart], leaderLap: 1, timestamp: Date.now(), sessionFinished: false };
+
+    ws.send.mockClear();
+    m._onState(st);
+    const first = JSON.parse(ws.send.mock.calls[0][0]).pitInAt;
+    expect(Math.abs(Date.now() - 40000 - first)).toBeLessThan(1000);
+
+    kart.pitS = 39;   // el redondeo de pitS no debe mover el crono del móvil
+    ws.send.mockClear();
+    m._lastBroadcast = 0;
+    m._onState(st);
+    expect(JSON.parse(ws.send.mock.calls[0][0]).pitInAt).toBe(first);
+
+    kart.pit = false; kart.pitState = 'out';
+    ws.send.mockClear();
+    m._lastBroadcast = 0;
+    m._onState(st);
+    expect(JSON.parse(ws.send.mock.calls[0][0]).pitInAt).toBeNull();
+  });
+
+  test('en parrilla antes de la primera vuelta no hay crono de box', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribePilot(ws, '7');
+    ws.send.mockClear();
+    m._onState({ equipos: [{ dorsal: '7', pos: 1, pit: true, pitState: 'in', pitS: 40 }],
+      leaderLap: 0, timestamp: Date.now(), sessionFinished: false });
+    expect(JSON.parse(ws.send.mock.calls[0][0]).pitInAt).toBeNull();
   });
 
   test('sin paradas: stintLaps cuenta desde el inicio y stintStartAt es null sin ancla de salida', () => {
