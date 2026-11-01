@@ -185,6 +185,86 @@ describe('conexión a Apex', () => {
     }
   });
 
+  // Un feed callado no se arregla reconectando: tras una tanda sin bandera, o con
+  // alguien mirando un circuito parado, el vigilante reconectaba sin fin (Ariza
+  // cada 105 s durante horas). Cada reconexión sin vueltas nuevas dobla el umbral.
+  describe('retroceso del vigilante en un feed callado', () => {
+    const abrir = (ws) => {
+      ws.readyState = WebSocket.OPEN;
+      ws.ping = () => ws.emit('pong');
+      ws.emit('open');
+    };
+
+    // Avanza hasta ver n reconexiones y devuelve el tiempo entre cada una
+    function intervalos(n) {
+      const res = [];
+      let vistos = WebSocket.instances.length;
+      let desde = Date.now();
+      while (res.length < n) {
+        jest.advanceTimersByTime(5000);
+        if (WebSocket.instances.length > vistos) {
+          vistos = WebSocket.instances.length;
+          abrir(WebSocket.instances[vistos - 1]);
+          res.push(Date.now() - desde);
+          desde = Date.now();
+        }
+      }
+      return res;
+    }
+
+    const min = (m) => m * 60 * 1000;
+    const dentroDe = (ms, limite) => {
+      expect(ms).toBeGreaterThan(limite);
+      expect(ms).toBeLessThan(limite + 30 * 1000);  // revisión cada 20 s + 5 s de reconexión
+    };
+
+    function arrancar(opts) {
+      const m = createMonitor(opts);
+      m._gapFill = async () => {};
+      m._sampleApexHttp = async () => {};
+      m.start();
+      abrir(WebSocket.instances[0]);
+      return m;
+    }
+
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    test('con sesión abierta dobla el umbral desde 90 s', () => {
+      const m = arrancar();
+      m.sessionId = 1;
+      const [a, b, c] = intervalos(3);
+      dentroDe(a, 90 * 1000);
+      dentroDe(b, min(3));
+      dentroDe(c, min(6));
+    });
+
+    test('con alguien mirando dobla el umbral desde 2 min', () => {
+      const m = arrancar({ recording: false });
+      m.subscribers.add({ readyState: 1, send() {} });
+      const [a, b] = intervalos(2);
+      dentroDe(a, min(2));
+      dentroDe(b, min(4));
+    });
+
+    test('el umbral no pasa de los 30 min del circuito ocioso', () => {
+      const m = arrancar({ recording: false });
+      m.subscribers.add({ readyState: 1, send() {} });
+      const res = intervalos(7);
+      dentroDe(res[5], min(30));
+      dentroDe(res[6], min(30));
+    });
+
+    test('una vuelta devuelve el umbral al inicial', () => {
+      const m = arrancar({ recording: false });
+      m.subscribers.add({ readyState: 1, send() {} });
+      intervalos(3);
+      m._onLap('7', 'JAVIER', null, 64893, 1, Date.now());
+      const [a] = intervalos(1);
+      dentroDe(a, min(2));
+    });
+  });
+
   // Regresión: el 2026-07-20, tras reiniciar el VPS, campillos abrió el socket y
   // se quedó en CONNECTING sin emitir 'open', 'error' ni 'close'. Como la
   // reconexión solo colgaba de 'close', el monitor quedó muerto en silencio

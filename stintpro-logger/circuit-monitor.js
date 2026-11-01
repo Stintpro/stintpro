@@ -26,6 +26,8 @@ const MAX_SESSION_MESSAGES  = 60;            // mensajes de dirección de carrer
 //     una reconexión (que re-sincroniza con la sesión actual). El umbral es corto
 //     con sesión activa o espectadores (el feed emite constante) y suave si el
 //     circuito está ocioso y nadie mira (evita reconectar en vano de madrugada).
+//     Un feed callado no se arregla reconectando (tanda acabada sin bandera, circuito
+//     parado con alguien mirando): cada reconexión sin vueltas nuevas dobla el umbral.
 const APEX_PING_INTERVAL_MS     = 30 * 1000;      // heartbeat cada 30s
 const APEX_WATCHDOG_INTERVAL_MS = 20 * 1000;      // revisa frescura cada 20s
 const APEX_STALE_ACTIVE_MS      = 90 * 1000;      // sesión activa sin datos → congelado
@@ -171,6 +173,7 @@ class CircuitMonitor {
     this._watchdogTimer = null;
     this._awaitingPong  = false;
     this._lastDataAt    = 0;  // último mensaje de aplicación recibido de Apex
+    this._staleReconnects = 0;  // reconexiones del vigilante desde la última vuelta
 
     // Subscriptores WebSocket del dashboard
     this.subscribers = new Set();
@@ -304,11 +307,13 @@ class CircuitMonitor {
   }
 
   // Umbral de silencio tolerado según el estado: corto si hay carrera o alguien
-  // mirando (el feed emite constante), suave si el circuito está ocioso.
+  // mirando (el feed emite constante), suave si el circuito está ocioso. Se dobla
+  // con cada reconexión sin vueltas, hasta el umbral del circuito ocioso.
   _staleLimitMs() {
     const active  = !!this.sessionId && !this.parser.sessionFinished;
     const watched = this.subscribers.size > 0 || this.pilotSubscribers.size > 0;
-    return active ? APEX_STALE_ACTIVE_MS : watched ? APEX_STALE_WATCHED_MS : APEX_STALE_IDLE_MS;
+    const base = active ? APEX_STALE_ACTIVE_MS : watched ? APEX_STALE_WATCHED_MS : APEX_STALE_IDLE_MS;
+    return Math.min(base * 2 ** this._staleReconnects, APEX_STALE_IDLE_MS);
   }
 
   _checkStale() {
@@ -329,6 +334,7 @@ class CircuitMonitor {
       const watched = this.subscribers.size > 0 || this.pilotSubscribers.size > 0;
       console.warn(`[${this.slug}] Feed sin datos ${Math.round(silence / 1000)}s ` +
                    `(activa=${active}, mirando=${watched}) → reconectando`);
+      this._staleReconnects++;
       try { this.ws.terminate(); } catch(e) { try { this.ws.close(); } catch(e2) {} }
     }
   }
@@ -587,6 +593,7 @@ class CircuitMonitor {
 
   _onLap(dorsal, name, teamName, lapMs, lapNumber, timestamp, category, isPitLap) {
     this._lastLapAt = Date.now();
+    this._staleReconnects = 0;
     // Raw log por sesión: la 1ª vuelta real confirma actividad → abre el .ndjson
     // (independiente de `recording`, que solo gobierna la escritura en BD). Si el
     // fichero se cerró por inactividad a mitad de sesión, la siguiente vuelta lo
