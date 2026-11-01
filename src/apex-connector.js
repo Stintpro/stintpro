@@ -6,12 +6,30 @@
 // la app Electron (origen file://), que no puede resolver rutas relativas.
 const APEX_PROXY_URL = 'https://stintpro.vercel.app/api/apex-proxy';
 
+// Respaldo si el WebSocket no conecta (va a un puerto poco habitual que una red
+// puede bloquear): live_ajax.php sirve las mismas líneas por HTTPS normal, con
+// CORS abierto. Se pide por `init=<generación>&index=<línea>` y responde
+// `G@I@líneas`; I es la siguiente línea a pedir.
+const APEX_AJAX_URL = 'https://live-data.apex-timing.com/live-timing/commonv2/functions/live_ajax.php';
+const WS_FAILS_TO_HTTP    = 3;      // conexiones seguidas sin datos antes de pasar al respaldo
+const HTTP_POLL_MS        = 3000;
+const HTTP_TIMEOUT_MS     = 8000;
+const WS_RETRY_MS         = 5000;
+const WS_RETRY_ON_HTTP_MS = 30000;  // con el respaldo en marcha el WS se reintenta sin prisa
+
 // CAT_HEADER / stripAccents / RESERVED_DTYPES viven en apex-grid.js.
 
 window.ApexConnector = {
   ws: null, slug: null, port: 7913, connected: false,
   onData: null, onStatus: null, onComment: null, onTitle: null, onMessage: null,
   _reconnectTimer: null,
+  _wsFails: 0,      // conexiones seguidas que no trajeron ningún dato
+  _httpRun: 0,      // ≠ 0 mientras el respaldo está activo; invalida respuestas en vuelo
+  _httpSeq: 0,
+  _httpTimer: null,
+  _httpGen: 0,
+  _httpIndex: 0,
+  _httpUp: false,   // ¿el panel ya muestra que va por el respaldo?
   _parser: null,
   _comments: [],
   _httpPort: null,
@@ -41,6 +59,8 @@ window.ApexConnector = {
     // sockets alimentando el mismo parser (vueltas duplicadas vía llp).
     this._disarm(this.ws); this.ws = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    this._stopHttp();
+    this._wsFails = 0;
 
     window.EnTraffic?.reset();
     this._parser = ApexProtocol.createParser({
@@ -101,27 +121,118 @@ window.ApexConnector = {
       this.ws = new WebSocket(`wss://live-data.apex-timing.com:${this.port}/`);
       this.ws.onopen = () => {
         this.connected = true;
-        if (this.onStatus) this.onStatus('connected', '● Apex conectado');
-        window.Blackbox?.event('in', 'status', { conn: 'connected' });
+        if (!this._httpRun) {
+          if (this.onStatus) this.onStatus('connected', '● Apex conectado');
+          window.Blackbox?.event('in', 'status', { conn: 'connected' });
+        }
         this.ws.send(this.slug);
       };
       this.ws.onmessage = (e) => {
-        try { this._parser.parse(e.data); } catch(err) {
-          console.error('[ApexConnector]', err);
-          window.Blackbox?.event('in', 'error', { fuente: 'apex', raw: String(e.data).slice(0, 500) });
+        // Solo un dato real demuestra que el WS sirve: abrir no basta (un proxy
+        // puede aceptar la conexión y no dejar pasar el feed), y el "\n" de
+        // keepalive tampoco cuenta.
+        if (String(e.data).trim()) {
+          this._wsFails = 0;
+          if (this._httpRun) {
+            this._stopHttp();
+            if (this.onStatus) this.onStatus('connected', '● Apex conectado');
+            window.Blackbox?.event('in', 'status', { conn: 'connected' });
+          }
         }
+        this._feed(e.data);
       };
       this.ws.onerror  = () => {
+        if (this._httpRun) return;
         if (this.onStatus) this.onStatus('error', '● Error de conexión');
         window.Blackbox?.event('in', 'status', { conn: 'error' });
       };
       this.ws.onclose  = () => {
         this.connected = false;
-        if (this.onStatus) this.onStatus('disconnected', '● Reconectando...');
-        window.Blackbox?.event('in', 'status', { conn: 'disconnected' });
-        if (this.slug) this._reconnectTimer = setTimeout(() => this._doConnect(), 5000);
+        this._wsFails++;
+        if (this._wsFails >= WS_FAILS_TO_HTTP && !this._httpRun) this._startHttp();
+        if (!this._httpRun) {
+          if (this.onStatus) this.onStatus('disconnected', '● Reconectando...');
+          window.Blackbox?.event('in', 'status', { conn: 'disconnected' });
+        }
+        if (this.slug) this._reconnectTimer = setTimeout(() => this._doConnect(),
+          this._httpRun ? WS_RETRY_ON_HTTP_MS : WS_RETRY_MS);
       };
     } catch(e) { if (this.onStatus) this.onStatus('error', '● No se pudo conectar'); }
+  },
+
+  _feed(raw) {
+    try { this._parser.parse(raw); } catch(err) {
+      console.error('[ApexConnector]', err);
+      window.Blackbox?.event('in', 'error', { fuente: 'apex', raw: String(raw).slice(0, 500) });
+    }
+  },
+
+  // ── Respaldo por live_ajax.php ────────────────────────────────────────
+  // Nunca alimenta al parser a la vez que el WS: dos fuentes duplicarían vueltas.
+
+  _startHttp() {
+    this._httpRun = ++this._httpSeq;
+    this._httpGen = 0; this._httpIndex = 0; this._httpUp = false;
+    this._httpTick(this._httpRun);
+  },
+
+  _stopHttp() {
+    this._httpRun = 0;
+    if (this._httpTimer) { clearTimeout(this._httpTimer); this._httpTimer = null; }
+    this._httpBadge(null);
+  },
+
+  // El panel no pinta el estado de conexión: el respaldo lleva segundos de
+  // retraso y hay que verlo. Estilo por JS (CSSOM), que la CSP no bloquea.
+  _httpBadge(text) {
+    const doc = window.document;
+    if (!doc) return;
+    let el = doc.getElementById('apex-http-badge');
+    if (!text) { if (el) el.remove(); return; }
+    if (!el) {
+      el = doc.createElement('div');
+      el.id = 'apex-http-badge';
+      el.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;padding:5px 10px;' +
+        'border-radius:8px;font-size:12px;background:rgba(20,22,28,.9);color:#fbbf24;pointer-events:none';
+      doc.body.appendChild(el);
+    }
+    el.textContent = text;
+  },
+
+  async _httpTick(run) {
+    let body;
+    try {
+      const qs = `version=1&init=${this._httpGen}&index=${this._httpIndex}` +
+                 `&port=${parseInt(this.port, 10) + 1}&counter=0&duration=0&id=0&ignored=0`;
+      const res = await fetch(`${APEX_AJAX_URL}?${qs}`, {
+        signal: AbortSignal.timeout ? AbortSignal.timeout(HTTP_TIMEOUT_MS) : undefined,
+      });
+      body = await res.text();
+    } catch(e) {
+      if (run !== this._httpRun) return;
+      this._httpUp = false;
+      if (this.onStatus) this.onStatus('error', '● Sin conexión con Apex');
+      this._httpBadge('Sin conexión con Apex');
+      window.Blackbox?.event('in', 'status', { conn: 'error' });
+      this._httpTimer = setTimeout(() => this._httpTick(run), HTTP_POLL_MS);
+      return;
+    }
+    if (run !== this._httpRun) return;
+    // Cuerpo vacío = nada nuevo (o circuito sin sesión): G e I se conservan
+    const a = body.indexOf('@'), b = body.indexOf('@', a + 1);
+    if (a >= 0 && b >= 0) {
+      this._httpGen   = Number(body.slice(0, a));
+      this._httpIndex = Number(body.slice(a + 1, b));
+      const lines = body.slice(b + 1);
+      if (lines.trim()) this._feed(lines);
+    }
+    if (!this._httpUp) {
+      this._httpUp = true;
+      if (this.onStatus) this.onStatus('connected', '● Apex (respaldo HTTP)');
+      this._httpBadge('Apex por respaldo HTTP · datos con ~3 s de retraso');
+      window.Blackbox?.event('in', 'status', { conn: 'http' });
+    }
+    this._httpTimer = setTimeout(() => this._httpTick(run), HTTP_POLL_MS);
   },
 
   // Quita los handlers y cierra el socket — un ws reemplazado no debe volver a
@@ -135,6 +246,7 @@ window.ApexConnector = {
   disconnect() {
     this.slug = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    this._stopHttp();
     this._disarm(this.ws); this.ws = null;
     this.connected = false;
     this._parser = null;
