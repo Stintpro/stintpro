@@ -17,6 +17,25 @@ const HTTP_TIMEOUT_MS     = 8000;
 const WS_RETRY_MS         = 5000;
 const WS_RETRY_ON_HTTP_MS = 30000;  // con el respaldo en marcha el WS se reintenta sin prisa
 
+// Avisos de conexión en pantalla: el panel no pinta `onStatus`. Estilo por JS
+// (CSSOM), que la CSP no bloquea.
+window.ConnBadge = {
+  set(id, text, bottom) {
+    const doc = window.document;
+    if (!doc) return;
+    let el = doc.getElementById(id);
+    if (!text) { if (el) el.remove(); return; }
+    if (!el) {
+      el = doc.createElement('div');
+      el.id = id;
+      el.style.cssText = `position:fixed;left:12px;bottom:${bottom}px;z-index:9999;padding:5px 10px;` +
+        'border-radius:8px;font-size:12px;background:rgba(20,22,28,.9);color:#fbbf24;pointer-events:none';
+      doc.body.appendChild(el);
+    }
+    el.textContent = text;
+  },
+};
+
 // CAT_HEADER / stripAccents / RESERVED_DTYPES viven en apex-grid.js.
 
 window.ApexConnector = {
@@ -182,22 +201,7 @@ window.ApexConnector = {
     this._httpBadge(null);
   },
 
-  // El panel no pinta el estado de conexión: el respaldo lleva segundos de
-  // retraso y hay que verlo. Estilo por JS (CSSOM), que la CSP no bloquea.
-  _httpBadge(text) {
-    const doc = window.document;
-    if (!doc) return;
-    let el = doc.getElementById('apex-http-badge');
-    if (!text) { if (el) el.remove(); return; }
-    if (!el) {
-      el = doc.createElement('div');
-      el.id = 'apex-http-badge';
-      el.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;padding:5px 10px;' +
-        'border-radius:8px;font-size:12px;background:rgba(20,22,28,.9);color:#fbbf24;pointer-events:none';
-      doc.body.appendChild(el);
-    }
-    el.textContent = text;
-  },
+  _httpBadge(text) { window.ConnBadge.set('apex-http-badge', text, 12); },
 
   async _httpTick(run) {
     let body;
@@ -247,6 +251,7 @@ window.ApexConnector = {
     this.slug = null;
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     this._stopHttp();
+    window.ConnBadge.set('logger-down-badge', null);
     this._disarm(this.ws); this.ws = null;
     this.connected = false;
     this._parser = null;

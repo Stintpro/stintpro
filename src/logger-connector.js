@@ -1,6 +1,8 @@
 // ── StintPro Logger Connector ─────────────────────────────────────────────
 // Connects to the NAS logger instead of Apex directly.
 // Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession)
+const LOGGER_DOWN_NOTICE_MS = 10000;  // un reinicio del VPS tarda ~6 s: no avisa
+
 const Logger = {
   ws: null,
   slug: null,
@@ -12,9 +14,11 @@ const Logger = {
   _raceStart: null,   // ancla de salida oficial reenviada por el logger (type:'raceStart')
   _flag: null,        // última bandera del panel reenviada por el logger
   _raceStopped: false,// ¿carrera detenida por roja con carrera activa?
+  _downNoticeTimer: null,
 
   connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession) {
     this.slug = slug;
+    this._clearDown();
     this.onNewSession = onNewSession || null;
     this.onData = onData;
     this.onStatus = onStatus;
@@ -64,6 +68,7 @@ const Logger = {
       };
 
       this.ws.onmessage = (evt) => {
+        this._clearDown();
         try {
           const msg = JSON.parse(evt.data);
           window.Blackbox?.event('in', msg.type || 'msg', { bytes: evt.data.length, karts: msg?.data?.equipos?.length ?? msg?.snapshot?.equipos?.length });
@@ -144,9 +149,11 @@ const Logger = {
         this.connected = false;
         if (this.onStatus) this.onStatus('error', '● Error de conexión al logger');
         window.Blackbox?.event('in', 'status', { conn: 'error' });
+        this._loggerDown();
       };
 
       this.ws.onclose = () => {
+        this._loggerDown();
         this.connected = false;
         if (this.onStatus) this.onStatus('disconnected', '● Logger desconectado, reconectando...');
         window.Blackbox?.event('in', 'status', { conn: 'disconnected' });
@@ -154,6 +161,7 @@ const Logger = {
       };
     } catch(e) {
       if (this.onStatus) this.onStatus('error', '● No se pudo conectar al logger');
+      this._loggerDown();
       this._reconnectTimer = setTimeout(() => this._doConnect(), 5000);
     }
   },
@@ -166,8 +174,23 @@ const Logger = {
     try { ws.close(); } catch(e) {}
   },
 
+  // Cuenta atrás de logger caído. Solo un mensaje la cancela: abrir no basta,
+  // un socket que abre y se cierra sin datos no demuestra nada.
+  _loggerDown() {
+    if (!this.slug || this._downNoticeTimer) return;
+    this._downNoticeTimer = setTimeout(() => {
+      window.ConnBadge?.set('logger-down-badge', 'Logger caído · reconectando', 44);
+    }, LOGGER_DOWN_NOTICE_MS);
+  },
+
+  _clearDown() {
+    if (this._downNoticeTimer) { clearTimeout(this._downNoticeTimer); this._downNoticeTimer = null; }
+    window.ConnBadge?.set('logger-down-badge', null);
+  },
+
   disconnect() {
     this.slug = null;
+    this._clearDown();
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     this._disarm(this.ws); this.ws = null;
     this.connected = false;
