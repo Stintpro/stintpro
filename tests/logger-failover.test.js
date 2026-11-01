@@ -127,6 +127,93 @@ test('un error fatal del logger no avisa', () => {
   strictEqual(t.aviso(), null);
 });
 
+test('a los 20 s pasa a Apex con los mismos argumentos', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  t.avanzar(20000);
+  strictEqual(t.sb.ApexConnector, t.sb._origApex);
+  strictEqual(t.sb.ApexConnector.slug, 'misanino-kart');
+  strictEqual(t.sb.ApexConnector.port, 8043);
+  strictEqual(t.sb.ApexConnector.onData, t.args[1]);
+  ok(t.ws().url.includes('live-data.apex-timing.com:8043'), t.ws().url);
+  strictEqual(t.aviso(), 'Logger caído · datos directos de Apex');
+});
+
+test('tras el cambio no quedan reintentos al logger', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  t.avanzar(18000);
+  t.ws().onclose();       // deja un reintento pendiente para los 23 s
+  t.avanzar(2000);
+  const n = t.sockets.filter(s => s.url === LOGGER_URL).length;
+  t.avanzar(60000);
+  strictEqual(t.sockets.filter(s => s.url === LOGGER_URL).length, n);
+});
+
+test('sin cambio si el logger vuelve antes de 20 s', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  t.avanzar(15000);
+  t.ws().onmessage({ data: '{"type":"live"}' });
+  t.avanzar(30000);
+  strictEqual(t.sb.ApexConnector, t.Logger);
+});
+
+test('desconectar anula el cambio', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  t.avanzar(15000);
+  t.Logger.disconnect();
+  t.avanzar(30000);
+  strictEqual(t.sb.ApexConnector, t.Logger);
+});
+
+test('un error fatal no provoca el cambio', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onmessage({ data: '{"type":"error","fatal":true,"msg":"no autorizado"}' });
+  t.ws().onclose();
+  t.avanzar(30000);
+  strictEqual(t.sb.ApexConnector, t.Logger);
+});
+
+test('en modo replay no interfiere', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  const replay = {};
+  t.sb.ApexConnector = replay;
+  t.avanzar(30000);
+  strictEqual(t.sb.ApexConnector, replay);
+});
+
+test('al acabar la sesión en directo se quita el aviso', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  t.avanzar(20000);
+  t.sb.ApexConnector.disconnect();
+  strictEqual(t.aviso(), null);
+});
+
+test('la sesión siguiente vuelve a empezar por el logger', () => {
+  const t = montar();
+  t.conectar();
+  t.ws().onclose();
+  t.avanzar(20000);
+  t.sb.ApexConnector.disconnect();
+  t.sb.ApexConnector = t.Logger;   // lo que hace selectRaceType con _connMode='logger'
+  t.conectar();
+  strictEqual(t.ws().url, LOGGER_URL);
+  t.ws().onmessage({ data: '{"type":"live"}' });
+  t.avanzar(30000);
+  strictEqual(t.sb.ApexConnector, t.Logger);
+});
+
 (async () => {
   let passed = 0, failed = 0;
   console.log('\nLogger caído');

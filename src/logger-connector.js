@@ -2,6 +2,7 @@
 // Connects to the NAS logger instead of Apex directly.
 // Same interface as Apex connector: connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession)
 const LOGGER_DOWN_NOTICE_MS = 10000;  // un reinicio del VPS tarda ~6 s: no avisa
+const LOGGER_DOWN_SWITCH_MS = 20000;
 
 const Logger = {
   ws: null,
@@ -15,10 +16,13 @@ const Logger = {
   _flag: null,        // última bandera del panel reenviada por el logger
   _raceStopped: false,// ¿carrera detenida por roja con carrera activa?
   _downNoticeTimer: null,
+  _downSwitchTimer: null,
+  _connectArgs: null,
 
   connect(slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession) {
     this.slug = slug;
     this._clearDown();
+    this._connectArgs = [slug, onData, onStatus, onComment, port, onTitle, onMessage, onNewSession];
     this.onNewSession = onNewSession || null;
     this.onData = onData;
     this.onStatus = onStatus;
@@ -181,11 +185,24 @@ const Logger = {
     this._downNoticeTimer = setTimeout(() => {
       window.ConnBadge?.set('logger-down-badge', 'Logger caído · reconectando', 44);
     }, LOGGER_DOWN_NOTICE_MS);
+    this._downSwitchTimer = setTimeout(() => this._failover(), LOGGER_DOWN_SWITCH_MS);
   },
 
   _clearDown() {
     if (this._downNoticeTimer) { clearTimeout(this._downNoticeTimer); this._downNoticeTimer = null; }
+    if (this._downSwitchTimer) { clearTimeout(this._downSwitchTimer); this._downSwitchTimer = null; }
     window.ConnBadge?.set('logger-down-badge', null);
+  },
+
+  // Sin vuelta automática: un segundo cambio de fuente en carrera arriesga más
+  // que seguir en Apex, y la radio tiene su propia conexión al VPS.
+  _failover() {
+    if (window.ApexConnector !== this) return;
+    const args = this._connectArgs;
+    this.disconnect();
+    window.ApexConnector = _origApex;
+    _origApex.connect(...args);
+    window.ConnBadge?.set('logger-down-badge', 'Logger caído · datos directos de Apex', 44);
   },
 
   disconnect() {

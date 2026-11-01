@@ -317,7 +317,9 @@ test('tras el cambio no quedan reintentos al logger', () => {
   const t = montar();
   t.conectar();
   t.ws().onclose();
-  t.avanzar(20000);
+  t.avanzar(18000);
+  t.ws().onclose();       // deja un reintento pendiente para los 23 s
+  t.avanzar(2000);
   const n = t.sockets.filter(s => s.url === LOGGER_URL).length;
   t.avanzar(60000);
   strictEqual(t.sockets.filter(s => s.url === LOGGER_URL).length, n);
