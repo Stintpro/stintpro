@@ -148,6 +148,23 @@
     return out;
   }
 
+  // Filas del box en columnas para pintarlo. Se reparten por PESO acumulado, no
+  // por número de tarjetas: un kart al 50% ocupa medio hueco. Contar tarjetas
+  // abría filas que no existen en la pista (2×2 con 8 entradas pintaba 4 filas).
+  // Cada kart va a la fila donde empieza su peso, así la fila 1 coincide con
+  // accessibleZone.
+  function rowsByWeight(queue, cols) {
+    const n = Math.max(1, cols || 2);
+    const rows = [];
+    let cum = 0;
+    for (const k of queue) {
+      const r = Math.floor((cum + 1e-9) / n);
+      (rows[r] = rows[r] || []).push(k);
+      cum += weight(k);
+    }
+    return rows.filter(Boolean);
+  }
+
   // Salida de un equipo: devuelve una cola NUEVA (no muta la original).
   function applyPitOut(queue, type, cols) {
     return pitOutWithCut(queue, type, cols).queue;
@@ -455,5 +472,5 @@
   }
 
   return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
-    weight, accessibleZone, applyPitOut, accessProb, forecast, stopsNeeded };
+    weight, accessibleZone, rowsByWeight, applyPitOut, accessProb, forecast, stopsNeeded };
 });

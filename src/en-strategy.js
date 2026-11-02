@@ -150,14 +150,15 @@ function _enRenderStrategy(eq, trackAvg){
     // - línea: cola vertical, solo la de arriba accesible
     // - batería: todas accesibles (sorteo)
     if(boxType==='columns'){
-      const nRows=Math.ceil(EnBox.queue.length/nColsCfg);
-      for(let rr=0; rr<nRows; rr++){
-        const items=EnBox.queue.slice(rr*nColsCfg,(rr+1)*nColsCfg);
+      // Filas por peso acumulado (no por nº de tarjetas): los karts "a medias"
+      // tras un sorteo comparten hueco y no abren filas que no existen.
+      let idx=0;
+      EnBoxModel.rowsByWeight(EnBox.queue, nColsCfg).forEach((items,rr)=>{
         html+=_grpHdr(`Fila ${rr+1} · ${rr===0?'accesible (sorteo)':'bloqueada'}`);
         html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">`;
-        items.forEach((k,ci)=>{ html+=_cardHtml(k, rr*nColsCfg+ci); });
+        items.forEach(k=>{ html+=_cardHtml(k, idx++); });
         html+=`</div>`;
-      }
+      });
     } else {
       html+=_grpHdr(boxType==='battery'?`Sorteo entre todos · ${fmtN(qTotalW)} karts`:'Cola · sale el de arriba');
       html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">`;

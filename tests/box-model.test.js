@@ -747,5 +747,38 @@ test('resolvePending: un desconocido pesa 0,4 frente a uno que coincide con el r
   ok(Math.abs(M.weight(r[1]) - 0.2857) < 1e-3, 'B ' + M.weight(r[1]));
 });
 
+// ── Filas del box en columnas por peso acumulado ───────────────────────────
+console.log('\n▸ Filas del box (columnas)\n');
+
+const rowIds = (rows) => rows.map(r => r.map(k => k.dorsal).join('')).join('|');
+
+test('rowsByWeight: reserva 4 en 2 columnas → 2 filas de 2', () => {
+  const q = ['a', 'b', 'c', 'd'].map(d => ({ id: d, dorsal: d }));
+  strictEqual(rowIds(M.rowsByWeight(q, 2)), 'ab|cd');
+});
+
+test('rowsByWeight: los karts "a medias" no abren filas nuevas (caso real 2×2, 8 entradas)', () => {
+  let q = M.makeReserve(4).map((k, i) => ({ ...k, dorsal: 'R' + i }));
+  const sw = {};
+  'ABCDEFGH'.split('').forEach(d => {
+    q = M.boxOnPitEvent(q, sw, { dorsal: d, kind: 'in', quality: 'good' }, 'columns', 2);
+    strictEqual(M.rowsByWeight(q, 2).length, 2, 'tras ' + d + ': ' + q.length + ' tarjetas');
+  });
+});
+
+test('rowsByWeight: la fila 1 es exactamente la zona accesible', () => {
+  const q = [{ id: 'a', dorsal: 'a', w: 0.5 }, { id: 'b', dorsal: 'b', w: 0.5 },
+    { id: 'c', dorsal: 'c' }, { id: 'd', dorsal: 'd' }, { id: 'e', dorsal: 'e' }];
+  const rows = M.rowsByWeight(q, 2);
+  strictEqual(rowIds(rows), 'abc|de');
+  strictEqual(rows[0].map(k => k.id).join(''), M.accessibleZone(q, 'columns', 2).map(z => z.k.id).join(''));
+});
+
+test('rowsByWeight: un kart que cruza el límite va a la fila donde empieza', () => {
+  const q = [{ id: 'a', dorsal: 'a', w: 0.5 }, { id: 'b', dorsal: 'b' }, { id: 'c', dorsal: 'c' }, { id: 'd', dorsal: 'd', w: 0.5 }];
+  // a 0–0,5 · b 0,5–1,5 · c 1,5–2,5 (empieza en fila 1) · d 2,5–3
+  strictEqual(rowIds(M.rowsByWeight(q, 2)), 'abc|d');
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);
