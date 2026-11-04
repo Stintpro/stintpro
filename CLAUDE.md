@@ -2,7 +2,7 @@
 
 ## Visión general
 
-StintPro es una aplicación de escritorio (Electron) para estrategia en carreras de karting endurance. Se conecta al sistema de cronometraje **Apex Timing** (livetiming WebSocket) y transforma los datos brutos en decisiones estratégicas: calidad de karts, probabilidad de box, clasificación estimada, plan de paradas y proyección de tráfico.
+StintPro es una aplicación web (desplegada en Vercel) para estrategia en carreras de karting endurance. Se conecta al sistema de cronometraje **Apex Timing** (livetiming WebSocket) y transforma los datos brutos en decisiones estratégicas: calidad de karts, probabilidad de box, clasificación estimada, plan de paradas y proyección de tráfico.
 
 **Claim:** "Decisión informada en 2 segundos"
 
@@ -10,7 +10,7 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  StintPro App (Electron)                              │
+│  StintPro App (web, Vercel)                           │
 │  ├── Setup → configura circuito, pilotos, dorsal     │
 │  ├── Sprint Dashboard → sesiones cortas              │
 │  └── Endurance Dashboard → carreras largas           │
@@ -40,12 +40,11 @@ StintPro es una aplicación de escritorio (Electron) para estrategia en carreras
 
 ## Estructura de archivos
 
-### App Electron (`karting-v10/`)
+### App web (`karting-v10/`, servida desde `src/` en Vercel)
 
 | Archivo | Función |
 |---|---|
-| `main.js` | Proceso principal Electron, crea ventana frameless |
-| `package.json` | Dependencias (electron, ws) |
+| `package.json` | Dependencias de las funciones `api/` (Anthropic SDK, firebase-admin) |
 | `src/index.html` | HTML base, carga todos los scripts |
 | `src/styles.css` | Estilos globales (tema oscuro) |
 | `src/app.js` | Orquestador: carga circuitos, decide sprint/endurance |
@@ -246,11 +245,6 @@ Para cambios de muchas líneas, usar Python heredoc scripts en vez de sed — m�
 cd /path/to/project && rm -f output.zip && zip -r output.zip karting-v10/
 ```
 
-### Arranque Electron (Mac del usuario)
-```bash
-cd "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10" && rm -rf node_modules package-lock.json && npm install && ~/Desktop/karting-strategy/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron "/Users/javiercoy/Documentos Locales/KARTING STRATEGY/karting-v10"
-```
-
 ## Blindaje de errores
 
 - El handler de datos tiene try/catch global: una excepción en tracking NUNCA congela el dashboard
@@ -346,7 +340,6 @@ aparte), donde no roba atención al panel. Útil ≠ va en el panel.
 
 ### ⚪ Negocio — decidir por si se vende, no por eficacia
 - Sistema de licencias con expiración (online + gracia 7 días)
-- Empaquetado .exe / .dmg (electron-builder)
 - Exportación PDF post-carrera (útil solo si el equipo realmente hace *debrief*; si no, muere)
 
 ### 🔴 Descartadas
