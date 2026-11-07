@@ -242,7 +242,7 @@ class CircuitMonitor {
     // Ancla de salida oficial de carrera sacada del canal com| de dirección de
     // carrera — lógica compartida con el conector directo de la app (ver
     // createRaceStartTracker en apex-protocol.js). _onComment le pasa el html.
-    this._raceTracker = ApexProtocol.createRaceStartTracker();
+    this._raceTracker = ApexProtocol.createRaceStartTracker({ timeZone: ApexProtocol.timeZoneFor(this.slug) });
 
     // Estado de carrera detenida por bandera roja — ver createFlagTracker.
     this._flagTracker = ApexProtocol.createFlagTracker();

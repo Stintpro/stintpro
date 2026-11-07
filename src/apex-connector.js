@@ -67,7 +67,7 @@ window.ApexConnector = {
     this.onNewSession = onNewSession || null;
     this._comments = [];
     this._httpPort = null; this._historyFetched = false;
-    this._raceTracker = ApexProtocol.createRaceStartTracker();
+    this._raceTracker = ApexProtocol.createRaceStartTracker({ timeZone: ApexProtocol.timeZoneFor(slug) });
     this._raceStart = null;
     this._flagTracker = ApexProtocol.createFlagTracker();
     this._raceStopped = false;

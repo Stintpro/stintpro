@@ -965,6 +965,10 @@ window.showEnduranceDashboard=function(cfg){
         // verde, corrigiendo el arranque a Date.now() de una conexión tardía.
         // Tras el primer pit out, stintStart pertenece al stint vigente → no se toca.
         if(data.raceStart&&data.raceStart.at){
+          // Un logger sin el huso del circuito (Portugal/Canarias) la manda una
+          // hora desplazada: se corrige aquí con la hora de pared del tablón.
+          if(window.ApexProtocol&&ApexProtocol.correctRaceStart)
+            data.raceStart=ApexProtocol.correctRaceStart(data.raceStart,ApexProtocol.timeZoneFor(cfg?.slug),Date.now());
           EnSession.raceStart=data.raceStart;
           if(EnSession.stintHistory.length===0&&_enMyStops()===0&&!EnSession.stintFrozen&&
              (!EnSession.stintStart||Math.abs(EnSession.stintStart-data.raceStart.at)>1000)){

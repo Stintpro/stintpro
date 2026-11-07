@@ -8,7 +8,7 @@
 'use strict';
 
 const { strictEqual, ok } = require('assert');
-const { createRaceStartTracker } = require('../src/apex-protocol');
+const { createRaceStartTracker, timeZoneFor, correctRaceStart } = require('../src/apex-protocol');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -67,6 +67,56 @@ test('verde real de hace 40 min ancla 40 min atrás (no futuro)', () => {
     ok(rs && rs.at, 'debe devolver un ancla');
     strictEqual(Math.round((NOW_1122 - rs.at) / MIN), 40);
   });
+});
+
+// ── Huso del circuito (26H Alcanede, 2026-11-07) ────────────────────────────
+// El tablón trae la hora LOCAL del circuito. Portugal va en UTC+0 y el código
+// la leía como hora de Madrid (UTC+1): la verde "11:16" quedaba anclada a las
+// 10:16 UTC y el KPI de stint marcaba 100 min con 42 de carrera.
+// 2026-11-07 11:16:58 UTC = 11:16 en Lisboa (WET, UTC+0) = 12:16 en Madrid.
+const ALC_GREEN = RealDate.UTC(2026, 10, 7, 11, 16, 58);
+const GA = t => `<p><b>${t}</b><span data-flag="green"></span>Partida</p>`;
+
+test('huso por circuito: Portugal y Canarias en su hora, el resto en Madrid', () => {
+  strictEqual(timeZoneFor('kartalcanede'), 'Europe/Lisbon');
+  strictEqual(timeZoneFor('kip-palmela'), 'Europe/Lisbon');
+  strictEqual(timeZoneFor('grancanaria-karting'), 'Atlantic/Canary');
+  strictEqual(timeZoneFor('campillos'), 'Europe/Madrid');
+  strictEqual(timeZoneFor(undefined), 'Europe/Madrid');
+});
+
+test('Alcanede: verde "11:16" en vivo se ancla a las 11:16 UTC, no una hora antes', () => {
+  const tr = createRaceStartTracker({ timeZone: timeZoneFor('kartalcanede') });
+  withClock(ALC_GREEN - 30 * MIN, () => tr.ingest('<p><b>10:40</b><span data-flag="red"></span>Fim</p>'));
+  const rs = withClock(ALC_GREEN, () => tr.ingest(GA('11:16')));
+  ok(rs && rs.at, 'debe devolver un ancla');
+  ok(Math.abs(rs.at - ALC_GREEN) < 2 * MIN, `ancla desplazada ${((ALC_GREEN - rs.at) / MIN).toFixed(0)} min`);
+});
+
+test('Alcanede: panel abierto a mitad de carrera (rama history) ancla bien', () => {
+  const now = ALC_GREEN + 41 * MIN;
+  const rs = withClock(now, () => createRaceStartTracker({ timeZone: 'Europe/Lisbon' }).ingest(GA('11:16')));
+  ok(rs && rs.at, 'debe devolver un ancla');
+  strictEqual(Math.round((now - rs.at) / MIN), 41);
+});
+
+test('corregir un ancla del logger viejo desplazada una hora por el huso', () => {
+  const now = ALC_GREEN + 41 * MIN;
+  const bad = { at: ALC_GREEN - 60 * MIN, clock: '11:16', source: 'live' };
+  const fixed = withClock(now, () => correctRaceStart(bad, 'Europe/Lisbon', now));
+  strictEqual(fixed.at, ALC_GREEN);   // una hora justa, con sus segundos
+});
+
+test('un ancla correcta no se toca (precisión de segundos intacta)', () => {
+  const now = ALC_GREEN + 41 * MIN;
+  const good = { at: ALC_GREEN, clock: '11:16', source: 'live' };
+  strictEqual(withClock(now, () => correctRaceStart(good, 'Europe/Lisbon', now)), good);
+});
+
+test('carrera de más de 24h: la verde de AYER con la misma hora no se "corrige" a hoy', () => {
+  const now = ALC_GREEN + 25 * H;
+  const good = { at: ALC_GREEN, clock: '11:16', source: 'live' };
+  strictEqual(withClock(now, () => correctRaceStart(good, 'Europe/Lisbon', now)), good);
 });
 
 console.log(`\n${passed} pasan, ${failed} fallan\n`);

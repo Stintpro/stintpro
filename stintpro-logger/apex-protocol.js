@@ -1189,34 +1189,66 @@
   // la app (apex-connector): ambos reciben el mismo com| replayeado al conectar.
   // `ingest(html, { raceInProgress })` → devuelve el ancla {at, clock, source}
   // SOLO cuando cambia (verde nueva); null en cualquier otro caso.
-  function createRaceStartTracker() {
+  // Huso horario del circuito: el tablón com| trae la hora de pared LOCAL.
+  // Casi todos (ES/FR/IT/BE) van con Madrid; Portugal y Canarias, una hora
+  // menos (26H Alcanede 2026-11-07: leída como Madrid, la salida quedaba una
+  // hora antes y el KPI de stint marcaba 100 min con 42 de carrera).
+  const CIRCUIT_TIME_ZONES = {
+    'kartalcanede': 'Europe/Lisbon',
+    'kip-palmela': 'Europe/Lisbon',
+    'grancanaria-karting': 'Atlantic/Canary',
+  };
+  const DEFAULT_TIME_ZONE = 'Europe/Madrid';
+  function timeZoneFor(slug) { return CIRCUIT_TIME_ZONES[slug] || DEFAULT_TIME_ZONE; }
+
+  // Hora de pared HH:MM del cronograma (en `timeZone`) → instante más reciente
+  // ≈ `now` con esa hora. El director suele ARMAR la verde unos segundos antes
+  // de su minuto (manda "Start 11:23" cuando el reloj de pared aún marca 11:22),
+  // así que el minuto de la verde puede ir hasta unos minutos POR DELANTE del de
+  // pared. Ese caso es "ahora", NO "ayer": sin tolerancia, diffMin salía
+  // negativo, se le sumaban 24h y el ancla saltaba al día anterior → el KPI de
+  // stint mostraba ~24h absurdas (bug Henakart 3H 2026-09-06). Solo se considera
+  // "ayer" si va MUY por delante.
+  const FUTURE_GRACE_MIN = 10; // margen de verde adelantada / desfase de reloj
+  function clockToEpoch(hhmm, timeZone, now) {
+    try {
+      const [h, min] = String(hhmm).split(':').map(Number);
+      if (isNaN(h) || isNaN(min)) return null;
+      const t = now == null ? Date.now() : now;
+      const [nh, nm] = new Intl.DateTimeFormat('en-GB', {
+        timeZone: timeZone || DEFAULT_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).format(new Date(t)).split(':').map(Number);
+      let diffMin = (nh * 60 + nm) - (h * 60 + min);
+      if (diffMin < -FUTURE_GRACE_MIN) diffMin += 24 * 60; // realmente fue ayer
+      if (diffMin < 0) diffMin = 0;                        // futuro cercano → ahora
+      return t - diffMin * 60000;
+    } catch (e) { return null; }
+  }
+
+  // Ancla de salida que llega ya hecha (logger desplegado antes de conocer el
+  // huso del circuito): si su hora de pared, leída en el huso bueno, cae a 1-2
+  // horas JUSTAS (±2 min) del instante guardado, el instante estaba desplazado
+  // por el huso → se mueve esas horas enteras, conservando sus segundos. Lo que
+  // no tiene forma de huso se respeta: un desfase cualquiera, o 24 h (carreras
+  // de >24 h: la verde de AYER tiene la misma hora que hoy). Devuelve el mismo
+  // objeto si no hay nada que corregir.
+  function correctRaceStart(rs, timeZone, now) {
+    if (!rs || !rs.at || !rs.clock) return rs;
+    const fromClock = clockToEpoch(rs.clock, timeZone, now);
+    if (fromClock == null) return rs;
+    const H = 3600000, k = Math.round((fromClock - rs.at) / H);
+    if (k === 0 || Math.abs(k) > 2 || Math.abs(fromClock - (rs.at + k * H)) > 2 * 60000) return rs;
+    return { ...rs, at: rs.at + k * H };
+  }
+
+  function createRaceStartTracker(opts) {
+    const _tz = (opts && opts.timeZone) || DEFAULT_TIME_ZONE;
     let _raceStart = null;    // {at, clock, source:'live'|'history'}
     let _timeline  = [];
     const _seen    = new Set();
     let _primed    = false;
 
-    // Hora de pared HH:MM del cronograma → instante más reciente ≈ ahora con esa
-    // hora. Los circuitos actuales (ES/FR/IT/BE/NL) comparten huso Europe/Madrid.
-    // El director suele ARMAR la verde unos segundos antes de su minuto (manda
-    // "Start 11:23" cuando el reloj de pared aún marca 11:22), así que el minuto de
-    // la verde puede ir hasta unos minutos POR DELANTE del de pared. Ese caso es
-    // "ahora", NO "ayer": sin tolerancia, diffMin salía negativo, se le sumaban 24h
-    // y el ancla saltaba al día anterior → el KPI de stint mostraba ~24h absurdas
-    // (bug Henakart 3H 2026-09-06). Solo se considera "ayer" si va MUY por delante.
-    const FUTURE_GRACE_MIN = 10; // margen de verde adelantada / desfase de reloj
-    function _clockToEpoch(hhmm) {
-      try {
-        const [h, min] = hhmm.split(':').map(Number);
-        if (isNaN(h) || isNaN(min)) return null;
-        const [nh, nm] = new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-        }).format(new Date()).split(':').map(Number);
-        let diffMin = (nh * 60 + nm) - (h * 60 + min);
-        if (diffMin < -FUTURE_GRACE_MIN) diffMin += 24 * 60; // realmente fue ayer
-        if (diffMin < 0) diffMin = 0;                        // futuro cercano → ahora
-        return Date.now() - diffMin * 60000;
-      } catch (e) { return null; }
-    }
+    const _clockToEpoch = hhmm => clockToEpoch(hhmm, _tz);
 
     function ingest(html, opts = {}) {
       const entries = [];
@@ -1313,5 +1345,5 @@
     };
   }
 
-  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, createFlagTracker, isValidCategory, isStateCode, safeDorsal, notcToHex, classifyApexMessage, mentionedDorsals, parseComBoard, classifyComEntry, createComBoardTracker };
+  return { createParser, parseTime, isGlitchLap, createRaceStartTracker, timeZoneFor, clockToEpoch, correctRaceStart, createFlagTracker, isValidCategory, isStateCode, safeDorsal, notcToHex, classifyApexMessage, mentionedDorsals, parseComBoard, classifyComEntry, createComBoardTracker };
 });
