@@ -644,7 +644,10 @@ function _enRenderTeam(myKart, trackAvg){
     const isCurrent=idx===EnSession.currentPilot;
     // Hueco de relleno del setup ("Piloto 1") que nadie usa: con los pilotos
     // reales ya identificados por Apex solo estorba.
-    if(_off&&_off.minutes.some(m=>m!=null)&&offMin==null&&!stints.length&&!isCurrent&&window.EnDriverTime.isPlaceholder(p.name))return;
+    // Basta con que Apex conozca la plantilla por cualquiera de sus dos vías:
+    // los [h:mm] del feed en vivo o la plantilla de request.php.
+    const _apexKnows=(_off&&_off.minutes.some(m=>m!=null))||!!(EnSession.apexTeam&&EnSession.apexTeam.drivers&&EnSession.apexTeam.drivers.length);
+    if(_apexKnows&&offMin==null&&!stints.length&&!isCurrent&&window.EnDriverTime&&window.EnDriverTime.isPlaceholder(p.name))return;
     // Tiempo exacto de las paradas oficiales (ms); se usa solo si cuadra (±2 min)
     // con el contador en vivo [h:mm], que es el que nunca va con retraso.
     const exactMs=typeof _enApexPilotMs==='function'?_enApexPilotMs(p.name,isCurrent):null;

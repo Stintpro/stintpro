@@ -70,6 +70,26 @@
     return pilotos.length - 1;
   }
 
+  // Mete la plantilla de Apex (names) en la lista de pilotos y devuelve el
+  // índice del piloto que Apex da en pista (current), o -1. Muta `pilotos`.
+  //   stintIdxs   índices con stints a su nombre: nunca se renombran
+  //   currentIdx  hueco del piloto en pista en el panel
+  // El hueco del piloto en pista solo se reserva si tiene nombre real o si
+  // Apex no dice quién va: si es «Piloto 1» y Apex sí lo dice, ese piloto se lo
+  // queda (antes la plantilla iba detrás y «Piloto 1» se quedaba huérfano).
+  function adoptRoster(names, pilotos, opts) {
+    if (!Array.isArray(pilotos)) return -1;
+    const o = opts || {};
+    const used = new Set(o.stintIdxs || []);
+    const ci = o.currentIdx;
+    const current = String(o.current || '').trim();
+    if (ci != null && ci >= 0 && (!current || !isPlaceholder(pilotos[ci] && pilotos[ci].name))) used.add(ci);
+    let curIdx = -1;
+    if (current) { curIdx = adoptPilot(current, pilotos, used); if (curIdx >= 0) used.add(curIdx); }
+    (names || []).forEach(n => { const i = adoptPilot(n, pilotos, used); if (i >= 0) used.add(i); });
+    return curIdx;
+  }
+
   // Stints ya CERRADOS de un dorsal, reconstruidos desde lo que grabó el logger
   // (para quien abre el panel a mitad de carrera): uno por cada pit-in.
   //   laps: [{name, lap_time_ms, timestamp}]   pits: [{event_type, timestamp, duration_ms}]
@@ -104,5 +124,5 @@
     return out;
   }
 
-  return { matchPilot, officialByPilot, adoptPilot, isPlaceholder, rebuildStints };
+  return { matchPilot, officialByPilot, adoptPilot, adoptRoster, isPlaceholder, rebuildStints };
 });

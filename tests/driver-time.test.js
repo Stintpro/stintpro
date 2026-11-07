@@ -106,6 +106,43 @@ test('sin nombre → -1 y lista intacta', () => {
   strictEqual(ps[0].name, 'Piloto 1');
 });
 
+console.log('\n▸ Meter la plantilla de Apex en la lista (sin dejar «Piloto 1» huérfano)\n');
+
+test('Apex dice quién va en pista: se queda el hueco de relleno del piloto en pista', () => {
+  const ps = [{ name: 'Piloto 1', minutos: 90 }];
+  const cur = D.adoptRoster(['ALEX LOPEZ', 'JAVIER COY'], ps, { stintIdxs: [], currentIdx: 0, current: 'JAVIER COY' });
+  deepStrictEqual(ps.map(p => p.name), ['JAVIER COY', 'ALEX LOPEZ']);
+  strictEqual(cur, 0);
+});
+
+test('el piloto en pista no es el primero de la plantilla: su índice es el que devuelve', () => {
+  const ps = [{ name: 'Piloto 1' }, { name: 'Piloto 2' }];
+  const cur = D.adoptRoster(['ANA', 'LUIS'], ps, { stintIdxs: [], currentIdx: 1, current: 'LUIS' });
+  deepStrictEqual(ps.map(p => p.name), ['LUIS', 'ANA']);
+  strictEqual(cur, 0);
+});
+
+test('sin saber quién va en pista, el hueco del piloto en pista se respeta (no se etiqueta a ciegas)', () => {
+  const ps = [{ name: 'Piloto 1' }];
+  const cur = D.adoptRoster(['ANA', 'LUIS'], ps, { stintIdxs: [], currentIdx: 0, current: null });
+  deepStrictEqual(ps.map(p => p.name), ['Piloto 1', 'ANA', 'LUIS']);
+  strictEqual(cur, -1);
+});
+
+test('un hueco de relleno con stints no se renombra', () => {
+  const ps = [{ name: 'Piloto 1' }, { name: 'Piloto 2' }];
+  const cur = D.adoptRoster(['ANA', 'LUIS'], ps, { stintIdxs: [0], currentIdx: 1, current: 'LUIS' });
+  deepStrictEqual(ps.map(p => p.name), ['Piloto 1', 'LUIS', 'ANA']);
+  strictEqual(cur, 1);
+});
+
+test('el piloto en pista con nombre real conserva su hueco y su nombre', () => {
+  const ps = [{ name: 'Alex' }, { name: 'Piloto 2' }];
+  const cur = D.adoptRoster(['ALEX LOPEZ', 'LUIS'], ps, { stintIdxs: [], currentIdx: 0, current: 'ALEX LOPEZ' });
+  deepStrictEqual(ps.map(p => p.name), ['Alex', 'LUIS']);
+  strictEqual(cur, 0);
+});
+
 console.log('\n▸ Reconstruir stints cerrados desde lo grabado por el logger\n');
 
 const lap = (name, ts, ms = 84000) => ({ name, lap_time_ms: ms, timestamp: ts });

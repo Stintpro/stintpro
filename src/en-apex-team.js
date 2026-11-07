@@ -283,13 +283,19 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const cfg = window.AppState && window.AppState.config;
     if (!data || !cfg || !window.EnDriverTime) return;
     if (!Array.isArray(cfg.pilotos)) cfg.pilotos = [];
-    const used = new Set((EnSession.stintHistory || []).map(s => s.pilotIdx));
-    used.add(EnSession.currentPilot);
-    const before = JSON.stringify(cfg.pilotos);
-    data.drivers.forEach(n => { const i = EnDriverTime.adoptPilot(n, cfg.pilotos, used); if (i >= 0) used.add(i); });
+    const before = JSON.stringify(cfg.pilotos) + '|' + EnSession.currentPilot;
+    const curIdx = EnDriverTime.adoptRoster(data.drivers, cfg.pilotos, {
+      stintIdxs: (EnSession.stintHistory || []).map(s => s.pilotIdx),
+      currentIdx: EnSession.currentPilot, current: data.current,
+    });
+    // Piloto en pista según la plantilla: solo si el feed en vivo no trae el
+    // nombre (si lo trae, manda _enPilotFromApex) y solo cuando Apex CAMBIA de
+    // piloto, para no pisar una corrección manual entre paradas.
+    if (curIdx >= 0 && !EnSession._apexDriver && data.current !== EnSession._apexTeamCurrent) EnSession.currentPilot = curIdx;
+    EnSession._apexTeamCurrent = data.current;
     EnSession.apexTeam = { at: data.at, stops: data.stops, totals: data.totals, drivers: data.drivers, current: data.current,
                            open: data.stops > 0 && !data.cur };
-    if (JSON.stringify(cfg.pilotos) !== before) { try { _enSaveRaceState(); } catch (e) {} }
+    if (JSON.stringify(cfg.pilotos) + '|' + EnSession.currentPilot !== before) { try { _enSaveRaceState(); } catch (e) {} }
   };
 
   // Sincroniza el KPI «Tiempo de stint» con el stint en curso OFICIAL: mi stint
