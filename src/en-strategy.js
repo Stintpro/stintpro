@@ -130,11 +130,11 @@ function _enRenderStrategy(eq, trackAvg){
       if(vm.isUnknown){
         h+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}">Reserva</div>
           <div style="font-size:11px;color:${sub};${ell}">sin info</div>
-          <div style="font-size:11px;color:${sub};font-family:monospace">VR —</div>`;
+          <div style="font-size:11px;color:${sub};font-family:monospace">VR stint —</div>`;
       } else {
         h+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}" title="${_esc(vm.team||'')}">${_esc(vm.team||'#'+vm.dorsal)}</div>
           <div style="font-size:11px;color:${sub};${ell}" title="${_esc(vm.pilot||'')}">${vm.pilot?_esc(vm.pilot):'&nbsp;'}</div>
-          <div style="font-size:11px;color:${sub};font-family:monospace;${ell}">VR ${vr||'—'}${box?' · box '+box:''}</div>`;
+          <div style="font-size:11px;color:${sub};font-family:monospace;${ell}">VR stint ${vr||'—'}${box?' · box '+box:''}</div>`;
       }
       h+=`</div>`;
       return h;
@@ -145,25 +145,31 @@ function _enRenderStrategy(eq, trackAvg){
       const txt=_qTxt('unknown'), sub=_qSub('unknown');
       const accessible=v.d===0;
       const top=v.candidates.slice(0,4), more=v.candidates.length-top.length;
-      let h=`<div class="en-box-card en-box-slot-cands" style="display:flex;flex-direction:column;gap:3px;min-width:0;height:100%;box-sizing:border-box;padding:7px 8px;border-radius:8px;background:${_qBg('unknown')};color:${txt};border:1px dashed ${sub};opacity:${accessible?'1':'0.72'};font-family:sans-serif">
-        <div style="display:flex;align-items:center;gap:6px">
+      let h=`<div class="en-box-card en-box-slot-cands" style="display:flex;flex-direction:column;gap:4px;min-width:0;height:100%;box-sizing:border-box;padding:6px;border-radius:8px;background:${_qBg('unknown')};color:${txt};border:1px dashed ${sub};opacity:${accessible?'1':'0.72'};font-family:sans-serif">
+        <div style="display:flex;align-items:center;gap:6px;padding:0 2px">
           <span style="font-size:11px;font-weight:700;color:${txt}">¿Cuál está aquí?</span><span style="flex:1"></span>
           ${accessible?'':`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px">espera</span>`}
         </div>`;
+      // Cada candidato = tarjeta de UNA línea con el color de su calidad:
+      // emoji · dorsal · equipo · VR stint · % de estar aquí. Clic = "es este".
       top.forEach(({item,p})=>{
         const unk=String(item.dorsal)==='?';
         const kart=unk?null:eqByDorsal[String(item.dorsal).trim()];
         const q=unk?'unknown':((kart&&_enEffectiveQuality(item.dorsal, kart, trackAvg))||item.quality||'unknown');
+        const bg=_qBg(q), txt=_qTxt(q), sub=_qSub(q);
         const kc=_enKartColor(unk?'?':item.dorsal, kart&&kart.catColor);
-        const label=unk?'Reserva':(item.team||item.name||'#'+item.dorsal);
-        h+=`<div onclick="_enBoxFix(${v.c},${v.d},'${item.id}',event)" title="Es este: fijarlo en este sitio" style="display:flex;align-items:center;gap:5px;cursor:pointer;min-width:0">
+        const label=unk?'Reserva · sin info':(item.team||item.name||'#'+item.dorsal);
+        const vr=(!unk&&item.stintBest)?_enFmt(item.stintBest):'—';
+        const tip=unk?'Reserva sin info':[item.team||item.name, item.pilot].filter(Boolean).join(' · ');
+        h+=`<div onclick="_enBoxFix(${v.c},${v.d},'${item.id}',event)" title="${_esc(tip)} — clic: es este, fijarlo aquí" style="display:flex;align-items:center;gap:5px;min-width:0;padding:3px 6px;border-radius:6px;background:${bg};color:${txt};border:1px solid rgba(0,0,0,0.25);cursor:pointer">
           <span style="font-size:13px;line-height:1;flex-shrink:0">${EnBoxModel.qualityEmoji(q)}</span>
           <span style="min-width:24px;padding:0 3px;border-radius:4px;background:${kc.bg};color:${kc.text};font-size:11.5px;font-weight:700;text-align:center;flex-shrink:0">${_esc(unk?'?':item.dorsal)}</span>
-          <span style="flex:1;min-width:0;font-size:11px;color:${sub};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(label)}</span>
-          <span style="font-size:11px;font-weight:700;color:${txt};font-family:monospace;flex-shrink:0">${Math.round(p*100)}%</span>
+          <span style="flex:1;min-width:0;font-size:11.5px;font-weight:700;color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(label)}</span>
+          ${unk?'':`<span style="font-size:10.5px;color:${sub};font-family:monospace;white-space:nowrap;flex-shrink:0">VR stint ${vr}</span>`}
+          <span style="font-size:11px;font-weight:800;color:${txt};font-family:monospace;flex-shrink:0;min-width:30px;text-align:right">${Math.round(p*100)}%</span>
         </div>`;
       });
-      if(more>0)h+=`<div style="font-size:10.5px;color:${sub}">+${more} más</div>`;
+      if(more>0)h+=`<div style="font-size:10.5px;color:${sub};padding:0 2px">+${more} más</div>`;
       h+=`</div>`;
       return h;
     };

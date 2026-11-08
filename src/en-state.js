@@ -481,6 +481,15 @@ function _enTrackKartStint(e){
 // Calidad de un tramo de vueltas suelto (p.ej. el stint en que un rival llevó el
 // kart que dejó en el box), sin tocar el estado vivo de ese dorsal ni sus
 // overrides manuales: se evalúa con una clave temporal y se borra.
+// Vuelta rápida del stint ACTUAL de un kart (segundos o null): sus vueltas desde
+// el último pit out (stintStartIdx), limpias como en EnBoxModel.stintBest.
+function _enStintBestOf(e){
+  if(!e||!e.lapHistory||!window.EnBoxModel)return null;
+  const st=EnSession.kartAutoState[e.dorsal];
+  const from=Math.min(st?.stintStartIdx||0, e.lapHistory.length);
+  return EnBoxModel.stintBest(e.lapHistory.slice(from));
+}
+
 function _enQualityOfLaps(e, laps, trackAvg){
   if(!laps||laps.length<3)return null;
   const key='__tramo_'+(e&&e.dorsal);
