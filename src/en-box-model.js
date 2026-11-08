@@ -538,14 +538,27 @@
     return kept.map(([id, p]) => [id, p / t]).sort((x, y) => y[1] - x[1]);
   }
 
+  // Columna que salió en un intercambio. En la app el sorteo es CONCRETO (un kart
+  // por sitio, el usuario no ve el box): `col` fijada por el ritmo del rival o,
+  // si no, `r` ∈ [0,1) sorteado al registrar la parada → floor(r·C), estable al
+  // rehacer y válido aunque cambie el nº de columnas. Sin col ni r (previsión)
+  // se reparte uniforme entre columnas (valor esperado).
+  function swapPi(ev, C) {
+    if (ev.pi && ev.pi.length === C) return ev.pi;
+    let col = (ev.col != null && ev.col < C) ? ev.col : (typeof ev.r === 'number' ? Math.min(C - 1, Math.floor(ev.r * C)) : null);
+    if (col == null) return Array(C).fill(1 / C);
+    return Array.from({ length: C }, (_, c) => (c === col ? 1 : 0));
+  }
+
   // Un paso sobre los sitios (puro). ev:
-  //   {t:'swap', item, pi?}  intercambio; pi[c] = prob. de que saliera la columna c
+  //   {t:'swap', item, r?, col?, pi?}  intercambio (columna: ver swapPi)
   //   {t:'fix', c, d, id}    "este kart está aquí" (corrección manual)
-  //   {t:'move', c, d, dir}  intercambia el sitio con el de arriba/abajo de su columna
+  //   {t:'move', c, d, dir}  intercambia el sitio con el de arriba/abajo (up/down) de
+  //                          su columna o con el de la columna de al lado (left/right)
   function stepSlots(slots, ev) {
     const C = slots.length;
     if (ev.t === 'swap') {
-      const pi = (ev.pi && ev.pi.length === C) ? ev.pi : Array(C).fill(1 / C);
+      const pi = swapPi(ev, C);
       return slots.map((col, c) => {
         const q = pi[c] || 0;
         if (q <= 0) return col;
@@ -563,11 +576,15 @@
     }
     if (ev.t === 'move') {
       const col = slots[ev.c];
-      if (!col) return slots;
-      const j = ev.dir === 'up' ? ev.d - 1 : ev.d + 1;
-      if (j < 0 || j >= col.length || ev.d < 0 || ev.d >= col.length) return slots;
-      const nc = col.slice(); const t = nc[ev.d]; nc[ev.d] = nc[j]; nc[j] = t;
-      return slots.map((x, c) => (c === ev.c ? nc : x));
+      if (!col || ev.d < 0 || ev.d >= col.length) return slots;
+      let c2 = ev.c, d2 = ev.d;
+      if (ev.dir === 'up') d2--; else if (ev.dir === 'down') d2++;
+      else if (ev.dir === 'left') c2--; else if (ev.dir === 'right') c2++;
+      else return slots;
+      if (!slots[c2] || d2 < 0 || d2 >= slots[c2].length) return slots;
+      const out = slots.map(x => x.slice());
+      const t = out[ev.c][ev.d]; out[ev.c][ev.d] = out[c2][d2]; out[c2][d2] = t;
+      return out;
     }
     return slots;
   }
@@ -610,7 +627,9 @@
     let base = B.base.slice(-N);
     const items = { ...B.items };
     if (base.length < N) base = makeReserve(N - base.length).map(it => { items[it.id] = it; return it.id; }).concat(base);
-    const log = B.log.filter(ev => ev.t === 'swap'); // fix/move se refieren a la rejilla vieja
+    // fix/move se refieren a la rejilla vieja; la columna fijada por el ritmo
+    // también (se vuelve a sacar de r con el nuevo nº de columnas).
+    const log = B.log.filter(ev => ev.t === 'swap').map(({ col, pi, ...ev }) => ev);
     return replay({ ...B, type, n: N, cols, items }, lens, base, log);
   }
 
@@ -625,7 +644,8 @@
     const item = { id: newId(), quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time,
       team: ev.team || null, pilot: ev.pilot || null, stintBest: (ev.stintBest > 0) ? ev.stintBest : null };
     const multi = B.lens.length > 1;
-    const out = gridEvent(B, { t: 'swap', item, dorsal: d, pending: multi });
+    const r = typeof ev.r === 'number' ? ev.r : Math.random();
+    const out = gridEvent(B, { t: 'swap', item, dorsal: d, pending: multi, r });
     if (pending) {
       if (multi) pending[d] = { lapIdx: ev.lapIdx, time: ev.time };
       else delete pending[d];
@@ -652,10 +672,17 @@
     const like = (it) => !it ? LIKE_UNKNOWN : it.quality === observed ? LIKE_SAME
       : (it.quality === 'good' || it.quality === 'neutral' || it.quality === 'bad') ? LIKE_OTHER : LIKE_UNKNOWN;
     const L = before.map(col => col[0].reduce((a, [id, p]) => a + p * like(B.items[id]), 0));
-    const tot = L.reduce((a, b) => a + b, 0);
-    const pi = tot > 1e-9 ? L.map(x => x / tot) : null;
+    // Sorteo concreto: si la columna sorteada ya es de las más compatibles se
+    // queda; si no, pasa a la más compatible (empates: la primera desde r).
+    const C = L.length, max = Math.max(...L);
+    const cur = swapPi(B.log[idx], C).indexOf(1);
+    let col = cur >= 0 && L[cur] >= max - 1e-9 ? cur : -1;
+    if (col < 0) {
+      const start = Math.min(C - 1, Math.floor((B.log[idx].r || 0) * C));
+      for (let k = 0; k < C; k++) { const c = (start + k) % C; if (L[c] >= max - 1e-9) { col = c; break; } }
+    }
     const log = B.log.slice();
-    log[idx] = { ...log[idx], pi, pending: false };
+    log[idx] = { ...log[idx], col, pending: false };
     return replay(B, B.lens, B.base, log);
   }
 

@@ -857,15 +857,22 @@ test('línea: intercambio determinista, el que entra va al final y avanza la fil
   strictEqual(B.log[0].pending, false);
 });
 
-test('columnas: el kart que deja el equipo entra al FINAL de la columna sorteada (50/50 con 2)', () => {
-  let B = M.gridCreate('columns', 4, 2);
-  B = pit(B, 9);
-  for (const c of [0, 1]) {
-    const back = M.slotVM(B, c, 1).candidates.find(x => String(x.item.dorsal) === '9');
-    ok(back && Math.abs(back.p - 0.5) < 1e-9, 'col ' + c);
-  }
-  // la fila 1 sigue segura (desconocidos), el sitio de atrás es incierto
-  ok(M.slotVM(B, 0, 0).sure); ok(!M.slotVM(B, 0, 1).sure);
+test('columnas: sorteo CONCRETO, avanza la columna sorteada y el kart va a su final', () => {
+  let B = M.gridCreate('columns', 4, 2, [{ id: 'a', quality: 'good', dorsal: 1 }, { id: 'b', quality: 'bad', dorsal: 2 },
+    { id: 'c', quality: 'neutral', dorsal: 3 }, { id: 'd', quality: 'neutral', dorsal: 4 }]);
+  // fila 1 = 1 | 2, fila 2 = 3 | 4 ; r=0.7 → columna 1
+  B = pit(B, 9, 'good', { r: 0.7 });
+  strictEqual(dorsalAt(B, 0, 0), '1'); strictEqual(dorsalAt(B, 0, 1), '3');
+  strictEqual(dorsalAt(B, 1, 0), '4'); strictEqual(dorsalAt(B, 1, 1), '9');
+  // todos los sitios son seguros: una tarjeta por sitio
+  for (const [c, d] of [[0, 0], [0, 1], [1, 0], [1, 1]]) ok(M.slotVM(B, c, d).sure);
+});
+
+test('sorteo sin r fijado: siempre un kart seguro por sitio y N karts', () => {
+  let B = M.gridCreate('columns', 6, 3);
+  for (let i = 0; i < 25; i++) B = pit(B, 100 + i, 'good');
+  for (let c = 0; c < 3; c++) for (let d = 0; d < 2; d++) ok(M.slotVM(B, c, d).sure, `sitio ${c},${d}`);
+  ok(Math.abs(sumW(B) - 6) < 1e-6);
 });
 
 test('gridAccess: misma métrica que accessProb (línea = primero, columnas = fila 1)', () => {
@@ -878,17 +885,24 @@ test('gridAccess: misma métrica que accessProb (línea = primero, columnas = fi
   strictEqual(M.gridAccess(M.gridCreate('battery', 3)).prob, null);
 });
 
-test('gridResolve: el ritmo del rival dice qué columna salió y lo de detrás se recalcula', () => {
+test('gridResolve: si el ritmo dice otra columna, el sorteo se corrige a la compatible', () => {
   let B = M.gridCreate('columns', 2, 2, [{ id: 'g', quality: 'good', dorsal: 1 }, { id: 'b', quality: 'bad', dorsal: 2 }]);
   const pend = {};
-  B = M.gridOnPitEvent(B, {}, { dorsal: 30, kind: 'in', quality: 'neutral', lapIdx: 5 }, pend);
+  // r=0.9 → sorteo en la columna 1 (la del malo)
+  B = M.gridOnPitEvent(B, {}, { dorsal: 30, kind: 'in', quality: 'neutral', lapIdx: 5, r: 0.9 }, pend);
+  strictEqual(dorsalAt(B, 1, 0), '30'); strictEqual(dorsalAt(B, 0, 0), '1');
   ok(pend['30'] && pend['30'].lapIdx === 5);
-  ok(!M.slotVM(B, 0, 0).sure);
-  B = M.gridResolve(B, pend, 30, 'good');      // se llevó un kart bueno → salió la columna del bueno
+  B = M.gridResolve(B, pend, 30, 'good');      // se llevó un bueno → era la columna 0
   strictEqual(pend['30'], undefined);
-  const c0 = M.slotVM(B, 0, 0).candidates.find(x => x.item.dorsal === 30);
-  ok(c0 && c0.p > 0.85, 'el neutro ocupa casi seguro el hueco del bueno: ' + (c0 && c0.p));
+  strictEqual(dorsalAt(B, 0, 0), '30'); strictEqual(dorsalAt(B, 1, 0), '2');
   ok(Math.abs(sumW(B) - 2) < 1e-6);
+});
+
+test('gridResolve: si la columna sorteada ya cuadra, no cambia', () => {
+  let B = M.gridCreate('columns', 2, 2, [{ id: 'g', quality: 'good', dorsal: 1 }, { id: 'b', quality: 'bad', dorsal: 2 }]);
+  B = M.gridOnPitEvent(B, {}, { dorsal: 30, kind: 'in', quality: 'neutral', r: 0.9 }, {});
+  B = M.gridResolve(B, {}, 30, 'bad');
+  strictEqual(dorsalAt(B, 1, 0), '30'); strictEqual(dorsalAt(B, 0, 0), '1');
 });
 
 test('gridRetopo: cambiar 2 columnas → línea rehace el box con las mismas paradas', () => {
@@ -901,16 +915,18 @@ test('gridRetopo: cambiar 2 columnas → línea rehace el box con las mismas par
   ok(Math.abs(sumW(L5) - 5) < 1e-6);
 });
 
-test('fix y move: corrección manual de un sitio', () => {
-  let B = M.gridCreate('columns', 4, 2);
-  B = pit(B, 9);
-  const id9 = M.slotVM(B, 0, 1).candidates.find(x => x.item.dorsal === 9).item.id;
-  B = M.gridEvent(B, { t: 'fix', c: 1, d: 1, id: id9 });
-  strictEqual(dorsalAt(B, 1, 1), '9');
-  ok(!M.slotVM(B, 0, 1).candidates.some(x => x.item.dorsal === 9), 'ya no está en la otra columna');
+test('flechas: ▲▼ dentro de la columna y ◀▶ entre columnas', () => {
   let L = M.gridCreate('line', 3, 2); L = pit(L, 7);
   L = M.gridEvent(L, { t: 'move', c: 0, d: 2, dir: 'up' });
   strictEqual(dorsalAt(L, 0, 1), '7');
+  let B = M.gridCreate('columns', 4, 2, [{ id: 'a', dorsal: 1 }, { id: 'b', dorsal: 2 }, { id: 'c', dorsal: 3 }, { id: 'd', dorsal: 4 }]);
+  B = M.gridEvent(B, { t: 'move', c: 0, d: 1, dir: 'right' });
+  strictEqual(dorsalAt(B, 0, 1), '4'); strictEqual(dorsalAt(B, 1, 1), '3');
+  const same = M.gridEvent(B, { t: 'move', c: 1, d: 0, dir: 'right' }); // fuera de la rejilla
+  strictEqual(dorsalAt(same, 1, 0), '2');
+  let T = M.gridCreate('battery', 3, 2, [{ id: 'x', dorsal: 5 }, { id: 'y', dorsal: 6 }, { id: 'z', dorsal: 7 }]);
+  T = M.gridEvent(T, { t: 'move', c: 2, d: 0, dir: 'left' });
+  strictEqual(dorsalAt(T, 1, 0), '7');
 });
 
 test('gridReset keepLast: los últimos N que entraron, el más antiguo delante', () => {

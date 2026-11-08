@@ -85,8 +85,8 @@ function _enRenderStrategy(eq, trackAvg){
     // se etiquetan "espera". Esto SUSTITUYE al antiguo Diagrama del box.
     const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
     // ── Box = rejilla fija de sitios (EnBoxModel.grid*) ──────────────────
-    // Cada sitio es un kart seguro (tarjeta) o, tras un sorteo, los karts que
-    // pueden estar ahí con su % (clic en uno = "es este"). Fila 1 = accesible.
+    // Un kart por sitio: en cada parada se sortea qué columna salió (el box no
+    // se ve) y el usuario corrige con las flechas. Fila 1 = accesible.
     const G=_enBoxGrid();
     const lens=G.lens, nC=lens.length, nR=Math.max(...lens);
     // Tarjeta de un kart seguro en el sitio (c,d). `dir` decide las flechas:
@@ -119,11 +119,13 @@ function _enRenderStrategy(eq, trackAvg){
       if(vm.isNextOut)h+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
       else if(vm.isMe)h+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
       else if(!accessible)h+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
-      if(lens[c]>1){
+      // Corrección manual: ▲▼ dentro de su columna, ◀▶ a la columna de al lado.
+      const canUp=d>0, canDn=d<lens[c]-1, canL=c>0&&d<lens[c-1], canR=c<nC-1&&d<lens[c+1];
+      if(canUp||canDn||canL||canR){
         const btn=`display:grid;place-items:center;width:18px;height:18px;border:none;border-radius:3px;background:rgba(0,0,0,0.22);color:${txt};font-size:10px;line-height:1;cursor:pointer;padding:0`;
+        const mv=(dir,ico,tt)=>`<button type="button" title="${tt}" onclick="_enBoxMove(${c},${d},'${dir}',event)" style="${btn}">${ico}</button>`;
         h+=`<div style="display:flex;gap:2px;flex-shrink:0">
-          ${d>0?`<button type="button" title="Subir un puesto en su columna" onclick="_enBoxMove(${c},${d},'up',event)" style="${btn}">▲</button>`:''}
-          ${d<lens[c]-1?`<button type="button" title="Bajar un puesto en su columna" onclick="_enBoxMove(${c},${d},'down',event)" style="${btn}">▼</button>`:''}
+          ${canL?mv('left','◀','Pasar a la columna de la izquierda'):''}${canUp?mv('up','▲','Subir un puesto'):''}${canDn?mv('down','▼','Bajar un puesto'):''}${canR?mv('right','▶','Pasar a la columna de la derecha'):''}
         </div>`;
       }
       h+=`</div>`;
@@ -139,41 +141,9 @@ function _enRenderStrategy(eq, trackAvg){
       h+=`</div>`;
       return h;
     };
-    // Sitio incierto: los karts que pueden estar ahí, del más al menos probable.
-    // Clic en uno = "es este" (lo fija aquí y lo quita de los demás sitios).
-    const _candHtml=(v)=>{
-      const txt=_qTxt('unknown'), sub=_qSub('unknown');
-      const accessible=v.d===0;
-      const top=v.candidates.slice(0,4), more=v.candidates.length-top.length;
-      let h=`<div class="en-box-card en-box-slot-cands" style="display:flex;flex-direction:column;gap:4px;min-width:0;height:100%;box-sizing:border-box;padding:6px;border-radius:8px;background:${_qBg('unknown')};color:${txt};border:1px dashed ${sub};opacity:${accessible?'1':'0.72'};font-family:sans-serif">
-        <div style="display:flex;align-items:center;gap:6px;padding:0 2px">
-          <span style="font-size:11px;font-weight:700;color:${txt}">¿Cuál está aquí?</span><span style="flex:1"></span>
-          ${accessible?'':`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px">espera</span>`}
-        </div>`;
-      // Cada candidato = tarjeta de UNA línea con el color de su calidad:
-      // emoji · dorsal · equipo · VR stint · % de estar aquí. Clic = "es este".
-      top.forEach(({item,p})=>{
-        const unk=String(item.dorsal)==='?';
-        const kart=unk?null:eqByDorsal[String(item.dorsal).trim()];
-        const q=unk?'unknown':((kart&&_enEffectiveQuality(item.dorsal, kart, trackAvg))||item.quality||'unknown');
-        const bg=_qBg(q), txt=_qTxt(q), sub=_qSub(q);
-        const kc=_enKartColor(unk?'?':item.dorsal, kart&&kart.catColor);
-        const label=unk?'Reserva · sin info':(item.team||item.name||'#'+item.dorsal);
-        const vr=(!unk&&item.stintBest)?_enFmt(item.stintBest):'—';
-        const tip=unk?'Reserva sin info':[item.team||item.name, item.pilot].filter(Boolean).join(' · ');
-        h+=`<div onclick="_enBoxFix(${v.c},${v.d},'${item.id}',event)" title="${_esc(tip)} — clic: es este, fijarlo aquí" style="display:flex;align-items:center;gap:5px;min-width:0;padding:3px 6px;border-radius:6px;background:${bg};color:${txt};border:1px solid rgba(0,0,0,0.25);cursor:pointer">
-          <span style="font-size:13px;line-height:1;flex-shrink:0">${EnBoxModel.qualityEmoji(q)}</span>
-          <span style="min-width:24px;padding:0 3px;border-radius:4px;background:${kc.bg};color:${kc.text};font-size:11.5px;font-weight:700;text-align:center;flex-shrink:0">${_esc(unk?'?':item.dorsal)}</span>
-          <span style="flex:1;min-width:0;font-size:11.5px;font-weight:700;color:${txt};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(label)}</span>
-          ${unk?'':`<span style="font-size:10.5px;color:${sub};font-family:monospace;white-space:nowrap;flex-shrink:0">VR stint ${vr}</span>`}
-          <span style="font-size:11px;font-weight:800;color:${txt};font-family:monospace;flex-shrink:0;min-width:30px;text-align:right">${Math.round(p*100)}%</span>
-        </div>`;
-      });
-      if(more>0)h+=`<div style="font-size:10.5px;color:${sub};padding:0 2px">+${more} más</div>`;
-      h+=`</div>`;
-      return h;
-    };
-    const _slotHtml=(c,d)=>{ const v=EnBoxModel.slotVM(G,c,d); return v.sure?_cardHtml(v.sure,c,d):_candHtml(v); };
+    // Un kart por sitio (sorteo concreto). Si un sitio quedara repartido (no
+    // debería: solo la previsión reparte), se pinta el más probable.
+    const _slotHtml=(c,d)=>{ const v=EnBoxModel.slotVM(G,c,d); const k=v.sure||(v.candidates[0]&&v.candidates[0].item); return k?_cardHtml(k,c,d):'<div></div>'; };
     const _grpHdr=(t)=>`<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin:2px 2px 4px">${t}</div>`;
     // La rejilla HACE de diagrama del box:
     // - línea: una columna, sale el de arriba
@@ -390,16 +360,10 @@ function _enResetQueue(mode, ask){
   _enRender();
 }
 
-// Corrección manual: subir/bajar un sitio dentro de su columna.
+// Corrección manual: mover un kart (▲▼ en su columna, ◀▶ entre columnas).
 function _enBoxMove(c, d, dir, ev){
   if(ev)ev.stopPropagation();
   _enBoxSet(EnBoxModel.gridEvent(_enBoxGrid(), {t:'move', c, d, dir}));
-  _enRender();
-}
-// Corrección manual: "este kart está en este sitio".
-function _enBoxFix(c, d, id, ev){
-  if(ev)ev.stopPropagation();
-  _enBoxSet(EnBoxModel.gridEvent(_enBoxGrid(), {t:'fix', c, d, id}));
   _enRender();
 }
 
