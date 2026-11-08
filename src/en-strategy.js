@@ -93,8 +93,10 @@ function _enRenderStrategy(eq, trackAvg){
     // Zona accesible según tipo de box: las tarjetas fuera de ella se atenúan y
     // se etiquetan "espera". Esto SUSTITUYE al antiguo Diagrama del box.
     const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
-    // Construye UNA tarjeta (string). Se reutiliza en las tres topologías.
-    const _cardHtml=(k,i)=>{
+    // Construye UNA tarjeta (string), compacta y vertical para que quepa igual
+    // en columna (línea), en fila (batería) y en rejilla (columnas). `dir` decide
+    // las flechas de corrección: 'v' ▲▼ en la columna, 'h' ◀▶ en fila/rejilla.
+    const _cardHtml=(k,i,dir)=>{
       const kart=(k.dorsal!=null)?eqByDorsal[String(k.dorsal).trim()]:null;
       const vm=EnBoxModel.boxCardVM(k, kart, {myDorsal:myD, isNextOut:i===0});
       const w=EnBoxModel.weight(k);
@@ -104,70 +106,80 @@ function _enRenderStrategy(eq, trackAvg){
       // dato se queda 'unknown'.
       const q=(kart&&!vm.isUnknown)?(_enEffectiveQuality(vm.dorsal, kart, trackAvg)||vm.quality):vm.quality;
       const bg=_qBg(q), txt=_qTxt(q), sub=_qSub(q);
-      const r=vm.name?_enRatingOf(vm.name):null; const score=(r&&typeof r==='object')?r.score:r;
-      // Vueltas totales del kart (kart.tours, fiable de Apex). _enStintLaps NO
-      // sirve aquí: usa un contador global anclado a MI stint, no al de cada rival.
-      const laps=(kart&&vm.hasData&&kart.tours>0)?kart.tours:null;
-      const last=(kart&&kart.lastLap)?_enFmt(kart.lastLap):null;
+      const emo=EnBoxModel.qualityEmoji(q);
+      // Score del piloto que llevó el kart (si Apex lo da); si no, por el nombre.
+      const r=(vm.pilot||vm.name)?_enRatingOf(vm.pilot||vm.name):null; const score=(r&&typeof r==='object')?r.score:r;
+      const vr=vm.stintBest?_enFmt(vm.stintBest):null;
       const box=(kart&&kart.pitS)?_fmtBox(kart.pitS):null;
       const meBorder=vm.isMe?'2px solid #fff':'1px solid rgba(0,0,0,0.25)';
       // Opacidad = peso (prob. de seguir en box), atenuada extra si no es accesible.
       const op=Math.max(0.35, w*(accessible?1:0.55)).toFixed(2);
       const tb=[]; if(w<0.999)tb.push(`${Math.round(w*100)}% de que siga en el box`); if(!accessible)tb.push('en espera (no accesible ahora)');
       const wTitle=tb.length?` title="${tb.join(' · ')}"`:'';
-      // El chip del dorsal cicla la calidad a mano (reusa _enToggleQuality),
-      // solo en karts conocidos.
-      let c=`<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op}"${wTitle}>
-        <div${vm.isUnknown?'':` onclick="_enToggleQuality(${_esc(JSON.stringify(String(vm.dorsal)))},event)" title="Click: cambiar calidad"`} style="width:32px;height:24px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)${vm.isUnknown?'':';cursor:pointer'}">${_esc(vm.dorsal)}</div>`;
-      if(vm.isUnknown){
-        c+=`<div style="flex:1;font-size:12.5px;color:${sub};font-family:sans-serif">Reserva · sin info</div>`;
-      } else {
-        c+=`<div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:baseline;gap:6px">
-            <span style="font-size:13px;font-weight:700;color:${txt};font-family:sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(vm.name||'#'+vm.dorsal)}</span>
-            ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:#111318;border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
-          </div>
-          <div style="font-size:11px;color:${sub};font-family:monospace">${laps!=null?laps+'v':'—'}${last?' · '+last:''}${box?' · box '+box:''}</div>
-        </div>`;
-      }
-      if(!accessible)c+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
+      const qName=({good:'bueno',neutral:'neutro',bad:'malo',unknown:'sin info'})[q]||'sin info';
+      const ell='white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      let c=`<div class="en-box-card" style="display:flex;flex-direction:column;gap:3px;min-width:0;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op};font-family:sans-serif"${wTitle}>`;
+      // Cabecera: emoji + dorsal (cicla la calidad) + score · estado + flechas
+      c+=`<div style="display:flex;align-items:center;gap:6px">
+        <span role="img" aria-label="kart ${qName}" title="Kart ${qName}" style="font-size:17px;line-height:1;flex-shrink:0">${emo}</span>
+        <div${vm.isUnknown?'':` onclick="_enToggleQuality(${_esc(JSON.stringify(String(vm.dorsal)))},event)" title="Click: cambiar calidad"`} style="min-width:30px;height:22px;padding:0 4px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)${vm.isUnknown?'':';cursor:pointer'}">${_esc(vm.dorsal)}</div>
+        ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:#111318;border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
+        <span style="flex:1"></span>`;
       if(vm.isNextOut)c+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
       else if(vm.isMe)c+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
-      // Corrección manual: mover el kart un puesto hacia SALE (↑) o ENTRA (↓).
+      else if(!accessible)c+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
+      // Corrección manual: mover el kart un puesto hacia SALE o hacia ENTRA.
       if(EnBox.queue.length>1){
-        const btn=`display:grid;place-items:center;width:20px;height:16px;border:none;border-radius:3px;background:rgba(0,0,0,0.22);color:${txt};font-size:11px;line-height:1;cursor:pointer;padding:0`;
-        c+=`<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0">
-          <button type="button" title="Subir (hacia SALE)" onclick="_enMoveQueue('${k.id}','up',event)" style="${btn}">▲</button>
-          <button type="button" title="Bajar (hacia ENTRA)" onclick="_enMoveQueue('${k.id}','down',event)" style="${btn}">▼</button>
+        const [aUp,aDn]=dir==='h'?['◀','▶']:['▲','▼'];
+        const btn=`display:grid;place-items:center;width:18px;height:18px;border:none;border-radius:3px;background:rgba(0,0,0,0.22);color:${txt};font-size:10px;line-height:1;cursor:pointer;padding:0`;
+        c+=`<div style="display:flex;gap:2px;flex-shrink:0">
+          <button type="button" title="Hacia SALE" onclick="_enMoveQueue('${k.id}','up',event)" style="${btn}">${aUp}</button>
+          <button type="button" title="Hacia ENTRA" onclick="_enMoveQueue('${k.id}','down',event)" style="${btn}">${aDn}</button>
         </div>`;
+      }
+      c+=`</div>`;
+      if(vm.isUnknown){
+        c+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}">Reserva</div>
+          <div style="font-size:11px;color:${sub};${ell}">sin info</div>
+          <div style="font-size:11px;color:${sub};font-family:monospace">VR —</div>`;
+      } else {
+        c+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}" title="${_esc(vm.team||'')}">${_esc(vm.team||'#'+vm.dorsal)}</div>
+          <div style="font-size:11px;color:${sub};${ell}" title="${_esc(vm.pilot||'')}">${vm.pilot?_esc(vm.pilot):'&nbsp;'}</div>
+          <div style="font-size:11px;color:${sub};font-family:monospace;${ell}">VR ${vr||'—'}${box?' · box '+box:''}</div>`;
       }
       c+=`</div>`;
       return c;
     };
     const _grpHdr=(t)=>`<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin:2px 2px 4px">${t}</div>`;
-    // Las tarjetas ADOPTAN la topología del box (hacen de diagrama):
-    // - columnas: agrupadas por fila (fila 1 accesible, fila 2+ bloqueada)
-    // - línea: cola vertical, solo la de arriba accesible
-    // - batería: todas accesibles (sorteo)
-    if(boxType==='columns'){
-      // Filas por peso acumulado (no por nº de tarjetas): los karts "a medias"
-      // tras un sorteo comparten hueco y no abren filas que no existen.
-      let idx=0;
-      EnBoxModel.rowsByWeight(EnBox.queue, nColsCfg).forEach((items,rr)=>{
+    // Las tarjetas ADOPTAN la forma del box (hacen de diagrama), ver EnBoxModel.boxLayout:
+    // - línea: una sola columna, sale el de arriba
+    // - batería: una sola fila, sorteo entre todos (scroll horizontal si no caben)
+    // - columnas: rejilla de N columnas por fila; fila 1 accesible, 2+ bloqueadas
+    const lay=EnBoxModel.boxLayout(EnBox.queue, boxType, nColsCfg);
+    if(lay.kind==='grid'){
+      lay.rows.forEach((row,rr)=>{
         html+=_grpHdr(`Fila ${rr+1} · ${rr===0?'accesible (sorteo)':'bloqueada'}`);
-        html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">`;
-        items.forEach(k=>{ html+=_cardHtml(k, idx++); });
+        // Un kart "a medias" tras un sorteo comparte hueco: si la fila trae más
+        // tarjetas que columnas, se ensancha en vez de abrir una fila falsa.
+        const nc=Math.max(lay.cols,row.length);
+        html+=`<div style="display:grid;grid-template-columns:repeat(${nc},minmax(0,1fr));gap:6px;margin-bottom:8px">`;
+        row.forEach(it=>{ html+=_cardHtml(it.k, it.i, 'h'); });
         html+=`</div>`;
       });
+    } else if(lay.kind==='row'){
+      html+=_grpHdr(`Sorteo entre todos · ${fmtN(qTotalW)} karts`);
+      html+=`<div style="display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px">`;
+      lay.rows[0].forEach(it=>{ html+=`<div style="flex:0 0 160px;min-width:0;display:flex;flex-direction:column">${_cardHtml(it.k, it.i, 'h')}</div>`; });
+      html+=`</div>`;
     } else {
-      html+=_grpHdr(boxType==='battery'?`Sorteo entre todos · ${fmtN(qTotalW)} karts`:'Cola · sale el de arriba');
-      html+=`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">`;
-      EnBox.queue.forEach((k,i)=>{ html+=_cardHtml(k,i); });
+      html+=_grpHdr('Cola · sale el de arriba');
+      html+=`<div style="display:flex;flex-direction:column;gap:6px;max-width:340px;margin-bottom:6px">`;
+      lay.rows.forEach(row=>{ html+=_cardHtml(row[0].k, row[0].i, 'v'); });
       html+=`</div>`;
     }
     const qSum=(q)=>fmtN(EnBox.queue.filter(k=>k.quality===q).reduce((a,k)=>a+EnBoxModel.weight(k),0));
     const qGood=qSum('good'), qBad=qSum('bad'), qNeutral=qSum('neutral'), qUnknown=qSum('unknown');
-    html+=`<div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">${qGood} buenos · ${qNeutral} neutros · ${qBad} malos · ${qUnknown} sin info</div>`;
+    html+=`<div style="font-size:11.5px;color:var(--text-2);font-family:sans-serif">🚀 ${qGood} buenos · 🚗 ${qNeutral} neutros · 🐢 ${qBad} malos · 🎲 ${qUnknown} sin info</div>`;
     html+=`<div style="font-size:11.5px;color:var(--text-2);margin-top:2px">Primero: <b style="color:${EnBox.queue[0]?.quality==='good'?'var(--state-ok)':EnBox.queue[0]?.quality==='bad'?'var(--state-alert)':EnBox.queue[0]?.quality==='neutral'?'var(--state-warn)':'#555'}">${({good:'bueno',bad:'malo',neutral:'neutro',unknown:'desconocido'})[EnBox.queue[0]?.quality]||'?'}</b></div>`;
     if(myQueueIdx>=0&&boxType==='line'){
       const ahead=myQueueIdx;
@@ -1049,13 +1061,16 @@ window.showEnduranceDashboard=function(cfg){
                 const snap=data.equipos.find(e=>e.dorsal?.toString()===k.dorsal?.toString());
                 if(!snap)return;
                 if(snap.name)k.name=snap.name;
+                k.team=snap.teamName||snap.name||null; // el piloto de entonces no se conoce
                 const evs=data.pitEvents.filter(ev=>String(ev.dorsal)===String(k.dorsal));
                 const pin=evs.find(ev=>ev.event==='in'&&ev.time===k.time);
                 if(!pin||typeof pin.lapIdx!=='number')return;
                 const pout=evs.filter(ev=>ev.event==='out'&&ev.time<pin.time).pop();
                 const from=pout?pout.lapIdx:0;
                 if(typeof from!=='number')return;
-                const q=_enQualityOfLaps(snap, (snap.lapHistory||[]).slice(from, pin.lapIdx), snapAvg);
+                const tramo=(snap.lapHistory||[]).slice(from, pin.lapIdx);
+                k.stintBest=EnBoxModel.stintBest(tramo);
+                const q=_enQualityOfLaps(snap, tramo, snapAvg);
                 if(q)k.quality=q;
               });
             }
@@ -1117,9 +1132,14 @@ window.showEnduranceDashboard=function(cfg){
           const boxEv=(e.pitState==='in'&&prev!=='in')?'in':(e.pitState==='out'&&prev!=='out')?'out'
             :(!e.pit&&!e.pitState&&EnBox.swapped[e.dorsal])?'track':null;
           if(boxEv){
+            // Vueltas del stint que deja el kart: se leen ANTES de la calidad, que en
+            // la transición a 'out' corre stintStartIdx al kart nuevo.
+            const st0=EnSession.kartAutoState[e.dorsal];
+            const stLaps=(e.lapHistory||[]).slice(Math.min(st0?.stintStartIdx||0,(e.lapHistory||[]).length));
             const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
             EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped,
-              {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now, lapIdx:(e.lapHistory||[]).length},
+              {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now, lapIdx:(e.lapHistory||[]).length,
+               team:e.teamName||e.name||null, pilot:e.driver||null, stintBest:EnBoxModel.stintBest(stLaps)},
               EnBox.config.type||'line', EnBox.config.columns||2, EnBox.pending);
           }
           // Inferencia por ritmo (batería/columnas): cuando el kart NUEVO del rival ya

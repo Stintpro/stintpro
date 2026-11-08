@@ -780,5 +780,54 @@ test('rowsByWeight: un kart que cruza el límite va a la fila donde empieza', ()
   strictEqual(rowIds(M.rowsByWeight(q, 2)), 'abc|d');
 });
 
+// ── Tarjeta: equipo, piloto, VR del stint y emoji ─────────────────────────
+console.log('\n▸ tarjeta del box: equipo/piloto/VR/emoji\n');
+
+test('boxOnPitEvent guarda equipo, piloto y VR del stint que deja el kart', () => {
+  const q = M.boxOnPitEvent(M.makeReserve(2), {}, { dorsal: '12', kind: 'in', quality: 'good', name: 'ANA', team: 'RAYO', pilot: 'ANA', stintBest: 66.321 }, 'line', 1);
+  const k = q[q.length - 1];
+  strictEqual(k.team, 'RAYO'); strictEqual(k.pilot, 'ANA'); strictEqual(k.stintBest, 66.321);
+});
+
+test('boxCardVM: piloto y VR salen del stint guardado, no del kart en vivo', () => {
+  const vm = M.boxCardVM({ dorsal: '12', quality: 'good', name: 'ANA', team: 'RAYO', pilot: 'ANA', stintBest: 66.3 },
+    { dorsal: '12', name: 'LUIS', teamName: 'RAYO', driver: 'LUIS', lastLap: 70 }, {});
+  strictEqual(vm.team, 'RAYO'); strictEqual(vm.pilot, 'ANA'); strictEqual(vm.stintBest, 66.3);
+});
+
+test('boxCardVM: sin piloto de Apex no repite el equipo como piloto', () => {
+  const vm = M.boxCardVM({ dorsal: '5', quality: 'bad', name: 'EQ 5', pilot: 'EQ 5' }, { dorsal: '5', teamName: 'EQ 5' }, {});
+  strictEqual(vm.team, 'EQ 5'); strictEqual(vm.pilot, null); strictEqual(vm.stintBest, null);
+});
+
+test('boxCardVM: reserva sin info no tiene equipo, piloto ni VR', () => {
+  const vm = M.boxCardVM({ dorsal: '?', quality: 'unknown' }, null, {});
+  strictEqual(vm.team, null); strictEqual(vm.pilot, null); strictEqual(vm.stintBest, null);
+});
+
+test('qualityEmoji: 🚀 🚗 🐢 🎲 (y 🎲 para lo desconocido)', () => {
+  strictEqual(M.qualityEmoji('good'), '🚀'); strictEqual(M.qualityEmoji('neutral'), '🚗');
+  strictEqual(M.qualityEmoji('bad'), '🐢'); strictEqual(M.qualityEmoji('unknown'), '🎲');
+  strictEqual(M.qualityEmoji(undefined), '🎲');
+});
+
+test('stintBest: mínima limpia, sin vueltas de box ni cortes imposibles', () => {
+  strictEqual(M.stintBest([67.2, 66.9, 190, 66.4, 31.0, 67.0]), 66.4);
+  strictEqual(M.stintBest([]), null); strictEqual(M.stintBest(null), null);
+  strictEqual(M.stintBest([200, 250]), null);
+});
+
+test('boxLayout: línea = una columna, batería = una fila, columnas = rejilla de N', () => {
+  const q = ['a', 'b', 'c', 'd', 'e'].map(id => ({ id, quality: 'good', w: 1 }));
+  const ln = M.boxLayout(q, 'line', 2);
+  strictEqual(ln.kind, 'column'); strictEqual(ln.rows.length, 5); strictEqual(ln.rows[0].length, 1);
+  const bt = M.boxLayout(q, 'battery', 2);
+  strictEqual(bt.kind, 'row'); strictEqual(bt.rows.length, 1); strictEqual(bt.rows[0].length, 5);
+  const cl = M.boxLayout(q, 'columns', 2);
+  strictEqual(cl.kind, 'grid'); strictEqual(cl.cols, 2);
+  strictEqual(cl.rows.map(r => r.map(x => x.k.id).join('')).join('|'), 'ab|cd|e');
+  strictEqual(cl.rows.flat().map(x => x.i).join(','), '0,1,2,3,4');
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

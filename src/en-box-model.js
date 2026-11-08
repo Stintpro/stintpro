@@ -359,7 +359,11 @@
       else delete pending[d];
     }
     const next = out.queue
-      .concat([{ id: newId(), quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time }]);
+      .concat([{ id: newId(), quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time,
+        // Foto del stint que DEJÓ el kart: tras el cambio, los datos en vivo de
+        // ese dorsal ya son de su kart nuevo y de otro piloto.
+        team: ev.team || null, pilot: ev.pilot || null,
+        stintBest: (ev.stintBest > 0) ? ev.stintBest : null }]);
     if (ev.kind === 'in') swapped[d] = true;
     return next;
   }
@@ -435,15 +439,56 @@
     const isUnknown = !dorsalStr || dorsalStr === '?' || (k && k.quality === 'unknown');
     const myD = opts.myDorsal != null ? String(opts.myDorsal).trim() : '';
     const isMe = !!(myD && dorsalStr && dorsalStr === myD);
+    const name = isUnknown ? null : ((k && k.name) || (kart && kart.name) || null);
+    // El equipo no cambia con el kart: vale el dato en vivo como respaldo. El
+    // piloto y la vuelta rápida SOLO del stint guardado (en vivo ya son de otro).
+    const team = isUnknown ? null : ((k && k.team) || (kart && kart.teamName) || name);
+    const pilotRaw = isUnknown ? null : ((k && k.pilot) || null);
+    const pilot = (pilotRaw && pilotRaw !== team) ? pilotRaw : null;
     return {
       dorsal: isUnknown ? '?' : dorsalStr,
-      name: isUnknown ? null : ((k && k.name) || (kart && kart.name) || null),
+      name,
+      team,
+      pilot,
+      stintBest: (!isUnknown && k && k.stintBest > 0) ? k.stintBest : null,
       quality: (k && k.quality) || 'unknown',
       isMe,
       isUnknown,
       hasData: !!kart && !isUnknown,
       isNextOut: !!opts.isNextOut,
     };
+  }
+
+  // Emoji de calidad que acompaña al color de la tarjeta (se lee sin color).
+  const QUALITY_EMOJI = { good: '🚀', neutral: '🚗', bad: '🐢', unknown: '🎲' };
+  function qualityEmoji(q) { return QUALITY_EMOJI[q] || QUALITY_EMOJI.unknown; }
+
+  // Vuelta rápida de un stint (segundos). Fuera vueltas de box/bandera (≥180 s)
+  // y cortes imposibles (<70% de la mediana), como _enCleanLaps.
+  function stintBest(laps) {
+    const ok = (laps || []).filter(t => typeof t === 'number' && t > 0 && t < 180);
+    if (!ok.length) return null;
+    const sorted = ok.slice().sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const clean = sorted.filter(t => t >= median * 0.7);
+    return clean.length ? clean[0] : null;
+  }
+
+  // Disposición de las tarjetas según el tipo de box (hace de diagrama):
+  //   línea    → una columna (solo sale el de arriba)
+  //   batería  → una fila (sorteo entre todos)
+  //   columnas → rejilla de N columnas, una fila por fila del box (por peso)
+  // Cada item lleva su índice en la cola (0 = próximo en salir).
+  function boxLayout(queue, type, cols) {
+    const items = queue.map((k, i) => ({ k, i }));
+    if (type === 'columns') {
+      const n = Math.max(1, cols || 2);
+      let i = 0;
+      const rows = rowsByWeight(queue, n).map(r => r.map(k => ({ k, i: i++ })));
+      return { kind: 'grid', cols: n, rows };
+    }
+    if (type === 'battery') return { kind: 'row', cols: items.length, rows: [items] };
+    return { kind: 'column', cols: 1, rows: items.map(it => [it]) };
   }
 
   // Corrección manual (incremento 2): mover un kart de la cola por su id.
@@ -471,6 +516,6 @@
     return queue;
   }
 
-  return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, qualityEmoji, stintBest, boxLayout, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, rowsByWeight, applyPitOut, accessProb, forecast, stopsNeeded };
 });
