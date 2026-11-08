@@ -144,7 +144,7 @@ function _enCheckAlerts(eq, trackAvg){
       // Misma métrica que la pestaña Estrategia: probabilidad de que te toque un
       // kart bueno según el tipo de box (en línea solo cuenta el primero).
       const queue=EnBox.queue||[];
-      const acc=EnBoxModel.accessProb(queue, EnBox.config.type||'line', EnBox.config.columns||2);
+      const acc=_enBoxAccess();
       const goodInQueue=Math.round(acc.good);
       if(myCanPit&&acc.prob!==null&&acc.prob>=60&&acc.knownShare>=0.5){
         _enFireAlert('window', { goodInQueue, totalInQueue:queue.length, accessProbPct:acc.prob });

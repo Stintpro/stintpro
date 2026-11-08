@@ -97,7 +97,7 @@ function _enBuildAiSnapshot(){
   }
 
   const goodInQueue=Math.round(EnBox.queue.filter(k=>k.quality==='good').reduce((a,k)=>a+EnBoxModel.weight(k),0));
-  const boxAcc=EnBoxModel.accessProb(EnBox.queue, EnBox.config.type||'line', EnBox.config.columns||2);
+  const boxAcc=_enBoxAccess();
   const pilotName=cfg.pilotos?.[EnSession.currentPilot]?.name||null;
 
   return {

@@ -491,6 +491,248 @@
     return { kind: 'column', cols: 1, rows: items.map(it => [it]) };
   }
 
+  // ── Box como REJILLA FIJA de sitios ─────────────────────────────────────────
+  // El box tiene siempre los karts configurados: C columnas, cada una una fila
+  // india (FIFO). Los tres tipos son la misma rejilla:
+  //   línea    → 1 columna de N
+  //   columnas → C columnas de N/C (las primeras N%C llevan uno más)
+  //   batería  → N columnas de 1
+  // Parada (intercambio): se sortea una columna, el equipo se lleva su primer
+  // kart, la columna AVANZA y el kart que deja entra al FINAL de esa columna.
+  // Como no sabemos qué columna salió, cada sitio guarda la probabilidad de
+  // cada kart que puede estar ahí (marginal por sitio, exacta: el sitio es una
+  // mezcla de "avanzó" (π) y "no avanzó" (1−π)). El tamaño nunca cambia.
+  // El estado se puede rehacer siempre desde base + registro de eventos: así un
+  // cambio de configuración o lo que revela el ritmo del rival recalculan todo.
+  const SLOT_MIN_P = 0.02;
+
+  function gridDims(type, n, cols) {
+    n = Math.max(1, n | 0 || 1);
+    if (type === 'battery') return Array(n).fill(1);
+    if (type === 'columns') {
+      const C = Math.max(1, Math.min(cols | 0 || 2, n));
+      const base = Math.floor(n / C), extra = n % C;
+      return Array.from({ length: C }, (_, c) => base + (c < extra ? 1 : 0));
+    }
+    return [n];
+  }
+
+  // Orden de llenado/lectura: fila a fila (profundidad), columna a columna.
+  function fillOrder(lens) {
+    const out = [];
+    const R = Math.max(...lens);
+    for (let d = 0; d < R; d++) for (let c = 0; c < lens.length; c++) if (d < lens[c]) out.push([c, d]);
+    return out;
+  }
+
+  function mixDist(a, wa, b, wb) {
+    const m = new Map();
+    if (wa > 0) for (const [id, p] of a) m.set(id, (m.get(id) || 0) + p * wa);
+    if (wb > 0) for (const [id, p] of b) m.set(id, (m.get(id) || 0) + p * wb);
+    return normDist([...m.entries()]);
+  }
+  function normDist(d) {
+    let kept = d.filter(([, p]) => p >= SLOT_MIN_P);
+    if (!kept.length && d.length) kept = [d.reduce((x, y) => (y[1] > x[1] ? y : x))];
+    const t = kept.reduce((a, [, p]) => a + p, 0);
+    return kept.map(([id, p]) => [id, p / t]).sort((x, y) => y[1] - x[1]);
+  }
+
+  // Un paso sobre los sitios (puro). ev:
+  //   {t:'swap', item, pi?}  intercambio; pi[c] = prob. de que saliera la columna c
+  //   {t:'fix', c, d, id}    "este kart está aquí" (corrección manual)
+  //   {t:'move', c, d, dir}  intercambia el sitio con el de arriba/abajo de su columna
+  function stepSlots(slots, ev) {
+    const C = slots.length;
+    if (ev.t === 'swap') {
+      const pi = (ev.pi && ev.pi.length === C) ? ev.pi : Array(C).fill(1 / C);
+      return slots.map((col, c) => {
+        const q = pi[c] || 0;
+        if (q <= 0) return col;
+        return col.map((slot, d) => (d < col.length - 1)
+          ? mixDist(col[d + 1], q, slot, 1 - q)
+          : mixDist([[ev.item.id, 1]], q, slot, 1 - q));
+      });
+    }
+    if (ev.t === 'fix') {
+      return slots.map((col, c) => col.map((slot, d) => {
+        if (c === ev.c && d === ev.d) return [[ev.id, 1]];
+        const rest = slot.filter(([id]) => id !== ev.id);
+        return rest.length ? normDist(rest) : slot;
+      }));
+    }
+    if (ev.t === 'move') {
+      const col = slots[ev.c];
+      if (!col) return slots;
+      const j = ev.dir === 'up' ? ev.d - 1 : ev.d + 1;
+      if (j < 0 || j >= col.length || ev.d < 0 || ev.d >= col.length) return slots;
+      const nc = col.slice(); const t = nc[ev.d]; nc[ev.d] = nc[j]; nc[j] = t;
+      return slots.map((x, c) => (c === ev.c ? nc : x));
+    }
+    return slots;
+  }
+
+  function buildSlots(lens, base) {
+    const slots = lens.map(len => Array.from({ length: len }, () => []));
+    fillOrder(lens).forEach(([c, d], i) => { slots[c][d] = [[base[i], 1]]; });
+    return slots;
+  }
+
+  // Crea el box. baseItems (opcional, del más antiguo al más reciente) ocupan
+  // los últimos sitios; delante, reserva desconocida hasta completar N.
+  function gridCreate(type, n, cols, baseItems, time) {
+    const lens = gridDims(type, n, cols);
+    const N = lens.reduce((a, b) => a + b, 0);
+    const given = (baseItems || []).slice(-N);
+    const items = {};
+    const base = makeReserve(N - given.length, time).concat(given).map(it => { items[it.id] = it; return it.id; });
+    return { type, n: N, cols, lens, items, base, log: [], slots: buildSlots(lens, base) };
+  }
+
+  function replay(B, lens, base, log) {
+    let slots = buildSlots(lens, base);
+    for (const ev of log) slots = stepSlots(slots, ev);
+    return { ...B, lens, base, log, slots };
+  }
+
+  // Aplica un evento y lo registra.
+  function gridEvent(B, ev) {
+    if (ev.t === 'swap') B = { ...B, items: { ...B.items, [ev.item.id]: ev.item } };
+    return { ...B, log: B.log.concat([ev]), slots: stepSlots(B.slots, ev) };
+  }
+
+  // Cambio de configuración (tipo, karts o columnas): misma base + registro sobre
+  // la rejilla nueva. Si cambia N, la base se recorta por delante o se completa
+  // con reserva desconocida.
+  function gridRetopo(B, type, n, cols) {
+    const lens = gridDims(type, n, cols);
+    const N = lens.reduce((a, b) => a + b, 0);
+    let base = B.base.slice(-N);
+    const items = { ...B.items };
+    if (base.length < N) base = makeReserve(N - base.length).map(it => { items[it.id] = it; return it.id; }).concat(base);
+    const log = B.log.filter(ev => ev.t === 'swap'); // fix/move se refieren a la rejilla vieja
+    return replay({ ...B, type, n: N, cols, items }, lens, base, log);
+  }
+
+  // Parada vista en el feed (misma semántica que boxOnPitEvent: intercambio en
+  // el pit in; el so solo intercambia si no se vio el si; volver a pista cierra).
+  function gridOnPitEvent(B, swapped, ev, pending) {
+    const d = String(ev.dorsal);
+    if (ev.kind === 'track') { delete swapped[d]; return B; }
+    if (ev.kind === 'in' && swapped[d]) return B;
+    if (ev.kind === 'out' && swapped[d]) { delete swapped[d]; return B; }
+    const q = ev.quality === 'good' || ev.quality === 'neutral' || ev.quality === 'bad' ? ev.quality : 'unknown';
+    const item = { id: newId(), quality: q, dorsal: ev.dorsal, name: ev.name, time: ev.time,
+      team: ev.team || null, pilot: ev.pilot || null, stintBest: (ev.stintBest > 0) ? ev.stintBest : null };
+    const multi = B.lens.length > 1;
+    const out = gridEvent(B, { t: 'swap', item, dorsal: d, pending: multi });
+    if (pending) {
+      if (multi) pending[d] = { lapIdx: ev.lapIdx, time: ev.time };
+      else delete pending[d];
+    }
+    if (ev.kind === 'in') swapped[d] = true;
+    return out;
+  }
+
+  // Inferencia por ritmo: el kart nuevo del rival ya tiene calidad → se rehace
+  // el sorteo de SU intercambio pesando cada columna por lo compatible que es su
+  // primer kart con lo observado, y se recalcula todo lo posterior.
+  function gridResolve(B, pending, dorsal, observed) {
+    const d = String(dorsal);
+    if (pending) delete pending[d];
+    if (!(observed === 'good' || observed === 'neutral' || observed === 'bad')) return B;
+    let idx = -1;
+    for (let i = B.log.length - 1; i >= 0; i--) {
+      const ev = B.log[i];
+      if (ev.t === 'swap' && ev.pending && ev.dorsal === d) { idx = i; break; }
+    }
+    if (idx < 0) return B;
+    let before = buildSlots(B.lens, B.base);
+    for (let i = 0; i < idx; i++) before = stepSlots(before, B.log[i]);
+    const like = (it) => !it ? LIKE_UNKNOWN : it.quality === observed ? LIKE_SAME
+      : (it.quality === 'good' || it.quality === 'neutral' || it.quality === 'bad') ? LIKE_OTHER : LIKE_UNKNOWN;
+    const L = before.map(col => col[0].reduce((a, [id, p]) => a + p * like(B.items[id]), 0));
+    const tot = L.reduce((a, b) => a + b, 0);
+    const pi = tot > 1e-9 ? L.map(x => x / tot) : null;
+    const log = B.log.slice();
+    log[idx] = { ...log[idx], pi, pending: false };
+    return replay(B, B.lens, B.base, log);
+  }
+
+  // Reinicio: N desconocidos, o los últimos N karts que entraron (más antiguo
+  // delante) completados con desconocidos.
+  function gridReset(B, n, mode) {
+    if (mode !== 'keepLast') return gridCreate(B.type, n, B.cols);
+    const seen = new Set(); const last = [];
+    for (let i = B.log.length - 1; i >= 0; i--) {
+      const ev = B.log[i];
+      if (ev.t === 'swap' && !seen.has(ev.item.id)) { seen.add(ev.item.id); last.unshift(ev.item); }
+    }
+    return gridCreate(B.type, n, B.cols, last);
+  }
+
+  // Mismo resultado que accessProb, sobre la rejilla: la zona accesible son los
+  // primeros sitios de cada columna (sorteo uniforme entre columnas).
+  function gridAccess(B) {
+    const sum = { good: 0, neutral: 0, bad: 0, unknown: 0 };
+    for (const col of B.slots) for (const [id, p] of col[0]) {
+      const q = (B.items[id] || {}).quality;
+      sum[q === 'good' || q === 'neutral' || q === 'bad' ? q : 'unknown'] += p;
+    }
+    const total = sum.good + sum.neutral + sum.bad + sum.unknown;
+    const known = total - sum.unknown;
+    return { prob: known > 1e-9 ? Math.round(sum.good / known * 100) : null,
+      knownShare: total > 0 ? known / total : 0, zoneTotal: total, ...sum };
+  }
+
+  function gridForecast(B, predictions) {
+    let slots = B.slots; const items = { ...B.items };
+    const steps = [];
+    const ordered = predictions.slice().sort((a, b) => (a.minLeft ?? Infinity) - (b.minLeft ?? Infinity));
+    for (const p of ordered) {
+      const qual = p.quality === 'good' || p.quality === 'neutral' || p.quality === 'bad' ? p.quality : 'unknown';
+      const item = { id: newId(), quality: qual, dorsal: p.dorsal, name: p.name };
+      items[item.id] = item;
+      slots = stepSlots(slots, { t: 'swap', item });
+      steps.push({ ...p, prob: gridAccess({ ...B, slots, items }).prob });
+    }
+    return { now: gridAccess(B).prob, steps };
+  }
+
+  // Lista plana compatible con la cola de antes: cada kart con w = probabilidad
+  // de estar en el box (suma = N), en orden de salida esperado.
+  function gridPresence(B) {
+    const acc = new Map();
+    fillOrder(B.lens).forEach(([c, d], i) => {
+      for (const [id, p] of B.slots[c][d]) {
+        const a = acc.get(id) || { w: 0, pos: 0 };
+        a.w += p; a.pos += p * i; acc.set(id, a);
+      }
+    });
+    return [...acc.entries()]
+      .map(([id, a]) => ({ ...B.items[id], w: a.w, _pos: a.pos / a.w }))
+      .sort((x, y) => x._pos - y._pos)
+      .map(({ _pos, ...k }) => k);
+  }
+
+  // Lo que pinta un sitio: un kart seguro, o los candidatos con su %.
+  const SLOT_SURE = 0.95;
+  function slotVM(B, c, d) {
+    const dist = (B.slots[c] && B.slots[c][d]) || [];
+    // Las reservas sin dato son indistinguibles: se agrupan en una sola entrada.
+    const cands = [];
+    let reserve = null;
+    for (const [id, p] of dist) {
+      const item = B.items[id];
+      if (!item) continue;
+      if (String(item.dorsal) === '?') {
+        if (reserve) reserve.p += p; else cands.push(reserve = { item, p });
+      } else cands.push({ item, p });
+    }
+    cands.sort((a, b) => b.p - a.p);
+    return { c, d, sure: cands.length && cands[0].p >= SLOT_SURE ? cands[0].item : null, candidates: cands };
+  }
+
   // Corrección manual (incremento 2): mover un kart de la cola por su id.
   // dir: 'up'/'down' (un puesto) o 'front'/'back' (extremos). El índice 0 es el
   // próximo en salir (extremo SALE); 'up' acerca a SALE, 'down' a ENTRA.
@@ -516,6 +758,7 @@
     return queue;
   }
 
-  return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, qualityEmoji, stintBest, boxLayout, moveInQueue, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
+  return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, qualityEmoji, stintBest, boxLayout, moveInQueue,
+    gridDims, gridCreate, gridEvent, gridRetopo, gridOnPitEvent, gridResolve, gridReset, gridAccess, gridForecast, gridPresence, slotVM, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, rowsByWeight, applyPitOut, accessProb, forecast, stopsNeeded };
 });

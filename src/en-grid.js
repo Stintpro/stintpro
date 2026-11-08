@@ -364,9 +364,7 @@ function _enKpisHtml(leader, trackAvg, bestSess, inPit, myKart, myDorsal, eq){
   // Estado de Box — probabilidad de ACCESO a kart bueno (misma métrica que la
   // pestaña Estrategia: EnBoxModel.accessProb) + leyenda buenos/neutros/malos/
   // sin-info en pit y cola. Solo el %, sin barra.
-  const _boxType=EnBox.config.type||'line';
-  const _boxCols=EnBox.config.columns||2;
-  const _acc=EnBoxModel.accessProb(EnBox.queue, _boxType, _boxCols);
+  const _acc=_enBoxAccess();
   const probAcceso=_acc.prob; // null = SIN DATOS DE BOX
   const _fmtN=(x)=>Math.abs(x-Math.round(x))<0.05?String(Math.round(x)):x.toFixed(1);
   const _qTotalW=EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0);

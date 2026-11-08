@@ -829,5 +829,103 @@ test('boxLayout: línea = una columna, batería = una fila, columnas = rejilla d
   strictEqual(cl.rows.flat().map(x => x.i).join(','), '0,1,2,3,4');
 });
 
+// ── Box como rejilla fija de sitios ───────────────────────────────────────
+console.log('\n▸ rejilla fija del box (grid*)\n');
+const sumW = (B) => M.gridPresence(B).reduce((a, k) => a + k.w, 0);
+const pit = (B, d, q, extra) => M.gridOnPitEvent(B, {}, Object.assign({ dorsal: d, kind: 'out', quality: q || 'good' }, extra || {}), {});
+const dorsalAt = (B, c, d) => { const v = M.slotVM(B, c, d); return v.sure ? String(v.sure.dorsal) : null; };
+
+test('gridDims: línea 1×N, batería N×1, columnas reparte N entre C', () => {
+  strictEqual(M.gridDims('line', 4, 2).join(','), '4');
+  strictEqual(M.gridDims('battery', 3, 2).join(','), '1,1,1');
+  strictEqual(M.gridDims('columns', 4, 2).join(','), '2,2');
+  strictEqual(M.gridDims('columns', 5, 2).join(','), '3,2');
+});
+
+test('el box SIEMPRE pesa los karts configurados, pare quien pare (2×2, 10 paradas)', () => {
+  let B = M.gridCreate('columns', 4, 2);
+  for (let i = 0; i < 10; i++) B = pit(B, 10 + i, i % 2 ? 'bad' : 'good');
+  strictEqual(B.slots.length, 2); strictEqual(B.slots[0].length, 2); strictEqual(B.slots[1].length, 2);
+  ok(Math.abs(sumW(B) - 4) < 1e-6, 'pesa ' + sumW(B));
+  for (const col of B.slots) for (const slot of col) ok(Math.abs(slot.reduce((a, [, p]) => a + p, 0) - 1) < 1e-9);
+});
+
+test('línea: intercambio determinista, el que entra va al final y avanza la fila', () => {
+  let B = M.gridCreate('line', 3, 2);
+  B = pit(B, 7); B = pit(B, 8);
+  strictEqual(dorsalAt(B, 0, 0), '?'); strictEqual(dorsalAt(B, 0, 1), '7'); strictEqual(dorsalAt(B, 0, 2), '8');
+  strictEqual(B.log[0].pending, false);
+});
+
+test('columnas: el kart que deja el equipo entra al FINAL de la columna sorteada (50/50 con 2)', () => {
+  let B = M.gridCreate('columns', 4, 2);
+  B = pit(B, 9);
+  for (const c of [0, 1]) {
+    const back = M.slotVM(B, c, 1).candidates.find(x => String(x.item.dorsal) === '9');
+    ok(back && Math.abs(back.p - 0.5) < 1e-9, 'col ' + c);
+  }
+  // la fila 1 sigue segura (desconocidos), el sitio de atrás es incierto
+  ok(M.slotVM(B, 0, 0).sure); ok(!M.slotVM(B, 0, 1).sure);
+});
+
+test('gridAccess: misma métrica que accessProb (línea = primero, columnas = fila 1)', () => {
+  let B = M.gridCreate('line', 2, 2);
+  B = pit(B, 1, 'good'); B = pit(B, 2, 'bad');
+  strictEqual(M.gridAccess(B).prob, 100);
+  let C2 = M.gridCreate('columns', 2, 2);
+  C2 = M.gridCreate('columns', 2, 2, [{ id: 'g', quality: 'good', dorsal: 1 }, { id: 'b', quality: 'bad', dorsal: 2 }]);
+  strictEqual(M.gridAccess(C2).prob, 50); strictEqual(M.gridAccess(C2).zoneTotal, 2);
+  strictEqual(M.gridAccess(M.gridCreate('battery', 3)).prob, null);
+});
+
+test('gridResolve: el ritmo del rival dice qué columna salió y lo de detrás se recalcula', () => {
+  let B = M.gridCreate('columns', 2, 2, [{ id: 'g', quality: 'good', dorsal: 1 }, { id: 'b', quality: 'bad', dorsal: 2 }]);
+  const pend = {};
+  B = M.gridOnPitEvent(B, {}, { dorsal: 30, kind: 'in', quality: 'neutral', lapIdx: 5 }, pend);
+  ok(pend['30'] && pend['30'].lapIdx === 5);
+  ok(!M.slotVM(B, 0, 0).sure);
+  B = M.gridResolve(B, pend, 30, 'good');      // se llevó un kart bueno → salió la columna del bueno
+  strictEqual(pend['30'], undefined);
+  const c0 = M.slotVM(B, 0, 0).candidates.find(x => x.item.dorsal === 30);
+  ok(c0 && c0.p > 0.85, 'el neutro ocupa casi seguro el hueco del bueno: ' + (c0 && c0.p));
+  ok(Math.abs(sumW(B) - 2) < 1e-6);
+});
+
+test('gridRetopo: cambiar 2 columnas → línea rehace el box con las mismas paradas', () => {
+  let B = M.gridCreate('columns', 4, 2);
+  B = pit(B, 1); B = pit(B, 2);
+  const L = M.gridRetopo(B, 'line', 4, 2);
+  strictEqual(L.lens.join(','), '4');
+  strictEqual(dorsalAt(L, 0, 2), '1'); strictEqual(dorsalAt(L, 0, 3), '2');
+  const L5 = M.gridRetopo(B, 'line', 5, 2);
+  ok(Math.abs(sumW(L5) - 5) < 1e-6);
+});
+
+test('fix y move: corrección manual de un sitio', () => {
+  let B = M.gridCreate('columns', 4, 2);
+  B = pit(B, 9);
+  const id9 = M.slotVM(B, 0, 1).candidates.find(x => x.item.dorsal === 9).item.id;
+  B = M.gridEvent(B, { t: 'fix', c: 1, d: 1, id: id9 });
+  strictEqual(dorsalAt(B, 1, 1), '9');
+  ok(!M.slotVM(B, 0, 1).candidates.some(x => x.item.dorsal === 9), 'ya no está en la otra columna');
+  let L = M.gridCreate('line', 3, 2); L = pit(L, 7);
+  L = M.gridEvent(L, { t: 'move', c: 0, d: 2, dir: 'up' });
+  strictEqual(dorsalAt(L, 0, 1), '7');
+});
+
+test('gridReset keepLast: los últimos N que entraron, el más antiguo delante', () => {
+  let B = M.gridCreate('line', 3, 2);
+  for (const d of [1, 2, 3, 4]) B = pit(B, d);
+  const R = M.gridReset(B, 3, 'keepLast');
+  strictEqual([0, 1, 2].map(d => dorsalAt(R, 0, d)).join(','), '2,3,4');
+  strictEqual(M.gridReset(B, 3, 'unknown').log.length, 0);
+});
+
+test('gridForecast: cada parada prevista es un intercambio sobre la rejilla', () => {
+  const B = M.gridCreate('line', 1, 2, [{ id: 'b', quality: 'bad', dorsal: 1 }]);
+  const f = M.gridForecast(B, [{ dorsal: 5, quality: 'good', minLeft: 2 }]);
+  strictEqual(f.now, 0); strictEqual(f.steps[0].prob, 100);
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

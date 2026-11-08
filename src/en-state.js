@@ -133,10 +133,11 @@ function _enScoreColor(score) {
 // ── Configuración del box (persistente en la sesión) ──────────────────────
 const EnBox = {
   config:         { type:'line', positions:4, columns:2 },
-  queue:          [],    // [{quality, dorsal, time, w?}] — reserva del box (ver en-box-model.js)
+  grid:           null,  // box como rejilla fija de sitios (EnBoxModel.gridCreate) — el ESTADO
+  queue:          [],    // derivada de grid: [{quality, dorsal, time, w}] con w = prob. de estar en el box
   queueInited:    false,
   swapped:        {},    // dorsal → true: su parada en curso ya hizo el intercambio en el pit in
-  pending:        {},    // dorsal → {cut,lapIdx}: resta por sorteo a confirmar con el ritmo del rival
+  pending:        {},    // dorsal → {lapIdx}: sorteo a confirmar con el ritmo del rival (gridResolve)
   pitDuration:    180,   // duración de parada en segundos (marca la organización)
   _pitDurUserSet: false, // el usuario editó la duración a mano → no auto-sobrescribir con la de Apex (otr)
   pilotMinTime:   0,     // minutos mínimos por piloto

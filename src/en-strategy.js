@@ -17,7 +17,7 @@ function _enRenderStrategy(eq, trackAvg){
   const boxPos=EnBox.config.positions||4;
   const boxType=EnBox.config.type||'line';
   const nColsCfg=EnBox.config.columns||2;
-  const acc=EnBoxModel.accessProb(EnBox.queue, boxType, nColsCfg);
+  const acc=_enBoxAccess();
   const fmtN=(x)=>Math.abs(x-Math.round(x))<0.05?String(Math.round(x)):x.toFixed(1);
   const qTotalW=EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0);
   const queueEstimated=EnBox.queue.some(k=>EnBoxModel.weight(k)<0.999);
@@ -59,17 +59,8 @@ function _enRenderStrategy(eq, trackAvg){
     <div class="en-strat-title" style="display:flex;align-items:center;gap:8px">Cola del box (${fmtN(qTotalW)} karts${queueEstimated?' · estimada':''})
       <button onclick="_enResetQueue('unknown',true)" title="Reiniciar la cola a la reserva configurada (karts desconocidos)" style="margin-left:auto;padding:2px 8px;border-radius:4px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-2);font-size:11.5px;cursor:pointer;font-family:sans-serif;text-transform:none;letter-spacing:0">↺ Reiniciar</button>
     </div>`;
-  // Aviso de desincronización: la cola debería pesar lo que la reserva ("Karts")
-  const drift=EnBoxModel.queueDrift(EnBox.queue, boxPos);
-  if(drift.drift){
-    html+=`<div style="margin:4px 0 8px;padding:8px 10px;border-radius:6px;background:color-mix(in srgb, var(--state-warn) 8%, transparent);border:0.5px solid color-mix(in srgb, var(--state-warn) 30%, transparent)">
-      <div style="font-size:12.5px;color:var(--state-warn);font-family:sans-serif">⚠ La cola marca ${fmtN(drift.total)} karts y la reserva es ${boxPos} — posible parada perdida o reconexión</div>
-      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-        <button onclick="_enResetQueue('keepLast')" style="padding:4px 10px;border-radius:4px;border:0.5px solid var(--state-warn);background:transparent;color:var(--state-warn);font-size:12px;cursor:pointer;font-family:sans-serif">Rehacer conservando los últimos ${boxPos}</button>
-        <button onclick="_enResetQueue('unknown')" style="padding:4px 10px;border-radius:4px;border:0.5px solid #2a2b2e;background:transparent;color:var(--text-2);font-size:12px;cursor:pointer;font-family:sans-serif">Rehacer con ${boxPos} desconocidos</button>
-      </div>
-    </div>`;
-  }
+  // (Ya no hay aviso de desincronización: el box es una rejilla con N sitios fijos.)
+  _enBoxGrid(); // garantiza el box (N sitios) antes de pintarlo
   if(EnBox.queue.length===0){
     html+=`<div style="font-size:13.5px;color:var(--text-3);font-family:sans-serif;padding:8px 0">Cola vacía</div>`;
   } else {
@@ -93,14 +84,17 @@ function _enRenderStrategy(eq, trackAvg){
     // Zona accesible según tipo de box: las tarjetas fuera de ella se atenúan y
     // se etiquetan "espera". Esto SUSTITUYE al antiguo Diagrama del box.
     const zoneSet=new Set(EnBoxModel.accessibleZone(EnBox.queue, boxType, nColsCfg).map(z=>z.k));
-    // Construye UNA tarjeta (string), compacta y vertical para que quepa igual
-    // en columna (línea), en fila (batería) y en rejilla (columnas). `dir` decide
-    // las flechas de corrección: 'v' ▲▼ en la columna, 'h' ◀▶ en fila/rejilla.
-    const _cardHtml=(k,i,dir)=>{
+    // ── Box = rejilla fija de sitios (EnBoxModel.grid*) ──────────────────
+    // Cada sitio es un kart seguro (tarjeta) o, tras un sorteo, los karts que
+    // pueden estar ahí con su % (clic en uno = "es este"). Fila 1 = accesible.
+    const G=_enBoxGrid();
+    const lens=G.lens, nC=lens.length, nR=Math.max(...lens);
+    // Tarjeta de un kart seguro en el sitio (c,d). `dir` decide las flechas:
+    // ▲▼ mueven dentro de la columna (línea/columnas); en batería no hay.
+    const _cardHtml=(k,c,d)=>{
       const kart=(k.dorsal!=null)?eqByDorsal[String(k.dorsal).trim()]:null;
-      const vm=EnBoxModel.boxCardVM(k, kart, {myDorsal:myD, isNextOut:i===0});
-      const w=EnBoxModel.weight(k);
-      const accessible=zoneSet.has(k);
+      const vm=EnBoxModel.boxCardVM(k, kart, {myDorsal:myD, isNextOut:boxType==='line'&&d===0});
+      const accessible=d===0;
       const kc=_enKartColor(vm.dorsal, kart&&kart.catColor);
       // Calidad EFECTIVA (refleja el override manual del dorsal); en reserva sin
       // dato se queda 'unknown'.
@@ -112,70 +106,90 @@ function _enRenderStrategy(eq, trackAvg){
       const vr=vm.stintBest?_enFmt(vm.stintBest):null;
       const box=(kart&&kart.pitS)?_fmtBox(kart.pitS):null;
       const meBorder=vm.isMe?'2px solid #fff':'1px solid rgba(0,0,0,0.25)';
-      // Opacidad = peso (prob. de seguir en box), atenuada extra si no es accesible.
-      const op=Math.max(0.35, w*(accessible?1:0.55)).toFixed(2);
-      const tb=[]; if(w<0.999)tb.push(`${Math.round(w*100)}% de que siga en el box`); if(!accessible)tb.push('en espera (no accesible ahora)');
-      const wTitle=tb.length?` title="${tb.join(' · ')}"`:'';
+      const op=accessible?'1':'0.72';
+      const wTitle=accessible?'':' title="en espera (no accesible ahora)"';
       const qName=({good:'bueno',neutral:'neutro',bad:'malo',unknown:'sin info'})[q]||'sin info';
       const ell='white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-      let c=`<div class="en-box-card" style="display:flex;flex-direction:column;gap:3px;min-width:0;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op};font-family:sans-serif"${wTitle}>`;
-      // Cabecera: emoji + dorsal (cicla la calidad) + score · estado + flechas
-      c+=`<div style="display:flex;align-items:center;gap:6px">
+      let h=`<div class="en-box-card" style="display:flex;flex-direction:column;gap:3px;min-width:0;height:100%;box-sizing:border-box;padding:7px 8px;border-radius:8px;background:${bg};color:${txt};border:${meBorder};opacity:${op};font-family:sans-serif"${wTitle}>`;
+      h+=`<div style="display:flex;align-items:center;gap:6px">
         <span role="img" aria-label="kart ${qName}" title="Kart ${qName}" style="font-size:17px;line-height:1;flex-shrink:0">${emo}</span>
         <div${vm.isUnknown?'':` onclick="_enToggleQuality(${_esc(JSON.stringify(String(vm.dorsal)))},event)" title="Click: cambiar calidad"`} style="min-width:30px;height:22px;padding:0 4px;border-radius:5px;background:${kc.bg};color:${kc.text};display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.25)${vm.isUnknown?'':';cursor:pointer'}">${_esc(vm.dorsal)}</div>
         ${score!=null?`<span style="font-size:11px;font-weight:700;color:${_enScoreColor(score)};font-family:monospace;background:#111318;border-radius:4px;padding:1px 5px;flex-shrink:0">${score}</span>`:''}
         <span style="flex:1"></span>`;
-      if(vm.isNextOut)c+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
-      else if(vm.isMe)c+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
-      else if(!accessible)c+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
-      // Corrección manual: mover el kart un puesto hacia SALE o hacia ENTRA.
-      if(EnBox.queue.length>1){
-        const [aUp,aDn]=dir==='h'?['◀','▶']:['▲','▼'];
+      if(vm.isNextOut)h+=`<span style="font-size:9px;font-weight:800;color:${txt};background:rgba(0,0,0,0.28);border-radius:999px;padding:2px 6px;flex-shrink:0">SALE</span>`;
+      else if(vm.isMe)h+=`<span style="font-size:9px;font-weight:800;color:${txt};flex-shrink:0">TÚ</span>`;
+      else if(!accessible)h+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
+      if(lens[c]>1){
         const btn=`display:grid;place-items:center;width:18px;height:18px;border:none;border-radius:3px;background:rgba(0,0,0,0.22);color:${txt};font-size:10px;line-height:1;cursor:pointer;padding:0`;
-        c+=`<div style="display:flex;gap:2px;flex-shrink:0">
-          <button type="button" title="Hacia SALE" onclick="_enMoveQueue('${k.id}','up',event)" style="${btn}">${aUp}</button>
-          <button type="button" title="Hacia ENTRA" onclick="_enMoveQueue('${k.id}','down',event)" style="${btn}">${aDn}</button>
+        h+=`<div style="display:flex;gap:2px;flex-shrink:0">
+          ${d>0?`<button type="button" title="Subir un puesto en su columna" onclick="_enBoxMove(${c},${d},'up',event)" style="${btn}">▲</button>`:''}
+          ${d<lens[c]-1?`<button type="button" title="Bajar un puesto en su columna" onclick="_enBoxMove(${c},${d},'down',event)" style="${btn}">▼</button>`:''}
         </div>`;
       }
-      c+=`</div>`;
+      h+=`</div>`;
       if(vm.isUnknown){
-        c+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}">Reserva</div>
+        h+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}">Reserva</div>
           <div style="font-size:11px;color:${sub};${ell}">sin info</div>
           <div style="font-size:11px;color:${sub};font-family:monospace">VR —</div>`;
       } else {
-        c+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}" title="${_esc(vm.team||'')}">${_esc(vm.team||'#'+vm.dorsal)}</div>
+        h+=`<div style="font-size:12.5px;font-weight:700;color:${txt};${ell}" title="${_esc(vm.team||'')}">${_esc(vm.team||'#'+vm.dorsal)}</div>
           <div style="font-size:11px;color:${sub};${ell}" title="${_esc(vm.pilot||'')}">${vm.pilot?_esc(vm.pilot):'&nbsp;'}</div>
           <div style="font-size:11px;color:${sub};font-family:monospace;${ell}">VR ${vr||'—'}${box?' · box '+box:''}</div>`;
       }
-      c+=`</div>`;
-      return c;
+      h+=`</div>`;
+      return h;
     };
-    const _grpHdr=(t)=>`<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin:2px 2px 4px">${t}</div>`;
-    // Las tarjetas ADOPTAN la forma del box (hacen de diagrama), ver EnBoxModel.boxLayout:
-    // - línea: una sola columna, sale el de arriba
-    // - batería: una sola fila, sorteo entre todos (scroll horizontal si no caben)
-    // - columnas: rejilla de N columnas por fila; fila 1 accesible, 2+ bloqueadas
-    const lay=EnBoxModel.boxLayout(EnBox.queue, boxType, nColsCfg);
-    if(lay.kind==='grid'){
-      lay.rows.forEach((row,rr)=>{
-        html+=_grpHdr(`Fila ${rr+1} · ${rr===0?'accesible (sorteo)':'bloqueada'}`);
-        // Un kart "a medias" tras un sorteo comparte hueco: si la fila trae más
-        // tarjetas que columnas, se ensancha en vez de abrir una fila falsa.
-        const nc=Math.max(lay.cols,row.length);
-        html+=`<div style="display:grid;grid-template-columns:repeat(${nc},minmax(0,1fr));gap:6px;margin-bottom:8px">`;
-        row.forEach(it=>{ html+=_cardHtml(it.k, it.i, 'h'); });
-        html+=`</div>`;
+    // Sitio incierto: los karts que pueden estar ahí, del más al menos probable.
+    // Clic en uno = "es este" (lo fija aquí y lo quita de los demás sitios).
+    const _candHtml=(v)=>{
+      const txt=_qTxt('unknown'), sub=_qSub('unknown');
+      const accessible=v.d===0;
+      const top=v.candidates.slice(0,4), more=v.candidates.length-top.length;
+      let h=`<div class="en-box-card en-box-slot-cands" style="display:flex;flex-direction:column;gap:3px;min-width:0;height:100%;box-sizing:border-box;padding:7px 8px;border-radius:8px;background:${_qBg('unknown')};color:${txt};border:1px dashed ${sub};opacity:${accessible?'1':'0.72'};font-family:sans-serif">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;font-weight:700;color:${txt}">¿Cuál está aquí?</span><span style="flex:1"></span>
+          ${accessible?'':`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px">espera</span>`}
+        </div>`;
+      top.forEach(({item,p})=>{
+        const unk=String(item.dorsal)==='?';
+        const kart=unk?null:eqByDorsal[String(item.dorsal).trim()];
+        const q=unk?'unknown':((kart&&_enEffectiveQuality(item.dorsal, kart, trackAvg))||item.quality||'unknown');
+        const kc=_enKartColor(unk?'?':item.dorsal, kart&&kart.catColor);
+        const label=unk?'Reserva':(item.team||item.name||'#'+item.dorsal);
+        h+=`<div onclick="_enBoxFix(${v.c},${v.d},'${item.id}',event)" title="Es este: fijarlo en este sitio" style="display:flex;align-items:center;gap:5px;cursor:pointer;min-width:0">
+          <span style="font-size:13px;line-height:1;flex-shrink:0">${EnBoxModel.qualityEmoji(q)}</span>
+          <span style="min-width:24px;padding:0 3px;border-radius:4px;background:${kc.bg};color:${kc.text};font-size:11.5px;font-weight:700;text-align:center;flex-shrink:0">${_esc(unk?'?':item.dorsal)}</span>
+          <span style="flex:1;min-width:0;font-size:11px;color:${sub};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(label)}</span>
+          <span style="font-size:11px;font-weight:700;color:${txt};font-family:monospace;flex-shrink:0">${Math.round(p*100)}%</span>
+        </div>`;
       });
-    } else if(lay.kind==='row'){
-      html+=_grpHdr(`Sorteo entre todos · ${fmtN(qTotalW)} karts`);
+      if(more>0)h+=`<div style="font-size:10.5px;color:${sub}">+${more} más</div>`;
+      h+=`</div>`;
+      return h;
+    };
+    const _slotHtml=(c,d)=>{ const v=EnBoxModel.slotVM(G,c,d); return v.sure?_cardHtml(v.sure,c,d):_candHtml(v); };
+    const _grpHdr=(t)=>`<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin:2px 2px 4px">${t}</div>`;
+    // La rejilla HACE de diagrama del box:
+    // - línea: una columna, sale el de arriba
+    // - batería: una fila, sorteo entre todos (scroll horizontal si no caben)
+    // - columnas: C columnas; fila 1 accesible (sorteo), 2+ bloqueadas
+    if(boxType==='battery'){
+      html+=_grpHdr(`Sorteo entre todos · ${G.n} karts`);
       html+=`<div style="display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px">`;
-      lay.rows[0].forEach(it=>{ html+=`<div style="flex:0 0 160px;min-width:0;display:flex;flex-direction:column">${_cardHtml(it.k, it.i, 'h')}</div>`; });
+      for(let c=0;c<nC;c++)html+=`<div style="flex:0 0 160px;min-width:0">${_slotHtml(c,0)}</div>`;
       html+=`</div>`;
-    } else {
+    } else if(nC===1){
       html+=_grpHdr('Cola · sale el de arriba');
       html+=`<div style="display:flex;flex-direction:column;gap:6px;max-width:340px;margin-bottom:6px">`;
-      lay.rows.forEach(row=>{ html+=_cardHtml(row[0].k, row[0].i, 'v'); });
+      for(let d=0;d<nR;d++)html+=_slotHtml(0,d);
       html+=`</div>`;
+    } else {
+      for(let d=0;d<nR;d++){
+        html+=_grpHdr(`Fila ${d+1} · ${d===0?'accesible (sorteo)':'bloqueada'}`);
+        html+=`<div style="display:grid;grid-template-columns:repeat(${nC},minmax(0,1fr));gap:6px;margin-bottom:8px">`;
+        for(let c=0;c<nC;c++)html+=d<lens[c]?_slotHtml(c,d):'<div></div>';
+        html+=`</div>`;
+      }
     }
     const qSum=(q)=>fmtN(EnBox.queue.filter(k=>k.quality===q).reduce((a,k)=>a+EnBoxModel.weight(k),0));
     const qGood=qSum('good'), qBad=qSum('bad'), qNeutral=qSum('neutral'), qUnknown=qSum('unknown');
@@ -200,7 +214,7 @@ function _enRenderStrategy(eq, trackAvg){
   const predictions=rivalsOnTrack
     .filter(e=>e._minLeft!==null&&e._minLeft<=10)
     .map(e=>({dorsal:e.dorsal, name:e.name, quality:e._quality||'unknown', minLeft:e._minLeft}));
-  const fc=EnBoxModel.forecast(EnBox.queue, boxType, nColsCfg, predictions);
+  const fc=EnBoxModel.gridForecast(_enBoxGrid(), predictions);
   const probNow=fc.now;
   const pStr=(p)=>p===null?'—':p+'%';
   const qWord=(q)=>({good:'bueno',bad:'malo',neutral:'neutro'})[q]||'sin info';
@@ -337,44 +351,49 @@ function _enRivalStintStart(e){
   return EnBoxModel.rivalStintStart(EnSession.rivalPitOut[e.dorsal], stops, anchor);
 }
 
-function _enSetBoxPositions(v){
-  const newN=parseInt(v)||4;
-  EnBox.config.positions=newN;
-  // "Karts" = tamaño de la reserva. Cada parada es un intercambio, así que la
-  // cola siempre pesa eso; si no cuadra tras el ajuste, el aviso de
-  // desincronización de la tarjeta ofrece rehacerla.
-  const total=()=>EnBox.queue.reduce((a,k)=>a+EnBoxModel.weight(k),0);
-  if(newN>total()){
-    // Más reserva de la que tenemos → añadir desconocidos
-    EnBox.queue=EnBox.queue.concat(EnBoxModel.makeReserve(Math.round(newN-total())));
-  } else {
-    // Reducir: solo quitar DESCONOCIDOS del final — nunca karts reales observados
-    while(total()>newN+0.5){
-      const last=EnBox.queue[EnBox.queue.length-1];
-      if(last&&last.quality==='unknown'&&last.dorsal==='?')EnBox.queue.pop();
-      else break;
-    }
-  }
+// ── Box como rejilla (EnBoxModel.grid*) ─────────────────────────────────────
+// EnBox.grid es el estado; EnBox.queue es una lista DERIVADA (cada kart con su
+// probabilidad de estar en el box) para quien solo cuenta karts.
+function _enBoxSync(){ EnBox.queue=EnBoxModel.gridPresence(EnBox.grid); }
+function _enBoxSet(G){ EnBox.grid=G; _enBoxSync(); }
+function _enBoxNew(time){
+  return EnBoxModel.gridCreate(EnBox.config.type||'line', EnBox.config.positions||4, EnBox.config.columns||2, null, time);
+}
+function _enBoxGrid(){ if(!EnBox.grid)_enBoxSet(_enBoxNew(Date.now())); return EnBox.grid; }
+function _enBoxAccess(){ return EnBoxModel.gridAccess(_enBoxGrid()); }
+// Cambio de tipo/karts/columnas: se rehace el box con las mismas paradas.
+function _enBoxRetopo(){
+  if(!EnBox.grid)return;
+  _enBoxSet(EnBoxModel.gridRetopo(EnBox.grid, EnBox.config.type||'line', EnBox.config.positions||4, EnBox.config.columns||2));
 }
 
-// Rehace la cola del box (aviso de desincronización o botón ↺).
-//   'keepLast' → conserva los últimos N karts conocidos · 'unknown' → N desconocidos
+function _enSetBoxPositions(v){
+  EnBox.config.positions=parseInt(v)||4;
+  _enBoxRetopo();
+}
+
+// Rehace el box (botón ↺).
+//   'keepLast' → los últimos N karts que entraron · 'unknown' → N desconocidos
 // Las paradas en curso conservan su intercambio (EnBox.swapped) para que su so
 // no descuente otra vez.
 function _enResetQueue(mode, ask){
   const n=EnBox.config.positions||4;
-  if(ask&&!window.confirm(`¿Reiniciar la cola del box a ${n} karts desconocidos?`))return;
-  EnBox.queue=EnBoxModel.resetQueue(EnBox.queue, n, mode);
+  if(ask&&!window.confirm(`¿Reiniciar el box a ${n} karts desconocidos?`))return;
+  _enBoxSet(EnBoxModel.gridReset(_enBoxGrid(), n, mode));
   if(EnBox.pending)EnBox.pending={};
   _enRender();
 }
 
-// Corrección manual (incremento 2): mover un kart de la cola por su id.
-function _enMoveQueue(id, dir, ev){
+// Corrección manual: subir/bajar un sitio dentro de su columna.
+function _enBoxMove(c, d, dir, ev){
   if(ev)ev.stopPropagation();
-  const next=EnBoxModel.moveInQueue(EnBox.queue, id, dir);
-  if(next===EnBox.queue)return;   // sin cambio
-  EnBox.queue=next;
+  _enBoxSet(EnBoxModel.gridEvent(_enBoxGrid(), {t:'move', c, d, dir}));
+  _enRender();
+}
+// Corrección manual: "este kart está en este sitio".
+function _enBoxFix(c, d, id, ev){
+  if(ev)ev.stopPropagation();
+  _enBoxSet(EnBoxModel.gridEvent(_enBoxGrid(), {t:'fix', c, d, id}));
   _enRender();
 }
 
@@ -781,7 +800,7 @@ function _enOnNewSession(){
   EnSession._toursCompleto=false; EnSession._toursSuelo=undefined;
   EnSession._finished=false;
   EnSession.messages=[]; EnSession.msgUnread={mias:false,otras:false,general:false};
-  EnBox.queue=[]; EnBox.queueInited=false; EnBox.swapped={}; EnBox.pending={}; EnBox._lastInAt={};
+  EnBox.queue=[]; EnBox.grid=null; EnBox.queueInited=false; EnBox.swapped={}; EnBox.pending={}; EnBox._lastInAt={};
   _enSaveRaceState();
   if(EnSession._archivedStints)_enShowNewSessionBanner(EnSession._archivedStints.stintHistory.length);
   _enScheduleRender();
@@ -1025,7 +1044,7 @@ window.showEnduranceDashboard=function(cfg){
           try{
             const boxPos=EnBox.config.positions||4;
             // Inicializar cola con karts desconocidos (reserva inicial)
-            EnBox.queue=EnBoxModel.makeReserve(boxPos, now);
+            EnBox.grid=_enBoxNew(now);
             // Reproducir eventos de pit en orden cronológico
             data.pitEvents.forEach(ev=>{
               if(!EnBox.swapped)EnBox.swapped={};
@@ -1035,12 +1054,11 @@ window.showEnduranceDashboard=function(cfg){
               if(ev.event==='in'){
                 const lastIn=EnBox._lastInAt?.[ev.dorsal];
                 if(lastIn&&ev.time-lastIn>30000)
-                  EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped, {dorsal:ev.dorsal, kind:'track'}, 'line', 1);
+                  EnBox.grid=EnBoxModel.gridOnPitEvent(EnBox.grid, EnBox.swapped, {dorsal:ev.dorsal, kind:'track'});
                 (EnBox._lastInAt=EnBox._lastInAt||{})[ev.dorsal]=ev.time;
               }
-              EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped,
-                {dorsal:ev.dorsal, kind:ev.event, quality:'unknown', time:ev.time},
-                EnBox.config.type||'line', EnBox.config.columns||2);
+              EnBox.grid=EnBoxModel.gridOnPitEvent(EnBox.grid, EnBox.swapped,
+                {dorsal:ev.dorsal, kind:ev.event, quality:'unknown', time:ev.time});
               if(ev.event==='in'){
                 if(!EnSession.pitCounts[ev.dorsal])EnSession.pitCounts[ev.dorsal]=0;
                 EnSession.pitCounts[ev.dorsal]++;
@@ -1056,7 +1074,7 @@ window.showEnduranceDashboard=function(cfg){
             // Santos). Sin lapIdx (logger antiguo) se queda 'unknown'.
             if(Array.isArray(data.equipos)&&data.equipos.length>0){
               const snapAvg=_enTrackAvgLive(data.equipos);
-              EnBox.queue.forEach(k=>{
+              Object.values(EnBox.grid.items).forEach(k=>{
                 if(k.quality!=='unknown'||!k.dorsal||k.dorsal==='?')return;
                 const snap=data.equipos.find(e=>e.dorsal?.toString()===k.dorsal?.toString());
                 if(!snap)return;
@@ -1078,6 +1096,7 @@ window.showEnduranceDashboard=function(cfg){
             // parte de este estado, para no volver a contar un si/so que ya se replicó.
             if(!EnSession.data._prevPitState)EnSession.data._prevPitState={};
             (data.equipos||[]).forEach(e=>{if(e.dorsal)EnSession.data._prevPitState[e.dorsal]=e.pitState||null;});
+            _enBoxSync();
             EnBox.queueInited=true;
           }catch(e){}
         }
@@ -1117,7 +1136,7 @@ window.showEnduranceDashboard=function(cfg){
         const trackAvgNow=_enTrackAvgLive(EnSession.data.equipos);
         if(!EnBox.queueInited){
           const boxPos=EnBox.config.positions||4;
-          EnBox.queue=EnBoxModel.makeReserve(boxPos, now);
+          _enBoxSet(_enBoxNew(now));
           EnBox.queueInited=true;
         }
         if(!EnSession.data._prevPitState)EnSession.data._prevPitState={};
@@ -1137,10 +1156,10 @@ window.showEnduranceDashboard=function(cfg){
             const st0=EnSession.kartAutoState[e.dorsal];
             const stLaps=(e.lapHistory||[]).slice(Math.min(st0?.stintStartIdx||0,(e.lapHistory||[]).length));
             const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
-            EnBox.queue=EnBoxModel.boxOnPitEvent(EnBox.queue, EnBox.swapped,
+            _enBoxSet(EnBoxModel.gridOnPitEvent(_enBoxGrid(), EnBox.swapped,
               {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now, lapIdx:(e.lapHistory||[]).length,
                team:e.teamName||e.name||null, pilot:e.driver||null, stintBest:EnBoxModel.stintBest(stLaps)},
-              EnBox.config.type||'line', EnBox.config.columns||2, EnBox.pending);
+              EnBox.pending));
           }
           // Inferencia por ritmo (batería/columnas): cuando el kart NUEVO del rival ya
           // tiene calidad, se corrige de quién se restó en su intercambio. Solo con la
@@ -1153,7 +1172,7 @@ window.showEnduranceDashboard=function(cfg){
             const st=EnSession.kartAutoState[e.dorsal];
             if(st&&pend.lapIdx!=null&&st.stintStartIdx>=pend.lapIdx){
               const obs=_enAutoKartQuality(e, trackAvgNow);
-              if(obs)EnBox.queue=EnBoxModel.resolvePending(EnBox.queue, EnBox.pending, e.dorsal, obs);
+              if(obs)_enBoxSet(EnBoxModel.gridResolve(_enBoxGrid(), EnBox.pending, e.dorsal, obs));
             }
           }
           // Pit IN: contadores y anclas
@@ -1360,6 +1379,7 @@ window._enGoBack=function(){
   EnBox.pilotMinTime=0;
   EnBox.totalStops=0;
   EnBox.queue=[];
+  EnBox.grid=null;
   EnBox.queueInited=false;
   EnBox.swapped={};
   EnBox.pending={};

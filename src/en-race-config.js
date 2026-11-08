@@ -272,7 +272,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     if (next.pitDuration !== cur.pitDuration) { EnBox.pitDuration = next.pitDuration; EnBox._pitDurUserSet = true; }
     EnBox.config.type = next.boxType;
     EnBox.config.columns = next.boxColumns;
-    if (next.boxPositions !== cur.boxPositions) _enSetBoxPositions(next.boxPositions);
+    EnBox.config.positions = parseInt(next.boxPositions) || 4;
+    // El box se rehace con las mismas paradas sobre la rejilla nueva.
+    if (next.boxType !== cur.boxType || next.boxColumns !== cur.boxColumns || next.boxPositions !== cur.boxPositions) _enBoxRetopo();
     if (next.myDorsal !== cur.myDorsal) _enUpdateCfg('myDorsal', next.myDorsal);
     const old = Array.isArray(cfg.pilotos) ? cfg.pilotos : [];
     cfg.pilotos = next.pilotos.map((name, i) => ({ ...(old[i] || { minutos: (old[0] && old[0].minutos) || 90 }), name }));
