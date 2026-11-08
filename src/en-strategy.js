@@ -121,11 +121,13 @@ function _enRenderStrategy(eq, trackAvg){
       else if(!accessible)h+=`<span style="font-size:9px;font-weight:700;color:${sub};border:1px solid ${sub};border-radius:999px;padding:1px 5px;flex-shrink:0">espera</span>`;
       // Corrección manual: ▲▼ dentro de su columna, ◀▶ a la columna de al lado.
       const canUp=d>0, canDn=d<lens[c]-1, canL=c>0&&d<lens[c-1], canR=c<nC-1&&d<lens[c+1];
+      // En línea la cola se pinta en horizontal: subir/bajar = ◀▶.
+      const lineRow=nC===1;
       if(canUp||canDn||canL||canR){
         const btn=`display:grid;place-items:center;width:18px;height:18px;border:none;border-radius:3px;background:rgba(0,0,0,0.22);color:${txt};font-size:10px;line-height:1;cursor:pointer;padding:0`;
         const mv=(dir,ico,tt)=>`<button type="button" title="${tt}" onclick="_enBoxMove(${c},${d},'${dir}',event)" style="${btn}">${ico}</button>`;
         h+=`<div style="display:flex;gap:2px;flex-shrink:0">
-          ${canL?mv('left','◀','Pasar a la columna de la izquierda'):''}${canUp?mv('up','▲','Subir un puesto'):''}${canDn?mv('down','▼','Bajar un puesto'):''}${canR?mv('right','▶','Pasar a la columna de la derecha'):''}
+          ${canL?mv('left','◀','Pasar a la columna de la izquierda'):''}${canUp?mv('up',lineRow?'◀':'▲',lineRow?'Adelantar un puesto (hacia SALE)':'Subir un puesto'):''}${canDn?mv('down',lineRow?'▶':'▼',lineRow?'Retrasar un puesto':'Bajar un puesto'):''}${canR?mv('right','▶','Pasar a la columna de la derecha'):''}
         </div>`;
       }
       h+=`</div>`;
@@ -146,19 +148,18 @@ function _enRenderStrategy(eq, trackAvg){
     const _slotHtml=(c,d)=>{ const v=EnBoxModel.slotVM(G,c,d); const k=v.sure||(v.candidates[0]&&v.candidates[0].item); return k?_cardHtml(k,c,d):'<div></div>'; };
     const _grpHdr=(t)=>`<div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin:2px 2px 4px">${t}</div>`;
     // La rejilla HACE de diagrama del box:
-    // - línea: una columna, sale el de arriba
+    // - línea: una fila, sale el de la izquierda (solo ese accesible)
     // - batería: una fila, sorteo entre todos (scroll horizontal si no caben)
     // - columnas: C columnas; fila 1 accesible (sorteo), 2+ bloqueadas
+    // Fila única (batería y línea): las tarjetas reparten el ancho; si no caben
+    // a 160 px, scroll horizontal.
+    const _row=(cells)=>`<div style="display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px">${cells.map(h=>`<div style="flex:1 1 0;min-width:160px">${h}</div>`).join('')}</div>`;
     if(boxType==='battery'){
       html+=_grpHdr(`Sorteo entre todos · ${G.n} karts`);
-      html+=`<div style="display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px">`;
-      for(let c=0;c<nC;c++)html+=`<div style="flex:0 0 160px;min-width:0">${_slotHtml(c,0)}</div>`;
-      html+=`</div>`;
+      html+=_row(Array.from({length:nC},(_,c)=>_slotHtml(c,0)));
     } else if(nC===1){
-      html+=_grpHdr('Cola · sale el de arriba');
-      html+=`<div style="display:flex;flex-direction:column;gap:6px;max-width:340px;margin-bottom:6px">`;
-      for(let d=0;d<nR;d++)html+=_slotHtml(0,d);
-      html+=`</div>`;
+      html+=_grpHdr('Cola · sale el de la izquierda');
+      html+=_row(Array.from({length:nR},(_,d)=>_slotHtml(0,d)));
     } else {
       for(let d=0;d<nR;d++){
         html+=_grpHdr(`Fila ${d+1} · ${d===0?'accesible (sorteo)':'bloqueada'}`);
