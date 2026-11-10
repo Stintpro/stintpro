@@ -92,49 +92,28 @@ group('Calidad auto — sin score histórico (umbral ±1.0s)', () => {
   });
 });
 
-// ── Umbral ajustado por score de piloto ───────────────────────────────────────
+// ── El score del piloto NO interviene en la calidad del kart ─────────────────
+// Prueba neutral (10 carreras, mismo piloto con karts distintos): estrechar el
+// umbral por score amplificaba el ritmo del piloto (42 % de acierto en malos,
+// azar 33 %). El score se queda para el ranking de pilotos.
 
-group('Umbral ajustado por score (piloto Elite ≥800 → ±0.3s)', () => {
-  test('Elite: delta -0.4s → good', () => {
+group('El score del piloto no cambia la calidad del kart', () => {
+  test('Elite (850) con −0,4 s → neutral, igual que sin score', () => {
     reset();
-    _enPilotRatings['Elite'] = { score: 850 };
+    _enPilotRatings['ELITE'] = { score: 850 };
     const laps = [64.6, 64.6, 64.6, 64.6, 64.6];
-    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'Elite'), 65), 'good');
+    const conScore = _enAutoKartQuality(kart('1', laps, null, 'Elite'), 65);
+    reset();
+    assert.equal(conScore, _enAutoKartQuality(kart('1', laps, null, 'Elite'), 65));
+    assert.equal(conScore, 'neutral');
   });
 
-  test('Elite: delta -0.2s → neutral (dentro del umbral ±0.3s)', () => {
+  test('Novato (150) con −1,5 s → good, igual que sin score', () => {
     reset();
-    _enPilotRatings['Elite'] = { score: 850 };
-    // con la curva de calentamiento encima (v1 +0,36 … v5 +0,06): corregidas = 64,8
-    const laps = [65.16, 64.99, 64.93, 64.88, 64.86];
-    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'Elite'), 65), 'neutral');
-  });
-
-  test('Avanzado (score 650 → ±0.5s): delta -0.6s → good', () => {
-    reset();
-    // score ≥600 → fiable → ref=avg5. delta=64.4-65=-0.6 < -0.5 → good
-    _enPilotRatings['Avanzado'] = { score: 650 };
-    const laps = [64.4, 64.4, 64.4, 64.4, 64.4];
-    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'Avanzado'), 65), 'good');
-  });
-
-  test('Intermedio (score 500 → ±0.7s): delta -0.8s → good', () => {
-    reset();
-    // score 500 < 600 → errático → ref=stintBest=64.2. delta=64.2-65=-0.8 < -0.7 → good
-    _enPilotRatings['Inter'] = { score: 500 };
-    const laps = [64.2, 64.2, 64.2, 64.2, 64.2];
-    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'Inter'), 65), 'good');
-  });
-
-  test('score como número directo (no objeto) → funciona igual', () => {
-    reset();
-    _enPilotRatings['Num'] = 850;
-    const laps = [64.6, 64.6, 64.6, 64.6, 64.6];
-    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'Num'), 65), 'good');
+    _enPilotRatings['NOVATO'] = { score: 150 };
+    assert.equal(_enAutoKartQuality(kart('1', [63.5, 63.5, 63.5, 63.5, 63.5], null, 'Novato'), 65), 'good');
   });
 });
-
-// ── Piloto errático (usa mejor vuelta del stint, no M5v) ─────────────────────
 
 group('Piloto errático — rango ≥0.5s → referencia = stintBest', () => {
   test('vueltas erráticas con una rápida clara → good por stintBest', () => {
@@ -163,14 +142,13 @@ function appendLap(e, lapTime, trackAvg) {
 }
 
 group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', () => {
+  const G = 63.8, B = 66.2;   // sin score: umbral ±1,0; las malas degradan (> mejor + 2 s)
   test('llamar 20 veces sin vueltas nuevas NO degrada el kart bueno', () => {
     reset();
-    _enPilotRatings['P'] = { score: 650 }; // fiable → ref=avg5
-    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
-    assert.equal(_enAutoKartQuality(e, 65), 'good'); // establece good, lastEvalLen=5
-    // La ventana pasa a peor pero SIN vueltas nuevas (misma longitud):
-    // simula 20 renders con los mismos datos → el gate devuelve el cache.
-    e.lapHistory = [64, 64, 64, 64, 65.6];
+    const e = kart('1', [G, G, G, G, G]);
+    assert.equal(_enAutoKartQuality(e, 65), 'good');
+    // La ventana pasa a peor pero SIN vueltas nuevas (misma longitud)
+    e.lapHistory = [G, G, G, G, B];
     let result;
     for (let i = 0; i < 20; i++) result = _enAutoKartQuality(e, 65);
     assert.equal(result, 'good'); // gate: mismo length → badCount NO avanza
@@ -178,60 +156,46 @@ group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', ()
 
   test('kart bueno cae a bad tras 5 vueltas malas NUEVAS', () => {
     reset();
-    _enPilotRatings['P'] = { score: 650 }; // fiable → ref=avg5, umbral ±0.5
-    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
+    const e = kart('1', [G, G, G, G, G]);
     assert.equal(_enAutoKartQuality(e, 65), 'good');
-    // Ventana llena de vueltas malas moderadas (delta +0.6, sin degradación:
-    // avg5 65.6 < stintBest 64 + 2.0). 1ª evaluación con ventana mala → badCount=1.
-    e.lapHistory = [64, 64, 64, 64, 64, 65.6, 65.6, 65.6, 65.6, 65.6];
+    e.lapHistory = [G, G, G, G, G, B, B, B, B, B];
     assert.equal(_enAutoKartQuality(e, 65), 'good'); // badCount=1, aguanta
-    // 4 vueltas malas nuevas más → badCount llega a 5 → cae
     let result;
-    for (let i = 0; i < 4; i++) result = appendLap(e, 65.6, 65);
+    for (let i = 0; i < 4; i++) result = appendLap(e, B, 65);
     assert.equal(result, 'bad');
   });
 
   test('kart bueno con 4 vueltas malas nuevas → aguanta (badCount=4)', () => {
     reset();
-    _enPilotRatings['P'] = { score: 650 };
-    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
+    const e = kart('1', [G, G, G, G, G]);
     _enAutoKartQuality(e, 65);
-    e.lapHistory = [64, 64, 64, 64, 64, 65.6, 65.6, 65.6, 65.6, 65.6];
+    e.lapHistory = [G, G, G, G, G, B, B, B, B, B];
     _enAutoKartQuality(e, 65); // badCount=1
     let result;
-    for (let i = 0; i < 3; i++) result = appendLap(e, 65.6, 65); // badCount=4
+    for (let i = 0; i < 3; i++) result = appendLap(e, B, 65); // badCount=4
     assert.equal(result, 'good');
   });
 
   test('reescritura externa de stintStartIdx invalida el caché sin vuelta nueva', () => {
     reset();
-    _enPilotRatings['P'] = { score: 650 }; // fiable → ref=avg5, sensible a la mezcla
-    // Kart viejo lento + kart nuevo rápido en el mismo historial
-    const e = kart('1', [66.5, 66.5, 66.5, 66.5, 66.5, 63.5, 63.5, 63.5], null, 'P');
-    // Con stintStartIdx=0 se evalúa todo el historial (mezcla ambos karts)
+    // Kart viejo muy lento + kart nuevo rápido en el mismo historial
+    const e = kart('1', [69, 69, 69, 69, 69, 63.5, 63.5, 63.5]);
     const mixed = _enAutoKartQuality(e, 65);
-    // Reconexión al logger: el snapshot reconstruye stintStartIdx desde
-    // stintLapCount (en-strategy.js) SIN que llegue ninguna vuelta nueva.
-    EnSession.kartAutoState['1'].stintStartIdx = 5;
-    // El gate debe recalcular: ahora solo cuentan las 4 vueltas del kart nuevo
+    EnSession.kartAutoState['1'].stintStartIdx = 5;   // reconexión: reindexado sin vuelta nueva
     assert.equal(_enAutoKartQuality(e, 65), 'good');
-    assert.notEqual(mixed, 'good'); // antes del reindexado no era bueno
+    assert.notEqual(mixed, 'good');
   });
 
   test('kart bueno se recupera antes de agotar las 5 vueltas de gracia', () => {
     reset();
-    _enPilotRatings['P'] = { score: 650 };
-    const e = kart('1', [64, 64, 64, 64, 64], null, 'P');
+    const e = kart('1', [G, G, G, G, G]);
     _enAutoKartQuality(e, 65);
-    // Una ventana mala (badCount=1) y luego 4 vueltas buenas: la M5v vuelve a
-    // estar por debajo del umbral en la 4ª → instant good → badCount se resetea
-    // sin haber llegado nunca a 5. El kart sigue verde.
-    e.lapHistory = [64, 64, 64, 64, 64, 65.6, 65.6, 65.6, 65.6, 65.6];
+    e.lapHistory = [G, G, G, G, G, B, B, B, B, B];
     assert.equal(_enAutoKartQuality(e, 65), 'good'); // badCount=1
-    appendLap(e, 64, 65); // badCount=2
-    appendLap(e, 64, 65); // badCount=3
-    appendLap(e, 64, 65); // badCount=4
-    assert.equal(appendLap(e, 64, 65), 'good'); // instant good → reset a 0
+    let r;
+    for (let i = 0; i < 4; i++) r = appendLap(e, G, 65);
+    assert.equal(r, 'good');
+    assert.equal(EnSession.kartAutoState['1'].badCount, 0);
   });
 });
 
@@ -474,13 +438,6 @@ group('Score de piloto por nombre normalizado', () => {
     assert.equal(_enRatingOf('OTRO PILOTO'), null);
   });
 
-  test('piloto con acento y score 796: M5v −0,6 s → good (antes neutral por "sin score")', () => {
-    reset();
-    Object.assign(_enPilotRatings, _enRatingsMap([{ name: 'RUBEN CONCEICAO', score: 796 }]));
-    // stint largo y con rango ≥0,5 s: sin score → ref=mejor vuelta y umbral ±1,0 → neutral
-    const laps = [64.9, 64.3, 64.4, 64.4, 64.4, 64.4, 64.4];
-    assert.equal(_enAutoKartQuality(kart('29', laps, null, 'RUBEN CONCEIÇAO'), 65), 'good');
-  });
 });
 
 // ── Regla Alcanede 2026-11: calentamiento + norma del propio equipo ─────────
@@ -502,12 +459,11 @@ function runStint(k, laps, avg) {
 }
 
 group('Calentamiento tras la parada', () => {
-  test('Elite (±0,3): kart en la media con calentamiento → neutral, no bad', () => {
+  test('sin corregir saldría bad; corregido el calentamiento → neutral', () => {
     reset();
-    Object.assign(_enPilotRatings, _enRatingsMap([{ name: 'ELITE', score: 850 }]));
-    // sin corregir: media +0,33 sobre la pista (> 0,3) → antes salía bad
-    const laps = stintLaps(3, 65, 0.1);
-    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'ELITE'), 65), 'neutral');
+    // +0,9 s y la curva encima: media sin corregir +1,13 (> 1,0) → antes bad
+    const laps = stintLaps(3, 65, 0.9);
+    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
   });
 });
 
@@ -604,6 +560,60 @@ group('Kart rechazado (stint corto sin deuda)', () => {
     k.pitState = 'in'; _enAutoKartQuality(k, 65);
     k.pitState = null; k.pit = false; _enAutoKartQuality(k, 65);
     assert.equal(st.rejected, null);
+  });
+});
+
+group('Norma por piloto (el mismo piloto en sus stints anteriores)', () => {
+  // A rueda 0,5 s más rápido que la pista y B 0,5 s más lento: la norma del
+  // equipo (mediana de los dos) queda en 0 y confunde piloto con kart.
+  function race(dorsal, cur) {
+    const k = { dorsal, name: 'A', pitState: null, lapHistory: [] };
+    k.name = 'A'; runStint(k, stintLaps(12, 65, -0.5), 65);
+    k.name = 'B'; runStint(k, stintLaps(12, 65, 0.5), 65);
+    k.name = cur.name;
+    for (const v of stintLaps(5, 65, cur.delta)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    return k;
+  }
+
+  test('piloto rápido a −0,2 (0,3 peor que su norma) → bad (frente al equipo saldría neutral)', () => {
+    reset();
+    const k = race('40', { name: 'A', delta: -0.2 });
+    assert.equal(_enAutoKartQuality(k, 65), 'bad');
+  });
+
+  test('piloto lento a +0,2 (0,3 mejor que su norma) → good', () => {
+    reset();
+    const k = race('41', { name: 'B', delta: 0.2 });
+    assert.equal(_enAutoKartQuality(k, 65), 'good');
+  });
+
+  test('piloto nuevo sin stints propios → norma del equipo', () => {
+    reset();
+    const k = race('42', { name: 'C', delta: -0.3 });   // equipo en 0 → −0,3 → good
+    assert.equal(_enAutoKartQuality(k, 65), 'good');
+  });
+
+  test('un solo nombre en todo el dorsal (equipo) → norma del equipo, no por piloto', () => {
+    reset();
+    const k = { dorsal: '43', name: 'EQUIPO', pitState: null, lapHistory: [] };
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    for (const v of stintLaps(5, 65, 0.3)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    // 1 stint previo: sin norma del equipo aún (pide 2) → regla de pista ±1,0 → neutral
+    assert.equal(_enAutoKartQuality(k, 65), 'neutral');
+  });
+
+  test('mi equipo: usa el piloto elegido en el panel aunque Apex mande el nombre del equipo', () => {
+    reset();
+    global.window = { AppState: { config: { myDorsal: '44', pilotos: [{ name: 'Ana' }, { name: 'Bea' }] } } };
+    try {
+      const k = { dorsal: '44', name: 'MI EQUIPO', pitState: null, lapHistory: [] };
+      EnSession.currentPilot = 0; runStint(k, stintLaps(12, 65, -0.5), 65);
+      EnSession.currentPilot = 1; runStint(k, stintLaps(12, 65, 0.5), 65);
+      EnSession.currentPilot = 0;
+      for (const v of stintLaps(5, 65, -0.2)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+      assert.equal(_enAutoKartQuality(k, 65), 'bad');
+      assert.ok(/norma de ANA/i.test(_enQualityTooltip('44', k, 65)), _enQualityTooltip('44', k, 65));
+    } finally { delete global.window; EnSession.currentPilot = 0; }
   });
 });
 

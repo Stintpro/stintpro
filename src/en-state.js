@@ -464,6 +464,11 @@ function _enTrackKartStint(e){
       if(state.curN>=_EN_NORM_MIN_LAPS&&Number.isFinite(state.curD)){
         (state.stintNorms||(state.stintNorms=[])).push(state.curD);
         if(state.stintNorms.length>30)state.stintNorms.shift();
+        if(state.curDrv){
+          const dn=(state.drvNorms||(state.drvNorms={}));
+          (dn[state.curDrv]||(dn[state.curDrv]=[])).push(state.curD);
+          if(dn[state.curDrv].length>15)dn[state.curDrv].shift();
+        }
       }
       state._stintRecorded=true;
     }
@@ -526,6 +531,27 @@ const _EN_WARMUP=[0.36,0.19,0.13,0.08,0.06];
 const _EN_NORM_MIN_LAPS=8;    // vueltas limpias para que un stint cuente como norma
 const _EN_NORM_MIN_STINTS=2;  // stints previos para usar la norma (si no, pista)
 const _EN_NORM_THR=0.2;
+const _EN_TRACK_THR=1.0;      // sin norma: Δ frente a la pista, solo casos claros
+
+// Prueba neutral (2026-11-10, 10 carreras con nombre de piloto: mismo piloto con
+// karts distintos): comparar a cada piloto con SUS stints anteriores acierta el
+// 59 % de los malos y el 66 % de los buenos; la norma del equipo, 49 % / 55 %.
+// El score histórico del piloto NO entra: como umbral bajaba al 42 % (azar 33 %)
+// y como ritmo esperado no predecía (r −0,38). Se queda para el ranking.
+//
+// Clave del piloto del stint: en mi equipo, el piloto elegido en el panel
+// (Apex a menudo solo manda el nombre del equipo); en los demás, el nombre que
+// manda Apex. La norma por piloto solo se usa si el dorsal ha mostrado ≥2
+// nombres: con uno solo, ese nombre es el del equipo.
+function _enStintDriverKey(e){
+  const cfg=typeof window!=='undefined'?window.AppState?.config:null;
+  if(cfg&&cfg.myDorsal!=null&&String(e.dorsal).trim()===String(cfg.myDorsal).trim()){
+    const p=cfg.pilotos?.[EnSession.currentPilot]?.name;
+    if(p)return _enCanonName(p);
+  }
+  const n=e.driver||e.name;
+  return n?_enCanonName(n):null;
+}
 
 function _enMedianOf(a){
   if(!a.length)return NaN;
@@ -542,25 +568,30 @@ function _enQualityCalc(e, state, clean, trackAvg){
   // Δ del stint para la norma: sin las 2 primeras vueltas, si hay de sobra
   const dNorm=_enMedianOf(corr.length>4?corr.slice(2):corr)-trackAvg;
 
+  const own=med=>_enMedianOf(corr)-trackAvg-med;
+  const dn=state?.drvNorms?.[state?.curDrv]||[];
+  const multiDrv=state?.drvSeen&&Object.keys(state.drvSeen).length>=2;
+  if(multiDrv&&dn.length>=1){
+    const norm=_enMedianOf(dn);
+    return {mode:'driver', own:own(norm), norm, nNorm:dn.length, drv:state.curDrv, threshold:_EN_NORM_THR, degraded, dNorm, n:clean.length};
+  }
   const norms=state?.stintNorms||[];
   if(norms.length>=_EN_NORM_MIN_STINTS){
     const norm=_enMedianOf(norms);
-    const own=_enMedianOf(corr)-trackAvg-norm;
-    return {mode:'norm', own, norm, nNorm:norms.length, threshold:_EN_NORM_THR, degraded, dNorm, n:clean.length};
+    return {mode:'norm', own:own(norm), norm, nNorm:norms.length, threshold:_EN_NORM_THR, degraded, dNorm, n:clean.length};
   }
 
+  // Sin norma (inicio de carrera, conectar tarde): Δ frente a la pista con un
+  // umbral ancho, que solo marca los casos claros. Piloto regular → M5v;
+  // irregular → mejor vuelta del stint.
   const last5=corr.slice(-5);
   const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
   const stintBest=Math.min(...corr), mx=Math.max(...corr);
-  const _pr=_enRatingOf(e.name);
-  const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
-  // Piloto fiable (score≥600) → M5v representativo; errático o sin datos → mejor vuelta
-  const isReliable=pilotScore!=null?pilotScore>=600:(mx-stintBest)<0.5;
+  const isReliable=(mx-stintBest)<0.5;
   const ref=isReliable?avg5:stintBest;
-  // Umbral por nivel: un Elite a +0,3 ya indica kart malo; un Novato necesita +1,0
-  const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
-  return {mode:'track', ref, delta:ref-trackAvg, avg5, stintBest, isReliable, pilotScore, threshold, degraded, dNorm, n:clean.length};
+  return {mode:'track', ref, delta:ref-trackAvg, avg5, stintBest, isReliable, threshold:_EN_TRACK_THR, degraded, dNorm, n:clean.length};
 }
+
 
 function _enAutoKartQuality(e, trackAvg){
   if(!trackAvg||!e.lapHistory||e.lapHistory.length<3)return null;
@@ -593,11 +624,14 @@ function _enAutoKartQuality(e, trackAvg){
   if(state.lastEvalKey===evalKey)return state.quality;
   state.lastEvalKey=evalKey;
 
+  const drv=_enStintDriverKey(e);
+  if(drv)(state.drvSeen||(state.drvSeen={}))[drv]=1;
+  state.curDrv=drv;
   const c=_enQualityCalc(e, state, clean, trackAvg);
   state.curD=c.dNorm; state.curN=c.n;
 
   let instant=null;
-  if(c.mode==='norm'){
+  if(c.mode==='norm'||c.mode==='driver'){
     if(c.own<-c.threshold)instant='good';
     else if(c.own>c.threshold)instant='bad';
   } else {
@@ -684,31 +718,20 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   const warmNote='\nVueltas corregidas por calentamiento tras la parada';
   const degrNote=c.degraded?'\n⚠ Degradación: M5v >2 s sobre su mejor vuelta':'';
 
-  if(c.mode==='norm'){
-    return `${label} (auto)\nΔ frente a la norma del equipo: ${sg(c.own)}s · umbral ±${c.threshold}s`
-      +`\nNorma del equipo: ${sg(c.norm)}s sobre la pista (${c.nNorm} stints anteriores)`
+  if(c.mode==='driver'||c.mode==='norm'){
+    const who=c.mode==='driver'?`la norma de ${c.drv}`:'la norma del equipo';
+    const src=c.mode==='driver'?`${c.nNorm} stint${c.nNorm>1?'s':''} suyo${c.nNorm>1?'s':''} anterior${c.nNorm>1?'es':''}`:`${c.nNorm} stints anteriores del equipo`;
+    return `${label} (auto)\nΔ frente a ${who}: ${sg(c.own)}s · umbral ±${c.threshold}s`
+      +`\nNorma: ${sg(c.norm)}s sobre la pista (${src})`
       +`\nMedia pista: ${_enFmt(trackAvg)}${warmNote}${degrNote}${fewDataNote}`;
   }
 
-  const pilotScore=c.pilotScore;
-  const pilotLabel=pilotScore>=800?'Elite'
-                  :pilotScore>=600?'Avanzado'
-                  :pilotScore>=400?'Intermedio'
-                  :pilotScore>=200?'Novato'
-                  :pilotScore!=null?'Principiante'
-                  :'Sin datos';
-  const pilotLine=pilotScore!=null
-    ?`Piloto: ${pilotLabel} (${pilotScore}) · umbral ±${c.threshold}s`
-    :`Piloto: sin score histórico · umbral ±${c.threshold}s`;
-  const reliableReason=pilotScore>=600?'score fiable':'rodada consistente';
-  const erraticReason=pilotScore!=null?'score bajo':'sin score, rodada irregular';
   const refLine=c.isReliable
-    ?`Referencia: M5v del stint ${_enFmt(c.avg5)} (${reliableReason})`
-    :`Referencia: mejor vuelta del stint ${_enFmt(c.stintBest)} (${erraticReason})`;
+    ?`Referencia: M5v del stint ${_enFmt(c.avg5)} (rodada regular)`
+    :`Referencia: mejor vuelta del stint ${_enFmt(c.stintBest)} (rodada irregular)`;
   const deltaStr=`${c.delta>=0?'+':''}${c.delta.toFixed(3)}s`;
-  const normNote=`\nAún sin norma del equipo (${(state?.stintNorms||[]).length}/${_EN_NORM_MIN_STINTS} stints): se compara con la pista`;
-
-  return `${label} (auto)\n${pilotLine}\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${normNote}${warmNote}${degrNote}${fewDataNote}`;
+  return `${label} (auto · provisional)\nAún sin norma del piloto ni del equipo: se compara con la pista (umbral ±${c.threshold}s, solo casos claros)`
+    +`\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${warmNote}${degrNote}${fewDataNote}`;
 }
 
 if (typeof module !== 'undefined') {

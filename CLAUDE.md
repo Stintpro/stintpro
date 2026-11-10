@@ -96,9 +96,13 @@ StintPro es una aplicación web (desplegada en Vercel) para estrategia en carrer
 
 **Regla vigente (2026-11, medida en la 26H Alcanede — `tools/_replays/alcanede-calidad/`):**
 - **Calentamiento:** a cada vuelta limpia del stint se le resta la curva tras la parada (v1 0,36 · v2 0,19 · v3 0,13 · v4 0,08 · v5 0,06 s) antes de comparar.
-- **Norma del equipo:** con ≥2 stints previos del dorsal de ≥8 vueltas limpias, se compara la mediana corregida del stint con la norma del equipo (mediana del Δ frente a la pista de sus stints anteriores) a **±0,2 s**. Los rechazos cortos no entran en la norma. Sin norma, se usa la tabla de arriba (Δ frente a la pista con umbral por score del piloto).
+- **Norma, por orden de preferencia** (umbral **±0,2 s**; solo cuentan los stints de ≥8 vueltas limpias, así que los rechazos cortos no entran):
+  1. **Norma del piloto:** si el dorsal ha mostrado ≥2 nombres de piloto y el piloto actual ya tiene un stint suyo. En mi equipo el piloto es el elegido en el panel (`EnSession.currentPilot`), porque Apex a veces solo manda el nombre del equipo.
+  2. **Norma del equipo:** con ≥2 stints previos del dorsal.
+  3. **Sin norma:** Δ frente a la pista con umbral fijo de **±1,0 s** (solo casos claros), marcado como «provisional» en el tooltip. La tabla de arriba es histórica.
+- **El score del piloto NO interviene en la calidad.** Prueba neutral (mismo piloto con karts distintos, 10 carreras): como umbral bajaba el acierto al 42 % (el azar es el 33 %) y como ritmo esperado no predecía (r −0,38). Se usa solo en el ranking de pilotos.
 - **Kart rechazado** (`EnBoxModel.rejectedStint` + `_enRejectionAtPitIn`): en el pit in, si el stint duró < 50 % del stint medio disponible del equipo (según sus paradas pendientes y el reloj), NO es su 1er stint y la deuda no le obligaba (disponible ≥ 60 % del nominal de la carrera), el kart que deja se marca 🟥 aunque no tenga vueltas medibles. Solo si su calidad por vueltas es desconocida o neutra y sin override manual. Necesita paradas totales, duración de carrera y reloj configurados.
-- La norma solo se construye con stints vistos en vivo: si conectas a mitad de carrera, hasta que pasen 2 stints se usa la regla de pista.
+- Las normas solo se construyen con stints vistos en vivo: si conectas a mitad de carrera, hasta que pasen stints se usa la regla de pista.
 
 - La calidad se evalúa SOLO con vueltas del kart actual (desde último pit out)
 - Kart bueno se mantiene verde hasta que entra en boxes (no degrada a neutro)
@@ -274,7 +278,7 @@ cd /path/to/project && rm -f output.zip && zip -r output.zip karting-v10/
 ### Calidad de karts (`_enAutoKartQuality`)
 - Evalúa SOLO vueltas del kart actual (desde `stintStartIdx` que se fija en pit out)
 - Pit OUT resetea calidad solo en la TRANSICIÓN (flag `_lastPitState`) — el estado 'out' persiste varios ticks
-- Piloto errático: usa mejor vuelta del stint en vez de M5v
+- Sin norma y con rodada irregular (rango ≥0,5 s): usa la mejor vuelta del stint en vez de M5v
 - Kart bueno se mantiene sticky hasta pit in
 
 ### Logger — comportamiento (corre en el VPS)
