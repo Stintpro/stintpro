@@ -94,6 +94,12 @@ StintPro es una aplicación web (desplegada en Vercel) para estrategia en carrer
 | Neutro 🟨 | entre -0.5s y +0.5s | entre -0.5s y +0.5s |
 | Malo 🟥 | M5v > media_pista + 0.5s | Mejor vuelta stint > media_pista + 0.5s |
 
+**Regla vigente (2026-11, medida en la 26H Alcanede — `tools/_replays/alcanede-calidad/`):**
+- **Calentamiento:** a cada vuelta limpia del stint se le resta la curva tras la parada (v1 0,36 · v2 0,19 · v3 0,13 · v4 0,08 · v5 0,06 s) antes de comparar.
+- **Norma del equipo:** con ≥2 stints previos del dorsal de ≥8 vueltas limpias, se compara la mediana corregida del stint con la norma del equipo (mediana del Δ frente a la pista de sus stints anteriores) a **±0,2 s**. Los rechazos cortos no entran en la norma. Sin norma, se usa la tabla de arriba (Δ frente a la pista con umbral por score del piloto).
+- **Kart rechazado** (`EnBoxModel.rejectedStint` + `_enRejectionAtPitIn`): en el pit in, si el stint duró < 50 % del stint medio disponible del equipo (según sus paradas pendientes y el reloj), NO es su 1er stint y la deuda no le obligaba (disponible ≥ 60 % del nominal de la carrera), el kart que deja se marca 🟥 aunque no tenga vueltas medibles. Solo si su calidad por vueltas es desconocida o neutra y sin override manual. Necesita paradas totales, duración de carrera y reloj configurados.
+- La norma solo se construye con stints vistos en vivo: si conectas a mitad de carrera, hasta que pasen 2 stints se usa la regla de pista.
+
 - La calidad se evalúa SOLO con vueltas del kart actual (desde último pit out)
 - Kart bueno se mantiene verde hasta que entra en boxes (no degrada a neutro)
 - Override manual: click en dorsal cicla auto → bueno → neutro → malo → auto

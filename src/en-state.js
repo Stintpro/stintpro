@@ -454,7 +454,19 @@ function _enTrackKartStint(e){
 
   // Pit IN: guardar calidad previa (para tracking de box)
   if(e.pitState==='in'){
-    if(state.quality)state.prePitQuality=state.quality;
+    // Kart rechazado (stint corto sin deuda, marcado en el pit in por
+    // _enRejectionAtPitIn): manda sobre la calidad por vueltas del kart que deja.
+    if(state.quality&&!state.rejected)state.prePitQuality=state.quality;
+    // Norma del equipo: al ENTRAR (una sola vez aunque 'in' dure varios ticks)
+    // se guarda el Δ del stint que acaba, si fue un stint de verdad. Los
+    // rechazos (pocas vueltas) no son la norma del equipo.
+    if(!state._stintRecorded){
+      if(state.curN>=_EN_NORM_MIN_LAPS&&Number.isFinite(state.curD)){
+        (state.stintNorms||(state.stintNorms=[])).push(state.curD);
+        if(state.stintNorms.length>30)state.stintNorms.shift();
+      }
+      state._stintRecorded=true;
+    }
     return state;
   }
 
@@ -466,12 +478,18 @@ function _enTrackKartStint(e){
       state.prePitQuality=null;
       state.stintStartIdx=e.lapHistory.length; // las vueltas anteriores son del kart viejo
       state.lastEvalKey=null;                  // fuerza reevaluar el kart nuevo (gate B1)
+      state.curD=null; state.curN=0;           // Δ del stint nuevo, aún sin vueltas
+      state.rejected=null;                     // la marca de rechazo era del kart viejo
+      state._stintRecorded=false;              // stintNorms se conserva: es del equipo
     }
     state._lastPitState='out';
     // 'out' puede persistir muchos ticks sin sr/su. No reseteamos de nuevo:
     // si ya hay vueltas del kart nuevo se evalúa normal, si no, retorna null abajo.
   } else {
     state._lastPitState=e.pitState||null;
+    // De vuelta en pista (aunque Apex se saltara el 'out'): la marca de rechazo
+    // era del kart que dejó en el box, no del que lleva ahora.
+    if(!e.pitState&&!e.pit)state.rejected=null;
   }
   return state;
 }
@@ -495,6 +513,53 @@ function _enQualityOfLaps(e, laps, trackAvg){
   const key='__tramo_'+(e&&e.dorsal);
   try{ return _enAutoKartQuality({dorsal:key, name:e&&e.name, lapHistory:laps, pitState:null}, trackAvg); }
   finally{ delete EnSession.kartAutoState[key]; }
+}
+
+// Regla medida en la 26H Alcanede (2026-11, tools/_replays/alcanede-calidad):
+//  · Calentamiento: tras cada parada las vueltas lanzadas van más lentas sin que
+//    el kart tenga culpa (v1 +0,36 · v2 +0,19 · v3 +0,13 · v4 +0,08 · v5 +0,06).
+//  · Norma del equipo: frente a la media de pista se mide sobre todo al equipo
+//    (y a su categoría); frente a sus propios stints anteriores se mide el kart.
+//    Con ±0,2 s acierta el 67 % de los "malo" y el 81 % de los "bueno" a 5
+//    vueltas (la regla de pista: 59 % y casi nunca marcaba buenos).
+const _EN_WARMUP=[0.36,0.19,0.13,0.08,0.06];
+const _EN_NORM_MIN_LAPS=8;    // vueltas limpias para que un stint cuente como norma
+const _EN_NORM_MIN_STINTS=2;  // stints previos para usar la norma (si no, pista)
+const _EN_NORM_THR=0.2;
+
+function _enMedianOf(a){
+  if(!a.length)return NaN;
+  const b=[...a].sort((x,y)=>x-y), m=b.length>>1;
+  return b.length%2?b[m]:(b[m-1]+b[m])/2;
+}
+
+// Datos de la decisión de calidad: los usan _enAutoKartQuality y el tooltip,
+// así el color y su explicación salen siempre de los mismos números (B3).
+function _enQualityCalc(e, state, clean, trackAvg){
+  const corr=clean.map((t,i)=>t-(_EN_WARMUP[i]||0));
+  const avg5raw=clean.slice(-5).reduce((a,b)=>a+b,0)/Math.min(5,clean.length);
+  const degraded=avg5raw>Math.min(...clean)+2.0;  // degradación mecánica
+  // Δ del stint para la norma: sin las 2 primeras vueltas, si hay de sobra
+  const dNorm=_enMedianOf(corr.length>4?corr.slice(2):corr)-trackAvg;
+
+  const norms=state?.stintNorms||[];
+  if(norms.length>=_EN_NORM_MIN_STINTS){
+    const norm=_enMedianOf(norms);
+    const own=_enMedianOf(corr)-trackAvg-norm;
+    return {mode:'norm', own, norm, nNorm:norms.length, threshold:_EN_NORM_THR, degraded, dNorm, n:clean.length};
+  }
+
+  const last5=corr.slice(-5);
+  const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
+  const stintBest=Math.min(...corr), mx=Math.max(...corr);
+  const _pr=_enRatingOf(e.name);
+  const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
+  // Piloto fiable (score≥600) → M5v representativo; errático o sin datos → mejor vuelta
+  const isReliable=pilotScore!=null?pilotScore>=600:(mx-stintBest)<0.5;
+  const ref=isReliable?avg5:stintBest;
+  // Umbral por nivel: un Elite a +0,3 ya indica kart malo; un Novato necesita +1,0
+  const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
+  return {mode:'track', ref, delta:ref-trackAvg, avg5, stintBest, isReliable, pilotScore, threshold, degraded, dNorm, n:clean.length};
 }
 
 function _enAutoKartQuality(e, trackAvg){
@@ -528,41 +593,21 @@ function _enAutoKartQuality(e, trackAvg){
   if(state.lastEvalKey===evalKey)return state.quality;
   state.lastEvalKey=evalKey;
 
-  const last5=clean.slice(-5);
-  const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
-  const stintBest=Math.min(...clean);
-  const mn=stintBest, mx=Math.max(...clean);
+  const c=_enQualityCalc(e, state, clean, trackAvg);
+  state.curD=c.dNorm; state.curN=c.n;
 
-  // Score histórico del piloto → decide qué referencia y qué umbral usar
-  const _pr=_enRatingOf(e.name);
-  const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
-
-  // Piloto fiable (score≥600) → M5v es representativo, usar avg5
-  // Piloto errático o sin datos → usar mejor vuelta del stint (más resistente a incidentes)
-  const isReliable=pilotScore!=null?pilotScore>=600:(mx-mn)<0.5;
-  const ref=isReliable?avg5:stintBest;
-
-  // Umbral ajustado por nivel: un Elite rodando +0.3s ya indica kart malo;
-  // un Novato necesita +1.0s para descartar que sea el piloto
-  const threshold=pilotScore>=800?0.3
-                 :pilotScore>=600?0.5
-                 :pilotScore>=400?0.7
-                 :                1.0;
-
-  // Calcular calidad instantánea
   let instant=null;
-  const delta=ref-trackAvg;
-  if(delta<-threshold)instant='good';
-  else if(delta>threshold)instant='bad';
-
-  // Bloqueo: si rueda POR ENCIMA de la media no puede ser bueno
-  // salvo que tenga una vuelta rápida clara (del kart actual)
-  if(instant==='good'&&avg5>trackAvg){
-    if(stintBest>=trackAvg-threshold)instant=null;
+  if(c.mode==='norm'){
+    if(c.own<-c.threshold)instant='good';
+    else if(c.own>c.threshold)instant='bad';
+  } else {
+    if(c.delta<-c.threshold)instant='good';
+    else if(c.delta>c.threshold)instant='bad';
+    // Bloqueo: si rueda POR ENCIMA de la media no puede ser bueno
+    // salvo que tenga una vuelta rápida clara (del kart actual)
+    if(instant==='good'&&c.avg5>trackAvg&&c.stintBest>=trackAvg-c.threshold)instant=null;
   }
-
-  // Malo si rueda +2.0s más lento que su mejor vuelta (degradación mecánica)
-  if(avg5>stintBest+2.0)instant='bad';
+  if(c.degraded)instant='bad';
 
   // Si no es bueno ni malo → neutro
   if(!instant)instant='neutral';
@@ -612,6 +657,13 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     return `${labels[manual]} (manual)`;
   }
 
+  // Kart que acaba de soltar en boxes por rechazo (ver _enRejectionAtPitIn)
+  const _rj=EnSession.kartAutoState?.[dorsal]?.rejected;
+  if(_rj&&e.pitState==='in'){
+    return `MALO (rechazado)\nLo soltó a los ${_rj.stintMin.toFixed(1)} min con un stint disponible de ${_rj.availMin.toFixed(0)} min`
+      +`\nSin deuda de paradas que lo obligara: un stint así de corto deja un kart de media +0,4 s peor`;
+  }
+
   // B3: usar EXACTAMENTE los mismos datos que la decisión (_enAutoKartQuality):
   // solo vueltas del stint actual y el mismo criterio de fiabilidad. Antes el
   // tooltip calculaba avg5 sobre el historial completo y fijaba isReliable=false
@@ -625,21 +677,20 @@ function _enQualityTooltip(dorsal, e, trackAvg){
   if(cleanStint.length<3||!trackAvg)
     return `SIN DATOS\nVueltas del kart actual: ${cleanStint.length} (necesita 3)`;
 
-  const last5=cleanStint.slice(-5);
-  const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
-  const stintBest=Math.min(...cleanStint);
-  const stintMax=Math.max(...cleanStint);
-  const _pr=_enRatingOf(e.name);
-  const pilotScore=typeof _pr==='object'?_pr?.score:_pr;
-  const isReliable=pilotScore!=null?pilotScore>=600:(stintMax-stintBest)<0.5;
-  const threshold=pilotScore>=800?0.3:pilotScore>=600?0.5:pilotScore>=400?0.7:1.0;
-  const ref=isReliable?avg5:stintBest;
-  const delta=ref-trackAvg;
-  const deltaStr=`${delta>=0?'+':''}${delta.toFixed(3)}s`;
-
+  const c=_enQualityCalc(e, state, cleanStint, trackAvg);
   const effective=_enEffectiveQuality(dorsal, e, trackAvg);
   const label={good:'BUENO',neutral:'NEUTRO',bad:'MALO'}[effective]||'SIN DATOS';
+  const sg=v=>`${v>=0?'+':'-'}${Math.abs(v).toFixed(2)}`;
+  const warmNote='\nVueltas corregidas por calentamiento tras la parada';
+  const degrNote=c.degraded?'\n⚠ Degradación: M5v >2 s sobre su mejor vuelta':'';
 
+  if(c.mode==='norm'){
+    return `${label} (auto)\nΔ frente a la norma del equipo: ${sg(c.own)}s · umbral ±${c.threshold}s`
+      +`\nNorma del equipo: ${sg(c.norm)}s sobre la pista (${c.nNorm} stints anteriores)`
+      +`\nMedia pista: ${_enFmt(trackAvg)}${warmNote}${degrNote}${fewDataNote}`;
+  }
+
+  const pilotScore=c.pilotScore;
   const pilotLabel=pilotScore>=800?'Elite'
                   :pilotScore>=600?'Avanzado'
                   :pilotScore>=400?'Intermedio'
@@ -647,18 +698,20 @@ function _enQualityTooltip(dorsal, e, trackAvg){
                   :pilotScore!=null?'Principiante'
                   :'Sin datos';
   const pilotLine=pilotScore!=null
-    ?`Piloto: ${pilotLabel} (${pilotScore}) · umbral ±${threshold}s`
-    :`Piloto: sin score histórico · umbral ±${threshold}s`;
+    ?`Piloto: ${pilotLabel} (${pilotScore}) · umbral ±${c.threshold}s`
+    :`Piloto: sin score histórico · umbral ±${c.threshold}s`;
   const reliableReason=pilotScore>=600?'score fiable':'rodada consistente';
   const erraticReason=pilotScore!=null?'score bajo':'sin score, rodada irregular';
-  const refLine=isReliable
-    ?`Referencia: M5v del stint ${_enFmt(avg5)} (${reliableReason})`
-    :`Referencia: mejor vuelta del stint ${_enFmt(stintBest)} (${erraticReason})`;
+  const refLine=c.isReliable
+    ?`Referencia: M5v del stint ${_enFmt(c.avg5)} (${reliableReason})`
+    :`Referencia: mejor vuelta del stint ${_enFmt(c.stintBest)} (${erraticReason})`;
+  const deltaStr=`${c.delta>=0?'+':''}${c.delta.toFixed(3)}s`;
+  const normNote=`\nAún sin norma del equipo (${(state?.stintNorms||[]).length}/${_EN_NORM_MIN_STINTS} stints): se compara con la pista`;
 
-  return `${label} (auto)\n${pilotLine}\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${fewDataNote}`;
+  return `${label} (auto)\n${pilotLine}\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${normNote}${warmNote}${degrNote}${fewDataNote}`;
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { _enTrafficFilter, _enTrafficMark, _enTrafficGiftLine, _enAutoKartQuality, _enEffectiveQuality, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings, _enCanonName, _enRatingsMap, _enRatingOf };
+  module.exports = { _enTrafficFilter, _enTrafficMark, _enTrafficGiftLine, _enAutoKartQuality, _enEffectiveQuality, _enQualityTooltip, _enTrackAvgLive, _enKartColor, EnSession, EnUi, _enPilotRatings, _enCanonName, _enRatingsMap, _enRatingOf };
 }
 

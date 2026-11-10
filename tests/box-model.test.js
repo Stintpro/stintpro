@@ -39,6 +39,59 @@ test('sin datos de box: no recomienda caza ni espera basada en el pool', () => {
   ok(!a.html.includes('caza') && !a.html.includes('Espera'), a.html);
 });
 
+test('sin datos de box + kart malo + paradas de sobra → recházalo (sorteo, de media sales ganando)', () => {
+  // 26H Alcanede: con kart malo, el siguiente kart al azar rodó 0,30 s mejor (77/98)
+  const a = M.tacticalAdvice({ ...baseTactic, strategic: 3, probAcceso: null, bestFutureProb: 0, worstFutureProb: 0 });
+  ok(/Recházalo/.test(a.html), a.html);
+  ok(a.html.includes('3 paradas'), a.html);
+  strictEqual(a.color, 'var(--state-ok)');
+});
+
+test('sin datos de box + kart malo SIN paradas de sobra → no propone rechazarlo', () => {
+  const a = M.tacticalAdvice({ ...baseTactic, strategic: 0, probAcceso: null, bestFutureProb: 0, worstFutureProb: 0 });
+  ok(!/Recházalo/.test(a.html), a.html);
+});
+
+// ── Rechazo de kart por stint corto, con la deuda de paradas ──────────────
+// Medido en la 26H Alcanede y henakart 7-nov: un stint de menos de la mitad del
+// disponible deja un kart +0,39 s peor que la norma del equipo, salvo que la
+// deuda de paradas lo obligue (disponible < 60 % del nominal) o sea el 1er stint.
+console.log('\n▸ Rechazo por stint corto\n');
+const H = 3600e3;
+const alc = { totalStops: 34, raceDurMs: 26 * H, pitMs: 210e3, stintMaxMs: 60 * MIN };
+
+test('rechazo: 26H, 5 min de stint con 20 h por delante → rechazado', () => {
+  const r = M.rejectedStint({ ...alc, stintMs: 5 * MIN, stopsBefore: 5, remainingMs: 20 * H });
+  strictEqual(r.rejected, true);
+  ok(r.ratio < 0.5, String(r.ratio));
+});
+
+test('rechazo: a falta de 30 min con 2 paradas pendientes → NO (es la deuda)', () => {
+  const r = M.rejectedStint({ ...alc, stintMs: 5 * MIN, stopsBefore: 32, remainingMs: 30 * MIN });
+  strictEqual(r.rejected, false);
+  ok(r.squeeze < 0.6, String(r.squeeze));
+});
+
+test('rechazo: el 1er stint corto es estrategia → sin veredicto', () => {
+  strictEqual(M.rejectedStint({ ...alc, stintMs: 5 * MIN, stopsBefore: 0, remainingMs: 25 * H }), null);
+});
+
+test('rechazo: stint normal de 40 min → no rechazado', () => {
+  strictEqual(M.rejectedStint({ ...alc, stintMs: 40 * MIN, stopsBefore: 5, remainingMs: 20 * H }).rejected, false);
+});
+
+test('rechazo: henakart 50 min / 2 paradas, 2º stint de 4 min → rechazado', () => {
+  const r = M.rejectedStint({ totalStops: 2, raceDurMs: 50 * MIN, pitMs: 120e3, stintMaxMs: 0, stintMs: 4 * MIN, stopsBefore: 1, remainingMs: 30 * MIN });
+  strictEqual(r.rejected, true);
+});
+
+test('rechazo: sin paradas configuradas, sin reloj o sin stint → sin veredicto', () => {
+  strictEqual(M.rejectedStint({ ...alc, totalStops: 0, stintMs: 5 * MIN, stopsBefore: 5, remainingMs: 20 * H }), null);
+  strictEqual(M.rejectedStint({ ...alc, stintMs: 5 * MIN, stopsBefore: 5, remainingMs: null }), null);
+  strictEqual(M.rejectedStint({ ...alc, stintMs: null, stopsBefore: 5, remainingMs: 20 * H }), null);
+  strictEqual(M.rejectedStint({ ...alc, stintMs: 5 * MIN, stopsBefore: 34, remainingMs: 1 * H }), null);
+});
+
 test('sin datos de box con kart bueno → sigue diciendo apurar el stint', () => {
   const a = M.tacticalAdvice({ ...baseTactic, myQuality: 'good', probAcceso: null, bestFutureProb: 0, worstFutureProb: 0 });
   ok(a.html.includes('Apura stint'), a.html);

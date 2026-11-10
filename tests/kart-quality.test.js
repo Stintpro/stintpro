@@ -9,7 +9,7 @@ const { _enCleanLaps, _enFmt } = require('../src/analysis');
 global._enCleanLaps = _enCleanLaps;
 global._enFmt       = _enFmt;
 
-const { _enAutoKartQuality, _enEffectiveQuality, EnSession, EnUi, _enPilotRatings, _enCanonName, _enRatingsMap, _enRatingOf } = require('../src/en-state');
+const { _enAutoKartQuality, _enEffectiveQuality, _enQualityTooltip, EnSession, EnUi, _enPilotRatings, _enCanonName, _enRatingsMap, _enRatingOf } = require('../src/en-state');
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -105,7 +105,8 @@ group('Umbral ajustado por score (piloto Elite ≥800 → ±0.3s)', () => {
   test('Elite: delta -0.2s → neutral (dentro del umbral ±0.3s)', () => {
     reset();
     _enPilotRatings['Elite'] = { score: 850 };
-    const laps = [64.8, 64.8, 64.8, 64.8, 64.8];
+    // con la curva de calentamiento encima (v1 +0,36 … v5 +0,06): corregidas = 64,8
+    const laps = [65.16, 64.99, 64.93, 64.88, 64.86];
     assert.equal(_enAutoKartQuality(kart('1', laps, null, 'Elite'), 65), 'neutral');
   });
 
@@ -372,7 +373,8 @@ group('Bloqueo — comportamiento del guard avg5 > trackAvg', () => {
   test('errático con stintBest moderado → neutral (delta insuficiente para good)', () => {
     reset();
     // stintBest=64.2, delta=64.2-65=-0.8. threshold=1.0. -0.8 > -1.0 → neutral
-    const laps = [64.2, 66.0, 66.0, 66.0, 66.0];
+    // con calentamiento: corregidas = [66, 66, 66, 64.2, 66]
+    const laps = [66.36, 66.19, 66.13, 64.28, 66.06];
     assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
   });
 });
@@ -478,6 +480,130 @@ group('Score de piloto por nombre normalizado', () => {
     // stint largo y con rango ≥0,5 s: sin score → ref=mejor vuelta y umbral ±1,0 → neutral
     const laps = [64.9, 64.3, 64.4, 64.4, 64.4, 64.4, 64.4];
     assert.equal(_enAutoKartQuality(kart('29', laps, null, 'RUBEN CONCEIÇAO'), 65), 'good');
+  });
+});
+
+// ── Regla Alcanede 2026-11: calentamiento + norma del propio equipo ─────────
+// Tras cada parada las primeras vueltas van más lentas por calentamiento
+// (v1 +0,36 · v2 +0,19 · v3 +0,13 · v4 +0,08 · v5 +0,06) y comparar con la
+// media de pista mide sobre todo al equipo. Con ≥2 stints previos del dorsal
+// se compara con SU norma (Δ de sus stints anteriores) a ±0,2 s.
+
+const WARM = [0.36, 0.19, 0.13, 0.08, 0.06];
+// n vueltas a trackAvg+delta con la curva de calentamiento encima
+function stintLaps(n, base, delta) {
+  return Array.from({ length: n }, (_, i) => +(base + delta + (WARM[i] || 0)).toFixed(3));
+}
+// Corre un stint completo: vueltas en pista, pit in y pit out
+function runStint(k, laps, avg) {
+  for (const v of laps) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, avg); }
+  k.pitState = 'in'; _enAutoKartQuality(k, avg);
+  k.pitState = 'out'; _enAutoKartQuality(k, avg);
+}
+
+group('Calentamiento tras la parada', () => {
+  test('Elite (±0,3): kart en la media con calentamiento → neutral, no bad', () => {
+    reset();
+    Object.assign(_enPilotRatings, _enRatingsMap([{ name: 'ELITE', score: 850 }]));
+    // sin corregir: media +0,33 sobre la pista (> 0,3) → antes salía bad
+    const laps = stintLaps(3, 65, 0.1);
+    assert.equal(_enAutoKartQuality(kart('1', laps, null, 'ELITE'), 65), 'neutral');
+  });
+});
+
+group('Norma del propio equipo (±0,2 s)', () => {
+  test('equipo lento (+0,6) con kart a +0,3 → good (antes neutral)', () => {
+    reset();
+    const k = { dorsal: '7', name: 'X', pitState: null, lapHistory: [] };
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    for (const v of stintLaps(5, 65, 0.3)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    assert.equal(_enAutoKartQuality(k, 65), 'good');
+  });
+
+  test('equipo rápido (−0,6) con kart a −0,3 → bad (antes neutral)', () => {
+    reset();
+    const k = { dorsal: '8', name: 'X', pitState: null, lapHistory: [] };
+    runStint(k, stintLaps(12, 65, -0.6), 65);
+    runStint(k, stintLaps(12, 65, -0.6), 65);
+    for (const v of stintLaps(5, 65, -0.3)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    assert.equal(_enAutoKartQuality(k, 65), 'bad');
+  });
+
+  test('dentro de ±0,2 de su norma → neutral', () => {
+    reset();
+    const k = { dorsal: '9', name: 'X', pitState: null, lapHistory: [] };
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    for (const v of stintLaps(5, 65, 0.7)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    assert.equal(_enAutoKartQuality(k, 65), 'neutral');
+  });
+
+  test('stints cortos (<8 vueltas limpias) no cuentan para la norma', () => {
+    reset();
+    const k = { dorsal: '10', name: 'X', pitState: null, lapHistory: [] };
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    runStint(k, stintLaps(4, 65, 0.6), 65);   // rechazo: no es norma
+    assert.equal(EnSession.kartAutoState['10'].stintNorms.length, 1);
+    // solo 1 stint de norma → sigue la regla de pista (sin score ±1,0): +0,3 → neutral
+    for (const v of stintLaps(5, 65, 0.3)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    assert.equal(_enAutoKartQuality(k, 65), 'neutral');
+  });
+
+  test('pit in repetido en varios ticks registra el stint una sola vez', () => {
+    reset();
+    const k = { dorsal: '11', name: 'X', pitState: null, lapHistory: [] };
+    for (const v of stintLaps(12, 65, 0.6)) { k.lapHistory = [...k.lapHistory, v]; _enAutoKartQuality(k, 65); }
+    k.pitState = 'in';
+    for (let i = 0; i < 5; i++) _enAutoKartQuality(k, 65);
+    assert.equal(EnSession.kartAutoState['11'].stintNorms.length, 1);
+  });
+
+  test('tooltip explica la comparación con la norma del equipo', () => {
+    reset();
+    const k = { dorsal: '12', name: 'X', pitState: null, lapHistory: [] };
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    runStint(k, stintLaps(12, 65, 0.6), 65);
+    for (const v of stintLaps(5, 65, 0.3)) { k.lapHistory = [...k.lapHistory, v]; k.pitState = null; _enAutoKartQuality(k, 65); }
+    const tip = _enQualityTooltip('12', k, 65);
+    assert.ok(/BUENO \(auto\)/.test(tip), tip);
+    assert.ok(/norma del equipo/i.test(tip), tip);
+    assert.ok(/−0,30|-0\.30/.test(tip), tip);
+  });
+});
+
+group('Kart rechazado (stint corto sin deuda)', () => {
+  test('en boxes, la marca de rechazo no la pisa la calidad neutra de las vueltas', () => {
+    reset();
+    const k = { dorsal: '20', name: 'X', pitState: null, lapHistory: [] };
+    for (const v of stintLaps(4, 65, 0)) { k.lapHistory = [...k.lapHistory, v]; _enAutoKartQuality(k, 65); }
+    const st = EnSession.kartAutoState['20'];
+    st.prePitQuality = 'bad'; st.rejected = { stintMin: 3, availMin: 40 };   // lo pone el pit in
+    k.pitState = 'in';
+    for (let i = 0; i < 3; i++) assert.equal(_enAutoKartQuality(k, 65), 'bad');
+    assert.ok(/rechazado/i.test(_enQualityTooltip('20', k, 65)));
+  });
+
+  test('al salir con kart nuevo se borra la marca de rechazo', () => {
+    reset();
+    const k = { dorsal: '21', name: 'X', pitState: null, lapHistory: stintLaps(4, 65, 0) };
+    _enAutoKartQuality(k, 65);
+    const st = EnSession.kartAutoState['21'];
+    st.prePitQuality = 'bad'; st.rejected = { stintMin: 3, availMin: 40 };
+    k.pitState = 'in'; _enAutoKartQuality(k, 65);
+    k.pitState = 'out'; _enAutoKartQuality(k, 65);
+    assert.equal(st.rejected, null);
+  });
+
+  test('si Apex se salta el out, la marca se borra al volver a pista', () => {
+    reset();
+    const k = { dorsal: '22', name: 'X', pitState: null, lapHistory: stintLaps(4, 65, 0) };
+    _enAutoKartQuality(k, 65);
+    const st = EnSession.kartAutoState['22'];
+    st.prePitQuality = 'bad'; st.rejected = { stintMin: 3, availMin: 40 };
+    k.pitState = 'in'; _enAutoKartQuality(k, 65);
+    k.pitState = null; k.pit = false; _enAutoKartQuality(k, 65);
+    assert.equal(st.rejected, null);
   });
 });
 

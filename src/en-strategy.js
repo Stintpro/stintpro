@@ -328,6 +328,33 @@ function _enRivalStintStart(e){
   return EnBoxModel.rivalStintStart(EnSession.rivalPitOut[e.dorsal], stops, anchor);
 }
 
+// Kart rechazado: en el pit in, si el stint que acaba fue de menos de la mitad
+// del que el equipo tenía disponible y no le obligaba la deuda de paradas, el kart
+// que deja se marca malo (ver EnBoxModel.rejectedStint). Solo cuando las vueltas no
+// dicen ya nada (calidad desconocida o neutra) y sin override manual del dorsal.
+// Devuelve 'bad' si lo marca, o null.
+function _enRejectionAtPitIn(e, q, now){
+  if(q!=='unknown'&&q!=='neutral')return null;
+  const manual=EnUi.kartQuality[e.dorsal];
+  if(manual==='good'||manual==='neutral'||manual==='bad')return null;
+  const start=_enRivalStintStart(e);   // pit out previo: aún no lo ha borrado este pit in
+  if(!start)return null;
+  const cfg=window.AppState?.config;
+  const raceDurMs=(cfg?.duration||0)*3600*1000;
+  const C=window.ApexClock;
+  const rem=EnBoxModel.raceRemainingMs(C?{synced:C._synced,countUp:C.isCountUp(),remainingMs:C.remainingMs()}:null, raceDurMs);
+  const r=EnBoxModel.rejectedStint({
+    stintMs:now-start, stopsBefore:_enRivalStops(e), totalStops:EnBox.totalStops||0,
+    remainingMs:rem, raceDurMs, pitMs:(EnBox.pitDuration||0)*1000, stintMaxMs:(cfg?.stintMax||0)*60000,
+  });
+  if(!r||!r.rejected)return null;
+  if(!EnSession.kartAutoState[e.dorsal])EnSession.kartAutoState[e.dorsal]={quality:null,badCount:0,stintStartIdx:0};
+  const st=EnSession.kartAutoState[e.dorsal];
+  st.prePitQuality='bad';
+  st.rejected={stintMin:(now-start)/60000, availMin:r.availMs/60000};
+  return 'bad';
+}
+
 // ── Box como rejilla (EnBoxModel.grid*) ─────────────────────────────────────
 // EnBox.grid es el estado; EnBox.queue es una lista DERIVADA (cada kart con su
 // probabilidad de estar en el box) para quien solo cuenta karts.
@@ -1126,7 +1153,8 @@ window.showEnduranceDashboard=function(cfg){
             // la transición a 'out' corre stintStartIdx al kart nuevo.
             const st0=EnSession.kartAutoState[e.dorsal];
             const stLaps=(e.lapHistory||[]).slice(Math.min(st0?.stintStartIdx||0,(e.lapHistory||[]).length));
-            const q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
+            let q=_enEffectiveQuality(e.dorsal, e, trackAvgNow)||'unknown';
+            if(boxEv==='in')q=_enRejectionAtPitIn(e, q, now)||q;
             _enBoxSet(EnBoxModel.gridOnPitEvent(_enBoxGrid(), EnBox.swapped,
               {dorsal:e.dorsal, kind:boxEv, quality:q, name:e.name, time:now, lapIdx:(e.lapHistory||[]).length,
                team:e.teamName||e.name||null, pilot:e.driver||null, stintBest:EnBoxModel.stintBest(stLaps)},

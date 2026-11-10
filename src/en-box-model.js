@@ -98,6 +98,13 @@
       return r('📊', 'var(--state-warn)', `Kart malo · <b>Sin reloj de carrera</b> — no se sabe si te sobra alguna parada para cambiar de kart`);
     if (q === 'bad' && p.strategic === 0 && p.totalStops > 0)
       return r('😤', 'var(--state-alert)', `Kart malo + sin paradas extra → <b>Apura stint, no puedes cazar</b>`);
+    // Sin datos de box el cambio es un sorteo, pero con un kart malo el sorteo
+    // sale a cuenta: en la 26H Alcanede el kart siguiente rodó de media 0,30 s
+    // mejor (77 de 98 rechazos) y la parada de sobra se hace igual.
+    if (q === 'bad' && free && !known) {
+      const n = p.strategic > 0 ? `te sobra${p.strategic > 1 ? 'n' : ''} ${p.strategic} parada${p.strategic > 1 ? 's' : ''}` : 'paradas libres';
+      return r('🎯', 'var(--state-ok)', `Kart malo + ${n} → <b>Recházalo: entra a cambiar</b> · sin datos de box es un sorteo, pero de media sales ganando`);
+    }
     if (q === 'bad' && !known)
       return r('📊', 'var(--state-alert)', `Kart malo · <b>Sin datos de box</b> — no se puede valorar un cambio de kart`);
     if (known && q === 'good' && p.worstFutureProb < pool - 10)
@@ -303,6 +310,33 @@
   // standsCount de Apex manda (correcto aunque conectes tarde); el historial
   // local es el respaldo. raceRemMs null = sin reloj → estratégicas desconocidas
   // (null), nunca "todas libres". stintMaxMs null/0 = sin stint máximo.
+  // ── Rechazo de kart por stint corto, teniendo en cuenta la deuda ─────────
+  // Un stint corto solo dice "kart malo" si el equipo podía alargarlo. Se compara
+  // su duración con el stint medio que le quedaba al salir:
+  //   disponible = min(máx, (restante − pendientes × parada) / (pendientes + 1))
+  // y la deuda con el stint nominal de la carrera (no con minutos fijos: en
+  // henakart el disponible es ~15 min por formato, no por deuda).
+  // Medido (26H Alcanede + henakart 7-nov): duración < 50 % del disponible y
+  // disponible ≥ 60 % del nominal → el kart soltado iba +0,39 s sobre la norma del
+  // equipo; con deuda, +0,17; el 1er stint corto es estrategia (+0,02).
+  // p: {stintMs, stopsBefore (paradas hechas ANTES de esta), totalStops,
+  //     remainingMs (en el pit in), raceDurMs, pitMs, stintMaxMs (0 = sin máx)}
+  // Devuelve null si no hay base para juzgar, o {rejected, ratio, availMs, squeeze}.
+  const REJECT_RATIO = 0.5, REJECT_SQUEEZE = 0.6;
+  function rejectedStint(p) {
+    if (!p || !(p.stintMs > 0) || !(p.totalStops > 0) || p.remainingMs == null || !(p.raceDurMs > 0)) return null;
+    if (!(p.stopsBefore > 0)) return null;               // 1er stint: estrategia, no rechazo
+    const pending = p.totalStops - p.stopsBefore;        // incluye la parada que se está haciendo
+    if (pending < 1) return null;
+    const max = p.stintMaxMs > 0 ? p.stintMaxMs : Infinity;
+    const pit = p.pitMs || 0;
+    const avail = Math.min(max, (p.remainingMs + p.stintMs - pending * pit) / (pending + 1));
+    const nominal = Math.min(max, (p.raceDurMs - p.totalStops * pit) / (p.totalStops + 1));
+    if (!(avail > 0) || !(nominal > 0)) return null;
+    const ratio = p.stintMs / avail, squeeze = avail / nominal;
+    return { rejected: ratio < REJECT_RATIO && squeeze >= REJECT_SQUEEZE, ratio, availMs: avail, squeeze };
+  }
+
   function stopPlan(p) {
     const stopsDone = p.standsCount > 0 ? p.standsCount : (p.histLen || 0);
     const stopsRemaining = p.totalStops > 0 ? Math.max(0, p.totalStops - stopsDone) : 0;
@@ -785,7 +819,7 @@
     return queue;
   }
 
-  return { raceRemainingMs, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, qualityEmoji, stintBest, boxLayout, moveInQueue,
+  return { raceRemainingMs, rejectedStint, stopPlan, pushCheck, committedCount, nextKartLine, boxCardVM, qualityEmoji, stintBest, boxLayout, moveInQueue,
     gridDims, gridCreate, gridEvent, gridRetopo, gridOnPitEvent, gridResolve, gridReset, gridAccess, gridForecast, gridPresence, slotVM, resolvePending, makeReserve, queueDrift, resetQueue, boxOnPitEvent, isMine, raceAnchor, rivalStintStart, trackRivalPitOut, poolLabel, tacticalAdvice,
     weight, accessibleZone, rowsByWeight, applyPitOut, accessProb, forecast, stopsNeeded };
 });
