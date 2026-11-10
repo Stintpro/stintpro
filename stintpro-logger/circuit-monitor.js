@@ -851,14 +851,15 @@ class CircuitMonitor {
     if (now - this._lastBroadcast < BROADCAST_INTERVAL_MS) return;
     this._lastBroadcast = now;
     // Solo últimas 10 vueltas en live — el historial completo va en el snapshot
-    // inicial. lapHistoryTotal (longitud real en memoria del parser) permite al
+    // inicial. lapHistoryTotal (vueltas contadas por el parser, que siguen
+    // subiendo aunque el historial esté recortado a 1500) permite al
     // cliente fusionar por contador en vez de deduplicar por valor de vuelta.
     const liveData = {
       ...state,   // incluye flag (bandera cruda del panel)
       raceStopped: this._flagTracker.stopped,
       equipos: state.equipos.map(e => ({
         ...e,
-        lapHistoryTotal: (e.lapHistory || []).length,
+        lapHistoryTotal: e.lapTotal ?? (e.lapHistory || []).length,
         lapHistory: (e.lapHistory || []).slice(-10),
       })),
     };
@@ -1099,7 +1100,7 @@ class CircuitMonitor {
     // Contador de vueltas en memoria del parser — fijado ANTES del enriquecido
     // desde BD (que puede alargar lapHistory): los updates live diffean contra
     // este mismo contador, así el primer merge tras el snapshot cuadra.
-    state.equipos.forEach(e => { e.lapHistoryTotal = (e.lapHistory || []).length; });
+    state.equipos.forEach(e => { e.lapHistoryTotal = e.lapTotal ?? (e.lapHistory || []).length; });
 
     // Enriquecer lapHistory desde BD — más completo que el estado en memoria
     // (cubre reinicios del servidor o reconexiones a Apex mid-sesión)

@@ -415,5 +415,38 @@ test('el piloto de la parrilla (nombre con [h:mm]) arranca el contador', (AP) =>
   strictEqual(piloto(p, '1').driverMin, 123);
 });
 
+console.log('\n▸ Tope de 1500 vueltas: el contador no se para con el historial\n');
+
+// 26H Alcanede (2026-11-07): pasada la vuelta 1500 el historial se recorta y su
+// longitud deja de crecer. Todo lo que cuente vueltas debe seguir contando.
+function largas(AP, colMap) {
+  const C = clock();
+  const ev = { nums: [] };
+  const p = AP.createParser({ onLap: (d, n, team, ms, num) => ev.nums.push(num) });
+  p.setGrid({ colMap, colByNum: Object.fromEntries(Object.entries(colMap).map(([k, v]) => [v, k])), karts: [{ rowId: 'r1', dorsal: '7', name: 'EQ7' }] });
+  for (let i = 0; i < 1600; i++) {
+    C.add(51000);
+    const ms = 50000 + (i % 7) * 100;   // vueltas seguidas a >0,05 s (el |*| sin llp descarta las iguales)
+    p.parse(colMap.llp ? `r1|*|${ms}|\nr1c4|ti|${(ms / 1000).toFixed(3)}` : `r1|*|${ms}|`);
+  }
+  return { e: p.getState().equipos[0], ev };
+}
+
+test('con columna llp: tras 1600 vueltas el contador y el nº de vuelta siguen', (AP) => {
+  const { e, ev } = largas(AP, { no: 'c2', llp: 'c4' });
+  strictEqual(e.lapHistory.length, 1500);
+  strictEqual(e.lapTotal, 1600);
+  strictEqual(e.tours, 1600);                 // sin contador oficial de Apex
+  strictEqual(ev.nums.length, 1600);
+  strictEqual(ev.nums[ev.nums.length - 1], 1600);
+});
+
+test('sin columna llp (tiempos del |*|): igual', (AP) => {
+  const { e, ev } = largas(AP, { no: 'c2' });
+  strictEqual(e.lapHistory.length, 1500);
+  strictEqual(e.lapTotal, 1600);
+  strictEqual(ev.nums[ev.nums.length - 1], 1600);
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

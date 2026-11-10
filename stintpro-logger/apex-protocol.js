@@ -669,10 +669,10 @@
               const isPitLap = _isPitLap(k, t);
               k.lastLap = t;
               k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
-              if (k.lapHistory.length > 1500) k.lapHistory.shift();
+              if (k.lapHistory.length > 1500) { k.lapHistory.shift(); k._lapDropped = (k._lapDropped || 0) + 1; }
               if (!k.bestLap || t < k.bestLap) k.bestLap = t;
               if (callbacks.onLap && k.dorsal)
-                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), k.lapHistory.length, Date.now(), k.category || null, isPitLap);
+                callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), _lapTotal(k), Date.now(), k.category || null, isPitLap);
             }
           }
           k._lapInvalid = false;
@@ -825,10 +825,10 @@
                 const isPitLap = _isPitLap(k, t);
                 k.lastLap = t;
                 k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
-                if (k.lapHistory.length > 1500) k.lapHistory.shift();
+                if (k.lapHistory.length > 1500) { k.lapHistory.shift(); k._lapDropped = (k._lapDropped || 0) + 1; }
                 if (!k.bestLap || t < k.bestLap) k.bestLap = t;
                 if (callbacks.onLap && k.dorsal)
-                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, k.lapHistory.length, Date.now(), k.category || null, isPitLap);
+                  callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, ms, _lapTotal(k), Date.now(), k.category || null, isPitLap);
               }
               // Anti-dedup solo cuando |*| empujó: si llp llega después refina esa entrada
               // Con colMap.llp, |*| no empuja → llp siempre crea entrada nueva (no hay nada que refinar)
@@ -980,6 +980,12 @@
       return false;
     }
 
+    // Vueltas contadas a este kart en la sesión. lapHistory se recorta a 1500, así
+    // que su longitud deja de crecer en las carreras largas (26H Alcanede, 1817
+    // vueltas): contar con ella paraba el nº de vuelta, `tours` y el contador con
+    // el que el panel fusiona el historial, que dejaba de recibir vueltas nuevas.
+    function _lapTotal(k) { return (k._lapDropped || 0) + (k.lapHistory || []).length; }
+
     function getState() {
       const now = Date.now();
       const equipos = Object.values(_karts)
@@ -997,7 +1003,7 @@
             catColor: k.catColor || null, // color de categoría de Apex (dorsal), null si monoclase
             pos: k.pos || 99, lastLap: k.lastLap || null, bestLap: k.bestLap || null,
             lastLapAt: k._lastLapAt || 0, // instante del último pase (rebufo, en-traffic.js)
-            lapHistory: k.lapHistory || [], gap: k.gap || '', interval: k.interval || '',
+            lapHistory: k.lapHistory || [], lapTotal: _lapTotal(k), gap: k.gap || '', interval: k.interval || '',
             pit: !!k.pit, pitState: k.pitState || null,
             // pitS = segundos en boxes. Preferir el crono oficial de Apex (otr) si
             // está en pit y disponible; si no, el inferido por pit dtype o por si→so.
@@ -1014,7 +1020,7 @@
             // lapHistory: la celda llp se reenvía con el mismo tiempo al cambiar el color
             // (ti/tb) e infla lapHistory, lo que hacía mostrar vueltas de más y de forma
             // dispareja entre karts. Solo se cae a lapHistory si no hay columna oficial.
-            tours: (k.tours || 0) > 0 ? k.tours : (k.lapHistory || []).length, standsCount: k.standsCount || 0, stops: k.stops || 0,
+            tours: (k.tours || 0) > 0 ? k.tours : _lapTotal(k), standsCount: k.standsCount || 0, stops: k.stops || 0,
             checkered: !!k.checkered, gapMs: k.gapMs || 0,
             lapFlash: !!(k._lapFlash && (now - k._lapFlash) < 2000),
             lapFlashAt: k._lapFlash || 0, // timestamp crudo del último pase por meta:
@@ -1168,7 +1174,10 @@
           if (ok) { overlap = n; break; }
         }
         k.lapHistory  = [...lapTimes.slice(0, lapTimes.length - overlap), ...current];
-        if (k.lapHistory.length > 1500) k.lapHistory = k.lapHistory.slice(-1500);
+        if (k.lapHistory.length > 1500) {
+          k._lapDropped = (k._lapDropped || 0) + k.lapHistory.length - 1500;
+          k.lapHistory = k.lapHistory.slice(-1500);
+        }
         k.tours = Math.max(k.tours || 0, tourCount);
         const best = Math.min(...k.lapHistory.filter(t => t >= 20 && t < 300 && !isGlitchLap(k.lapHistory, t, _fieldMedian())));
         if (!isNaN(best) && (!k.bestLap || best < k.bestLap)) k.bestLap = best;

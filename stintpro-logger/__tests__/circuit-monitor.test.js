@@ -651,6 +651,18 @@ describe('_onState', () => {
     expect(msg.data.equipos[0].lapHistoryTotal).toBe(15);
   });
 
+  test('lapHistoryTotal sigue al contador del parser cuando el historial está recortado', () => {
+    const m  = createMonitor();
+    const ws = fakeClientWs();
+    m.subscribe(ws);
+    ws.send.mockClear();
+    // Historial ya en el tope (1500) pero el kart lleva 1600 vueltas
+    const laps = Array.from({ length: 1500 }, (_, i) => 50 + (i % 9) / 10);
+    m._onState(state([{ dorsal: '7', pos: 1, lapHistory: laps, lapTotal: 1600 }]));
+    const msg = JSON.parse(ws.send.mock.calls[0][0]);
+    expect(msg.data.equipos[0].lapHistoryTotal).toBe(1600);
+  });
+
   test('el snapshot "history" incluye lapHistoryTotal del parser', () => {
     const m  = createMonitor();
     // Grid con colMap (c3=llp) + 3 vueltas reales por celda llp
