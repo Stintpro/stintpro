@@ -448,5 +448,55 @@ test('sin columna llp (tiempos del |*|): igual', (AP) => {
   strictEqual(ev.nums[ev.nums.length - 1], 1600);
 });
 
+console.log('\n▸ Cambios de sesión de Cabanillas (SAMUR-CNP 2026-11-11)\n');
+
+const FIN = grid([['r1', '1', { bestLap: 65.1, lastLap: 65.1, tours: 5 }], ['r2', '2', { bestLap: 66, lastLap: 66, tours: 5 }],
+                  ['r3', '3', { bestLap: 66.5, lastLap: 66.5, tours: 5 }], ['r4', '4'], ['r5', '5']]);
+
+test('sesión terminada reenviada con su resultado → NO es sesión nueva', (AP) => {
+  const C = clock(); const { p, ev } = makeParser(AP, { a: BASE, fin: FIN });
+  p.parse('init|p|\ngrid|a'); laps(p, C, 5);
+  p.parse('light|lf|');
+  C.add(40000); p.parse('init|n|');          // Apex descarga la sesión...
+  C.add(4000);  p.parse('init|p|\ngrid|fin'); // ...y la reenvía con el resultado final
+  strictEqual(ev.newSession, 0);
+  strictEqual(hist(p, '1'), 5);
+});
+
+test('el reenvío trae una vuelta más que las registradas → se recupera', (AP) => {
+  const C = clock(); const { p, ev } = makeParser(AP, { a: BASE, fin: FIN });
+  p.parse('init|p|\ngrid|a'); laps(p, C, 4);
+  p.parse('light|lf|');
+  C.add(40000); p.parse('init|n|\ninit|p|\ngrid|fin');
+  strictEqual(hist(p, '1'), 5);
+  deepStrictEqual(ev.laps[ev.laps.length - 3], ['1', 65100]);
+  strictEqual(hist(p, '4'), 4);              // sin datos en la parrilla: nada que recuperar
+});
+
+test('tras la bandera, parrilla en blanco con los mismos inscritos → sesión nueva', (AP) => {
+  const C = clock(); const { p, ev } = makeParser(AP, { a: BASE });
+  p.parse('init|p|\ngrid|a'); laps(p, C, 5);
+  p.parse('light|lf|');
+  C.add(60000); p.parse('init|p|\ngrid|a');
+  strictEqual(ev.newSession, 1);
+  strictEqual(hist(p, '1'), 0);
+});
+
+test('cambio de modo sin vueltas desde la parrilla → no hereda los tiempos sembrados', (AP) => {
+  const C = clock(); const { p, ev } = makeParser(AP, { a: BASE, fin: FIN });
+  p.parse('init|r|\ngrid|fin');              // carrera anterior, sin bandera a cuadros
+  C.add(4 * MIN); p.parse('init|p|\ngrid|a');
+  strictEqual(ev.newSession, 1);
+  strictEqual(p.getState().equipos.find((e) => e.dorsal === '1').bestLap, null);
+});
+
+test('fila que no está en la parrilla → avisa una vez', (AP) => {
+  const filas = [];
+  clock(); const { p } = makeParser(AP, { a: BASE }, { onUnknownRow: (r) => filas.push(r) });
+  p.parse('init|p|\ngrid|a');
+  p.parse('r2279c1|in|'); p.parse('r2279c1|sr|'); p.parse('r1c1|sr|');
+  deepStrictEqual(filas, ['r2279']);
+});
+
 console.log(`\n${passed} pasan, ${failed} fallan\n`);
 process.exit(failed ? 1 : 0);

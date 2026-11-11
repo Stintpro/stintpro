@@ -327,6 +327,9 @@
     let _recentLaps      = [];   // últimas vueltas válidas de la sesión (ritmo de pista, para filtro de glitches)
     let _flag            = null;
     let _gridAfterIdle   = false;// grid llegado tras >10 min sin vueltas (ver setGrid)
+    let _gridAfterFinish = false; // llegó una parrilla con la sesión ya terminada: setGrid decide si es un reenvío
+    let _gridRows        = null;  // rowIds de la última parrilla (null = aún no ha llegado ninguna)
+    let _inSetGrid       = false;
     let _modeAtGrid      = null; // modo de sesión (init|X|) de la última parrilla // bandera del panel de luces: 'green'|'red'|'yellow'|null (lg/lr/ly)
     let _otrIsPit        = false;// la columna otr es cronómetro de PIT (cabecera "Tiempo en PIT"/"Box"),
                                  // no "tiempo en pista" (En piste/Tijd op circuit) — lo fija el grid wrapper
@@ -424,6 +427,12 @@
     }
 
     function _kart(rowId) {
+      // Fila que la parrilla no trae: Apex está mandando celdas de inscritos que
+      // añadió después del último init (Cabanillas, SAMUR-CNP 2026: el logger
+      // conectó 21 min antes y la sesión arrancó sin reenviar la parrilla). Sin
+      // su fila no hay dorsal ni nombre; se avisa para que el consumidor pida una
+      // parrilla fresca (reconectando) en vez de grabar el identificador de fila.
+      const _desconocida = !_karts[rowId] && _gridRows && !_inSetGrid && !_gridRows.has(rowId);
       if (!_karts[rowId]) _karts[rowId] = {
         _rowId: rowId, lapHistory: [], state: 'sr', tours: 0,
         pit: false, pitState: null, pitS: 0, pitDuration: 0,
@@ -435,6 +444,7 @@
         _otrTimer: null, _otrPeak: null, lastPitDuration: null, // crono de pit oficial (col otr, ver _otrIsPit)
         lastLapKind: null, bestOverall: false, // color de vuelta Apex: 'purple'|'green'|null / mejor absoluta
       };
+      if (_desconocida && callbacks.onUnknownRow) callbacks.onUnknownRow(rowId);   // una vez: el kart ya existe
       return _karts[rowId];
     }
 
@@ -868,7 +878,10 @@
       // ── GRID ──────────────────────────────────────────────────────────
       if (line.startsWith('grid|')) {
         const inactiveTooLong = _lastLapTime && (Date.now() - _lastLapTime) > 600000;
-        if (_sessionActive && _sessionFinished) _startNewSession();
+        // Con la sesión terminada la parrilla suele ser la sesión siguiente... o la
+        // misma, reenviada con el resultado final (tras un init|n| o al reconectar).
+        // Lo decide setGrid, que ya ve la parrilla entrante.
+        if (_sessionActive && _sessionFinished) _gridAfterFinish = true;
         // Tras >10 min sin vueltas la parrilla puede ser una sesión nueva... o la
         // misma carrera reenviada al reconectar (bandera roja larga, feed caído,
         // pestaña dormida). Lo decide setGrid, que ya ve la parrilla entrante:
@@ -876,6 +889,8 @@
         else if (_sessionActive && inactiveTooLong) _gridAfterIdle = true;
         _sessionActive = true;
         if (callbacks.onGrid) callbacks.onGrid(line.substring(5));
+        // Nadie llamó a setGrid (parrilla vacía o ilegible): se mantiene lo de siempre.
+        if (_gridAfterFinish) { _gridAfterFinish = false; _startNewSession(); }
         return true;
       }
 
@@ -1079,6 +1094,24 @@
         // estado para no acumular vueltas de la sesión anterior (grids repetidos sin
         // bandera a cuadros previa). Exige ≥3 karts a cada lado para evitar falsos positivos.
         for (const kg of (gridKarts || [])) if (kg.dorsal) kg.dorsal = safeDorsal(kg.dorsal);
+        _gridRows = new Set((gridKarts || []).map(kg => kg.rowId));
+        // Parrilla con la sesión ya terminada. Es la MISMA sesión reenviada si no
+        // cambia el modo, trae las mismas filas con los mismos dorsales y viene con
+        // tiempos (una sesión nueva llega en blanco; un título distinto ya habría
+        // abierto sesión por _maybeNewSessionByTitle). Entonces se conserva todo:
+        // abrir sesión aquí partía la clasificación y sembraba la siguiente con
+        // los tiempos de esta.
+        let _resend = false;
+        if (_gridAfterFinish) {
+          _gridAfterFinish = false;
+          const _cur = Object.values(_karts).filter(k => k.dorsal);
+          const _byRow = new Map((gridKarts || []).map(kg => [kg.rowId, kg]));
+          const _same = _cur.filter(k => { const kg = _byRow.get(k._rowId); return kg && kg.dorsal === k.dorsal; }).length;
+          _resend = _cur.length > 0 && _same >= _cur.length * 0.8
+            && _modeAtGrid !== null && _sessionMode === _modeAtGrid
+            && (gridKarts || []).some(kg => kg.bestLap || kg.lastLap);
+          if (!_resend) _startNewSession();
+        }
         const _newDorsals = new Set((gridKarts || []).map(kg => kg.dorsal).filter(Boolean));
         let _isNew = false;
         if (_newDorsals.size >= 3) {
@@ -1099,11 +1132,18 @@
         // misma carrera (se conserva todo); cambio de modo = sesión nueva.
         if (_gridAfterIdle && !_isNew && _modeAtGrid !== null && _sessionMode !== _modeAtGrid) _isNew = true;
         _gridAfterIdle = false;
+        // Cambio de modo sin que haya rodado nadie desde la última parrilla: lo que
+        // hay en memoria son solo tiempos sembrados por esa parrilla (la carrera
+        // anterior, reenviada sin bandera) y la sesión entrante no debe heredarlos.
+        if (!_isNew && !_resend && _modeAtGrid !== null && _sessionMode !== _modeAtGrid
+            && _lastGridTime && !(_lastLapTime > _lastGridTime)
+            && Object.values(_karts).some(k => k.bestLap || k.lastLap)) _isNew = true;
         if (_isNew) _startNewSession();
         if ((gridKarts || []).length) _modeAtGrid = _sessionMode;
 
         if ((gridKarts || []).length) _lastGridTime = Date.now();
 
+        _inSetGrid = true;
         for (const kg of (gridKarts || [])) {
           const k = _kart(kg.rowId);
           if (kg.state && kg.state !== 'in') { k.state = kg.state; if (kg.state === 'sf') k.checkered = true; }
@@ -1124,7 +1164,18 @@
             }
             else { if (!k.teamName) k.teamName = kg.name; if (!k.name) k.name = kg.name; }
           }
-          if (kg.bestLap && !k.bestLap && !isGlitchLap(k.lapHistory, kg.bestLap, _fieldMedian())) k.bestLap = kg.bestLap;
+          // Reenvío del resultado final: la última vuelta de un kart puede venir SOLO
+          // aquí (Apex no mandó su celda antes de descargar la sesión). Se reconoce
+          // porque la parrilla cuenta exactamente una vuelta más que las registradas.
+          if (_resend && k.dorsal && kg.lastLap && kg.tours === _lapTotal(k) + 1
+              && !isGlitchLap(k.lapHistory, kg.lastLap, _fieldMedian())) {
+            const t = kg.lastLap;
+            k.lastLap = t; k._lastLapAt = _now(); k.lapHistory.push(t); _pushRecent(t);
+            if (!k.bestLap || t < k.bestLap) k.bestLap = t;
+            if (callbacks.onLap)
+              callbacks.onLap(k.dorsal, k._pilotName || k.name, k._pilotName ? (k.teamName || null) : null, Math.round(t * 1000), _lapTotal(k), Date.now(), k.category || null, false);
+          }
+          if (kg.bestLap && (!k.bestLap || (_resend && kg.bestLap < k.bestLap)) && !isGlitchLap(k.lapHistory, kg.bestLap, _fieldMedian())) k.bestLap = kg.bestLap;
           if (kg.lastLap && !k.lastLap)        k.lastLap      = kg.lastLap;
           if (kg.tours)                        k.tours        = kg.tours;
           if (kg.standsCount !== undefined)    k.standsCount  = kg.standsCount;
@@ -1132,11 +1183,12 @@
           if (kg.catColor) k.catColor = kg.catColor;
           k.tours = k.tours || 0;
         }
+        _inSetGrid = false;
       },
 
       getState,
       reset() {
-        _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null; _lastGridTime = 0;
+        _karts = {}; _colMap = {}; _colByNum = {}; _catCol = null; _lastGridTime = 0; _gridRows = null; _gridAfterFinish = false;
         _sessionActive = false; _sessionFinished = false;
         _leaderLap = 0; _lastLapTime = 0; _title1 = ''; _title2 = ''; _sessionMode = ''; _recentLaps = []; _flag = null;
         _otrIsPit = false; _hasStateCol = false; _pitDurations = []; _gridAfterIdle = false; _modeAtGrid = null;

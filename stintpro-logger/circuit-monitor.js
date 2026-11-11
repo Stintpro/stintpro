@@ -33,6 +33,12 @@ const APEX_WATCHDOG_INTERVAL_MS = 20 * 1000;      // revisa frescura cada 20s
 const APEX_STALE_ACTIVE_MS      = 90 * 1000;      // sesión activa sin datos → congelado
 const APEX_STALE_WATCHED_MS     = 2 * 60 * 1000;  // alguien mirando y sin datos → refrescar
 const APEX_STALE_IDLE_MS        = 30 * 60 * 1000; // ocioso sin espectadores → reconexión suave
+// Fila que la parrilla no trae → se reconecta para que Apex mande la parrilla al
+// día (la manda entera en cada conexión). Nunca con vueltas fluyendo —el corte
+// son ~5 s de feed— y como mucho una vez por ventana, para no entrar en bucle
+// si la parrilla nueva tampoco trae la fila.
+const UNKNOWN_ROW_QUIET_MS      = 90 * 1000;
+const UNKNOWN_ROW_COOLDOWN_MS   = 10 * 60 * 1000;
 
 // Timeout del handshake de conexión. Sin él, un socket que se queda en
 // CONNECTING sin emitir 'open', 'error' ni 'close' deja el monitor muerto en
@@ -219,6 +225,7 @@ class CircuitMonitor {
       onFlag:       this._onFlag.bind(this),
       onMessage:    this._onMessage.bind(this),
       onDriverChange: this._onDriverChange.bind(this),
+      onUnknownRow: this._onUnknownRow.bind(this),
     });
 
     // Último countdown recibido de Apex ({ms, mode, at}) — para reenviar a subscriptores
@@ -337,6 +344,19 @@ class CircuitMonitor {
       this._staleReconnects++;
       try { this.ws.terminate(); } catch(e) { try { this.ws.close(); } catch(e2) {} }
     }
+  }
+
+  // Apex manda celdas de una fila que no venía en la última parrilla: sin ella no
+  // hay dorsal ni nombre y la sesión se grabaría con el identificador de fila
+  // (Cabanillas, SAMUR-CNP 2026: clasificación entera sin nombres).
+  _onUnknownRow(rowId) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    const now = Date.now();
+    if (this._lastLapAt && now - this._lastLapAt < UNKNOWN_ROW_QUIET_MS) return;
+    if (this._unknownRowAt && now - this._unknownRowAt < UNKNOWN_ROW_COOLDOWN_MS) return;
+    this._unknownRowAt = now;
+    console.warn(`[${this.slug}] Fila ${rowId} fuera de la parrilla → reconectando para pedirla de nuevo`);
+    try { this.ws.terminate(); } catch(e) { try { this.ws.close(); } catch(e2) {} }
   }
 
   // ── Muestreo HTTP de request.php (investigación .P) ────────────────────

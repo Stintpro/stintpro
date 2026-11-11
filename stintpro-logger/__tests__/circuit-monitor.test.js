@@ -1746,3 +1746,37 @@ describe('aviso fast_pit (top‑5 por vueltas del stint)', () => {
     expect(avisos(ws)).toHaveLength(0);
   });
 });
+
+// ── Filas que la parrilla no trae (Cabanillas, SAMUR-CNP 2026-11-11) ────────
+// El logger conectó 21 min antes de la sesión; Apex arrancó la clasificación
+// sin reenviar la parrilla y todo se grabó con el identificador de fila.
+
+describe('fila desconocida → parrilla fresca', () => {
+  const abierta = () => {
+    const m = createMonitor();
+    m.parser.parse(buildGrid(kartRow('r1', '1', 'UNO')));
+    m.ws = { readyState: 1, terminate: jest.fn(), close() {} };
+    return m;
+  };
+
+  test('una celda de una fila que no está en la parrilla fuerza la reconexión', () => {
+    const m = abierta();
+    m.parser.parse('r2279c2|in|');
+    expect(m.ws.terminate).toHaveBeenCalledTimes(1);
+  });
+
+  test('no corta el feed si hay vueltas fluyendo (kart que se suma a mitad de tanda)', () => {
+    const m = abierta();
+    m._lastLapAt = Date.now() - 20000;
+    m.parser.parse('r2279c2|in|');
+    expect(m.ws.terminate).not.toHaveBeenCalled();
+  });
+
+  test('no reconecta en bucle: una vez por ventana aunque lleguen más filas', () => {
+    const m = abierta();
+    m.parser.parse('r2279c2|in|');
+    m.parser.parse('r2280c2|in|');
+    m.parser.parse('r2281c2|in|');
+    expect(m.ws.terminate).toHaveBeenCalledTimes(1);
+  });
+});
