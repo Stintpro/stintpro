@@ -216,6 +216,16 @@ function insertLap(sessionId, dorsal, name, teamName, lapTimeMs, lapNumber, time
         category || null, lapTimeMs ?? null, lapNumber ?? null, timestamp || Date.now(), isPitLap ? 1 : 0);
 }
 
+// Tanda grabada sin parrilla: sus vueltas llevan el rowId de Apex como dorsal y
+// ningún piloto. Con la parrilla archivada (apex-archive.js) se les pone el kart
+// y el piloto reales; solo toca filas sin nombre, nunca una vuelta ya identificada.
+function repairLapIdentity(sessionId, fromDorsal, toDorsal, name) {
+  const laps = db.prepare('UPDATE laps SET dorsal=?, name=? WHERE session_id=? AND dorsal=? AND (name IS NULL OR name=\'\')')
+    .run(toDorsal, _normalizeName(name), sessionId, fromDorsal).changes;
+  db.prepare('UPDATE pit_events SET dorsal=? WHERE session_id=? AND dorsal=?').run(toDorsal, sessionId, fromDorsal);
+  return laps;
+}
+
 function getLapsBySession(sessionId) {
   return db.prepare(
     'SELECT dorsal,name,team_name,lap_time_ms,lap_number,timestamp FROM laps WHERE session_id=? ORDER BY timestamp ASC'
@@ -370,7 +380,7 @@ module.exports = {
   createSession, endSession, updateSessionTitle, cleanupEmptySessions, deleteSession,
   closeStaleSessions,
   getResumableSession,
-  insertLap, getLapsBySession,
+  insertLap, getLapsBySession, repairLapIdentity,
   insertPitEvent, getPitEventsBySession,
   insertDriverChange, getDriverChangesBySession,
   saveSnapshot, getSnapshot,

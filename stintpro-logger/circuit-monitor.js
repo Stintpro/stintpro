@@ -7,6 +7,7 @@ const ApexProtocol = require('./apex-protocol');
 const db         = require('./db');
 const apexHttpSampler = require('./apex-http-sampler');
 const GapFill    = require('./gap-fill');
+const ApexArchive = require('./apex-archive');
 
 const BROADCAST_INTERVAL_MS   = 200; // throttle live updates a 5 fps
 const APEX_SAMPLE_INTERVAL_MS = 5 * 60 * 1000; // frecuencia del muestreo .P (investigación)
@@ -108,6 +109,11 @@ const GAP_FILL_BATCH     = 8;  // karts por petición a request.php
 // corte. El margen deja fuera las vueltas que aún están entrando por el WS.
 const LAP_AUDIT_INTERVAL_MS = 15 * 60 * 1000;
 const LAP_AUDIT_MARGIN_MS   = 90 * 1000;
+// Copia de la tanda archivada en request.php (S#, ver apex-archive.js). Apex
+// guarda solo las 5 últimas tandas (~1 h en Campillos): primer intento al poco de
+// la bandera y un reintento por si aún no estaba archivada.
+const ARCHIVE_DELAYS_MS  = [90 * 1000, 8 * 60 * 1000];
+const ARCHIVE_JOBS_MAX   = 50;
 const APEX_REQUEST_URL   = 'https://live-data.apex-timing.com/live-timing/commonv2/functions/request.php';
 const RESUME_MAX_AGE_MS  = 30 * 60 * 1000; // snapshot más viejo que esto → no reanudar
 const RESUME_MIN_OVERLAP = 0.4;            // mismo umbral que usa el parser para "misma parrilla"
@@ -195,6 +201,9 @@ class CircuitMonitor {
     this._lapCount  = 0;
     this._outageFrom    = null; // último dato antes de perder Apex con sesión abierta
     this._gapFillTimers = [];
+    this._archiveTimers = [];
+    this._archiveDone   = new Set();   // sesiones con la copia ya programada
+    this._archiveDir    = path.join(__dirname, 'recordings');
     this._auditTimer    = null;
     this._lapAudit      = null; // última auditoría de completitud (ver getInfo)
 
@@ -278,6 +287,7 @@ class CircuitMonitor {
     if (this._saveTimer)      { clearInterval(this._saveTimer);     this._saveTimer = null;      }
     if (this._apexSampleTimer){ clearInterval(this._apexSampleTimer); this._apexSampleTimer = null; }
     this._clearGapFill();
+    this._archiveTimers.forEach(t => clearTimeout(t)); this._archiveTimers = [];
     if (this._auditTimer)     { clearInterval(this._auditTimer);    this._auditTimer = null;     }
     this._stopHeartbeat();
     if (this.ws)              { try { this.ws.close(); } catch(e) {}  this.ws = null;             }
@@ -777,6 +787,80 @@ class CircuitMonitor {
     this._gapFillTimers = [];
   }
 
+  // ── Copia de la tanda archivada en Apex (request.php S#) ─────────────
+
+  // Lo que identifica a la sesión en el archivo: sus filas de Apex. Las del
+  // parser (con dorsal) y las grabadas sin parrilla (rowId como dorsal, sin piloto).
+  _archiveJob() {
+    const sid = this.sessionId;
+    const rowIds = new Set(this.parser.getKartIds().map(k => k.rowId.replace(/^r/, '')));
+    for (const l of db.getLapsBySession(sid)) if (!l.name && l.dorsal) rowIds.add(String(l.dorsal));
+    return { sid, rowIds, port: this._apexHttpPort || this.port - 3 };
+  }
+
+  _scheduleArchiveBackup() {
+    const sid = this.sessionId;
+    if (!sid || this._archiveDone.has(sid)) return;
+    this._archiveDone.add(sid);
+    if (this._archiveDone.size > ARCHIVE_JOBS_MAX) this._archiveDone.delete(this._archiveDone.values().next().value);
+    const job = this._archiveJob();
+    let done = false;
+    for (const d of ARCHIVE_DELAYS_MS) {
+      this._archiveTimers.push(setTimeout(() => {
+        if (done) return;
+        this._archiveBackup(job)
+          .then(ok => { done = done || ok; })
+          .catch(e => console.error(`[${this.slug}] Archivo Apex:`, e.message));
+      }, d));
+    }
+  }
+
+  // true = terminado (copia guardada, o el circuito no archiva); false = reintentar.
+  async _archiveBackup({ sid, rowIds, port }) {
+    const list = ApexArchive.parseSessionList(await this._apexRequest(port, 'S#'));
+    if (!list.length) return true;
+    let match = null, text = null;
+    for (const s of list) {
+      const t = await this._apexRequest(port, `S#${s.id}`);
+      const a = ApexArchive.readArchive(t);
+      if (ApexArchive.pickArchive([a], rowIds)) { match = a; text = t; break; }
+    }
+    if (!match) { console.log(`[${this.slug}] Archivo Apex: la sesión #${sid} no está entre las ${list.length} archivadas`); return false; }
+
+    try {
+      if (!fs.existsSync(this._archiveDir)) fs.mkdirSync(this._archiveDir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const file = path.join(this._archiveDir, `${this.slug}_${this._rawTitleSlug(match.title)}_s${sid}_${stamp}.apex-archive.txt`);
+      fs.writeFileSync(file, text);
+    } catch (e) { console.error(`[${this.slug}] Archivo Apex: no se pudo guardar:`, e.message); }
+
+    let laps = 0;
+    const plan = ApexArchive.planRepair(db.getLapsBySession(sid), match.rows);
+    for (const r of plan) laps += db.repairLapIdentity(sid, r.from, r.to, r.name);
+    const ses = db.getAllSessions().find(s => s.id === sid);
+    const retitled = !!(match.title && ses && ses.title !== match.title);
+    if (retitled) db.updateSessionTitle(sid, match.title);
+    console.log(`[${this.slug}] Archivo Apex: copia de la sesión #${sid} ("${match.title}") guardada` +
+      (plan.length ? `; ${laps} vueltas de ${plan.length} karts reparadas` : '') +
+      (retitled ? `; título "${ses.title}" → "${match.title}"` : ''));
+    return true;
+  }
+
+  async _apexRequest(port, req) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+      const res = await fetch(APEX_REQUEST_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: `port=${port}&request=${encodeURIComponent(req)}`,
+        signal: controller.signal,
+      });
+      const t = (await res.text()).trim();
+      return t === 'error' ? '' : t;
+    } finally { clearTimeout(timer); }
+  }
+
   // Historial (.L vueltas + .P paradas) de varios karts, en lotes encadenados.
   async _fetchApexHistory(port, ids) {
     let text = '';
@@ -935,6 +1019,7 @@ class CircuitMonitor {
       this._saveSnapshot();
       db.endSession(this.sessionId);
       this._endedAt = Date.now();   // hora real de fin: _onNewSession no debe pisarla
+      this._scheduleArchiveBackup();
     }
     // El ancla ya quedó en el snapshot final; que no la herede la sesión siguiente
     this._raceTracker.clear();
@@ -949,6 +1034,7 @@ class CircuitMonitor {
     this._closeSessionRawLog();   // finaliza el .ndjson de la sesión anterior
     if (this.sessionId) {
       this._saveSnapshot(saliente);
+      this._scheduleArchiveBackup();   // tanda acabada sin bandera
       // Fin real: la bandera a cuadros o, si la tanda acabó en silencio, la última
       // vuelta. Antes se sellaba con la hora de detección de la sesión SIGUIENTE
       // (horas o días después) y las duraciones de logger-stats salían infladas.

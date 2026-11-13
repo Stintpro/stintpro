@@ -1168,6 +1168,99 @@ describe('_onSessionEnd / _onNewSession', () => {
   });
 });
 
+// ── Copia de la tanda archivada en Apex (S#) ─────────────────────────────────
+
+describe('copia del archivo de Apex al acabar la tanda', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const ARCHIVE = fs.readFileSync(path.join(__dirname, 'fixtures', 'apex-archive-campillos-fp25.txt'), 'utf8');
+  let realFetch, dir, requests;
+
+  beforeEach(() => {
+    realFetch = global.fetch;
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'archivo-'));
+    requests = [];
+  });
+  afterEach(() => { global.fetch = realFetch; fs.rmSync(dir, { recursive: true, force: true }); });
+
+  function apex(map) {
+    global.fetch = jest.fn(async (url, opts) => {
+      const req = decodeURIComponent(new URLSearchParams(opts.body).get('request'));
+      requests.push(req);
+      return { text: async () => (map[req] ?? '') };
+    });
+  }
+
+  // Campillos FP15 #3880: tanda sin parrilla → vueltas con el rowId y sin piloto
+  test('repara las vueltas grabadas sin parrilla y corrige el título', async () => {
+    apex({ 'S#': '63#FP26 - FP26\n62#FP25 - FP25\n', 'S#63': 'nada', 'S#62': ARCHIVE });
+    const m = createMonitor();
+    m._archiveDir = dir;
+    m._onLap('20228', null, null, 86000, 1, Date.now());
+    m._onLap('20229', null, null, 87000, 1, Date.now());
+    const sid = m.sessionId;
+    db.updateSessionTitle(sid, 'FP14 · FP14');
+
+    const job = m._archiveJob();
+    expect(await m._archiveBackup(job)).toBe(true);
+
+    const laps = db.getLapsBySession(sid);
+    expect(laps.map(l => l.dorsal).sort()).toEqual(['13', '7']);
+    expect(laps.every(l => l.name)).toBe(true);
+    expect(db.getAllSessions().find(s => s.id === sid).title).toBe('FP25 · FP25');
+    const files = fs.readdirSync(dir);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatch(/\.apex-archive\.txt$/);
+    expect(fs.readFileSync(path.join(dir, files[0]), 'utf8')).toBe(ARCHIVE.trim());
+  });
+
+  test('una sesión normal solo guarda la copia, sin tocar vueltas', async () => {
+    apex({ 'S#': '62#FP25 - FP25\n', 'S#62': ARCHIVE });
+    const m = createMonitor();
+    m._archiveDir = dir;
+    m._onLap('7', 'ANA PEREZ', null, 86000, 1, Date.now());
+    const sid = m.sessionId;
+    const job = m._archiveJob();
+    job.rowIds.add('20228');   // la fila del kart 7 en la parrilla del parser
+
+    expect(await m._archiveBackup(job)).toBe(true);
+    expect(db.getLapsBySession(sid)[0]).toMatchObject({ dorsal: '7', name: 'ANA PEREZ' });
+    expect(fs.readdirSync(dir)).toHaveLength(1);
+  });
+
+  test('si ninguna tanda archivada es esta, no guarda nada y deja reintentar', async () => {
+    apex({ 'S#': '62#FP25 - FP25\n', 'S#62': ARCHIVE });
+    const m = createMonitor();
+    m._archiveDir = dir;
+    m._onLap('55555', null, null, 86000, 1, Date.now());
+    expect(await m._archiveBackup(m._archiveJob())).toBe(false);
+    expect(fs.readdirSync(dir)).toHaveLength(0);
+  });
+
+  test('circuito sin archivo: una sola petición y no reintenta', async () => {
+    apex({});
+    const m = createMonitor();
+    m._archiveDir = dir;
+    m._onLap('7', 'ANA PEREZ', null, 86000, 1, Date.now());
+    expect(await m._archiveBackup(m._archiveJob())).toBe(true);
+    expect(requests).toEqual(['S#']);
+  });
+
+  test('la bandera programa una sola copia por sesión', async () => {
+    jest.useFakeTimers();
+    try {
+      const m = createMonitor();
+      const spy = jest.spyOn(m, '_archiveBackup').mockResolvedValue(true);
+      m._onLap('7', 'ANA PEREZ', null, 86000, 1, Date.now());
+      m._onSessionEnd();
+      m._onNewSession();
+      await jest.advanceTimersByTimeAsync(20 * 60 * 1000);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally { jest.useRealTimers(); }
+  });
+});
+
 // ── _onTitle ──────────────────────────────────────────────────────────────────
 
 describe('_onTitle', () => {
