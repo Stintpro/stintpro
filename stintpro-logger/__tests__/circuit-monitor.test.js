@@ -1126,6 +1126,42 @@ describe('_onSessionEnd / _onNewSession', () => {
     expect(db.getAllSessions().find(s => s.id === sid).is_active).toBe(0);
   });
 
+  // Campillos #3878: bandera a las 17:52; a las 18:25 el vigilante reconecta, el
+  // init de Apex trae otra vez la bandera de la tanda ya acabada y la hora de fin
+  // se pisaba con la de la reconexión (+32 min).
+  test('la bandera repetida de una reconexión no pisa la hora de fin real', () => {
+    const m = createMonitor();
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    m._onLap('7', 'JAVIER', null, 64000, 1, T);
+    const sid = m.sessionId;
+    T += 60000;
+    const fin = T;
+    m._onSessionEnd();
+    T += 32 * 60000;           // reconexión: init con la bandera de nuevo
+    m._onSessionEnd();
+    m._onNewSession();
+    spy.mockRestore();
+
+    expect(db.getAllSessions().find(s => s.id === sid).ended_at).toBe(fin);
+  });
+
+  test('si la tanda siguió rodando tras la bandera, la segunda bandera sí cuenta', () => {
+    const m = createMonitor();
+    let T = Date.now(); const spy = jest.spyOn(Date, 'now').mockImplementation(() => T);
+    m._onLap('7', 'JAVIER', null, 64000, 1, T);
+    const sid = m.sessionId;
+    T += 60000;
+    m._onSessionEnd();
+    T += 60000;
+    m._onLap('7', 'JAVIER', null, 64000, 2, T);
+    T += 60000;
+    const fin = T;
+    m._onSessionEnd();
+    spy.mockRestore();
+
+    expect(db.getAllSessions().find(s => s.id === sid).ended_at).toBe(fin);
+  });
+
   test('_onNewSession sin sesión previa no lanza', () => {
     const m = createMonitor();
     expect(() => m._onNewSession()).not.toThrow();

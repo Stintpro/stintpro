@@ -926,6 +926,10 @@ class CircuitMonitor {
   }
 
   _onSessionEnd() {
+    // Al reconectar, el init de Apex repite la bandera de la tanda ya acabada: sin
+    // vueltas nuevas desde el fin no es otra bandera, y volver a cerrar pisaba la
+    // hora de fin real (y el snapshot) con la de la reconexión (Campillos #3878).
+    if (this.sessionId && this._endedAt && !(this._lastLapAt > this._endedAt)) return;
     console.log(`[${this.slug}] Sesión #${this.sessionId} finalizada (bandera)`);
     if (this.sessionId) {
       this._saveSnapshot();
