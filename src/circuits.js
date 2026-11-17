@@ -25,6 +25,7 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_firstkartinn',  name: 'First Kart Inn',               slug: 'firstkartinn',               port: 8113,  country: 'BE' },
   { id: 'cat_grancanaria',   name: 'Gran Canaria',                 slug: 'grancanaria-karting',        port: 9183,  country: 'ES' },
   { id: 'cat_prestige',      name: 'Prestige Karting',             slug: 'prestige-karting',           port: 9613,  country: 'FR' }, // Francia (Le Luc)
+  { id: 'cat_dr7',           name: 'DR7 Tarancón',                 slug: 'circuito-dr7',               port: 9973,  country: 'ES' }, // Tarancón, Cuenca (configPort 9970 + 3)
   { id: 'cat_alcanede',      name: 'Alcanede',                     slug: 'kartalcanede',               port: 9743,  country: 'PT' }, // Portugal (configPort 9740 + 3); solo emite con evento en pista
   // Cronosystem = canal del CRONOMETRADOR, itinerante (no es un circuito fijo): 24H KIP
   // Portugal en sept-2026, 30H Campillos en oct-2026. Puerto real 8803 (el configPort
@@ -188,6 +189,7 @@ window.CircuitDB.coords = {
   'firstkartinn':              [50.90603,  4.41669],
   'prestige-karting':          [43.34890,  6.33847],
   'kartalcanede':              [39.42263, -8.80469],
+  'circuito-dr7':              [40.01990, -3.02796], // OSM «Circuito Daniel Rivas»
   // Sin coordenadas aún (no se muestra el aviso de lluvia): misanino-kart,
   // worldkarts (OSM da dos sedes) y grancanaria-karting.
 };
