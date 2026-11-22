@@ -26,6 +26,13 @@ function reset() {
   for (const k of Object.keys(_enPilotRatings)) delete _enPilotRatings[k];
 }
 
+// Siembra una norma del equipo en 0 s (2 stints previos → umbral ±0,2) para
+// los tests que necesitan un kart BUENO: sin norma la regla de pista ya no
+// marca bueno (prueba neutral 2026-11-22: acertaba el 14-15 %, azar 33 %).
+function withNorm(dorsal, norm = 0) {
+  EnSession.kartAutoState[dorsal] = { quality: null, badCount: 0, stintStartIdx: 0, stintNorms: [norm, norm] };
+}
+
 // Crea un kart con N vueltas limpias en torno a `lapTime` (segundos)
 function kart(dorsal, laps, pitState = null, name = 'Piloto') {
   return { dorsal, name, lapHistory: laps, pitState, bestLap: Math.min(...laps) };
@@ -59,11 +66,22 @@ group('Precondiciones — devuelve null sin datos suficientes', () => {
 // ── Calidad auto sin score de piloto ─────────────────────────────────────────
 
 group('Calidad auto — sin score histórico (umbral ±1.0s)', () => {
-  test('M5v claramente por debajo de la media → good', () => {
+  test('sin norma, M5v claramente por debajo de la media → neutral (la pista nunca marca bueno)', () => {
     reset();
-    // trackAvg 65s, vueltas a 63.5s → delta -1.5s < -1.0s
+    // trackAvg 65s, vueltas a 63.5s → delta -1.5s: frente a la pista eso mide
+    // al piloto, no al kart (prueba neutral: «bueno» acertaba el 14-15 %)
     const laps = [63.5, 63.5, 63.5, 63.5, 63.5];
-    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'good');
+    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
+  });
+
+  test('sin norma, −3 s frente a la media → sigue neutral', () => {
+    reset();
+    assert.equal(_enAutoKartQuality(kart('1', [62, 62, 62, 62, 62]), 65), 'neutral');
+  });
+
+  test('con norma del equipo, el mismo −1,5 s → good', () => {
+    reset(); withNorm('1');
+    assert.equal(_enAutoKartQuality(kart('1', [63.5, 63.5, 63.5, 63.5, 63.5]), 65), 'good');
   });
 
   test('M5v similar a la media → neutral', () => {
@@ -108,21 +126,20 @@ group('El score del piloto no cambia la calidad del kart', () => {
     assert.equal(conScore, 'neutral');
   });
 
-  test('Novato (150) con −1,5 s → good, igual que sin score', () => {
+  test('Novato (150) con −1,5 s → neutral, igual que sin score', () => {
     reset();
     _enPilotRatings['NOVATO'] = { score: 150 };
-    assert.equal(_enAutoKartQuality(kart('1', [63.5, 63.5, 63.5, 63.5, 63.5], null, 'Novato'), 65), 'good');
+    assert.equal(_enAutoKartQuality(kart('1', [63.5, 63.5, 63.5, 63.5, 63.5], null, 'Novato'), 65), 'neutral');
   });
 });
 
 group('Piloto errático — rango ≥0.5s → referencia = stintBest', () => {
-  test('vueltas erráticas con una rápida clara → good por stintBest', () => {
+  test('vueltas erráticas con una rápida clara → neutral sin norma (antes good por stintBest)', () => {
     reset();
-    // Sin score, rango=1.5s > 0.5 → errático → ref=stintBest=63.0
-    // delta=63.0-65=-2.0 < -1.0 → good
-    // avg5=64.2, stintBest=63.0: 64.2 < 63.0+2.0=65.0 → sin degradación
+    // rango=1.5s > 0.5 → errático → ref=stintBest=63.0, delta -2,0: sin norma
+    // la pista no marca bueno. Sin degradación (64.2 < 63.0+2.0)
     const laps = [63.0, 64.5, 64.5, 64.5, 64.5];
-    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'good');
+    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
   });
 
   test('vueltas erráticas sin vuelta rápida → no good', () => {
@@ -142,9 +159,9 @@ function appendLap(e, lapTime, trackAvg) {
 }
 
 group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', () => {
-  const G = 63.8, B = 66.2;   // sin score: umbral ±1,0; las malas degradan (> mejor + 2 s)
+  const G = 63.8, B = 66.2;   // con norma del equipo en 0 (±0,2); las malas degradan (> mejor + 2 s)
   test('llamar 20 veces sin vueltas nuevas NO degrada el kart bueno', () => {
-    reset();
+    reset(); withNorm('1');
     const e = kart('1', [G, G, G, G, G]);
     assert.equal(_enAutoKartQuality(e, 65), 'good');
     // La ventana pasa a peor pero SIN vueltas nuevas (misma longitud)
@@ -155,7 +172,7 @@ group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', ()
   });
 
   test('kart bueno cae a bad tras 5 vueltas malas NUEVAS', () => {
-    reset();
+    reset(); withNorm('1');
     const e = kart('1', [G, G, G, G, G]);
     assert.equal(_enAutoKartQuality(e, 65), 'good');
     e.lapHistory = [G, G, G, G, G, B, B, B, B, B];
@@ -166,7 +183,7 @@ group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', ()
   });
 
   test('kart bueno con 4 vueltas malas nuevas → aguanta (badCount=4)', () => {
-    reset();
+    reset(); withNorm('1');
     const e = kart('1', [G, G, G, G, G]);
     _enAutoKartQuality(e, 65);
     e.lapHistory = [G, G, G, G, G, B, B, B, B, B];
@@ -177,7 +194,7 @@ group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', ()
   });
 
   test('reescritura externa de stintStartIdx invalida el caché sin vuelta nueva', () => {
-    reset();
+    reset(); withNorm('1');
     // Kart viejo muy lento + kart nuevo rápido en el mismo historial
     const e = kart('1', [69, 69, 69, 69, 69, 63.5, 63.5, 63.5]);
     const mixed = _enAutoKartQuality(e, 65);
@@ -187,7 +204,7 @@ group('B1 — gate de vuelta nueva (histéresis por vueltas, no por render)', ()
   });
 
   test('kart bueno se recupera antes de agotar las 5 vueltas de gracia', () => {
-    reset();
+    reset(); withNorm('1');
     const e = kart('1', [G, G, G, G, G]);
     _enAutoKartQuality(e, 65);
     e.lapHistory = [G, G, G, G, G, B, B, B, B, B];
@@ -221,7 +238,7 @@ group('Degradación — avg5 > stintBest + 2.0s → bad', () => {
 
 group('Pit IN — devuelve calidad previa mientras está en boxes', () => {
   test('pit in tras ser good → devuelve good', () => {
-    reset();
+    reset(); withNorm('1');
     const e = kart('1', [63.5, 63.5, 63.5, 63.5, 63.5]);
     _enAutoKartQuality(e, 65); // establece good
     e.pitState = 'in';
@@ -281,20 +298,20 @@ group('_enEffectiveQuality — override manual prevalece sobre auto', () => {
   });
 
   test('override auto → delega a _enAutoKartQuality', () => {
-    reset();
+    reset(); withNorm('1');
     EnUi.kartQuality['1'] = 'auto';
     const e = kart('1', [63.5, 63.5, 63.5, 63.5, 63.5]);
     assert.equal(_enEffectiveQuality('1', e, 65), 'good');
   });
 
   test('sin override → delega a _enAutoKartQuality', () => {
-    reset();
+    reset(); withNorm('1');
     const e = kart('1', [63.5, 63.5, 63.5, 63.5, 63.5]);
     assert.equal(_enEffectiveQuality('1', e, 65), 'good');
   });
 
   test('B4: override durante una parada no arrastra vueltas del kart viejo al volver a auto', () => {
-    reset();
+    reset(); withNorm('1');
     // Kart viejo malo, evaluado en auto
     const e = kart('1', [66.5, 66.5, 66.5, 66.5, 66.5]);
     assert.equal(_enEffectiveQuality('1', e, 65), 'bad');
@@ -319,7 +336,23 @@ group('_enEffectiveQuality — override manual prevalece sobre auto', () => {
 
 // ── Bloqueo avg5 > trackAvg ───────────────────────────────────────────────────
 
-group('Bloqueo — comportamiento del guard avg5 > trackAvg', () => {
+group('Modo pista provisional — solo marca MALO', () => {
+  test('el tooltip explica que sin norma no se marca bueno', () => {
+    reset();
+    const k = kart('1', [63.5, 63.5, 63.5, 63.5, 63.5]);
+    _enAutoKartQuality(k, 65);
+    const tip = _enQualityTooltip('1', k, 65);
+    assert.ok(/NEUTRO \(auto · provisional\)/.test(tip), tip);
+    assert.ok(/solo se marca MALO/i.test(tip), tip);
+  });
+
+  test('kart muy lento sin norma → bad igual que antes', () => {
+    reset();
+    assert.equal(_enAutoKartQuality(kart('1', [66.5, 66.5, 66.5, 66.5, 66.5]), 65), 'bad');
+  });
+});
+
+group('Degradación sin norma', () => {
   test('errático rápido con avg5 muy > stintBest → degradación pesa más que bloqueo → bad', () => {
     reset();
     // avg5=(63+66.5*4)/5=65.8 > stintBest(63)+2.0=65.0 → degradación → bad
@@ -327,11 +360,11 @@ group('Bloqueo — comportamiento del guard avg5 > trackAvg', () => {
     assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'bad');
   });
 
-  test('errático rápido con avg5 sin degradación → good aunque avg5 > trackAvg', () => {
+  test('errático rápido sin degradación y sin norma → neutral', () => {
     reset();
-    // avg5=64.2 < stintBest(63)+2.0=65 → sin degradación → good
+    // avg5=64.2 < stintBest(63)+2.0=65 → sin degradación; sin norma no hay bueno
     const laps = [63.0, 64.5, 64.5, 64.5, 64.5];
-    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'good');
+    assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
   });
 
   test('errático con stintBest moderado → neutral (delta insuficiente para good)', () => {
@@ -370,10 +403,11 @@ group('Tráfico — vueltas en tren/bloqueadas fuera de la calidad', () => {
   });
 
   test('un kart normal que va en tren NO pasa a bueno', () => {
-    reset();
+    // norma del equipo +0,2: con el tren el stint sale −0,26 (bueno); sin él, −0,16 (neutro)
+    reset(); withNorm('1', 0.2);
     const laps = [65.2, 65.1, 65.3, 65.2, 65.1, 63.5, 63.6, 63.4];
     assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'good', 'sin motor: el tren lo infla');
-    reset();
+    reset(); withNorm('1', 0.2);
     global.EnTraffic = fake;
     assert.equal(_enAutoKartQuality(kart('1', laps), 65), 'neutral');
     delete global.EnTraffic;
@@ -388,7 +422,7 @@ group('Historial lleno (tope de 1500 vueltas) — APP-11', () => {
   function lap(k, t, v) { k.lapHistory = [...k.lapHistory.slice(1), v]; k.lastLapAt = t; }
 
   test('con el historial lleno, el kart nuevo tras pit out se evalúa y no se congela', () => {
-    reset();
+    reset(); withNorm('9', -0.1);
     let t = 1000;
     const k = { dorsal: '9', name: 'X', pitState: 'out', lapHistory: Array(CAP).fill(70), lastLapAt: t };
     _enAutoKartQuality(k, 65);          // pit out con el historial ya lleno

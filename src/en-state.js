@@ -582,7 +582,8 @@ function _enQualityCalc(e, state, clean, trackAvg){
   }
 
   // Sin norma (inicio de carrera, conectar tarde): Δ frente a la pista con un
-  // umbral ancho, que solo marca los casos claros. Piloto regular → M5v;
+  // umbral ancho, que solo marca los casos claros y SOLO como malo (frente a
+  // la pista un «bueno» es casi siempre un piloto rápido). Piloto regular → M5v;
   // irregular → mejor vuelta del stint.
   const last5=corr.slice(-5);
   const avg5=last5.reduce((a,b)=>a+b,0)/last5.length;
@@ -635,11 +636,11 @@ function _enAutoKartQuality(e, trackAvg){
     if(c.own<-c.threshold)instant='good';
     else if(c.own>c.threshold)instant='bad';
   } else {
-    if(c.delta<-c.threshold)instant='good';
-    else if(c.delta>c.threshold)instant='bad';
-    // Bloqueo: si rueda POR ENCIMA de la media no puede ser bueno
-    // salvo que tenga una vuelta rápida clara (del kart actual)
-    if(instant==='good'&&c.avg5>trackAvg&&c.stintBest>=trackAvg-c.threshold)instant=null;
+    // Sin norma solo se marca MALO. Prueba neutral 2026-11-22 (30H Campillos,
+    // 24H KIP, 7H Los Santos; tools/_replays/blr-modelo): frente a la pista un
+    // kart «bueno» acertaba el 14-15 % (azar 33 %) porque mide al piloto rápido;
+    // los «malo» sí aciertan. Bueno solo con norma del piloto o del equipo.
+    if(c.delta>c.threshold)instant='bad';
   }
   if(c.degraded)instant='bad';
 
@@ -730,7 +731,7 @@ function _enQualityTooltip(dorsal, e, trackAvg){
     ?`Referencia: M5v del stint ${_enFmt(c.avg5)} (rodada regular)`
     :`Referencia: mejor vuelta del stint ${_enFmt(c.stintBest)} (rodada irregular)`;
   const deltaStr=`${c.delta>=0?'+':''}${c.delta.toFixed(3)}s`;
-  return `${label} (auto · provisional)\nAún sin norma del piloto ni del equipo: se compara con la pista (umbral ±${c.threshold}s, solo casos claros)`
+  return `${label} (auto · provisional)\nAún sin norma del piloto ni del equipo: se compara con la pista (umbral +${c.threshold}s, solo se marca MALO)`
     +`\n${refLine}\nDelta: ${deltaStr} · Media pista: ${_enFmt(trackAvg)}${warmNote}${degrNote}${fewDataNote}`;
 }
 
