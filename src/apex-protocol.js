@@ -1254,6 +1254,9 @@
   const CIRCUIT_TIME_ZONES = {
     'kartalcanede': 'Europe/Lisbon',
     'kip-palmela': 'Europe/Lisbon',
+    'kartodromodeviana': 'Europe/Lisbon',
+    'cabodomundokarting': 'Europe/Lisbon',
+    'kartodromodebaltar': 'Europe/Lisbon',
     'grancanaria-karting': 'Atlantic/Canary',
   };
   const DEFAULT_TIME_ZONE = 'Europe/Madrid';

@@ -29,11 +29,13 @@ test('coordsOf devuelve null para un slug desconocido o vacío', () => {
   strictEqual(DB.coordsOf(undefined), null);
 });
 
-const SIN_COORDS = ['misanino-kart', 'worldkarts', 'grancanaria-karting'];
+const SIN_COORDS = ['misanino-kart', 'worldkarts', 'grancanaria-karting',
+  'karting-vendrell', 'karting-sevilla', 'kartodromodeviana', 'cabodomundokarting', 'kartodromodebaltar'];
 
-test('el catálogo incluye los 23 circuitos que graba el VPS', () => {
-  strictEqual(DB.list.length, 23);
-  for (const s of ['korridas', 'kartodromo-de-tapia', 'misanino-kart', 'worldkarts', 'firstkartinn', 'grancanaria-karting', 'prestige-karting', 'kartalcanede', 'circuito-dr7'])
+test('el catálogo incluye los 28 circuitos del VPS', () => {
+  strictEqual(DB.list.length, 28);
+  for (const s of ['korridas', 'kartodromo-de-tapia', 'misanino-kart', 'worldkarts', 'firstkartinn', 'grancanaria-karting', 'prestige-karting', 'kartalcanede', 'circuito-dr7',
+    'karting-vendrell', 'karting-sevilla', 'kartodromodeviana', 'cabodomundokarting', 'kartodromodebaltar'])
     ok(DB.list.some(c => c.slug === s), 'falta ' + s);
 });
 

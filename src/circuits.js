@@ -27,6 +27,13 @@ const _CIRCUIT_CATALOG = [
   { id: 'cat_prestige',      name: 'Prestige Karting',             slug: 'prestige-karting',           port: 9613,  country: 'FR' }, // Francia (Le Luc)
   { id: 'cat_dr7',           name: 'DR7 Tarancón',                 slug: 'circuito-dr7',               port: 9973,  country: 'ES' }, // Tarancón, Cuenca (configPort 9970 + 3)
   { id: 'cat_alcanede',      name: 'Alcanede',                     slug: 'kartalcanede',               port: 9743,  country: 'PT' }, // Portugal (configPort 9740 + 3); solo emite con evento en pista
+  // Hallados el 2026-11-22 probando nombres en apex-timing.com/live-timing/<slug>/javascript/config.js
+  // (puerto WS = configPort + 3). En el logger del VPS SIN grabar; sin muestrear aún su formato.
+  { id: 'cat_vendrell',      name: 'Karting Vendrell',             slug: 'karting-vendrell',           port: 10763, country: 'ES' }, // Tarragona
+  { id: 'cat_sevilla2',      name: 'Sevilla 2',                    slug: 'karting-sevilla',            port: 9863,  country: 'ES' }, // 2º canal de Sevilla (el otro es `sevilla`, 6953)
+  { id: 'cat_viana',         name: 'Viana do Castelo',             slug: 'kartodromodeviana',          port: 8983,  country: 'PT' },
+  { id: 'cat_cabodomundo',   name: 'Cabo do Mundo',                slug: 'cabodomundokarting',         port: 8193,  country: 'PT' },
+  { id: 'cat_baltar',        name: 'Baltar',                       slug: 'kartodromodebaltar',         port: 9803,  country: 'PT' },
   // Cronosystem = canal del CRONOMETRADOR, itinerante (no es un circuito fijo): 24H KIP
   // Portugal en sept-2026, 30H Campillos en oct-2026. Puerto real 8803 (el configPort
   // 8800 de Apex no hace TLS). El trazado va por trackAliases, más abajo.
@@ -191,7 +198,9 @@ window.CircuitDB.coords = {
   'kartalcanede':              [39.42263, -8.80469],
   'circuito-dr7':              [40.01990, -3.02796], // OSM «Circuito Daniel Rivas»
   // Sin coordenadas aún (no se muestra el aviso de lluvia): misanino-kart,
-  // worldkarts (OSM da dos sedes) y grancanaria-karting.
+  // worldkarts (OSM da dos sedes), grancanaria-karting y los 5 añadidos el
+  // 2026-11-22 (karting-vendrell, karting-sevilla, kartodromodeviana,
+  // cabodomundokarting, kartodromodebaltar).
 };
 window.CircuitDB.coordsOf = function(slug) {
   if (!slug) return null;
