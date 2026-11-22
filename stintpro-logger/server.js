@@ -12,6 +12,7 @@ const https          = require('https');
 const db             = require('./db');
 const CircuitMonitor = require('./circuit-monitor');
 const { computePilotRatings } = require('./scoring');
+const { COUNTRIES, sortByCountry } = require('./circuit-countries');
 const { createTeamLink, validateRoster, validatePilotIndex, validateTeamMsg } = require('./team-link');
 
 // ── Verificación de ID tokens de Firebase (RS256, claves públicas de Google) ──
@@ -195,6 +196,8 @@ app.get('/', (req, res) => {
   .circuits-wrap::-webkit-scrollbar-track { background: transparent; }
   .circuits-wrap::-webkit-scrollbar-thumb { background: #1A2030; border-radius: 2px; }
   .circuits { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; }
+  .country-head { font-size: 11px; font-weight: 700; color: #8890A8; text-transform: uppercase; letter-spacing: .08em; margin: 10px 0 2px; padding-left: 8px; border-left: 3px solid #F5A623; }
+  .country-head:first-child { margin-top: 0; }
   .card { background: #0D1018; border: 1px solid #1A2030; border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
   .card:hover { border-color: #252E44; }
   .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
@@ -285,6 +288,20 @@ function askKey() {
   return true;
 }
 
+// Cabecera de país antes del primer circuito de cada grupo (orden de /api/status).
+function withCountryHeaders(circuits, countries, row, cls) {
+  let last = null;
+  return circuits.map(c => {
+    let h = '';
+    if (c.country && c.country !== last) {
+      last = c.country;
+      const g = (countries || []).find(x => x.key === c.country);
+      h = '<div class="' + cls + '">' + (g ? g.label : (c.country || '')) + '</div>';
+    }
+    return h + row(c);
+  }).join('');
+}
+
 async function load() {
   try {
     const r = await fetch('/api/status');
@@ -295,7 +312,7 @@ async function load() {
     document.getElementById('uptime').textContent = 'Uptime: ' + h + 'h ' + m + 'm';
     const el = document.getElementById('circuits');
     if (!d.circuits?.length) { el.innerHTML = '<div style="color:#333;padding:12px 0">Sin circuitos configurados</div>'; return; }
-    el.innerHTML = d.circuits.map(c => \`
+    el.innerHTML = withCountryHeaders(d.circuits, d.countries, c => \`
       <div class="card">
         <div class="dot \${c.connected ? 'green' : 'red'}"></div>
         <div class="card-info">
@@ -309,7 +326,7 @@ async function load() {
         </div>
         <button class="btn-del" title="Eliminar circuito" onclick="delCircuit('\${c.slug}', '\${c.name}')">×</button>
       </div>
-    \`).join('');
+    \`, 'country-head');
   } catch(e) {
     document.getElementById('circuits').innerHTML = '<div style="color:#ef4444">Error conectando con el logger</div>';
   }
@@ -362,10 +379,12 @@ app.get('/api/status', (req, res) => {
     ok: true,
     version: '1.0.0',
     uptime: Math.round(process.uptime()),
-    circuits: Array.from(monitors.values()).map(m => ({
+    countries: COUNTRIES,
+    circuits: sortByCountry(Array.from(monitors.values()).map(m => ({
       ...m.getInfo(),
+      country: (config.circuits || []).find(c => c.slug === m.slug)?.country,
       totalLaps: db.getTotalLapsByCircuit(m.slug),
-    })),
+    }))),
   });
 });
 
@@ -614,7 +633,7 @@ app.post('/api/cleanup', httpAuth, (req, res) => {
 
 // Añadir circuito en caliente
 app.post('/api/circuits', httpAuth, (req, res) => {
-  const { name, slug, port } = req.body || {};
+  const { name, slug, port, country } = req.body || {};
   if (!name || !slug || !port) return res.status(400).json({ error: 'name, slug y port requeridos' });
   const cleanSlug = slug.trim().toLowerCase();
   if (!/^[a-z0-9-]{1,64}$/.test(cleanSlug)) return res.status(400).json({ error: 'slug inválido: solo minúsculas, números y guiones' });
@@ -623,6 +642,7 @@ app.post('/api/circuits', httpAuth, (req, res) => {
   if (monitors.has(cleanSlug)) return res.status(409).json({ error: `Slug '${cleanSlug}' ya existe` });
   if ((config.circuits || []).some(c => c.port === portNum)) return res.status(409).json({ error: `Puerto ${portNum} ya en uso` });
   const cfg = { name: name.trim(), slug: cleanSlug, port: portNum };
+  if (typeof country === 'string' && /^[A-Za-z]{2,5}$/.test(country)) cfg.country = country.toUpperCase();
   const mon = new CircuitMonitor(cfg, _computePilotRatings);
   monitors.set(cleanSlug, mon);
   mon.start();
@@ -707,6 +727,7 @@ app.get('/recordings', (req, res) => {
   .subtitle { color: #555; margin-bottom: 28px; font-size: 11px; }
   h2 { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: .08em; margin: 28px 0 10px; }
   .circuits { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .country-head { flex-basis: 100%; font-size: 11px; font-weight: 700; color: #8890A8; text-transform: uppercase; letter-spacing: .08em; margin-top: 6px; padding-left: 8px; border-left: 3px solid #F5A623; }
   .circuit-card { background: #0e0f11; border: 1px solid #1e2030; border-radius: 6px; padding: 12px 16px; min-width: 200px; }
   .circuit-card .cname { font-weight: 500; color: #e6edf3; margin-bottom: 6px; }
   .circuit-card .cmeta { color: #555; font-size: 11px; margin-bottom: 10px; }
@@ -785,13 +806,27 @@ function toast(msg, ok = true) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// Cabecera de país antes del primer circuito de cada grupo (orden de /api/status).
+function withCountryHeaders(circuits, countries, row, cls) {
+  let last = null;
+  return circuits.map(c => {
+    let h = '';
+    if (c.country && c.country !== last) {
+      last = c.country;
+      const g = (countries || []).find(x => x.key === c.country);
+      h = '<div class="' + cls + '">' + (g ? g.label : (c.country || '')) + '</div>';
+    }
+    return h + row(c);
+  }).join('');
+}
+
 async function loadCircuits() {
   try {
     const r = await fetch('/api/status');
     const d = await r.json();
     const el = $('circuits-list');
     if (!d.circuits?.length) { el.innerHTML = '<div class="empty">Sin circuitos configurados</div>'; return; }
-    el.innerHTML = d.circuits.map(c => \`
+    el.innerHTML = withCountryHeaders(d.circuits, d.countries, c => \`
       <div class="circuit-card">
         <div class="cname">
           <span class="dot \${c.connected ? 'green' : 'red'}"></span>\${c.name}
@@ -812,7 +847,7 @@ async function loadCircuits() {
           </button>
         </div>
       </div>
-    \`).join('');
+    \`, 'country-head');
   } catch(e) { $('circuits-list').innerHTML = '<div class="empty">Error cargando circuitos</div>'; }
 }
 

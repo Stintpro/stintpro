@@ -55,6 +55,9 @@ a{color:#F5A623;text-decoration:none}
 .main{flex:1;overflow-y:auto;padding:20px}
 
 /* Sidebar circuits */
+.circ-country{font-size:10px;font-weight:700;color:#8890A8;text-transform:uppercase;letter-spacing:.08em;padding:10px 14px 4px;font-family:'JetBrains Mono',monospace}
+.circ-country:first-child{padding-top:4px}
+.circ-country.rec{flex-basis:100%;padding:6px 0 0}
 .circ-item{padding:9px 14px;cursor:pointer;border-left:2px solid transparent;display:flex;align-items:center;gap:8px}
 .circ-item:hover{background:#0D1018}
 .circ-item.active{background:#0D1018;border-left-color:#F5A623}
@@ -216,6 +219,7 @@ const LS_KEY = 'stintpro_logger_apikey';
 let _url = '';
 let _key = '';
 let _circuits = [];
+let _countries = [];
 let _selected = null;
 let _tab = 'sesiones';
 let _currentSessions = [];
@@ -277,6 +281,7 @@ async function load() {
   try {
     const status = await api('/api/status');
     _circuits = status.circuits || [];
+    _countries = status.countries || [];
 
     const dot = document.getElementById('dot');
     dot.className = 'status-dot ok';
@@ -293,11 +298,24 @@ async function load() {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────
+// Cabecera de país antes del primer circuito de cada grupo (orden de /api/status).
+function withCountryHeaders(circuits, countries, row, cls) {
+  let last = null;
+  return circuits.map(c => {
+    let h = '';
+    if (c.country && c.country !== last) {
+      last = c.country;
+      const g = (countries || []).find(x => x.key === c.country);
+      h = '<div class="' + cls + '">' + (g ? g.label : (c.country || '')) + '</div>';
+    }
+    return h + row(c);
+  }).join('');
+}
 
 function renderSidebar(circuits) {
   const sb = document.getElementById('sidebar');
   if (!circuits.length) { sb.innerHTML = '<div class="empty">Sin circuitos</div>'; return; }
-  sb.innerHTML = circuits.map(c => `
+  sb.innerHTML = withCountryHeaders(circuits, _countries, c => `
     <div class="circ-item${_selected===c.slug?' active':''}" onclick="selectCircuit('${c.slug}')">
       <div class="circ-dot${c.connected?' on':''}"></div>
       <div style="flex:1;min-width:0">
@@ -306,7 +324,7 @@ function renderSidebar(circuits) {
       </div>
       <button class="rec-toggle${c.recording===false?' paused':''}" onclick="toggleRecording('${c.slug}',event)" title="${c.recording===false?'Pausado — pulsa para grabar':'Grabando — pulsa para pausar'}"></button>
     </div>
-  `).join('');
+  `, 'circ-country');
 }
 
 async function selectCircuit(slug) {
@@ -911,13 +929,13 @@ async function showRecordings() {
       api('/api/recordings'),
       api('/api/status').catch(() => ({ circuits: [] })),
     ]);
-    renderRecordingsView(recordings, status.circuits || []);
+    renderRecordingsView(recordings, status.circuits || [], status.countries || []);
   } catch(e) {
     setMain(`<div class="empty">Error: ${e.message}<br><small>Asegúrate de estar conectado al logger.</small></div>`);
   }
 }
 
-function renderRecordingsView(recordings, circuits) {
+function renderRecordingsView(recordings, circuits, countries) {
   let html = '<div class="section-title" style="margin-bottom:16px">Grabaciones raw</div>';
 
   // Toggles por circuito
@@ -925,9 +943,9 @@ function renderRecordingsView(recordings, circuits) {
     html += `<div style="margin-bottom:20px">
       <div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Activar grabación por circuito</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">`;
-    circuits.forEach(c => {
+    html += withCountryHeaders(circuits, countries, c => {
       const on = !!c.rawLog;
-      html += `<div style="background:#0e0f11;border:1px solid ${on?'#166534':'#1e2130'};border-radius:6px;padding:10px 14px;display:flex;align-items:center;gap:12px">
+      return `<div style="background:#0e0f11;border:1px solid ${on?'#166534':'#1e2130'};border-radius:6px;padding:10px 14px;display:flex;align-items:center;gap:12px">
         <div>
           <div style="color:#e2e8f0;font-size:13px;font-weight:500">${esc(c.name)}</div>
           <div style="color:#475569;font-size:11px;margin-top:2px">${on?'<span style="color:#22c55e">● Grabando</span>':'○ Parado'}</div>
@@ -935,7 +953,7 @@ function renderRecordingsView(recordings, circuits) {
         <button class="btn sm" style="${on?'background:#450a0a;color:#ef4444':'background:#052e16;color:#22c55e'}"
           onclick="toggleRawLog('${esc(c.slug)}', ${!on})">${on?'Detener':'⏺ Grabar'}</button>
       </div>`;
-    });
+    }, 'circ-country rec');
     html += '</div></div>';
   }
 
