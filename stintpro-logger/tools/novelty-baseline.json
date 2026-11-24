@@ -17,7 +17,7 @@
     "nat"
   ],
   "cellTokenRegexes": [
-    "^no\\d+$",
+    "^no-?\\d+$",
     "^pena\\d+$",
     "^[A-Za-z]{2,4} nat$"
   ],
